@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:rol/widgets/common/section_header.dart';
+import 'package:rol/widgets/stats/attributes_grid.dart';
+import 'package:rol/widgets/stats/roll_result_dialog.dart';
+import 'package:rol/widgets/stats/saving_throw_tile.dart';
+import 'package:rol/widgets/stats/skill_tile.dart';
 
 import '../models/dice_roll.dart';
 import '../models/character.dart';
@@ -22,80 +27,26 @@ class _StatsScreenState extends State<StatsScreen> {
     return value >= 0 ? '+$value' : '$value';
   }
 
-  void rollD20({required String label, required int bonus}) {
+  void rollD20({
+    required String label,
+    required AbilityType ability,
+    required int bonus,
+  }) {
     final roll = DiceRoller.d20(modifier: bonus);
 
     showDialog(
       context: context,
-      builder: (context) {
-        final isCritical = roll.die == 20;
-        final isFail = roll.die == 1;
+      builder: (dialogContext) {
+        return RollResultDialog(
+          label: label,
+          ability: ability,
+          roll: roll,
+          bonus: bonus,
+          onRepeat: () {
+            Navigator.pop(dialogContext);
 
-        return AlertDialog(
-          title: Text(label),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.casino_rounded,
-                size: 52,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '${roll.die}',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text('d20', style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 16),
-              Text(
-                bonus >= 0
-                    ? '${roll.die} + $bonus'
-                    : '${roll.die} - ${bonus.abs()}',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'TOTAL ${roll.total}',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (isCritical) ...[
-                const SizedBox(height: 10),
-                const Text(
-                  '✨ 20 natural',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
-              if (isFail) ...[
-                const SizedBox(height: 10),
-                const Text(
-                  '💀 1 natural',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cerrar'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-
-                rollD20(label: label, bonus: bonus);
-              },
-              icon: const Icon(Icons.casino_rounded),
-              label: const Text('Repetir'),
-            ),
-          ],
+            rollD20(label: label, ability: ability, bonus: bonus);
+          },
         );
       },
     );
@@ -313,88 +264,75 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Estadísticas')),
+
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(18),
           children: [
-            _SectionTitle(title: 'Atributos'),
-
-            const SizedBox(height: 12),
-
-            _AttributesGrid(
-              character: character,
-              bonusText: bonusText,
-              onEdit: editAbility,
+            const SectionHeader(
+              icon: Icons.analytics_rounded,
+              title: 'Atributos',
+              subtitle: 'Toca un atributo para modificar su valor',
             ),
+
+            const SizedBox(height: 14),
+
+            AttributesGrid(character: character, onEdit: editAbility),
 
             const SizedBox(height: 28),
 
-            _SectionTitle(title: 'Tiradas de salvación'),
+            const SectionHeader(
+              icon: Icons.shield_rounded,
+              title: 'Tiradas de salvación',
+              subtitle: 'Toca el círculo para cambiar la competencia',
+            ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            Card(
-              child: Column(
-                children: AbilityType.values.map((ability) {
-                  return _SavingThrowTile(
-                    ability: ability,
-                    character: character,
-                    bonusText: bonusText,
-                    onTap: () {
-                      toggleSavingThrow(ability);
-                    },
-                    onRoll: () {
-                      rollD20(
-                        label: 'Salvación de ${_abilityName(ability)}',
-                        bonus: character.savingThrowBonus(ability),
-                      );
-                    },
-                  );
-                }).toList(),
+            ...AbilityType.values.map(
+              (ability) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SavingThrowTile(
+                  ability: ability,
+                  character: character,
+                  onToggle: () {
+                    toggleSavingThrow(ability);
+                  },
+                  onRoll: () {
+                    rollD20(
+                      label: 'Salvación de ${ability.label}',
+                      ability: ability,
+                      bonus: character.savingThrowBonus(ability),
+                    );
+                  },
+                ),
               ),
             ),
 
             const SizedBox(height: 28),
 
-            Row(
-              children: [
-                const Expanded(child: _SectionTitle(title: 'Habilidades')),
-                _LegendItem(icon: Icons.circle_outlined, text: 'Normal'),
-                const SizedBox(width: 8),
-                _LegendItem(
-                  icon: Icons.check_circle_outline,
-                  text: 'Competencia',
-                ),
-                const SizedBox(width: 8),
-                _LegendItem(icon: Icons.star_outline, text: 'Pericia'),
-              ],
+            const SectionHeader(
+              icon: Icons.list_alt_rounded,
+              title: 'Habilidades',
+              subtitle: 'El color indica el atributo asociado',
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            Card(
-              child: Column(
-                children: DndSkill.values.map((skill) {
-                  return _SkillTile(
-                    skill: skill,
-                    character: character,
-                    bonusText: bonusText,
-                    onTap: () {
-                      changeSkillProficiency(
-                        skill,
-                      );
-                    },
-                    onRoll: () {
-                      rollD20(
-                        label: skill.label,
-                        bonus:
-                        character.skillBonus(
-                          skill,
-                        ),
-                      );
-                    },
+            ...DndSkill.values.map(
+              (skill) => SkillTile(
+                skill: skill,
+                character: character,
+                onChangeProficiency: () {
+                  changeSkillProficiency(skill);
+                },
+                onRoll: () {
+                  rollD20(
+                    label: skill.label,
+                    ability: skill.ability,
+                    bonus: character.skillBonus(skill),
                   );
-                }).toList(),
+                },
               ),
             ),
 
@@ -403,332 +341,5 @@ class _StatsScreenState extends State<StatsScreen> {
         ),
       ),
     );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-
-  const _SectionTitle({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(
-        context,
-      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-    );
-  }
-}
-
-class _AttributesGrid extends StatelessWidget {
-  final Character character;
-  final String Function(int) bonusText;
-  final void Function(AbilityType ability) onEdit;
-
-  const _AttributesGrid({
-    required this.character,
-    required this.bonusText,
-    required this.onEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final attributes = [
-      (
-        type: AbilityType.strength,
-        label: 'FUE',
-        score: character.abilities.strength,
-        modifier: character.strengthModifier,
-        icon: Icons.fitness_center_rounded,
-      ),
-      (
-        type: AbilityType.dexterity,
-        label: 'DES',
-        score: character.abilities.dexterity,
-        modifier: character.dexterityModifier,
-        icon: Icons.directions_run_rounded,
-      ),
-      (
-        type: AbilityType.constitution,
-        label: 'CON',
-        score: character.abilities.constitution,
-        modifier: character.constitutionModifier,
-        icon: Icons.favorite_rounded,
-      ),
-      (
-        type: AbilityType.intelligence,
-        label: 'INT',
-        score: character.abilities.intelligence,
-        modifier: character.intelligenceModifier,
-        icon: Icons.psychology_rounded,
-      ),
-      (
-        type: AbilityType.wisdom,
-        label: 'SAB',
-        score: character.abilities.wisdom,
-        modifier: character.wisdomModifier,
-        icon: Icons.visibility_rounded,
-      ),
-      (
-        type: AbilityType.charisma,
-        label: 'CAR',
-        score: character.abilities.charisma,
-        modifier: character.charismaModifier,
-        icon: Icons.auto_awesome_rounded,
-      ),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: attributes.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.72,
-      ),
-      itemBuilder: (context, index) {
-        final attribute = attributes[index];
-
-        return Card(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () {
-              onEdit(attribute.type);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    attribute.icon,
-                    size: 22,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    attribute.label,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${attribute.score}',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    bonusText(attribute.modifier),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Icon(
-                    Icons.edit_rounded,
-                    size: 14,
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SavingThrowTile extends StatelessWidget {
-  final AbilityType ability;
-  final Character character;
-  final String Function(int) bonusText;
-  final VoidCallback onTap;
-  final VoidCallback onRoll;
-
-  const _SavingThrowTile({
-    required this.ability,
-    required this.character,
-    required this.bonusText,
-    required this.onTap,
-    required this.onRoll,
-  });
-
-  String get abilityName {
-    switch (ability) {
-      case AbilityType.strength:
-        return 'Fuerza';
-      case AbilityType.dexterity:
-        return 'Destreza';
-      case AbilityType.constitution:
-        return 'Constitución';
-      case AbilityType.intelligence:
-        return 'Inteligencia';
-      case AbilityType.wisdom:
-        return 'Sabiduría';
-      case AbilityType.charisma:
-        return 'Carisma';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final proficient = character.isSavingThrowProficient(ability);
-
-    final bonus = character.savingThrowBonus(ability);
-
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(
-        proficient ? Icons.check_circle_rounded : Icons.circle_outlined,
-        color: proficient ? Theme.of(context).colorScheme.primary : null,
-      ),
-      title: Text(
-        abilityName,
-        style: TextStyle(
-          fontWeight: proficient ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      subtitle: proficient
-          ? Text('Competente · +${character.proficiencyBonus}')
-          : const Text('Sin competencia'),
-      trailing: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onRoll,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.casino_rounded, size: 18),
-              const SizedBox(width: 5),
-              Text(
-                bonusText(bonus),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SkillTile extends StatelessWidget {
-  final DndSkill skill;
-  final Character character;
-  final String Function(int) bonusText;
-  final VoidCallback onTap;
-  final VoidCallback onRoll;
-
-  const _SkillTile({
-    required this.skill,
-    required this.character,
-    required this.bonusText,
-    required this.onTap,
-    required this.onRoll,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final proficiency = character.skillProficiency(skill);
-
-    final bonus = character.skillBonus(skill);
-
-    IconData icon;
-
-    switch (proficiency) {
-      case ProficiencyLevel.none:
-        icon = Icons.circle_outlined;
-        break;
-      case ProficiencyLevel.proficient:
-        icon = Icons.check_circle_rounded;
-        break;
-      case ProficiencyLevel.expertise:
-        icon = Icons.star_rounded;
-        break;
-    }
-
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(
-        icon,
-        color: proficiency == ProficiencyLevel.none
-            ? null
-            : Theme.of(context).colorScheme.primary,
-      ),
-      title: Text(
-        skill.label,
-        style: TextStyle(
-          fontWeight: proficiency == ProficiencyLevel.none
-              ? FontWeight.normal
-              : FontWeight.bold,
-        ),
-      ),
-      subtitle: Text(
-        '${_abilityShortName(skill.ability)} · ${proficiency.label}',
-      ),
-      trailing: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onRoll,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.casino_rounded, size: 18),
-              const SizedBox(width: 5),
-              Text(
-                bonusText(bonus),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _abilityShortName(AbilityType ability) {
-    switch (ability) {
-      case AbilityType.strength:
-        return 'FUE';
-      case AbilityType.dexterity:
-        return 'DES';
-      case AbilityType.constitution:
-        return 'CON';
-      case AbilityType.intelligence:
-        return 'INT';
-      case AbilityType.wisdom:
-        return 'SAB';
-      case AbilityType.charisma:
-        return 'CAR';
-    }
-  }
-}
-
-class _LegendItem extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _LegendItem({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(message: text, child: Icon(icon, size: 20));
   }
 }

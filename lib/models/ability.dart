@@ -38,6 +38,131 @@ extension AbilityEffectTypeData on AbilityEffectType {
   }
 }
 
+enum SaveSuccessEffect { full, half, none }
+
+extension SaveSuccessEffectData on SaveSuccessEffect {
+  String get label {
+    switch (this) {
+      case SaveSuccessEffect.full:
+        return 'Daño completo';
+      case SaveSuccessEffect.half:
+        return 'Mitad';
+      case SaveSuccessEffect.none:
+        return 'Sin daño';
+    }
+  }
+}
+
+class AbilityEffect {
+  String id;
+  String name;
+
+  AbilityEffectType effectType;
+
+  List<DicePool> dicePools;
+
+  bool addAbilityModifierToEffect;
+  int effectBonus;
+
+  String effectTypeName;
+
+  bool usesSavingThrow;
+  AbilityType savingThrowAbility;
+  int saveDcBonus;
+
+  SaveSuccessEffect saveSuccessEffect;
+
+  AbilityEffect({
+    required this.id,
+    this.name = '',
+    this.effectType = AbilityEffectType.damage,
+    List<DicePool>? dicePools,
+    this.addAbilityModifierToEffect = false,
+    this.effectBonus = 0,
+    this.effectTypeName = '',
+    this.usesSavingThrow = false,
+    this.savingThrowAbility = AbilityType.dexterity,
+    this.saveDcBonus = 0,
+    this.saveSuccessEffect = SaveSuccessEffect.half,
+  }) : dicePools = dicePools ?? [];
+
+  bool get hasEffect {
+    return effectType != AbilityEffectType.none && dicePools.isNotEmpty;
+  }
+
+  bool get dealsDamage => effectType == AbilityEffectType.damage;
+
+  bool get heals => effectType == AbilityEffectType.healing;
+
+  String get diceNotation {
+    if (dicePools.isEmpty) {
+      return '';
+    }
+
+    return dicePools.map((pool) => pool.notation).join(' + ');
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'effectType': effectType.name,
+      'dicePools': dicePools.map((pool) => pool.toMap()).toList(),
+      'addAbilityModifierToEffect': addAbilityModifierToEffect,
+      'effectBonus': effectBonus,
+      'effectTypeName': effectTypeName,
+      'usesSavingThrow': usesSavingThrow,
+      'savingThrowAbility': savingThrowAbility.name,
+      'saveDcBonus': saveDcBonus,
+      'saveSuccessEffect': saveSuccessEffect.name,
+    };
+  }
+
+  factory AbilityEffect.fromMap(Map<dynamic, dynamic> map) {
+    final pools = <DicePool>[];
+
+    final rawPools = map['dicePools'];
+
+    if (rawPools is List) {
+      for (final rawPool in rawPools) {
+        if (rawPool == null) {
+          continue;
+        }
+
+        try {
+          pools.add(DicePool.fromMap(Map<dynamic, dynamic>.from(rawPool)));
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    return AbilityEffect(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
+      effectType: AbilityEffectType.values.firstWhere(
+        (item) => item.name == map['effectType'],
+        orElse: () => AbilityEffectType.damage,
+      ),
+      dicePools: pools,
+      addAbilityModifierToEffect:
+          map['addAbilityModifierToEffect'] as bool? ?? false,
+      effectBonus: (map['effectBonus'] as num?)?.toInt() ?? 0,
+      effectTypeName: map['effectTypeName']?.toString() ?? '',
+      usesSavingThrow: map['usesSavingThrow'] as bool? ?? false,
+      savingThrowAbility: AbilityType.values.firstWhere(
+        (item) => item.name == map['savingThrowAbility'],
+        orElse: () => AbilityType.dexterity,
+      ),
+      saveDcBonus: (map['saveDcBonus'] as num?)?.toInt() ?? 0,
+      saveSuccessEffect: SaveSuccessEffect.values.firstWhere(
+        (item) => item.name == map['saveSuccessEffect'],
+        orElse: () => SaveSuccessEffect.half,
+      ),
+    );
+  }
+}
+
 class CharacterAbility {
   String id;
   String name;
@@ -59,6 +184,7 @@ class CharacterAbility {
   /// Permite cosas como:
   /// 2d6 + 1d8
   List<DicePool> dicePools;
+  List<AbilityEffect> effects;
 
   /// Suma el modificador del atributo al daño/curación.
   bool addAbilityModifierToEffect;
@@ -102,8 +228,10 @@ class CharacterAbility {
     this.saveDcBonus = 0,
     this.maxUses = 0,
     this.currentUses = 0,
+    List<AbilityEffect>? effects,
     this.notes = '',
-  }) : dicePools = dicePools ?? [];
+  }) : dicePools = dicePools ?? [],
+       effects = effects ?? [];
 
   bool get hasLimitedUses => maxUses > 0;
 
@@ -150,6 +278,7 @@ class CharacterAbility {
       'savingThrowAbility': savingThrowAbility.name,
       'saveDcBonus': saveDcBonus,
       'maxUses': maxUses,
+      'effects': effects.map((effect) => effect.toMap()).toList(),
       'currentUses': currentUses,
       'notes': notes,
     };
@@ -173,7 +302,25 @@ class CharacterAbility {
         }
       }
     }
+    final effects = <AbilityEffect>[];
 
+    final rawEffects = map['effects'];
+
+    if (rawEffects is List) {
+      for (final rawEffect in rawEffects) {
+        if (rawEffect == null) {
+          continue;
+        }
+
+        try {
+          effects.add(
+            AbilityEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
     /*
      * Compatibilidad con habilidades antiguas que tenían
      * damageDice = "2d6".
@@ -203,7 +350,35 @@ class CharacterAbility {
           ? AbilityEffectType.damage
           : AbilityEffectType.none;
     }
-
+    if (effects.isEmpty && pools.isNotEmpty) {
+      effects.add(
+        AbilityEffect(
+          id: '${map['id']}_effect_0',
+          name: '',
+          effectType: effect,
+          dicePools: pools.cast<DicePool>(),
+          addAbilityModifierToEffect:
+              map['addAbilityModifierToEffect'] as bool? ??
+              map['addAbilityToDamage'] as bool? ??
+              true,
+          effectBonus:
+              (map['effectBonus'] as num?)?.toInt() ??
+              (map['damageBonus'] as num?)?.toInt() ??
+              0,
+          effectTypeName:
+              map['effectTypeName']?.toString() ??
+              map['damageType']?.toString() ??
+              '',
+          usesSavingThrow: map['usesSavingThrow'] as bool? ?? false,
+          savingThrowAbility: AbilityType.values.firstWhere(
+            (item) => item.name == map['savingThrowAbility'],
+            orElse: () => AbilityType.dexterity,
+          ),
+          saveDcBonus: (map['saveDcBonus'] as num?)?.toInt() ?? 0,
+          saveSuccessEffect: SaveSuccessEffect.half,
+        ),
+      );
+    }
     return CharacterAbility(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
@@ -212,6 +387,7 @@ class CharacterAbility {
         (item) => item.name == map['actionType'],
         orElse: () => AbilityActionType.action,
       ),
+      effects: effects,
       requiresAttackRoll: map['requiresAttackRoll'] as bool? ?? false,
       abilityType: AbilityType.values.firstWhere(
         (item) => item.name == map['abilityType'],

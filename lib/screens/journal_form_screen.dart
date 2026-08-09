@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/journal_entry.dart';
 
+import '../widgets/journal/journal_form/journal_content_section.dart';
+import '../widgets/journal/journal_form/journal_general_section.dart';
+import '../widgets/journal/journal_form/journal_meta_section.dart';
+
 class JournalFormScreen extends StatefulWidget {
   final JournalEntry? entry;
 
@@ -14,6 +18,10 @@ class JournalFormScreen extends StatefulWidget {
 class _JournalFormScreenState extends State<JournalFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  // ===========================================================================
+  // CONTROLADORES
+  // ===========================================================================
+
   late final TextEditingController titleController;
 
   late final TextEditingController contentController;
@@ -24,11 +32,21 @@ class _JournalFormScreenState extends State<JournalFormScreen> {
 
   late final TextEditingController notesController;
 
+  // ===========================================================================
+  // ESTADO
+  // ===========================================================================
+
   late JournalEntryType type;
 
   bool important = false;
 
-  bool get editing => widget.entry != null;
+  bool get editing {
+    return widget.entry != null;
+  }
+
+  // ===========================================================================
+  // INIT
+  // ===========================================================================
 
   @override
   void initState() {
@@ -51,6 +69,10 @@ class _JournalFormScreenState extends State<JournalFormScreen> {
     important = entry?.important ?? false;
   }
 
+  // ===========================================================================
+  // GUARDAR
+  // ===========================================================================
+
   void saveEntry() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -58,28 +80,47 @@ class _JournalFormScreenState extends State<JournalFormScreen> {
 
     final entry = JournalEntry(
       id: widget.entry?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+
       title: titleController.text.trim(),
+
       content: contentController.text.trim(),
+
       type: type,
+
       dateText: dateController.text.trim(),
+
       sessionText: sessionController.text.trim(),
+
       important: important,
+
       notes: notesController.text.trim(),
     );
 
-    Navigator.pop(context, entry);
+    Navigator.pop<JournalEntry>(context, entry);
   }
+
+  // ===========================================================================
+  // DISPOSE
+  // ===========================================================================
 
   @override
   void dispose() {
     titleController.dispose();
+
     contentController.dispose();
+
     dateController.dispose();
+
     sessionController.dispose();
+
     notesController.dispose();
 
     super.dispose();
   }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -88,124 +129,63 @@ class _JournalFormScreenState extends State<JournalFormScreen> {
         title: Text(editing ? 'Editar entrada' : 'Nueva entrada'),
         actions: [
           IconButton(
+            tooltip: 'Guardar',
             onPressed: saveEntry,
             icon: const Icon(Icons.check_rounded),
           ),
         ],
       ),
+
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 40),
             children: [
-              TextFormField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Título',
-                  prefixIcon: Icon(Icons.title_rounded),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Introduce un título';
-                  }
-
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 14),
-
-              DropdownButtonFormField<JournalEntryType>(
-                initialValue: type,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo de entrada',
-                  prefixIcon: Icon(Icons.category_rounded),
-                ),
-                items: JournalEntryType.values.map((type) {
-                  return DropdownMenuItem(value: type, child: Text(type.label));
-                }).toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-
+              // ===============================================================
+              // GENERAL
+              // ===============================================================
+              JournalGeneralSection(
+                titleController: titleController,
+                type: type,
+                onTypeChanged: (value) {
                   setState(() {
                     type = value;
                   });
                 },
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 28),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: dateController,
-                      decoration: const InputDecoration(
-                        labelText: 'Fecha',
-                        hintText: 'Ej: Día 12',
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 10),
-
-                  Expanded(
-                    child: TextFormField(
-                      controller: sessionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Sesión',
-                        hintText: 'Ej: Sesión 4',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: important,
-                title: const Text('Entrada importante'),
-                subtitle: const Text('Se destacará en el diario'),
-                onChanged: (value) {
+              // ===============================================================
+              // CONTEXTO
+              // ===============================================================
+              JournalMetaSection(
+                dateController: dateController,
+                sessionController: sessionController,
+                important: important,
+                onImportantChanged: (value) {
                   setState(() {
                     important = value;
                   });
                 },
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 28),
 
-              TextFormField(
-                controller: contentController,
-                minLines: 7,
-                maxLines: 18,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Contenido',
-                  alignLabelWithHint: true,
-                  hintText: '¿Qué ocurrió?',
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              TextFormField(
-                controller: notesController,
-                minLines: 2,
-                maxLines: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Notas',
-                  alignLabelWithHint: true,
-                ),
+              // ===============================================================
+              // CONTENIDO
+              // ===============================================================
+              JournalContentSection(
+                contentController: contentController,
+                notesController: notesController,
               ),
 
               const SizedBox(height: 30),
 
+              // ===============================================================
+              // GUARDAR
+              // ===============================================================
               FilledButton.icon(
                 onPressed: saveEntry,
                 icon: const Icon(Icons.save_rounded),

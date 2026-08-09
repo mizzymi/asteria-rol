@@ -36,22 +36,31 @@ extension ItemTypeData on ItemType {
     switch (this) {
       case ItemType.armor:
         return 'Armadura';
+
       case ItemType.helmet:
         return 'Casco';
+
       case ItemType.gloves:
         return 'Guantes';
+
       case ItemType.boots:
         return 'Botas';
+
       case ItemType.ring:
         return 'Anillo';
+
       case ItemType.amulet:
         return 'Amuleto';
+
       case ItemType.weapon:
         return 'Arma';
+
       case ItemType.accessory:
         return 'Accesorio';
+
       case ItemType.consumable:
         return 'Consumible';
+
       case ItemType.other:
         return 'Otro';
     }
@@ -82,63 +91,128 @@ extension ItemTypeData on ItemType {
 
 class CharacterItem {
   String id;
+
   String name;
+
   String description;
+
+  // ===========================================================================
+  // IMAGEN
+  // ===========================================================================
+
+  /// Ruta local persistente de la imagen del objeto.
+  ///
+  /// Si está vacío, el objeto utilizará su icono por defecto.
+  String imagePath;
+
+  // ===========================================================================
+  // TIPO / EQUIPAMIENTO
+  // ===========================================================================
 
   ItemType type;
 
   bool equipped;
 
+  ArmorCategory? armorCategory;
+
+  int armorBaseClass;
+
+  // ===========================================================================
+  // CONTENIDO
+  // ===========================================================================
+
   List<CharacterPassive> passives;
 
   List<CharacterAbility> abilities;
 
+  // ===========================================================================
+  // INVENTARIO
+  // ===========================================================================
+
   int quantity;
 
   String notes;
-  ArmorCategory? armorCategory;
 
-  int armorBaseClass;
   CharacterItem({
     required this.id,
     required this.name,
     this.description = '',
+
+    // Imagen
+    this.imagePath = '',
+
+    // Tipo
     this.type = ItemType.other,
     this.equipped = false,
+
+    // Armadura
     this.armorCategory,
     this.armorBaseClass = 10,
+
+    // Contenido
     List<CharacterPassive>? passives,
     List<CharacterAbility>? abilities,
+
+    // Inventario
     this.quantity = 1,
     this.notes = '',
   }) : passives = passives ?? [],
        abilities = abilities ?? [];
 
-  bool get hasPassives => passives.isNotEmpty;
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
 
-  bool get hasAbilities => abilities.isNotEmpty;
+  bool get hasImage {
+    return imagePath.trim().isNotEmpty;
+  }
+
+  bool get hasPassives {
+    return passives.isNotEmpty;
+  }
+
+  bool get hasAbilities {
+    return abilities.isNotEmpty;
+  }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
       'description': description,
+
+      // Imagen
+      'imagePath': imagePath,
+
+      // Tipo / equipamiento
       'type': type.name,
       'equipped': equipped,
 
+      // Pasivas
       'passives': passives.map((passive) => passive.toMap()).toList(),
 
+      // Habilidades
       'abilities': abilities.map((ability) => ability.toMap()).toList(),
 
+      // Inventario
       'quantity': quantity,
       'notes': notes,
-      'armorCategory': armorCategory?.name,
 
+      // Armadura
+      'armorCategory': armorCategory?.name,
       'armorBaseClass': armorBaseClass,
     };
   }
 
   factory CharacterItem.fromMap(Map<dynamic, dynamic> map) {
+    // =========================================================================
+    // PASIVAS
+    // =========================================================================
+
     final passives = <CharacterPassive>[];
 
     final rawPassives = map['passives'];
@@ -160,8 +234,8 @@ class CharacterItem {
     }
 
     /*
-     * Compatibilidad con el modelo anterior,
-     * donde había una sola passive.
+     * Compatibilidad con el modelo antiguo,
+     * donde había una sola pasiva.
      */
     if (passives.isEmpty) {
       final oldPassive = map['passive'];
@@ -174,6 +248,10 @@ class CharacterItem {
         } catch (_) {}
       }
     }
+
+    // =========================================================================
+    // HABILIDADES
+    // =========================================================================
 
     final abilities = <CharacterAbility>[];
 
@@ -195,19 +273,40 @@ class CharacterItem {
       }
     }
 
+    // =========================================================================
+    // OBJETO
+    // =========================================================================
+
     return CharacterItem(
       id: map['id']?.toString() ?? '',
+
       name: map['name']?.toString() ?? '',
+
       description: map['description']?.toString() ?? '',
+
+      // Imagen
+      imagePath: map['imagePath']?.toString() ?? '',
+
+      // Tipo
       type: ItemType.values.firstWhere(
         (item) => item.name == map['type']?.toString(),
         orElse: () => ItemType.other,
       ),
+
       equipped: map['equipped'] == true,
+
+      // Pasivas
       passives: passives,
+
+      // Habilidades
       abilities: abilities,
+
+      // Inventario
       quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+
       notes: map['notes']?.toString() ?? '',
+
+      // Armadura
       armorCategory: map['armorCategory'] == null
           ? null
           : ArmorCategory.values.firstWhere(

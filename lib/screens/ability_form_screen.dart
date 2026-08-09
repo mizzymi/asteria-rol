@@ -4,6 +4,11 @@ import '../models/ability.dart';
 import '../models/dice_pool.dart';
 import '../models/skill.dart';
 
+import '../widgets/abilities/ability_form/ability_general_section.dart';
+import '../widgets/abilities/ability_form/ability_attack_section.dart';
+import '../widgets/abilities/ability_form/ability_effects_section.dart';
+import '../widgets/abilities/ability_form/ability_uses_section.dart';
+
 class AbilityFormScreen extends StatefulWidget {
   final CharacterAbility? ability;
 
@@ -18,36 +23,17 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
   late final TextEditingController nameController;
   late final TextEditingController descriptionController;
-
   late final TextEditingController attackBonusController;
-
-  late final TextEditingController effectBonusController;
-  late final TextEditingController effectTypeNameController;
-
-  late final TextEditingController saveDcBonusController;
-
   late final TextEditingController maxUsesController;
-
   late final TextEditingController notesController;
 
   late AbilityActionType actionType;
-
   late AbilityType abilityType;
-
-  late AbilityType savingThrowAbility;
-
-  late AbilityEffectType effectType;
 
   bool requiresAttackRoll = false;
   bool proficient = true;
 
-  bool addAbilityModifierToEffect = true;
-
-  bool usesSavingThrow = false;
-
-  late List<DicePool> dicePools;
-
-  final List<int> availableDice = [4, 6, 8, 10, 12, 20, 100];
+  late List<AbilityEffect> effects;
 
   bool get editing => widget.ability != null;
 
@@ -67,18 +53,6 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       text: '${ability?.attackBonus ?? 0}',
     );
 
-    effectBonusController = TextEditingController(
-      text: '${ability?.effectBonus ?? 0}',
-    );
-
-    effectTypeNameController = TextEditingController(
-      text: ability?.effectTypeName ?? '',
-    );
-
-    saveDcBonusController = TextEditingController(
-      text: '${ability?.saveDcBonus ?? 0}',
-    );
-
     maxUsesController = TextEditingController(text: '${ability?.maxUses ?? 0}');
 
     notesController = TextEditingController(text: ability?.notes ?? '');
@@ -87,57 +61,102 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
     abilityType = ability?.abilityType ?? AbilityType.strength;
 
-    savingThrowAbility = ability?.savingThrowAbility ?? AbilityType.dexterity;
-
-    effectType = ability?.effectType ?? AbilityEffectType.none;
-
     requiresAttackRoll = ability?.requiresAttackRoll ?? false;
 
     proficient = ability?.proficient ?? true;
 
-    addAbilityModifierToEffect = ability?.addAbilityModifierToEffect ?? true;
-
-    usesSavingThrow = ability?.usesSavingThrow ?? false;
-
-    dicePools =
-        ability?.dicePools
-            .map((pool) => DicePool(count: pool.count, sides: pool.sides))
-            .toList() ??
-        [];
+    /*
+     * Copia profunda.
+     *
+     * No queremos modificar la habilidad real
+     * hasta pulsar Guardar.
+     */
+    effects = ability?.effects.map(_cloneEffect).toList() ?? [];
   }
 
-  void addDicePool() {
+  AbilityEffect _cloneEffect(AbilityEffect effect) {
+    return AbilityEffect(
+      id: effect.id,
+      name: effect.name,
+      effectType: effect.effectType,
+
+      dicePools: effect.dicePools
+          .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+          .toList(),
+
+      addAbilityModifierToEffect: effect.addAbilityModifierToEffect,
+
+      effectBonus: effect.effectBonus,
+
+      effectTypeName: effect.effectTypeName,
+
+      usesSavingThrow: effect.usesSavingThrow,
+
+      savingThrowAbility: effect.savingThrowAbility,
+
+      saveDcBonus: effect.saveDcBonus,
+
+      saveSuccessEffect: effect.saveSuccessEffect,
+    );
+  }
+
+  void addEffect() {
     setState(() {
-      dicePools.add(DicePool(count: 1, sides: 6));
+      effects.add(
+        AbilityEffect(
+          id: '${DateTime.now().microsecondsSinceEpoch}_effect',
+          name: '',
+          effectType: AbilityEffectType.damage,
+          dicePools: [DicePool(count: 1, sides: 6)],
+          addAbilityModifierToEffect: false,
+          saveSuccessEffect: SaveSuccessEffect.half,
+        ),
+      );
     });
   }
 
-  void removeDicePool(int index) {
-    setState(() {
-      dicePools.removeAt(index);
-    });
-  }
-
-  String abilityLabel(AbilityType ability) {
-    switch (ability) {
-      case AbilityType.strength:
-        return 'Fuerza';
-
-      case AbilityType.dexterity:
-        return 'Destreza';
-
-      case AbilityType.constitution:
-        return 'Constitución';
-
-      case AbilityType.intelligence:
-        return 'Inteligencia';
-
-      case AbilityType.wisdom:
-        return 'Sabiduría';
-
-      case AbilityType.charisma:
-        return 'Carisma';
+  void updateEffect(int index, AbilityEffect effect) {
+    if (index < 0 || index >= effects.length) {
+      return;
     }
+
+    setState(() {
+      effects[index] = effect;
+    });
+  }
+
+  void removeEffect(int index) {
+    if (index < 0 || index >= effects.length) {
+      return;
+    }
+
+    setState(() {
+      effects.removeAt(index);
+    });
+  }
+
+  void moveEffectUp(int index) {
+    if (index <= 0 || index >= effects.length) {
+      return;
+    }
+
+    setState(() {
+      final effect = effects.removeAt(index);
+
+      effects.insert(index - 1, effect);
+    });
+  }
+
+  void moveEffectDown(int index) {
+    if (index < 0 || index >= effects.length - 1) {
+      return;
+    }
+
+    setState(() {
+      final effect = effects.removeAt(index);
+
+      effects.insert(index + 1, effect);
+    });
   }
 
   void saveAbility() {
@@ -154,14 +173,24 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     } else {
       currentUses = widget.ability!.currentUses;
 
-      if (currentUses > maxUses && maxUses > 0) {
-        currentUses = maxUses;
-      }
-
       if (maxUses == 0) {
         currentUses = 0;
+      } else if (currentUses > maxUses) {
+        currentUses = maxUses;
       }
     }
+
+    /*
+     * Compatibilidad con el sistema antiguo.
+     *
+     * CharacterAbility todavía tiene los campos
+     * effectType, dicePools, savingThrowAbility...
+     *
+     * Los rellenamos usando el primer efecto.
+     *
+     * El sistema nuevo trabajará con effects.
+     */
+    final firstEffect = effects.isNotEmpty ? effects.first : null;
 
     final ability = CharacterAbility(
       id:
@@ -182,24 +211,39 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
       attackBonus: int.tryParse(attackBonusController.text) ?? 0,
 
-      effectType: effectType,
+      // ============================
+      // NUEVO SISTEMA
+      // ============================
+      effects: effects.map(_cloneEffect).toList(),
 
-      dicePools: dicePools
-          .map((pool) => DicePool(count: pool.count, sides: pool.sides))
-          .toList(),
+      // ============================
+      // LEGACY
+      // ============================
+      effectType: firstEffect?.effectType ?? AbilityEffectType.none,
 
-      addAbilityModifierToEffect: addAbilityModifierToEffect,
+      dicePools:
+          firstEffect?.dicePools
+              .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+              .toList() ??
+          [],
 
-      effectBonus: int.tryParse(effectBonusController.text) ?? 0,
+      addAbilityModifierToEffect:
+          firstEffect?.addAbilityModifierToEffect ?? false,
 
-      effectTypeName: effectTypeNameController.text.trim(),
+      effectBonus: firstEffect?.effectBonus ?? 0,
 
-      usesSavingThrow: usesSavingThrow,
+      effectTypeName: firstEffect?.effectTypeName ?? '',
 
-      savingThrowAbility: savingThrowAbility,
+      usesSavingThrow: firstEffect?.usesSavingThrow ?? false,
 
-      saveDcBonus: int.tryParse(saveDcBonusController.text) ?? 0,
+      savingThrowAbility:
+          firstEffect?.savingThrowAbility ?? AbilityType.dexterity,
 
+      saveDcBonus: firstEffect?.saveDcBonus ?? 0,
+
+      // ============================
+      // USOS
+      // ============================
       maxUses: maxUses,
 
       currentUses: currentUses,
@@ -214,16 +258,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
   void dispose() {
     nameController.dispose();
     descriptionController.dispose();
-
     attackBonusController.dispose();
-
-    effectBonusController.dispose();
-    effectTypeNameController.dispose();
-
-    saveDcBonusController.dispose();
-
     maxUsesController.dispose();
-
     notesController.dispose();
 
     super.dispose();
@@ -236,483 +272,74 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
         title: Text(editing ? 'Editar habilidad' : 'Nueva habilidad'),
         actions: [
           IconButton(
+            tooltip: 'Guardar',
             onPressed: saveAbility,
             icon: const Icon(Icons.check_rounded),
           ),
         ],
       ),
+
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
             padding: const EdgeInsets.all(18),
             children: [
-              TextFormField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre',
-                  prefixIcon: Icon(Icons.auto_awesome_rounded),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Introduce un nombre';
-                  }
+              AbilityGeneralSection(
+                nameController: nameController,
+                descriptionController: descriptionController,
+                actionType: actionType,
+                abilityType: abilityType,
 
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 14),
-
-              TextFormField(
-                controller: descriptionController,
-                minLines: 2,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción',
-                  alignLabelWithHint: true,
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              DropdownButtonFormField<AbilityActionType>(
-                initialValue: actionType,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo de acción',
-                  prefixIcon: Icon(Icons.bolt_rounded),
-                ),
-                items: AbilityActionType.values.map((type) {
-                  return DropdownMenuItem(value: type, child: Text(type.label));
-                }).toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-
+                onActionTypeChanged: (value) {
                   setState(() {
                     actionType = value;
                   });
                 },
-              ),
 
-              const SizedBox(height: 28),
-
-              Text(
-                'Ataque',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              DropdownButtonFormField<AbilityType>(
-                initialValue: abilityType,
-                decoration: const InputDecoration(
-                  labelText: 'Atributo usado',
-                  helperText: 'Se usa para ataque, daño, curación o CD',
-                  prefixIcon: Icon(Icons.psychology_rounded),
-                ),
-                items: AbilityType.values.map((ability) {
-                  return DropdownMenuItem(
-                    value: ability,
-                    child: Text(abilityLabel(ability)),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-
+                onAbilityTypeChanged: (value) {
                   setState(() {
                     abilityType = value;
                   });
                 },
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 28),
 
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: requiresAttackRoll,
-                title: const Text('Requiere tirada de ataque'),
-                subtitle: const Text('Tira d20 para comprobar si impacta'),
-                onChanged: (value) {
+              AbilityAttackSection(
+                requiresAttackRoll: requiresAttackRoll,
+                proficient: proficient,
+                attackBonusController: attackBonusController,
+
+                onRequiresAttackChanged: (value) {
                   setState(() {
                     requiresAttackRoll = value;
                   });
                 },
-              ),
 
-              if (requiresAttackRoll) ...[
-
-                const SizedBox(height: 8),
-
-                TextFormField(
-                  controller: attackBonusController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    signed: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Bonus adicional al golpe',
-                    helperText: 'Ej: arma +1, rasgo +2...',
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: proficient,
-                  title: const Text('Sumar competencia'),
-                  subtitle: const Text(
-                    'Añade el bonus de competencia al golpe',
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      proficient = value;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 8),
-
-                TextFormField(
-                  controller: attackBonusController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    signed: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Bonus adicional al golpe',
-                    helperText: 'Ej: arma +1, rasgo +2...',
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 30),
-
-              Text(
-                'Daño / Curación',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 14),
-
-              DropdownButtonFormField<AbilityEffectType>(
-                initialValue: effectType,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo de efecto',
-                  prefixIcon: Icon(Icons.casino_rounded),
-                ),
-                items: AbilityEffectType.values.map((type) {
-                  return DropdownMenuItem(value: type, child: Text(type.label));
-                }).toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-
+                onProficientChanged: (value) {
                   setState(() {
-                    effectType = value;
-
-                    if (effectType != AbilityEffectType.none &&
-                        dicePools.isEmpty) {
-                      dicePools.add(DicePool(count: 1, sides: 6));
-                    }
+                    proficient = value;
                   });
-                },
-              ),
-
-              if (effectType != AbilityEffectType.none) ...[
-                const SizedBox(height: 18),
-
-                Text(
-                  effectType == AbilityEffectType.healing
-                      ? 'Dados de curación'
-                      : 'Dados de daño',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                ...List.generate(dicePools.length, (index) {
-                  final pool = dicePools[index];
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: pool.count,
-                            decoration: const InputDecoration(
-                              labelText: 'Cantidad',
-                            ),
-                            items: List.generate(20, (index) => index + 1).map((
-                              count,
-                            ) {
-                              return DropdownMenuItem(
-                                value: count,
-                                child: Text('$count'),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-
-                              setState(() {
-                                pool.count = value;
-                              });
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(width: 10),
-
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: pool.sides,
-                            decoration: const InputDecoration(
-                              labelText: 'Dado',
-                            ),
-                            items: availableDice.map((sides) {
-                              return DropdownMenuItem(
-                                value: sides,
-                                child: Text('d$sides'),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-
-                              setState(() {
-                                pool.sides = value;
-                              });
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(width: 4),
-
-                        IconButton(
-                          tooltip: 'Eliminar dados',
-                          onPressed: () {
-                            removeDicePool(index);
-                          },
-                          icon: const Icon(Icons.delete_outline_rounded),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: addDicePool,
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Añadir otro grupo de dados'),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                if (dicePools.isNotEmpty)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.casino_rounded),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              dicePools
-                                  .map((pool) => pool.notation)
-                                  .join(' + '),
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          Text(
-                            'Máx. ${dicePools.fold<int>(0, (sum, pool) => sum + pool.maximum)}',
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 8),
-
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: addAbilityModifierToEffect,
-                  title: Text(
-                    effectType == AbilityEffectType.healing
-                        ? 'Sumar modificador a la curación'
-                        : 'Sumar modificador al daño',
-                  ),
-                  subtitle: const Text(
-                    'Usa el atributo seleccionado en la habilidad',
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      addAbilityModifierToEffect = value;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 8),
-
-                TextFormField(
-                  controller: effectBonusController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    signed: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: effectType == AbilityEffectType.healing
-                        ? 'Bonus adicional de curación'
-                        : 'Bonus adicional de daño',
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                TextFormField(
-                  controller: effectTypeNameController,
-                  decoration: InputDecoration(
-                    labelText: effectType == AbilityEffectType.healing
-                        ? 'Tipo / descripción'
-                        : 'Tipo de daño',
-                    hintText: effectType == AbilityEffectType.healing
-                        ? 'Ej: curación mágica'
-                        : 'Ej: fuego, frío, necrótico...',
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 30),
-
-              Text(
-                'Salvación',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: usesSavingThrow,
-                title: const Text('La habilidad fuerza una salvación'),
-                subtitle: const Text('La CD se calcula automáticamente'),
-                onChanged: (value) {
-                  setState(() {
-                    usesSavingThrow = value;
-                  });
-                },
-              ),
-
-              if (usesSavingThrow) ...[
-                const SizedBox(height: 12),
-
-                DropdownButtonFormField<AbilityType>(
-                  initialValue: savingThrowAbility,
-                  decoration: const InputDecoration(
-                    labelText: 'Salvación del objetivo',
-                  ),
-                  items: AbilityType.values.map((ability) {
-                    return DropdownMenuItem(
-                      value: ability,
-                      child: Text(abilityLabel(ability)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-
-                    setState(() {
-                      savingThrowAbility = value;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 14),
-
-                TextFormField(
-                  controller: saveDcBonusController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    signed: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Bonus adicional a la CD',
-                    helperText: 'CD base = 8 + competencia + atributo',
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 30),
-
-              Text(
-                'Usos',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: maxUsesController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Usos máximos',
-                  helperText: '0 = usos ilimitados',
-                  prefixIcon: Icon(Icons.repeat_rounded),
-                ),
-                validator: (value) {
-                  final number = int.tryParse(value ?? '');
-
-                  if (number == null) {
-                    return 'Introduce un número';
-                  }
-
-                  if (number < 0) {
-                    return 'No puede ser negativo';
-                  }
-
-                  return null;
                 },
               ),
 
               const SizedBox(height: 28),
 
-              Text(
-                'Notas',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              AbilityEffectsSection(
+                effects: effects,
+                onAddEffect: addEffect,
+                onEffectChanged: updateEffect,
+                onRemoveEffect: removeEffect,
+                onMoveUp: moveEffectUp,
+                onMoveDown: moveEffectDown,
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 28),
 
-              TextFormField(
-                controller: notesController,
-                minLines: 2,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Notas adicionales',
-                  alignLabelWithHint: true,
-                ),
+              AbilityUsesSection(
+                maxUsesController: maxUsesController,
+                notesController: notesController,
               ),
 
               const SizedBox(height: 30),
@@ -723,7 +350,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                 label: Text(editing ? 'Guardar cambios' : 'Crear habilidad'),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 32),
             ],
           ),
         ),

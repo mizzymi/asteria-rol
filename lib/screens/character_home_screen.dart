@@ -1,22 +1,30 @@
-import 'dart:io';
-
-import 'package:flutter/material.dart';
-import 'package:rol/screens/passives_screen.dart';
-import 'package:rol/screens/story_screen.dart';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../services/avatar_storage_service.dart';
-import '../services/character_storage_service.dart';
 import '../models/character.dart';
 
-import 'items_screen.dart';
-import 'class_editor_screen.dart';
+import '../services/avatar_storage_service.dart';
+import '../services/character_storage_service.dart';
+
+import '../widgets/common/section_header.dart';
+
+import '../widgets/character_home/avatar_viewer.dart';
+import '../widgets/character_home/character_header_card.dart';
+import '../widgets/character_home/character_home_colors.dart';
+import '../widgets/character_home/character_menu_card.dart';
+import '../widgets/character_home/combat_stat_card.dart';
+import '../widgets/character_home/health_edit_dialog.dart';
+import '../widgets/character_home/health_resource_card.dart';
+import '../widgets/character_home/level_edit_dialog.dart';
+
 import 'abilities_screen.dart';
+import 'class_editor_screen.dart';
 import 'dice_screen.dart';
+import 'items_screen.dart';
 import 'journal_screen.dart';
+import 'passives_screen.dart';
 import 'stats_screen.dart';
+import 'story_screen.dart';
 
 class CharacterHomeScreen extends StatefulWidget {
   final Character character;
@@ -30,62 +38,50 @@ class CharacterHomeScreen extends StatefulWidget {
 class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
   Character get character => widget.character;
 
-  final ImagePicker _imagePicker = ImagePicker();
+  final ImagePicker imagePicker = ImagePicker();
+
+  // ===========================================================================
+  // GUARDAR
+  // ===========================================================================
 
   Future<void> saveCharacter() async {
     await CharacterStorageService.saveCharacter(character);
   }
 
-  void showAvatar() {
-    final avatarPath = character.avatarPath;
+  // ===========================================================================
+  // NAVEGACIÓN
+  // ===========================================================================
 
-    if (avatarPath == null || avatarPath.isEmpty) {
+  Future<void> openScreen(Widget screen) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+
+    if (!mounted) {
       return;
     }
 
-    final file = File(avatarPath);
+    setState(() {});
+  }
 
-    if (!file.existsSync()) {
+  // ===========================================================================
+  // AVATAR
+  // ===========================================================================
+
+  Future<void> showAvatar() async {
+    final path = character.avatarPath;
+
+    if (path == null || path.isEmpty) {
       return;
     }
 
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.9),
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(16),
-          child: Stack(
-            alignment: Alignment.topRight,
-            children: [
-              InteractiveViewer(
-                minScale: 0.8,
-                maxScale: 5,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.file(file, fit: BoxFit.contain),
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: IconButton.filled(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                  },
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    await AvatarViewer.show(
+      context,
+      imagePath: path,
+      heroTag: 'character-avatar-${character.id}',
     );
   }
 
   Future<void> changeAvatar() async {
-    final image = await _imagePicker.pickImage(
+    final image = await imagePicker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 90,
     );
@@ -107,71 +103,17 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
       character.avatarPath = savedPath;
     });
 
-    await CharacterStorageService.saveCharacter(character);
+    await saveCharacter();
   }
 
-  int clampHealth(int value) {
-    if (value < 0) {
-      return 0;
-    }
-
-    if (value > character.maxHealth) {
-      return character.maxHealth;
-    }
-
-    return value;
-  }
-
-  // ---------------------------------------------------------------------------
-  // EDITAR NIVEL
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
+  // NIVEL
+  // ===========================================================================
 
   Future<void> editLevel() async {
-    int newLevel = character.level;
-
-    final result = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cambiar nivel'),
-          content: TextFormField(
-            initialValue: '${character.level}',
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            decoration: const InputDecoration(
-              labelText: 'Nivel',
-              helperText: 'Entre 1 y 20',
-            ),
-            onChanged: (value) {
-              newLevel = int.tryParse(value) ?? character.level;
-            },
-            onFieldSubmitted: (_) {
-              if (newLevel >= 1 && newLevel <= 20) {
-                Navigator.of(dialogContext).pop(newLevel);
-              }
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (newLevel < 1 || newLevel > 20) {
-                  return;
-                }
-
-                Navigator.of(dialogContext).pop(newLevel);
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
+    final result = await LevelEditDialog.show(
+      context,
+      currentLevel: character.level,
     );
 
     if (result == null || !mounted) {
@@ -180,141 +122,41 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
     setState(() {
       character.level = result;
+
       character.normalizeHealth();
     });
 
     await saveCharacter();
   }
 
-  // ---------------------------------------------------------------------------
-  // EDITAR VIDA ACTUAL
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
+  // CLASES
+  // ===========================================================================
+
+  Future<void> editClasses() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ClassEditorScreen(character: character),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
+
+  // ===========================================================================
+  // VIDA
+  // ===========================================================================
 
   Future<void> editHealth() async {
-    int amount = 0;
-    bool healing = false;
-
-    final amountController = TextEditingController();
-
-    final result = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final previewHealth = healing
-                ? clampHealth(character.currentHealth + amount)
-                : clampHealth(character.currentHealth - amount);
-
-            return AlertDialog(
-              title: const Text('Modificar puntos de golpe'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${character.currentHealth} / ${character.maxHealth}',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment<bool>(
-                        value: false,
-                        icon: Icon(Icons.heart_broken_rounded),
-                        label: Text('Daño'),
-                      ),
-                      ButtonSegment<bool>(
-                        value: true,
-                        icon: Icon(Icons.favorite_rounded),
-                        label: Text('Curar'),
-                      ),
-                    ],
-                    selected: {healing},
-                    onSelectionChanged: (values) {
-                      setDialogState(() {
-                        healing = values.first;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  TextField(
-                    controller: amountController,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    decoration: InputDecoration(
-                      labelText: healing ? 'Puntos a curar' : 'Daño recibido',
-                      prefixIcon: Icon(
-                        healing ? Icons.add_rounded : Icons.remove_rounded,
-                      ),
-                    ),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        amount = int.tryParse(value) ?? 0;
-
-                        if (amount < 0) {
-                          amount = 0;
-                        }
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          healing ? 'Después de curar' : 'Después del daño',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-
-                        const SizedBox(height: 6),
-
-                        Text(
-                          '$previewHealth / ${character.maxHealth}',
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: const Text('Cancelar'),
-                ),
-
-                FilledButton(
-                  onPressed: amount > 0
-                      ? () {
-                          Navigator.of(dialogContext).pop(previewHealth);
-                        }
-                      : null,
-                  child: const Text('Aplicar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final result = await HealthEditDialog.show(
+      context,
+      currentHealth: character.currentHealth,
+      maxHealth: character.maxHealth,
     );
 
     if (result == null || !mounted) {
@@ -328,42 +170,48 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     await saveCharacter();
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
+
+  String bonusText(int value) {
+    return value >= 0 ? '+$value' : '$value';
+  }
+
+  // ===========================================================================
   // BUILD
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(character.name)),
+
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 40),
           children: [
-            _CharacterHeader(
+            // =================================================================
+            // PERSONAJE
+            // =================================================================
+            CharacterHeaderCard(
               character: character,
-              onEditLevel: editLevel,
-              onEditClasses: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ClassEditorScreen(character: character),
-                  ),
-                );
 
-                if (mounted) {
-                  setState(() {});
-                }
-              },
+              onEditLevel: editLevel,
+
+              onEditClasses: editClasses,
+
               onAvatarTap: showAvatar,
+
               onChangeAvatar: changeAvatar,
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
 
-            _ResourceCard(
-              icon: Icons.favorite_rounded,
-              title: 'Puntos de golpe',
+            // =================================================================
+            // VIDA
+            // =================================================================
+            HealthResourceCard(
               current: character.currentHealth,
               max: character.maxHealth,
               onTap: editHealth,
@@ -371,523 +219,131 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
             const SizedBox(height: 12),
 
-            Column(
+            // =================================================================
+            // COMBATE
+            // =================================================================
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1.45,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _InfoCard(
-                        icon: Icons.shield_rounded,
-                        title: 'CA',
-                        value: '${character.calculatedArmorClass}',
-                      ),
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    Expanded(
-                      child: _InfoCard(
-                        icon: Icons.bolt_rounded,
-                        title: 'Iniciativa',
-                        value: _bonusText(character.initiative),
-                      ),
-                    ),
-                  ],
+                CombatStatCard(
+                  icon: Icons.shield_rounded,
+                  title: 'CA',
+                  value: '${character.calculatedArmorClass}',
+                  color: CharacterHomeColors.armor,
                 ),
 
-                const SizedBox(height: 10),
+                CombatStatCard(
+                  icon: Icons.bolt_rounded,
+                  title: 'Iniciativa',
+                  value: bonusText(character.initiative),
+                  color: CharacterHomeColors.initiative,
+                ),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: _InfoCard(
-                        icon: Icons.military_tech_rounded,
-                        title: 'Competencia',
-                        value: '+${character.proficiencyBonus}',
-                      ),
-                    ),
+                CombatStatCard(
+                  icon: Icons.military_tech_rounded,
+                  title: 'Competencia',
+                  value: '+${character.proficiencyBonus}',
+                  color: CharacterHomeColors.proficiency,
+                ),
 
-                    const SizedBox(width: 10),
-
-                    Expanded(
-                      child: _InfoCard(
-                        icon: Icons.directions_run_rounded,
-                        title: 'Velocidad',
-                        value: '${character.totalSpeed} pies',
-                      ),
-                    ),
-                  ],
+                CombatStatCard(
+                  icon: Icons.directions_run_rounded,
+                  title: 'Velocidad',
+                  value: '${character.totalSpeed} pies',
+                  color: CharacterHomeColors.speed,
                 ),
               ],
             ),
 
-            const SizedBox(height: 26),
+            const SizedBox(height: 28),
 
-            Text(
-              'Personaje',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            // =================================================================
+            // MENÚ
+            // =================================================================
+            const SectionHeader(
+              icon: Icons.person_rounded,
+              title: 'Personaje',
+              subtitle: 'Ficha, habilidades y aventura',
             ),
 
             const SizedBox(height: 12),
 
-            _MenuCard(
+            CharacterMenuCard(
               icon: Icons.bar_chart_rounded,
               title: 'Stats',
               subtitle: 'Atributos, salvaciones y habilidades',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StatsScreen(character: character),
-                  ),
-                );
-
-                if (mounted) {
-                  setState(() {});
-                }
+              color: CharacterHomeColors.stats,
+              onTap: () {
+                openScreen(StatsScreen(character: character));
               },
             ),
 
-            _MenuCard(
+            CharacterMenuCard(
               icon: Icons.flash_on_rounded,
               title: 'Habilidades',
               subtitle: 'Ataques, poderes y técnicas',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AbilitiesScreen(character: character),
-                  ),
-                );
-
-                if (mounted) {
-                  setState(() {});
-                }
+              color: CharacterHomeColors.abilities,
+              onTap: () {
+                openScreen(AbilitiesScreen(character: character));
               },
             ),
 
-            _MenuCard(
+            CharacterMenuCard(
               icon: Icons.auto_awesome_rounded,
               title: 'Pasivas',
               subtitle: 'Rasgos y bonificaciones permanentes',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PassivesScreen(character: character),
-                  ),
-                );
-
-                if (mounted) {
-                  setState(() {});
-                }
+              color: CharacterHomeColors.passives,
+              onTap: () {
+                openScreen(PassivesScreen(character: character));
               },
             ),
 
-            _MenuCard(
+            CharacterMenuCard(
               icon: Icons.inventory_2_rounded,
               title: 'Objetos',
               subtitle: 'Inventario y equipo',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ItemsScreen(character: character),
-                  ),
-                );
-
-                if (mounted) {
-                  setState(() {});
-                }
+              color: CharacterHomeColors.items,
+              onTap: () {
+                openScreen(ItemsScreen(character: character));
               },
             ),
 
-            _MenuCard(
+            CharacterMenuCard(
               icon: Icons.menu_book_rounded,
               title: 'Historia',
               subtitle: 'Trasfondo, personalidad y objetivos',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StoryScreen(character: character),
-                  ),
-                );
-
-                if (mounted) {
-                  setState(() {});
-                }
+              color: CharacterHomeColors.story,
+              onTap: () {
+                openScreen(StoryScreen(character: character));
               },
             ),
 
-            _MenuCard(
+            CharacterMenuCard(
               icon: Icons.history_edu_rounded,
               title: 'Diario',
               subtitle: 'Sesiones, misiones y acontecimientos',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => JournalScreen(character: character),
-                  ),
-                );
-
-                if (mounted) {
-                  setState(() {});
-                }
+              color: CharacterHomeColors.journal,
+              onTap: () {
+                openScreen(JournalScreen(character: character));
               },
             ),
 
-            _MenuCard(
+            CharacterMenuCard(
               icon: Icons.casino_rounded,
               title: 'Dados',
               subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DiceScreen(character: character),
-                  ),
-                );
-
-                if (mounted) {
-                  setState(() {});
-                }
+              color: CharacterHomeColors.dice,
+              onTap: () {
+                openScreen(DiceScreen(character: character));
               },
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  String _bonusText(int value) {
-    return value >= 0 ? '+$value' : '$value';
-  }
-}
-
-// =============================================================================
-// HEADER
-// =============================================================================
-
-class _CharacterHeader extends StatelessWidget {
-  final Character character;
-
-  final VoidCallback onEditLevel;
-  final VoidCallback onAvatarTap;
-  final VoidCallback onChangeAvatar;
-  final VoidCallback onEditClasses;
-
-  const _CharacterHeader({
-    required this.character,
-    required this.onEditLevel,
-    required this.onEditClasses,
-    required this.onAvatarTap,
-    required this.onChangeAvatar,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final avatarPath = character.avatarPath;
-
-    final hasAvatar =
-        avatarPath != null &&
-        avatarPath.isNotEmpty &&
-        File(avatarPath).existsSync();
-
-    return Row(
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            GestureDetector(
-              onTap: hasAvatar ? onAvatarTap : onChangeAvatar,
-              child: Hero(
-                tag: 'character-avatar-${character.id}',
-                child: CircleAvatar(
-                  radius: 45,
-                  backgroundImage: hasAvatar
-                      ? FileImage(File(avatarPath))
-                      : null,
-                  child: hasAvatar
-                      ? null
-                      : Text(
-                          character.name.isNotEmpty
-                              ? character.name[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-            ),
-
-            Positioned(
-              right: -4,
-              bottom: -4,
-              child: Material(
-                color: Theme.of(context).colorScheme.primary,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: onChangeAvatar,
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Icon(
-                      Icons.camera_alt_rounded,
-                      size: 17,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(width: 18),
-
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                character.name,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 4),
-
-              Text(character.race),
-
-              InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: onEditClasses,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(child: Text(character.classSummary)),
-                      const SizedBox(width: 5),
-                      const Icon(Icons.edit_rounded, size: 15),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 6),
-
-              InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: onEditLevel,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Nivel ${character.level}',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(width: 5),
-
-                      Icon(
-                        Icons.edit_rounded,
-                        size: 15,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// =============================================================================
-// VIDA
-// =============================================================================
-
-class _ResourceCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-
-  final int current;
-  final int max;
-
-  final VoidCallback onTap;
-
-  const _ResourceCard({
-    required this.icon,
-    required this.title,
-    required this.current,
-    required this.max,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = max > 0 ? (current / max).clamp(0.0, 1.0) : 0.0;
-
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    size: 30,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-
-                  const SizedBox(width: 5),
-
-                  const Icon(Icons.edit_rounded, size: 16),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              Text(
-                '$current / $max',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              LinearProgressIndicator(
-                value: progress.toDouble(),
-                minHeight: 8,
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// INFO COMBATE
-// =============================================================================
-
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-
-  const _InfoCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-        child: Column(
-          children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-
-            const SizedBox(height: 5),
-
-            Text(
-              value,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 2),
-
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// MENÚ
-// =============================================================================
-
-class _MenuCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  final VoidCallback onTap;
-
-  const _MenuCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
-        leading: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: onTap,
       ),
     );
   }

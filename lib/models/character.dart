@@ -522,6 +522,38 @@ class Character {
   // HABILIDADES D&D
   // ===========================================================================
 
+  int abilityEffectModifier(CharacterAbility ability, AbilityEffect effect) {
+    int result = effect.effectBonus;
+
+    if (effect.addAbilityModifierToEffect) {
+      result += abilityModifier(ability.abilityType);
+    }
+
+    return result;
+  }
+
+  DiceCalculationResult rollAbilityEffectPart(
+    CharacterAbility ability,
+    AbilityEffect effect, {
+    bool critical = false,
+  }) {
+    return DicePoolRoller.roll(
+      pools: effect.dicePools,
+      modifier: abilityEffectModifier(ability, effect),
+      critical:
+          critical &&
+          ability.requiresAttackRoll &&
+          !effect.usesSavingThrow &&
+          effect.effectType == AbilityEffectType.damage,
+    );
+  }
+
+  int abilityEffectSaveDc(CharacterAbility ability, AbilityEffect effect) {
+    final modifier = abilityModifier(ability.abilityType);
+
+    return 8 + proficiencyBonus + modifier + effect.saveDcBonus;
+  }
+
   int skillBonus(DndSkill skill) {
     final modifier = abilityModifier(skill.ability);
 

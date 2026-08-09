@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:rol/models/dnd_class.dart';
-
+import 'item_library_screen.dart';
 import '../models/character.dart';
 import '../services/character_storage_service.dart';
 import 'character_form_screen.dart';
@@ -32,6 +32,13 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
     setState(() {
       characters = CharacterStorageService.getCharacters();
     });
+  }
+
+  Future<void> openItemLibrary() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ItemLibraryScreen()),
+    );
   }
 
   Future<void> createCharacter() async {
@@ -68,6 +75,13 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
           'Mis personajes',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Biblioteca de objetos',
+            onPressed: openItemLibrary,
+            icon: const Icon(Icons.local_library_rounded),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(

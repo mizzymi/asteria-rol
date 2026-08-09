@@ -3,7 +3,13 @@ import 'package:flutter/material.dart';
 import '../models/ability.dart';
 import '../models/item.dart';
 import '../models/passive.dart';
-import '../models/skill.dart';
+
+import '../widgets/items/item_form/item_image_section.dart';
+import '../widgets/items/item_form/item_general_section.dart';
+import '../widgets/items/item_form/item_armor_section.dart';
+import '../widgets/items/item_form/item_passives_section.dart';
+import '../widgets/items/item_form/item_abilities_section.dart';
+import '../widgets/items/item_form/item_notes_section.dart';
 
 import 'ability_form_screen.dart';
 import 'passive_form_screen.dart';
@@ -19,9 +25,11 @@ class ItemFormScreen extends StatefulWidget {
 
 class _ItemFormScreenState extends State<ItemFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  ArmorCategory armorCategory = ArmorCategory.light;
 
-  late final TextEditingController armorBaseClassController;
+  // ===========================================================================
+  // CONTROLADORES
+  // ===========================================================================
+
   late final TextEditingController nameController;
 
   late final TextEditingController descriptionController;
@@ -30,26 +38,38 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   late final TextEditingController notesController;
 
+  late final TextEditingController armorBaseClassController;
+
+  // ===========================================================================
+  // ESTADO
+  // ===========================================================================
+
   late ItemType itemType;
 
+  late ArmorCategory armorCategory;
+
   bool equipped = false;
+
+  late String imagePath;
 
   late List<CharacterPassive> passives;
 
   late List<CharacterAbility> abilities;
 
-  bool get editing => widget.item != null;
+  bool get editing {
+    return widget.item != null;
+  }
+
+  // ===========================================================================
+  // INIT
+  // ===========================================================================
 
   @override
   void initState() {
     super.initState();
 
     final item = widget.item;
-    armorCategory = item?.armorCategory ?? ArmorCategory.light;
 
-    armorBaseClassController = TextEditingController(
-      text: '${item?.armorBaseClass ?? 11}',
-    );
     nameController = TextEditingController(text: item?.name ?? '');
 
     descriptionController = TextEditingController(
@@ -60,15 +80,31 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     notesController = TextEditingController(text: item?.notes ?? '');
 
+    armorBaseClassController = TextEditingController(
+      text: '${item?.armorBaseClass ?? 11}',
+    );
+
     itemType = item?.type ?? ItemType.other;
 
+    armorCategory = item?.armorCategory ?? ArmorCategory.light;
+
     equipped = item?.equipped ?? false;
+
+    imagePath = item?.imagePath ?? '';
+
+    // =========================================================================
+    // COPIA PROFUNDA DE PASIVAS
+    // =========================================================================
 
     passives =
         item?.passives
             .map((passive) => CharacterPassive.fromMap(passive.toMap()))
             .toList() ??
         [];
+
+    // =========================================================================
+    // COPIA PROFUNDA DE HABILIDADES
+    // =========================================================================
 
     abilities =
         item?.abilities
@@ -91,6 +127,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
+    /*
+     * Las pasivas creadas desde un objeto
+     * siempre se marcan como procedentes
+     * de un objeto.
+     */
     passive.sourceType = PassiveSourceType.item;
 
     setState(() {
@@ -99,6 +140,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> editPassive(int index) async {
+    if (index < 0 || index >= passives.length) {
+      return;
+    }
+
     final current = passives[index];
 
     final result = await Navigator.push<CharacterPassive>(
@@ -118,6 +163,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> deletePassive(int index) async {
+    if (index < 0 || index >= passives.length) {
+      return;
+    }
+
     final passive = passives[index];
 
     final confirmed = await showDialog<bool>(
@@ -133,6 +182,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               },
               child: const Text('Cancelar'),
             ),
+
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -173,6 +223,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> editAbility(int index) async {
+    if (index < 0 || index >= abilities.length) {
+      return;
+    }
+
     final current = abilities[index];
 
     final result = await Navigator.push<CharacterAbility>(
@@ -190,6 +244,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> deleteAbility(int index) async {
+    if (index < 0 || index >= abilities.length) {
+      return;
+    }
+
     final ability = abilities[index];
 
     final confirmed = await showDialog<bool>(
@@ -205,6 +263,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               },
               child: const Text('Cancelar'),
             ),
+
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -234,43 +293,63 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
+    final quantity = int.tryParse(quantityController.text) ?? 1;
+
+    final armorBaseClass = int.tryParse(armorBaseClassController.text) ?? 10;
+
     final item = CharacterItem(
       id: widget.item?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      armorCategory: itemType == ItemType.armor ? armorCategory : null,
 
-      armorBaseClass: itemType == ItemType.armor
-          ? int.tryParse(armorBaseClassController.text) ?? 10
-          : 10,
+      // Imagen
+      imagePath: imagePath,
+
+      // Datos generales
       name: nameController.text.trim(),
 
       description: descriptionController.text.trim(),
 
       type: itemType,
 
+      quantity: quantity,
+
+      notes: notesController.text.trim(),
+
+      // Equipamiento
       equipped: itemType.isEquipable ? equipped : false,
 
+      // Armadura
+      armorCategory: itemType == ItemType.armor ? armorCategory : null,
+
+      armorBaseClass: itemType == ItemType.armor ? armorBaseClass : 10,
+
+      // Pasivas
       passives: passives
           .map((passive) => CharacterPassive.fromMap(passive.toMap()))
           .toList(),
 
+      // Habilidades
       abilities: abilities
           .map((ability) => CharacterAbility.fromMap(ability.toMap()))
           .toList(),
-
-      quantity: int.tryParse(quantityController.text) ?? 1,
-
-      notes: notesController.text.trim(),
     );
 
     Navigator.pop(context, item);
   }
 
+  // ===========================================================================
+  // DISPOSE
+  // ===========================================================================
+
   @override
   void dispose() {
     nameController.dispose();
+
     descriptionController.dispose();
+
     quantityController.dispose();
+
     notesController.dispose();
+
     armorBaseClassController.dispose();
 
     super.dispose();
@@ -287,6 +366,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         title: Text(editing ? 'Editar objeto' : 'Nuevo objeto'),
         actions: [
           IconButton(
+            tooltip: 'Guardar',
             onPressed: saveItem,
             icon: const Icon(Icons.check_rounded),
           ),
@@ -299,156 +379,69 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           child: ListView(
             padding: const EdgeInsets.all(18),
             children: [
-              TextFormField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre',
-                  prefixIcon: Icon(Icons.inventory_2_rounded),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Introduce un nombre';
-                  }
-
-                  return null;
+              // ===============================================================
+              // IMAGEN
+              // ===============================================================
+              ItemImageSection(
+                imagePath: imagePath,
+                onImageChanged: (value) {
+                  setState(() {
+                    imagePath = value;
+                  });
                 },
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 28),
 
-              TextFormField(
-                controller: descriptionController,
-                minLines: 2,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción',
-                  alignLabelWithHint: true,
-                ),
-              ),
+              // ===============================================================
+              // GENERAL
+              // ===============================================================
+              ItemGeneralSection(
+                nameController: nameController,
 
-              const SizedBox(height: 14),
+                descriptionController: descriptionController,
 
-              DropdownButtonFormField<ItemType>(
-                initialValue: itemType,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo',
-                  prefixIcon: Icon(Icons.category_rounded),
-                ),
-                items: ItemType.values.map((type) {
-                  return DropdownMenuItem(value: type, child: Text(type.label));
-                }).toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
+                quantityController: quantityController,
 
+                itemType: itemType,
+
+                equipped: equipped,
+
+                onTypeChanged: (value) {
                   setState(() {
                     itemType = value;
 
+                    /*
+                     * Consumibles no pueden
+                     * estar equipados.
+                     */
                     if (!itemType.isEquipable) {
                       equipped = false;
                     }
                   });
                 },
-              ),
-              if (itemType == ItemType.armor) ...[
-                const SizedBox(height: 16),
 
-                Text(
-                  'Armadura',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 12),
-
-                DropdownButtonFormField<ArmorCategory>(
-                  initialValue: armorCategory,
-                  decoration: const InputDecoration(
-                    labelText: 'Tipo de armadura',
-                    prefixIcon: Icon(Icons.shield_rounded),
-                  ),
-                  items: ArmorCategory.values.map((category) {
-                    return DropdownMenuItem(
-                      value: category,
-                      child: Text(category.label),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-
-                    setState(() {
-                      armorCategory = value;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: armorBaseClassController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'CA base',
-                    prefixIcon: const Icon(Icons.shield_outlined),
-                    helperText: switch (armorCategory) {
-                      ArmorCategory.light =>
-                        'CA base + todo el modificador de DES',
-
-                      ArmorCategory.medium =>
-                        'CA base + modificador de DES (máximo +2)',
-
-                      ArmorCategory.heavy => 'CA base, sin modificador de DES',
-                    },
-                  ),
-                  validator: (value) {
-                    final result = int.tryParse(value ?? '');
-
-                    if (result == null || result < 1) {
-                      return 'Introduce una CA válida';
-                    }
-
-                    return null;
-                  },
-                ),
-              ],
-              const SizedBox(height: 14),
-
-              TextFormField(
-                controller: quantityController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Cantidad'),
-                validator: (value) {
-                  final quantity = int.tryParse(value ?? '');
-
-                  if (quantity == null || quantity < 1) {
-                    return 'Mínimo 1';
-                  }
-
-                  return null;
+                onEquippedChanged: (value) {
+                  setState(() {
+                    equipped = value;
+                  });
                 },
               ),
 
-              if (itemType.isEquipable) ...[
-                const SizedBox(height: 8),
+              // ===============================================================
+              // ARMADURA
+              // ===============================================================
+              if (itemType == ItemType.armor) ...[
+                const SizedBox(height: 28),
 
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: equipped,
-                  title: const Text('Equipado'),
-                  subtitle: itemType.exclusiveSlot
-                      ? Text(
-                          'Al equiparlo sustituirá cualquier ${itemType.label.toLowerCase()} equipado.',
-                        )
-                      : const Text(
-                          'Sus pasivas y habilidades estarán disponibles mientras esté equipado.',
-                        ),
-                  onChanged: (value) {
+                ItemArmorSection(
+                  armorCategory: armorCategory,
+
+                  armorBaseClassController: armorBaseClassController,
+
+                  onCategoryChanged: (value) {
                     setState(() {
-                      equipped = value;
+                      armorCategory = value;
                     });
                   },
                 ),
@@ -459,123 +452,43 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               // ===============================================================
               // PASIVAS
               // ===============================================================
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Pasivas',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+              ItemPassivesSection(
+                passives: passives,
 
-                  IconButton.filledTonal(
-                    tooltip: 'Añadir pasiva',
-                    onPressed: addPassive,
-                    icon: const Icon(Icons.add_rounded),
-                  ),
-                ],
+                onAdd: addPassive,
+
+                onEdit: editPassive,
+
+                onDelete: deletePassive,
               ),
-
-              const SizedBox(height: 6),
-
-              const Text(
-                'Estas pasivas se aplicarán automáticamente mientras el objeto esté equipado.',
-              ),
-
-              const SizedBox(height: 12),
-
-              if (passives.isEmpty)
-                _EmptySectionCard(
-                  icon: Icons.auto_awesome_rounded,
-                  text: 'Este objeto no tiene pasivas.',
-                  buttonText: 'Añadir pasiva',
-                  onPressed: addPassive,
-                )
-              else
-                ...List.generate(passives.length, (index) {
-                  final passive = passives[index];
-
-                  return _PassiveCard(
-                    passive: passive,
-                    onEdit: () {
-                      editPassive(index);
-                    },
-                    onDelete: () {
-                      deletePassive(index);
-                    },
-                  );
-                }),
 
               const SizedBox(height: 28),
 
               // ===============================================================
               // HABILIDADES
               // ===============================================================
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Habilidades',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+              ItemAbilitiesSection(
+                abilities: abilities,
 
-                  IconButton.filledTonal(
-                    tooltip: 'Añadir habilidad',
-                    onPressed: addAbility,
-                    icon: const Icon(Icons.add_rounded),
-                  ),
-                ],
+                onAdd: addAbility,
+
+                onEdit: editAbility,
+
+                onDelete: deleteAbility,
               ),
-
-              const SizedBox(height: 6),
-
-              const Text(
-                'Las habilidades aparecerán en el panel de Habilidades mientras el objeto esté equipado.',
-              ),
-
-              const SizedBox(height: 12),
-
-              if (abilities.isEmpty)
-                _EmptySectionCard(
-                  icon: Icons.flash_on_rounded,
-                  text: 'Este objeto no tiene habilidades.',
-                  buttonText: 'Añadir habilidad',
-                  onPressed: addAbility,
-                )
-              else
-                ...List.generate(abilities.length, (index) {
-                  final ability = abilities[index];
-
-                  return _AbilityCard(
-                    ability: ability,
-                    onEdit: () {
-                      editAbility(index);
-                    },
-                    onDelete: () {
-                      deleteAbility(index);
-                    },
-                  );
-                }),
 
               const SizedBox(height: 28),
 
-              TextFormField(
-                controller: notesController,
-                minLines: 2,
-                maxLines: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Notas',
-                  alignLabelWithHint: true,
-                ),
-              ),
+              // ===============================================================
+              // NOTAS
+              // ===============================================================
+              ItemNotesSection(notesController: notesController),
 
               const SizedBox(height: 30),
 
+              // ===============================================================
+              // GUARDAR
+              // ===============================================================
               FilledButton.icon(
                 onPressed: saveItem,
                 icon: const Icon(Icons.save_rounded),
@@ -585,225 +498,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               const SizedBox(height: 30),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// PREVIEW PASIVA
-// =============================================================================
-
-class _PassiveCard extends StatelessWidget {
-  final CharacterPassive passive;
-
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _PassiveCard({
-    required this.passive,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final effects = <String>[];
-
-    if (passive.armorClassBonus != 0) {
-      effects.add('${_bonus(passive.armorClassBonus)} CA');
-    }
-
-    if (passive.initiativeBonus != 0) {
-      effects.add('${_bonus(passive.initiativeBonus)} iniciativa');
-    }
-
-    if (passive.speedBonus != 0) {
-      effects.add('${_bonus(passive.speedBonus)} velocidad');
-    }
-
-    if (passive.maxHealthBonus != 0) {
-      effects.add('${_bonus(passive.maxHealthBonus)} PG máx.');
-    }
-
-    if (passive.attackBonus != 0) {
-      effects.add('${_bonus(passive.attackBonus)} al golpe');
-    }
-
-    for (final entry in passive.skillBonuses.entries) {
-      if (entry.value != 0) {
-        effects.add('${_bonus(entry.value)} ${entry.key.label}');
-      }
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.auto_awesome_rounded)),
-        title: Text(
-          passive.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (passive.description.isNotEmpty) Text(passive.description),
-
-            if (effects.isNotEmpty) ...[
-              const SizedBox(height: 6),
-
-              Text(effects.join(' · ')),
-            ],
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'edit') {
-              onEdit();
-            }
-
-            if (value == 'delete') {
-              onDelete();
-            }
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'edit', child: Text('Editar')),
-            PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-          ],
-        ),
-        onTap: onEdit,
-      ),
-    );
-  }
-
-  static String _bonus(int value) {
-    return value >= 0 ? '+$value' : '$value';
-  }
-}
-
-// =============================================================================
-// PREVIEW HABILIDAD
-// =============================================================================
-
-class _AbilityCard extends StatelessWidget {
-  final CharacterAbility ability;
-
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _AbilityCard({
-    required this.ability,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final details = <String>[];
-
-    if (ability.requiresAttackRoll) {
-      details.add('Ataque');
-    }
-
-    if (ability.hasEffect) {
-      details.add(ability.diceNotation);
-    }
-
-    if (ability.usesSavingThrow) {
-      details.add('Salvación');
-    }
-
-    if (ability.hasLimitedUses) {
-      details.add('${ability.currentUses}/${ability.maxUses} usos');
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.flash_on_rounded)),
-        title: Text(
-          ability.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(ability.actionType.label),
-
-            if (ability.description.isNotEmpty)
-              Text(
-                ability.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-            if (details.isNotEmpty) ...[
-              const SizedBox(height: 4),
-
-              Text(details.join(' · ')),
-            ],
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'edit') {
-              onEdit();
-            }
-
-            if (value == 'delete') {
-              onDelete();
-            }
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'edit', child: Text('Editar')),
-            PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-          ],
-        ),
-        onTap: onEdit,
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// VACÍO
-// =============================================================================
-
-class _EmptySectionCard extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final String buttonText;
-  final VoidCallback onPressed;
-
-  const _EmptySectionCard({
-    required this.icon,
-    required this.text,
-    required this.buttonText,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            Icon(icon, size: 34, color: Theme.of(context).colorScheme.primary),
-
-            const SizedBox(height: 10),
-
-            Text(text, textAlign: TextAlign.center),
-
-            const SizedBox(height: 12),
-
-            OutlinedButton.icon(
-              onPressed: onPressed,
-              icon: const Icon(Icons.add_rounded),
-              label: Text(buttonText),
-            ),
-          ],
         ),
       ),
     );

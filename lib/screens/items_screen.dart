@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
-import '../models/ability.dart';
+import 'dart:convert';
 import '../models/character.dart';
 import '../models/item.dart';
-import '../models/passive.dart';
-import '../models/skill.dart';
+
 import '../services/character_storage_service.dart';
+import '../services/item_library_service.dart';
+
+import '../widgets/common/empty_state.dart';
+import '../widgets/common/section_header.dart';
+
+import '../widgets/items/item_card.dart';
+import '../services/item_import_export_service.dart';
+import 'item_library_screen.dart';
 import 'item_form_screen.dart';
 
 class ItemsScreen extends StatefulWidget {
@@ -20,11 +27,19 @@ class ItemsScreen extends StatefulWidget {
 class _ItemsScreenState extends State<ItemsScreen> {
   Character get character => widget.character;
 
+  // ===========================================================================
+  // GUARDAR
+  // ===========================================================================
+
   Future<void> save() async {
     character.normalizeHealth();
 
     await CharacterStorageService.saveCharacter(character);
   }
+
+  // ===========================================================================
+  // CREAR
+  // ===========================================================================
 
   Future<void> createItem() async {
     final result = await Navigator.push<CharacterItem>(
@@ -37,17 +52,61 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     setState(() {
-      character.addItem(result);
-
-      if (result.equipped) {
-        character.equipItem(result);
-      }
+      _addOrStackItem(result);
 
       character.normalizeHealth();
     });
 
     await save();
   }
+
+  // ===========================================================================
+  // STACK / CANTIDADES
+  // ===========================================================================
+
+  String _itemStackKey(CharacterItem item) {
+    final map = Map<String, dynamic>.from(item.toMap());
+
+    /*
+   * Campos que NO determinan si dos objetos
+   * son el mismo tipo de objeto.
+   */
+    map.remove('id');
+    map.remove('quantity');
+    map.remove('equipped');
+    map.remove('imagePath');
+
+    /*
+   * Los IDs de pasivas/habilidades cambian
+   * cuando hacemos copias desde la biblioteca,
+   * así que también los ignoramos.
+   */
+    void cleanIds(dynamic value) {
+      if (value is Map) {
+        value.remove('id');
+
+        for (final child in value.values) {
+          cleanIds(child);
+        }
+      } else if (value is List) {
+        for (final child in value) {
+          cleanIds(child);
+        }
+      }
+    }
+
+    cleanIds(map);
+
+    return jsonEncode(map);
+  }
+
+  bool _sameStackableItem(CharacterItem a, CharacterItem b) {
+    return _itemStackKey(a) == _itemStackKey(b);
+  }
+
+  // ===========================================================================
+  // EDITAR
+  // ===========================================================================
 
   Future<void> editItem(CharacterItem item) async {
     final result = await Navigator.push<CharacterItem>(
@@ -68,6 +127,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
     setState(() {
       character.items[index] = result;
 
+      /*
+       * Si sigue equipado, volvemos a aplicar
+       * la lógica de equipamiento por si cambió
+       * el tipo o el slot.
+       */
       if (result.equipped) {
         character.equipItem(result);
       }
@@ -77,6 +141,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
     await save();
   }
+
+  // ===========================================================================
+  // ELIMINAR
+  // ===========================================================================
 
   Future<void> deleteItem(CharacterItem item) async {
     final confirmed = await showDialog<bool>(
@@ -92,6 +160,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
               },
               child: const Text('Cancelar'),
             ),
+
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -116,19 +185,335 @@ class _ItemsScreenState extends State<ItemsScreen> {
     await save();
   }
 
+  // ===========================================================================
+  // EQUIPAR / DESEQUIPAR
+  // ===========================================================================
+
   Future<void> toggleEquip(CharacterItem item) async {
     setState(() {
+      // =======================================================================
+      // DESEQUIPAR
+      // =======================================================================
+
       if (item.equipped) {
         character.unequipItem(item);
+
+        item.equipped = false;
+        item.quantity = 1;
+
+        /*
+       * Al volver al inventario se fusionará
+       * con otra pila del mismo objeto.
+       */
+        _mergeInventoryStacks();
+
+        character.normalizeHealth();
+
+        return;
+      }
+
+      // =======================================================================
+      // EQUIPAR
+      // =======================================================================
+
+      /*
+     * Si tenemos varias unidades:
+     *
+     * Espada x4
+     *
+     * se convierte en:
+     *
+     * Inventario → Espada x3
+     * Equipado   → Espada x1
+     */
+      if (item.quantity > 1) {
+        item.quantity -= 1;
+
+        final equippedCopy = CharacterItem.fromMap(item.toMap());
+
+        equippedCopy.id = DateTime.now().microsecondsSinceEpoch.toString();
+
+        equippedCopy.quantity = 1;
+        equippedCopy.equipped = false;
+
+        /*
+       * Regeneramos también IDs internos.
+       */
+        for (var i = 0; i < equippedCopy.passives.length; i++) {
+          equippedCopy.passives[i].id = '${equippedCopy.id}_passive_$i';
+        }
+
+        for (var i = 0; i < equippedCopy.abilities.length; i++) {
+          equippedCopy.abilities[i].id = '${equippedCopy.id}_ability_$i';
+        }
+
+        character.addItem(equippedCopy);
+
+        character.equipItem(equippedCopy);
       } else {
+        /*
+       * Solo hay una unidad:
+       * simplemente equipamos esa misma.
+       */
+        item.quantity = 1;
+
         character.equipItem(item);
       }
+
+      /*
+     * Si equipItem ha desequipado automáticamente
+     * otro objeto por ocupar un slot exclusivo,
+     * lo fusionamos con su pila del inventario.
+     */
+      _mergeInventoryStacks();
 
       character.normalizeHealth();
     });
 
     await save();
   }
+
+  // ===========================================================================
+  // IMPORTAR / EXPORTAR
+  // ===========================================================================
+
+  Future<void> saveItemToLibrary(CharacterItem item) async {
+    try {
+      await ItemLibraryService.addItem(item);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${item.name} guardado en la biblioteca.'),
+          action: SnackBarAction(
+            label: 'Abrir',
+            onPressed: () {
+              openLibrary();
+            },
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se ha podido guardar el objeto en la biblioteca.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> importItem() async {
+    try {
+      final item = await ItemImportExportService.pickAndImportItem();
+
+      if (item == null || !mounted) {
+        return;
+      }
+
+      /*
+     * Antes de añadirlo podemos mostrar
+     * una confirmación rápida.
+     */
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Importar objeto'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+
+                if (item.description.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+
+                  Text(item.description),
+                ],
+
+                const SizedBox(height: 12),
+
+                Text(item.type.label),
+
+                if (item.passives.isNotEmpty)
+                  Text('${item.passives.length} pasivas'),
+
+                if (item.abilities.isNotEmpty)
+                  Text('${item.abilities.length} habilidades'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext, false);
+                },
+                child: const Text('Cancelar'),
+              ),
+
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(dialogContext, true);
+                },
+                icon: const Icon(Icons.inventory_2_rounded),
+                label: const Text('Añadir'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed != true || !mounted) {
+        return;
+      }
+
+      setState(() {
+        _addOrStackItem(item);
+
+        character.normalizeHealth();
+      });
+
+      await save();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${item.name} añadido al inventario.')),
+      );
+    } on FormatException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se ha podido importar el objeto.')),
+      );
+    }
+  }
+
+  Future<void> exportItem(CharacterItem item) async {
+    try {
+      await ItemImportExportService.shareItem(item);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se ha podido compartir el objeto.')),
+      );
+    }
+  }
+
+  Future<void> openLibrary() async {
+    final item = await Navigator.push<CharacterItem>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ItemLibraryScreen(mode: ItemLibraryMode.select),
+      ),
+    );
+
+    if (item == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _addOrStackItem(item);
+
+      character.normalizeHealth();
+    });
+
+    await save();
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${item.name} añadido al inventario.')),
+    );
+  }
+
+  void _addOrStackItem(CharacterItem item) {
+    /*
+   * Un objeto equipado siempre debe existir
+   * como una unidad independiente.
+   */
+    if (item.equipped) {
+      item.quantity = 1;
+
+      character.addItem(item);
+
+      character.equipItem(item);
+
+      return;
+    }
+
+    /*
+   * Buscamos únicamente entre objetos
+   * NO equipados.
+   */
+    final existingIndex = character.items.indexWhere(
+      (existing) => !existing.equipped && _sameStackableItem(existing, item),
+    );
+
+    if (existingIndex >= 0) {
+      character.items[existingIndex].quantity += item.quantity;
+    } else {
+      character.addItem(item);
+    }
+  }
+
+  void _mergeInventoryStacks() {
+    final inventory = character.items.where((item) => !item.equipped).toList();
+
+    final processed = <CharacterItem>[];
+
+    for (final item in inventory) {
+      CharacterItem? existing;
+
+      for (final candidate in processed) {
+        if (_sameStackableItem(candidate, item)) {
+          existing = candidate;
+          break;
+        }
+      }
+
+      if (existing == null) {
+        processed.add(item);
+        continue;
+      }
+
+      existing.quantity += item.quantity;
+
+      character.removeItem(item.id);
+    }
+  }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -137,497 +522,159 @@ class _ItemsScreenState extends State<ItemsScreen> {
     final inventory = character.items.where((item) => !item.equipped).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Objetos')),
+      appBar: AppBar(
+        title: const Text('Objetos'),
+        actions: [
+          IconButton(
+            tooltip: 'Importar objeto',
+            onPressed: importItem,
+            icon: const Icon(Icons.file_download_rounded),
+          ),
+
+          IconButton(
+            tooltip: 'Biblioteca',
+            onPressed: openLibrary,
+            icon: const Icon(Icons.local_library_rounded),
+          ),
+        ],
+      ),
+
       body: character.items.isEmpty
-          ? _EmptyItems(onCreate: createItem)
+          ? EmptyState(
+              icon: Icons.inventory_2_rounded,
+              title: 'Inventario vacío',
+              message:
+                  'Añade armaduras, accesorios, armas, consumibles y otros objetos.',
+              actionLabel: 'Crear objeto',
+              onAction: createItem,
+            )
           : ListView(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
               children: [
+                // =============================================================
+                // EQUIPADOS
+                // =============================================================
                 if (equipped.isNotEmpty) ...[
-                  Text(
-                    'Equipados',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  SectionHeader(
+                    icon: Icons.check_circle_rounded,
+                    title: 'Equipados',
+                    subtitle:
+                        '${equipped.length} ${equipped.length == 1 ? 'objeto equipado' : 'objetos equipados'}',
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
 
                   ...equipped.map(
-                    (item) => _ItemCard(
+                    (item) => ItemCard(
                       item: item,
+
                       onEquip: () {
                         toggleEquip(item);
                       },
+
                       onEdit: () {
                         editItem(item);
                       },
+
                       onDelete: () {
                         deleteItem(item);
+                      },
+
+                      onExport: () {
+                        exportItem(item);
+                      },
+
+                      onSaveToLibrary: () {
+                        saveItemToLibrary(item);
                       },
                     ),
                   ),
 
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
                 ],
 
-                Text(
-                  'Inventario',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                // =============================================================
+                // INVENTARIO
+                // =============================================================
+                SectionHeader(
+                  icon: Icons.backpack_rounded,
+                  title: 'Inventario',
+                  subtitle: inventory.isEmpty
+                      ? 'No hay objetos sin equipar'
+                      : '${inventory.length} ${inventory.length == 1 ? 'objeto disponible' : 'objetos disponibles'}',
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
                 if (inventory.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(
-                        'No hay objetos sin equipar.',
-                        textAlign: TextAlign.center,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outlineVariant.withValues(alpha: 0.45),
                       ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 34,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Todos tus objetos equipables están equipados.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                     ),
                   )
                 else
                   ...inventory.map(
-                    (item) => _ItemCard(
+                    (item) => ItemCard(
                       item: item,
+
                       onEquip: () {
                         toggleEquip(item);
                       },
+
                       onEdit: () {
                         editItem(item);
                       },
+
                       onDelete: () {
                         deleteItem(item);
+                      },
+
+                      onExport: () {
+                        exportItem(item);
+                      },
+
+                      onSaveToLibrary: () {
+                        saveItemToLibrary(item);
                       },
                     ),
                   ),
               ],
             ),
+
       floatingActionButton: FloatingActionButton.extended(
         onPressed: createItem,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nuevo objeto'),
-      ),
-    );
-  }
-}
-
-class _ItemCard extends StatelessWidget {
-  final CharacterItem item;
-
-  final VoidCallback onEquip;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _ItemCard({
-    required this.item,
-    required this.onEquip,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    _iconForType(item.type),
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-
-                      Text(item.type.label),
-                    ],
-                  ),
-                ),
-
-                if (item.quantity > 1)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Text(
-                      'x${item.quantity}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'edit':
-                        onEdit();
-                        break;
-
-                      case 'delete':
-                        onDelete();
-                        break;
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                  ],
-                ),
-              ],
-            ),
-
-            if (item.description.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(item.description),
-            ],
-
-            if (item.passives.isNotEmpty) ...[
-              const SizedBox(height: 14),
-
-              Text(
-                'Pasivas',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              ...item.passives.map(
-                (passive) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _PassivePreview(passive: passive),
-                ),
-              ),
-            ],
-
-            if (item.abilities.isNotEmpty) ...[
-              const SizedBox(height: 14),
-
-              Text(
-                'Habilidades',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              ...item.abilities.map(
-                (ability) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _AbilityPreview(ability: ability),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 14),
-
-            if (item.type.isEquipable)
-              SizedBox(
-                width: double.infinity,
-                child: item.equipped
-                    ? FilledButton.tonalIcon(
-                        onPressed: onEquip,
-                        icon: const Icon(Icons.check_circle_rounded),
-                        label: const Text('Equipado · Desequipar'),
-                      )
-                    : OutlinedButton.icon(
-                        onPressed: onEquip,
-                        icon: const Icon(Icons.inventory_2_rounded),
-                        label: const Text('Equipar'),
-                      ),
-              ),
-
-            if (!item.type.isEquipable)
-              const Text('Este tipo de objeto no se puede equipar.'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _iconForType(ItemType type) {
-    switch (type) {
-      case ItemType.armor:
-        return Icons.shield_rounded;
-
-      case ItemType.helmet:
-        return Icons.sports_motorsports_rounded;
-
-      case ItemType.gloves:
-        return Icons.back_hand_rounded;
-
-      case ItemType.boots:
-        return Icons.hiking_rounded;
-
-      case ItemType.ring:
-        return Icons.circle_outlined;
-
-      case ItemType.amulet:
-        return Icons.diamond_rounded;
-
-      case ItemType.weapon:
-        return Icons.sports_martial_arts_rounded;
-
-      case ItemType.accessory:
-        return Icons.auto_awesome_rounded;
-
-      case ItemType.consumable:
-        return Icons.local_drink_rounded;
-
-      case ItemType.other:
-        return Icons.inventory_2_rounded;
-    }
-  }
-}
-
-class _PassivePreview extends StatelessWidget {
-  final CharacterPassive passive;
-
-  const _PassivePreview({required this.passive});
-
-  @override
-  Widget build(BuildContext context) {
-    final effects = <String>[];
-
-    if (passive.armorClassBonus != 0) {
-      effects.add('${_bonus(passive.armorClassBonus)} CA');
-    }
-
-    if (passive.initiativeBonus != 0) {
-      effects.add('${_bonus(passive.initiativeBonus)} iniciativa');
-    }
-
-    if (passive.speedBonus != 0) {
-      effects.add('${_bonus(passive.speedBonus)} velocidad');
-    }
-
-    if (passive.maxHealthBonus != 0) {
-      effects.add('${_bonus(passive.maxHealthBonus)} PG máx.');
-    }
-
-    if (passive.attackBonus != 0) {
-      effects.add('${_bonus(passive.attackBonus)} al golpe');
-    }
-
-    for (final entry in passive.skillBonuses.entries) {
-      if (entry.value != 0) {
-        effects.add('${_bonus(entry.value)} ${entry.key.label}');
-      }
-    }
-
-    for (final entry in passive.savingThrowBonuses.entries) {
-      if (entry.value != 0) {
-        effects.add('${_bonus(entry.value)} salvación ${entry.key.name}');
-      }
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_awesome_rounded, size: 18),
-
-              const SizedBox(width: 6),
-
-              Expanded(
-                child: Text(
-                  passive.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-
-          if (passive.description.isNotEmpty) ...[
-            const SizedBox(height: 6),
-
-            Text(passive.description),
-          ],
-
-          if (effects.isNotEmpty) ...[
-            const SizedBox(height: 8),
-
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: effects
-                  .map((effect) => Chip(label: Text(effect)))
-                  .toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String _bonus(int value) {
-    return value >= 0 ? '+$value' : '$value';
-  }
-}
-
-class _AbilityPreview extends StatelessWidget {
-  final CharacterAbility ability;
-
-  const _AbilityPreview({required this.ability});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.flash_on_rounded, size: 18),
-
-              const SizedBox(width: 6),
-
-              Expanded(
-                child: Text(
-                  ability.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-
-              Text(
-                ability.actionType.label,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-
-          if (ability.description.isNotEmpty) ...[
-            const SizedBox(height: 6),
-
-            Text(ability.description),
-          ],
-
-          const SizedBox(height: 8),
-
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              if (ability.requiresAttackRoll)
-                const Chip(
-                  avatar: Icon(Icons.gps_fixed_rounded, size: 16),
-                  label: Text('Ataque'),
-                ),
-
-              if (ability.hasEffect)
-                Chip(
-                  avatar: Icon(
-                    ability.heals
-                        ? Icons.favorite_rounded
-                        : Icons.flash_on_rounded,
-                    size: 16,
-                  ),
-                  label: Text(ability.diceNotation),
-                ),
-
-              if (ability.usesSavingThrow)
-                const Chip(
-                  avatar: Icon(Icons.shield_rounded, size: 16),
-                  label: Text('Salvación'),
-                ),
-
-              if (ability.hasLimitedUses)
-                Chip(
-                  avatar: const Icon(Icons.repeat_rounded, size: 16),
-                  label: Text('${ability.currentUses}/${ability.maxUses}'),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyItems extends StatelessWidget {
-  final VoidCallback onCreate;
-
-  const _EmptyItems({required this.onCreate});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.inventory_2_rounded,
-              size: 68,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-
-            const SizedBox(height: 18),
-
-            Text(
-              'Inventario vacío',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'Añade armaduras, accesorios, armas, consumibles y otros objetos.',
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 22),
-
-            FilledButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Crear objeto'),
-            ),
-          ],
-        ),
       ),
     );
   }

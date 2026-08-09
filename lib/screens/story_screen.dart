@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../models/character.dart';
+
 import '../services/character_storage_service.dart';
+
+import '../widgets/common/section_header.dart';
+
+import '../widgets/story/story_colors.dart';
+import '../widgets/story/story_edit_dialog.dart';
+import '../widgets/story/story_header.dart';
+import '../widgets/story/story_section_card.dart';
 
 class StoryScreen extends StatefulWidget {
   final Character character;
@@ -19,201 +27,140 @@ class _StoryScreenState extends State<StoryScreen> {
     await CharacterStorageService.saveCharacter(character);
   }
 
-  Future<String?> editSection({
+  Future<void> _edit({
     required String title,
     required String value,
     required String hint,
+    required IconData icon,
+    required Color color,
+    required ValueChanged<String> onSaved,
   }) async {
-    String newValue = value;
-
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(title),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: TextFormField(
-              initialValue: value,
-              autofocus: true,
-              minLines: 5,
-              maxLines: 12,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                hintText: hint,
-                alignLabelWithHint: true,
-              ),
-              onChanged: (text) {
-                newValue = text;
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(newValue.trim());
-              },
-              icon: const Icon(Icons.save_rounded),
-              label: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
+    final result = await StoryEditDialog.show(
+      context,
+      title: title,
+      value: value,
+      hint: hint,
+      icon: icon,
+      color: color,
     );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      onSaved(result);
+    });
+
+    await save();
   }
 
-  Future<void> editBackstory() async {
-    final result = await editSection(
+  Future<void> editBackstory() {
+    return _edit(
       title: 'Historia',
       value: character.backstory,
       hint:
           'Cuenta el pasado del personaje, de dónde viene, qué le ocurrió y cómo llegó hasta aquí...',
+      icon: Icons.history_edu_rounded,
+      color: StoryColors.backstory,
+      onSaved: (value) {
+        character.backstory = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.backstory = result;
-    });
-
-    await save();
   }
 
-  Future<void> editAppearance() async {
-    final result = await editSection(
+  Future<void> editAppearance() {
+    return _edit(
       title: 'Apariencia',
       value: character.appearance,
       hint: 'Describe su aspecto, ropa, rasgos distintivos, cicatrices...',
+      icon: Icons.visibility_rounded,
+      color: StoryColors.appearance,
+      onSaved: (value) {
+        character.appearance = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.appearance = result;
-    });
-
-    await save();
   }
 
-  Future<void> editPersonality() async {
-    final result = await editSection(
+  Future<void> editPersonality() {
+    return _edit(
       title: 'Personalidad',
       value: character.personality,
       hint: '¿Cómo se comporta? ¿Cómo habla? ¿Cómo trata a los demás?',
+      icon: Icons.psychology_rounded,
+      color: StoryColors.personality,
+      onSaved: (value) {
+        character.personality = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.personality = result;
-    });
-
-    await save();
   }
 
-  Future<void> editIdeals() async {
-    final result = await editSection(
+  Future<void> editIdeals() {
+    return _edit(
       title: 'Ideales',
       value: character.ideals,
       hint: '¿En qué cree? ¿Qué principios intenta seguir?',
+      icon: Icons.lightbulb_rounded,
+      color: StoryColors.ideals,
+      onSaved: (value) {
+        character.ideals = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.ideals = result;
-    });
-
-    await save();
   }
 
-  Future<void> editBonds() async {
-    final result = await editSection(
+  Future<void> editBonds() {
+    return _edit(
       title: 'Vínculos',
       value: character.bonds,
       hint:
           'Personas, lugares, organizaciones o recuerdos importantes para el personaje...',
+      icon: Icons.link_rounded,
+      color: StoryColors.bonds,
+      onSaved: (value) {
+        character.bonds = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.bonds = result;
-    });
-
-    await save();
   }
 
-  Future<void> editFlaws() async {
-    final result = await editSection(
+  Future<void> editFlaws() {
+    return _edit(
       title: 'Defectos',
       value: character.flaws,
       hint:
           'Miedos, debilidades, malos hábitos, prejuicios o problemas personales...',
+      icon: Icons.warning_amber_rounded,
+      color: StoryColors.flaws,
+      onSaved: (value) {
+        character.flaws = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.flaws = result;
-    });
-
-    await save();
   }
 
-  Future<void> editGoals() async {
-    final result = await editSection(
+  Future<void> editGoals() {
+    return _edit(
       title: 'Objetivos',
       value: character.goals,
       hint:
           '¿Qué quiere conseguir? ¿Qué objetivos tiene a corto o largo plazo?',
+      icon: Icons.flag_rounded,
+      color: StoryColors.goals,
+      onSaved: (value) {
+        character.goals = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.goals = result;
-    });
-
-    await save();
   }
 
-  Future<void> editNotes() async {
-    final result = await editSection(
+  Future<void> editNotes() {
+    return _edit(
       title: 'Notas',
       value: character.storyNotes,
       hint: 'Cualquier información adicional sobre el personaje...',
+      icon: Icons.notes_rounded,
+      color: StoryColors.notes,
+      onSaved: (value) {
+        character.storyNotes = value;
+      },
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      character.storyNotes = result;
-    });
-
-    await save();
   }
 
   @override
@@ -224,242 +171,110 @@ class _StoryScreenState extends State<StoryScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 40),
           children: [
-            _StoryHeader(character: character),
+            StoryHeader(character: character),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
-            _SectionTitle(title: 'El personaje'),
+            const SectionHeader(
+              icon: Icons.person_rounded,
+              title: 'El personaje',
+              subtitle: 'Quién es, cómo es y de dónde viene',
+            ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.history_edu_rounded,
+              color: StoryColors.backstory,
               title: 'Historia',
               value: character.backstory,
-              emptyText:
-                  'Todavía no has escrito la historia de ${character.name}.',
+              emptyText: 'Todavía no has escrito su historia.',
               onEdit: editBackstory,
             ),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.visibility_rounded,
+              color: StoryColors.appearance,
               title: 'Apariencia',
               value: character.appearance,
               emptyText: 'Sin descripción física.',
               onEdit: editAppearance,
             ),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.psychology_rounded,
+              color: StoryColors.personality,
               title: 'Personalidad',
               value: character.personality,
               emptyText: 'Sin personalidad definida.',
               onEdit: editPersonality,
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
 
-            _SectionTitle(title: 'Interpretación'),
+            const SectionHeader(
+              icon: Icons.theater_comedy_rounded,
+              title: 'Interpretación',
+              subtitle: 'Principios, vínculos y debilidades',
+            ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.lightbulb_rounded,
+              color: StoryColors.ideals,
               title: 'Ideales',
               value: character.ideals,
               emptyText: 'Sin ideales definidos.',
               onEdit: editIdeals,
             ),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.link_rounded,
+              color: StoryColors.bonds,
               title: 'Vínculos',
               value: character.bonds,
               emptyText: 'Sin vínculos definidos.',
               onEdit: editBonds,
             ),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.warning_amber_rounded,
+              color: StoryColors.flaws,
               title: 'Defectos',
               value: character.flaws,
               emptyText: 'Sin defectos definidos.',
               onEdit: editFlaws,
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
 
-            _SectionTitle(title: 'Motivaciones'),
+            const SectionHeader(
+              icon: Icons.explore_rounded,
+              title: 'Motivaciones',
+              subtitle: 'Qué busca y qué quieres recordar',
+            ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.flag_rounded,
+              color: StoryColors.goals,
               title: 'Objetivos',
               value: character.goals,
-              emptyText: 'El personaje todavía no tiene objetivos escritos.',
+              emptyText: 'Todavía no tiene objetivos escritos.',
               onEdit: editGoals,
             ),
 
-            _StoryCard(
+            StorySectionCard(
               icon: Icons.notes_rounded,
+              color: StoryColors.notes,
               title: 'Notas',
               value: character.storyNotes,
               emptyText: 'Sin notas adicionales.',
               onEdit: editNotes,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StoryHeader extends StatelessWidget {
-  final Character character;
-
-  const _StoryHeader({required this.character});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 34,
-          child: Text(
-            character.name.isEmpty ? '?' : character.name[0].toUpperCase(),
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-          ),
-        ),
-
-        const SizedBox(width: 14),
-
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                character.name,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 3),
-
-              Text(character.race),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-
-  const _SectionTitle({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(
-        context,
-      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-    );
-  }
-}
-
-class _StoryCard extends StatelessWidget {
-  final IconData icon;
-
-  final String title;
-  final String value;
-  final String emptyText;
-
-  final VoidCallback onEdit;
-
-  const _StoryCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.emptyText,
-    required this.onEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasContent = value.trim().isNotEmpty;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onEdit,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-              ),
-
-              const SizedBox(width: 14),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-
-                        Icon(
-                          Icons.edit_rounded,
-                          size: 17,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 7),
-
-                    Text(
-                      hasContent ? value : emptyText,
-                      style: TextStyle(
-                        color: hasContent
-                            ? null
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontStyle: hasContent
-                            ? FontStyle.normal
-                            : FontStyle.italic,
-                        height: 1.4,
-                      ),
-                      maxLines: hasContent ? 6 : 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
