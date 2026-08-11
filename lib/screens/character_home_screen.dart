@@ -22,7 +22,6 @@ import 'class_editor_screen.dart';
 import 'dice_screen.dart';
 import 'items_screen.dart';
 import 'journal_screen.dart';
-import 'passives_screen.dart';
 import 'stats_screen.dart';
 import 'story_screen.dart';
 
@@ -290,16 +289,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               color: CharacterHomeColors.abilities,
               onTap: () {
                 openScreen(AbilitiesScreen(character: character));
-              },
-            ),
-
-            CharacterMenuCard(
-              icon: Icons.auto_awesome_rounded,
-              title: 'Pasivas',
-              subtitle: 'Rasgos y bonificaciones permanentes',
-              color: CharacterHomeColors.passives,
-              onTap: () {
-                openScreen(PassivesScreen(character: character));
               },
             ),
 

@@ -5,6 +5,7 @@ import '../../models/skill.dart';
 
 import '../common/app_card.dart';
 import '../common/info_badge.dart';
+
 import 'passive_colors.dart';
 import 'passive_effect_badge.dart';
 import 'passive_disabled_banner.dart';
@@ -12,9 +13,19 @@ import 'passive_disabled_banner.dart';
 class PassiveCard extends StatefulWidget {
   final CharacterPassive passive;
 
+  /// True cuando esta pasiva procede de
+  /// un objeto equipado.
   final bool isItemPassive;
 
+  /// Permite mostrar el badge PASIVA.
+  ///
+  /// En la pantalla Habilidades lo usamos
+  /// para distinguir habilidades activas
+  /// de pasivas.
+  final bool showPassiveBadge;
+
   final ValueChanged<bool>? onToggle;
+
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -22,9 +33,10 @@ class PassiveCard extends StatefulWidget {
     super.key,
     required this.passive,
     required this.isItemPassive,
-    required this.onToggle,
-    required this.onEdit,
-    required this.onDelete,
+    this.showPassiveBadge = false,
+    this.onToggle,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -47,28 +59,43 @@ class _PassiveCardState extends State<PassiveCard> {
       showAccentBar: true,
       child: Column(
         children: [
+          // ===================================================================
+          // HEADER
+          //
+          // CERRADO:
+          // - nombre
+          // - descripción
+          // - PASIVA
+          // ===================================================================
           _PassiveHeader(
             passive: passive,
             color: color,
-            isItemPassive: widget.isItemPassive,
             expanded: expanded,
+            showPassiveBadge: widget.showPassiveBadge,
             onTap: () {
               setState(() {
                 expanded = !expanded;
               });
             },
-            onToggle: widget.onToggle,
-            onEdit: widget.onEdit,
-            onDelete: widget.onDelete,
           ),
 
+          // ===================================================================
+          // CONTENIDO DESPLEGADO
+          // ===================================================================
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
             crossFadeState: expanded
                 ? CrossFadeState.showSecond
                 : CrossFadeState.showFirst,
             firstChild: const SizedBox(width: double.infinity),
-            secondChild: _PassiveExpandedContent(passive: passive),
+            secondChild: _PassiveExpandedContent(
+              passive: passive,
+              color: color,
+              isItemPassive: widget.isItemPassive,
+              onToggle: widget.onToggle,
+              onEdit: widget.onEdit,
+              onDelete: widget.onDelete,
+            ),
           ),
         ],
       ),
@@ -76,28 +103,27 @@ class _PassiveCardState extends State<PassiveCard> {
   }
 }
 
+// =============================================================================
+// HEADER
+// =============================================================================
+
 class _PassiveHeader extends StatelessWidget {
   final CharacterPassive passive;
+
   final Color color;
 
-  final bool isItemPassive;
   final bool expanded;
 
-  final VoidCallback onTap;
+  final bool showPassiveBadge;
 
-  final ValueChanged<bool>? onToggle;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
+  final VoidCallback onTap;
 
   const _PassiveHeader({
     required this.passive,
     required this.color,
-    required this.isItemPassive,
     required this.expanded,
+    required this.showPassiveBadge,
     required this.onTap,
-    required this.onToggle,
-    required this.onEdit,
-    required this.onDelete,
   });
 
   @override
@@ -111,6 +137,9 @@ class _PassiveHeader extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // =================================================================
+            // ICONO
+            // =================================================================
             Container(
               width: 48,
               height: 48,
@@ -127,19 +156,37 @@ class _PassiveHeader extends StatelessWidget {
 
             const SizedBox(width: 12),
 
+            // =================================================================
+            // NOMBRE + DESCRIPCIÓN + PASIVA
+            // =================================================================
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    passive.name,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  // ===========================================================
+                  // NOMBRE + BADGE
+                  // ===========================================================
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      Text(
+                        passive.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+
+                      if (showPassiveBadge) _PassiveBadge(color: color),
+                    ],
                   ),
 
-                  if (passive.description.isNotEmpty) ...[
-                    const SizedBox(height: 5),
+                  // ===========================================================
+                  // DESCRIPCIÓN
+                  // ===========================================================
+                  if (passive.description.trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
 
                     Text(
                       passive.description,
@@ -147,70 +194,23 @@ class _PassiveHeader extends StatelessWidget {
                       overflow: expanded ? null : TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.4,
                       ),
                     ),
                   ],
-
-                  const SizedBox(height: 7),
-
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      InfoBadge(
-                        icon: Icons.category_rounded,
-                        text: passive.sourceType.label,
-                        color: color,
-                      ),
-
-                      if (isItemPassive)
-                        const InfoBadge(
-                          icon: Icons.inventory_2_rounded,
-                          text: 'Objeto',
-                        ),
-                    ],
-                  ),
                 ],
               ),
             ),
 
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
 
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!isItemPassive)
-                  Switch(value: passive.enabled, onChanged: onToggle)
-                else
-                  Icon(Icons.inventory_2_rounded, color: color),
-
-                if (!isItemPassive)
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'edit':
-                          onEdit?.call();
-                          break;
-
-                        case 'delete':
-                          onDelete?.call();
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) {
-                      return const [
-                        PopupMenuItem(value: 'edit', child: Text('Editar')),
-                        PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                      ];
-                    },
-                  ),
-
-                AnimatedRotation(
-                  turns: expanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: const Icon(Icons.keyboard_arrow_down_rounded),
-                ),
-              ],
+            // =================================================================
+            // DESPLEGAR
+            // =================================================================
+            AnimatedRotation(
+              turns: expanded ? 0.5 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(Icons.keyboard_arrow_down_rounded, color: color),
             ),
           ],
         ),
@@ -219,14 +219,309 @@ class _PassiveHeader extends StatelessWidget {
   }
 }
 
-class _PassiveExpandedContent extends StatelessWidget {
-  final CharacterPassive passive;
+// =============================================================================
+// BADGE PASIVA
+// =============================================================================
 
-  const _PassiveExpandedContent({required this.passive});
+class _PassiveBadge extends StatelessWidget {
+  final Color color;
+
+  const _PassiveBadge({required this.color});
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 13, color: color),
+
+          const SizedBox(width: 4),
+
+          Text(
+            'PASIVA',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// CONTENIDO EXPANDIDO
+// =============================================================================
+
+class _PassiveExpandedContent extends StatelessWidget {
+  final CharacterPassive passive;
+
+  final Color color;
+
+  final bool isItemPassive;
+
+  final ValueChanged<bool>? onToggle;
+
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  const _PassiveExpandedContent({
+    required this.passive,
+    required this.color,
+    required this.isItemPassive,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final effects = _buildEffects();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1),
+
+          const SizedBox(height: 14),
+
+          // ===================================================================
+          // PROCEDENCIA
+          // ===================================================================
+          _SectionLabel(
+            icon: Icons.category_rounded,
+            label: 'Procedencia',
+            color: color,
+          ),
+
+          const SizedBox(height: 9),
+
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              InfoBadge(
+                icon: _sourceIcon(passive.sourceType),
+                text: passive.sourceType.label,
+                color: color,
+                highlighted: true,
+              ),
+
+              if (isItemPassive)
+                InfoBadge(
+                  icon: Icons.inventory_2_rounded,
+                  text: 'Objeto equipado',
+                  color: color,
+                ),
+
+              InfoBadge(
+                icon: passive.enabled
+                    ? Icons.check_circle_rounded
+                    : Icons.visibility_off_rounded,
+                text: passive.enabled ? 'Activa' : 'Desactivada',
+              ),
+            ],
+          ),
+
+          // ===================================================================
+          // EFECTOS
+          // ===================================================================
+          if (effects.isNotEmpty) ...[
+            const SizedBox(height: 18),
+
+            _SectionLabel(
+              icon: Icons.add_chart_rounded,
+              label: 'Bonificaciones',
+              color: color,
+            ),
+
+            const SizedBox(height: 9),
+
+            Wrap(spacing: 8, runSpacing: 8, children: effects),
+          ],
+
+          // ===================================================================
+          // SIN EFECTOS MECÁNICOS
+          // ===================================================================
+          if (effects.isEmpty) ...[
+            const SizedBox(height: 18),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.45,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: Text(
+                      'Esta pasiva no tiene bonificaciones numéricas.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // ===================================================================
+          // DESACTIVADA
+          // ===================================================================
+          if (!passive.enabled) ...[
+            const SizedBox(height: 14),
+
+            const PassiveDisabledBanner(),
+          ],
+
+          // ===================================================================
+          // NOTAS
+          // ===================================================================
+          if (passive.notes.trim().isNotEmpty) ...[
+            const SizedBox(height: 18),
+
+            _SectionLabel(
+              icon: Icons.notes_rounded,
+              label: 'Notas',
+              color: color,
+            ),
+
+            const SizedBox(height: 9),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                passive.notes,
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+              ),
+            ),
+          ],
+
+          // ===================================================================
+          // CONTROLES
+          // ===================================================================
+          if (!isItemPassive &&
+              (onToggle != null || onEdit != null || onDelete != null)) ...[
+            const SizedBox(height: 18),
+
+            const Divider(height: 1),
+
+            const SizedBox(height: 12),
+
+            // ===============================================================
+            // ACTIVAR / DESACTIVAR
+            // ===============================================================
+            if (onToggle != null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: PassiveColors.softBackground(
+                    context,
+                    color,
+                    strength: 0.10,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: passive.enabled,
+                  title: Text(
+                    passive.enabled ? 'Pasiva activa' : 'Pasiva desactivada',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    passive.enabled
+                        ? 'Sus bonificaciones se están aplicando.'
+                        : 'Sus bonificaciones no se están aplicando.',
+                  ),
+                  secondary: Icon(
+                    passive.enabled
+                        ? Icons.check_circle_rounded
+                        : Icons.visibility_off_rounded,
+                    color: color,
+                  ),
+                  onChanged: onToggle,
+                ),
+              ),
+
+            if (onEdit != null || onDelete != null) ...[
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  if (onEdit != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_rounded),
+                        label: const Text('Editar'),
+                      ),
+                    ),
+
+                  if (onEdit != null && onDelete != null)
+                    const SizedBox(width: 10),
+
+                  if (onDelete != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('Eliminar'),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // EFECTOS
+  // ===========================================================================
+
+  List<Widget> _buildEffects() {
     final effects = <Widget>[];
+
+    // -------------------------------------------------------------------------
+    // CA
+    // -------------------------------------------------------------------------
 
     if (passive.armorClassBonus != 0) {
       effects.add(
@@ -238,6 +533,10 @@ class _PassiveExpandedContent extends StatelessWidget {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // INICIATIVA
+    // -------------------------------------------------------------------------
+
     if (passive.initiativeBonus != 0) {
       effects.add(
         PassiveEffectBadge(
@@ -247,6 +546,10 @@ class _PassiveExpandedContent extends StatelessWidget {
         ),
       );
     }
+
+    // -------------------------------------------------------------------------
+    // VELOCIDAD
+    // -------------------------------------------------------------------------
 
     if (passive.speedBonus != 0) {
       effects.add(
@@ -258,6 +561,10 @@ class _PassiveExpandedContent extends StatelessWidget {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // VIDA
+    // -------------------------------------------------------------------------
+
     if (passive.maxHealthBonus != 0) {
       effects.add(
         PassiveEffectBadge(
@@ -268,6 +575,10 @@ class _PassiveExpandedContent extends StatelessWidget {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // ATAQUE
+    // -------------------------------------------------------------------------
+
     if (passive.attackBonus != 0) {
       effects.add(
         PassiveEffectBadge(
@@ -277,6 +588,28 @@ class _PassiveExpandedContent extends StatelessWidget {
         ),
       );
     }
+
+    // -------------------------------------------------------------------------
+    // MODIFICADORES DE ATRIBUTO
+    // -------------------------------------------------------------------------
+
+    for (final entry in passive.abilityModifierBonuses.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: Icons.psychology_rounded,
+          label: '${_bonusText(entry.value)} ${entry.key.shortLabel}',
+          color: PassiveColors.skill,
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // SKILLS
+    // -------------------------------------------------------------------------
 
     for (final entry in passive.skillBonuses.entries) {
       if (entry.value == 0) {
@@ -292,6 +625,10 @@ class _PassiveExpandedContent extends StatelessWidget {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // SALVACIONES
+    // -------------------------------------------------------------------------
+
     for (final entry in passive.savingThrowBonuses.entries) {
       if (entry.value == 0) {
         continue;
@@ -306,53 +643,80 @@ class _PassiveExpandedContent extends StatelessWidget {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Divider(height: 1),
-
-          if (effects.isNotEmpty) ...[
-            const SizedBox(height: 14),
-
-            Wrap(spacing: 8, runSpacing: 8, children: effects),
-          ],
-
-          if (!passive.enabled) ...[
-            const SizedBox(height: 14),
-
-            const PassiveDisabledBanner(),
-          ],
-
-          if (passive.notes.isNotEmpty) ...[
-            const SizedBox(height: 14),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.notes_rounded, size: 18),
-
-                  const SizedBox(width: 8),
-
-                  Expanded(child: Text(passive.notes)),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
+    return effects;
   }
+
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
 
   static String _bonusText(int value) {
     return value >= 0 ? '+$value' : '$value';
+  }
+
+  static IconData _sourceIcon(PassiveSourceType source) {
+    switch (source) {
+      case PassiveSourceType.race:
+        return Icons.diversity_3_rounded;
+
+      case PassiveSourceType.classFeature:
+        return Icons.military_tech_rounded;
+
+      case PassiveSourceType.feat:
+        return Icons.workspace_premium_rounded;
+
+      case PassiveSourceType.item:
+        return Icons.inventory_2_rounded;
+
+      case PassiveSourceType.background:
+        return Icons.history_edu_rounded;
+
+      case PassiveSourceType.custom:
+        return Icons.tune_rounded;
+    }
+  }
+}
+
+// =============================================================================
+// TÍTULO INTERNO
+// =============================================================================
+
+class _SectionLabel extends StatelessWidget {
+  final IconData icon;
+
+  final String label;
+
+  final Color color;
+
+  const _SectionLabel({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 17, color: color),
+        ),
+
+        const SizedBox(width: 8),
+
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+        ),
+      ],
+    );
   }
 }

@@ -390,16 +390,26 @@ class Character {
         .join(' + ');
   }
 
-  /*
-   * PG MULTICLASE
-   *
-   * Primera clase:
-   * - Primer nivel: máximo del dado + CON.
-   * - Niveles siguientes: promedio + CON.
-   *
-   * Clases secundarias:
-   * - Todos sus niveles usan promedio + CON.
-   */
+  // ===========================================================================
+  // PUNTOS DE VIDA
+  // ===========================================================================
+
+  /// Vida máxima del personaje.
+  ///
+  /// Cada nivel aporta:
+  ///
+  /// dado de vida de la clase + modificador de Constitución
+  ///
+  /// Ejemplo:
+  ///
+  /// Guerrero d10
+  /// CON +3
+  /// Nivel 5
+  ///
+  /// (10 + 3) × 5 = 65 PG
+  ///
+  /// En multiclase cada nivel utiliza el dado de vida
+  /// correspondiente a esa clase.
   int get maxHealth {
     if (classes.isEmpty) {
       return 1 + passiveMaxHealthBonus;
@@ -409,35 +419,30 @@ class Character {
 
     int total = 0;
 
-    for (int classIndex = 0; classIndex < classes.length; classIndex++) {
-      final classLevel = classes[classIndex];
-
+    for (final classLevel in classes) {
       final levels = classLevel.level < 1 ? 1 : classLevel.level;
 
       final hitDie = classLevel.dndClass.hitDie;
 
-      final average = classLevel.dndClass.averageHitPoints;
+      /*
+     * Vida obtenida por cada nivel
+     * de esta clase.
+     */
+      final healthPerLevel = hitDie + conMod;
 
-      if (classIndex == 0) {
-        // Primer nivel total.
-        final firstLevelHp = hitDie + conMod;
+      /*
+     * Cada nivel debe proporcionar
+     * como mínimo 1 PG.
+     */
+      final safeHealthPerLevel = healthPerLevel < 1 ? 1 : healthPerLevel;
 
-        total += firstLevelHp < 1 ? 1 : firstLevelHp;
-
-        // Resto de niveles de la clase inicial.
-        if (levels > 1) {
-          final hpPerLevel = average + conMod;
-
-          total += (levels - 1) * (hpPerLevel < 1 ? 1 : hpPerLevel);
-        }
-      } else {
-        // Todos los niveles de las clases secundarias.
-        final hpPerLevel = average + conMod;
-
-        total += levels * (hpPerLevel < 1 ? 1 : hpPerLevel);
-      }
+      total += safeHealthPerLevel * levels;
     }
 
+    /*
+   * Las pasivas que aumentan la vida máxima
+   * se añaden al total final.
+   */
     total += passiveMaxHealthBonus;
 
     return total < 1 ? 1 : total;

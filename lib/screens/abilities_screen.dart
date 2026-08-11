@@ -3,14 +3,21 @@ import 'package:flutter/material.dart';
 import '../models/ability.dart';
 import '../models/character.dart';
 import '../models/dice_pool.dart';
+import '../models/passive.dart';
 
 import '../services/character_storage_service.dart';
+
+import '../widgets/common/empty_state.dart';
+import '../widgets/common/section_header.dart';
 
 import '../widgets/abilities/ability_card.dart';
 import '../widgets/abilities/attack_roll_sheet.dart';
 import '../widgets/abilities/ability_effects_result_dialog.dart';
 
+import '../widgets/passives/passive_card.dart';
+
 import 'ability_form_screen.dart';
+import 'passive_form_screen.dart';
 
 class AbilitiesScreen extends StatefulWidget {
   final Character character;
@@ -33,7 +40,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
-  // CREAR
+  // CREAR HABILIDAD
   // ===========================================================================
 
   Future<void> createAbility() async {
@@ -54,7 +61,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
-  // EDITAR
+  // EDITAR HABILIDAD
   // ===========================================================================
 
   Future<void> editAbility(CharacterAbility ability) async {
@@ -67,12 +74,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       return;
     }
 
-    /*
-     * Solo editamos habilidades propias.
-     *
-     * availableAbilities incluye también
-     * habilidades de objetos equipados.
-     */
     final index = character.characterAbilities.indexWhere(
       (item) => item.id == result.id,
     );
@@ -89,7 +90,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
-  // ELIMINAR
+  // ELIMINAR HABILIDAD
   // ===========================================================================
 
   Future<void> deleteAbility(CharacterAbility ability) async {
@@ -130,7 +131,116 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
-  // USOS
+  // CREAR PASIVA
+  // ===========================================================================
+
+  Future<void> createPassive() async {
+    final passive = await Navigator.push<CharacterPassive>(
+      context,
+      MaterialPageRoute(builder: (_) => const PassiveFormScreen()),
+    );
+
+    if (passive == null) {
+      return;
+    }
+
+    setState(() {
+      character.addPassive(passive);
+
+      character.normalizeHealth();
+    });
+
+    await save();
+  }
+
+  // ===========================================================================
+  // EDITAR PASIVA
+  // ===========================================================================
+
+  Future<void> editPassive(CharacterPassive passive) async {
+    final result = await Navigator.push<CharacterPassive>(
+      context,
+      MaterialPageRoute(builder: (_) => PassiveFormScreen(passive: passive)),
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    final index = character.passives.indexWhere((item) => item.id == result.id);
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      character.passives[index] = result;
+
+      character.normalizeHealth();
+    });
+
+    await save();
+  }
+
+  // ===========================================================================
+  // ELIMINAR PASIVA
+  // ===========================================================================
+
+  Future<void> deletePassive(CharacterPassive passive) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar pasiva'),
+          content: Text('¿Quieres eliminar "${passive.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      character.removePassive(passive.id);
+
+      character.normalizeHealth();
+    });
+
+    await save();
+  }
+
+  // ===========================================================================
+  // ACTIVAR / DESACTIVAR PASIVA
+  // ===========================================================================
+
+  Future<void> togglePassive(CharacterPassive passive, bool value) async {
+    setState(() {
+      passive.enabled = value;
+
+      character.normalizeHealth();
+    });
+
+    await save();
+  }
+
+  // ===========================================================================
+  // USOS DE HABILIDADES
   // ===========================================================================
 
   Future<void> useAbility(CharacterAbility ability) async {
@@ -182,7 +292,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
-  // RESOLVER TODOS LOS EFECTOS
+  // RESOLVER EFECTOS
   // ===========================================================================
 
   Future<void> resolveAllEffects(
@@ -208,7 +318,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
           ability: ability,
           character: character,
           critical: critical,
-
           onRerollAttack: ability.requiresAttackRoll
               ? () {
                   rollAttack(ability);
@@ -287,43 +396,26 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     final criticalFailure = naturalRoll == 1;
 
     // -------------------------------------------------------------------------
-    // POPUP DE ATAQUE
+    // POPUP
     // -------------------------------------------------------------------------
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AttackResultDialog(
           abilityName: ability.name,
-
           mode: mode,
-
           firstRoll: firstRoll,
-
           secondRoll: secondRoll,
-
           naturalRoll: naturalRoll,
-
           bonus: bonus,
-
           total: total,
-
           critical: critical,
-
           criticalFailure: criticalFailure,
-
-          /*
-           * Si no existen efectos,
-           * no mostramos botón.
-           */
           onRollDamage: ability.effects.any((effect) => effect.hasEffect)
               ? () {
                   Navigator.pop(dialogContext);
 
-                  /*
-                   * Todos los efectos se tiran
-                   * juntos en el mismo popup.
-                   */
                   resolveAllEffects(ability, critical: critical);
                 }
               : null,
@@ -338,13 +430,28 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    /*
-     * Incluye:
-     *
-     * - habilidades propias
-     * - habilidades de objetos equipados
-     */
+    // -------------------------------------------------------------------------
+    // HABILIDADES
+    // -------------------------------------------------------------------------
+
     final abilities = character.availableAbilities;
+
+    // -------------------------------------------------------------------------
+    // PASIVAS DE OBJETOS EQUIPADOS
+    // -------------------------------------------------------------------------
+
+    final itemPassives = character.items
+        .where((item) => item.equipped)
+        .expand((item) => item.passives)
+        .toList();
+
+    // -------------------------------------------------------------------------
+    // TODAS LAS PASIVAS
+    // -------------------------------------------------------------------------
+
+    final passives = [...character.passives, ...itemPassives];
+
+    final empty = abilities.isEmpty && passives.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -356,155 +463,234 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               onPressed: restoreAllAbilities,
               icon: const Icon(Icons.restart_alt_rounded),
             ),
+
+          PopupMenuButton<String>(
+            tooltip: 'Crear',
+            icon: const Icon(Icons.add_rounded),
+            onSelected: (value) {
+              switch (value) {
+                case 'ability':
+                  createAbility();
+                  break;
+
+                case 'passive':
+                  createPassive();
+                  break;
+              }
+            },
+            itemBuilder: (_) {
+              return const [
+                PopupMenuItem(
+                  value: 'ability',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.flash_on_rounded),
+                    title: Text('Nueva habilidad'),
+                  ),
+                ),
+
+                PopupMenuItem(
+                  value: 'passive',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.auto_awesome_rounded),
+                    title: Text('Nueva pasiva'),
+                  ),
+                ),
+              ];
+            },
+          ),
         ],
       ),
 
       // =======================================================================
-      // LISTA
+      // CONTENIDO
       // =======================================================================
-      body: abilities.isEmpty
-          ? _EmptyAbilities(onCreate: createAbility)
-          : ListView.builder(
+      body: empty
+          ? EmptyState(
+              icon: Icons.auto_awesome_rounded,
+              title: 'Sin habilidades',
+              message:
+                  'Añade habilidades activas, ataques, poderes, rasgos y efectos pasivos.',
+              actionLabel: 'Crear habilidad',
+              onAction: createAbility,
+            )
+          : ListView(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+              children: [
+                // =============================================================
+                // HABILIDADES ACTIVAS
+                // =============================================================
+                if (abilities.isNotEmpty) ...[
+                  SectionHeader(
+                    icon: Icons.flash_on_rounded,
+                    title: 'Habilidades',
+                    subtitle:
+                        '${abilities.length} ${abilities.length == 1 ? 'habilidad' : 'habilidades'}',
+                  ),
 
-              itemCount: abilities.length,
+                  const SizedBox(height: 12),
 
-              itemBuilder: (context, index) {
-                final ability = abilities[index];
+                  ...abilities.map((ability) {
+                    final sourceItem = character.itemForAbility(ability);
 
-                final sourceItem = character.itemForAbility(ability);
+                    return AbilityCard(
+                      ability: ability,
 
-                return AbilityCard(
-                  ability: ability,
+                      character: character,
 
-                  character: character,
+                      sourceItem: sourceItem,
 
-                  sourceItem: sourceItem,
+                      onEdit: sourceItem == null
+                          ? () {
+                              editAbility(ability);
+                            }
+                          : null,
 
-                  // =========================================================
-                  // EDITAR
-                  // =========================================================
-                  onEdit: sourceItem == null
-                      ? () {
-                          editAbility(ability);
-                        }
-                      : null,
+                      onDelete: sourceItem == null
+                          ? () {
+                              deleteAbility(ability);
+                            }
+                          : null,
 
-                  // =========================================================
-                  // ELIMINAR
-                  // =========================================================
-                  onDelete: sourceItem == null
-                      ? () {
-                          deleteAbility(ability);
-                        }
-                      : null,
+                      onRestore: ability.hasLimitedUses
+                          ? () {
+                              restoreAbility(ability);
+                            }
+                          : null,
 
-                  // =========================================================
-                  // RESTAURAR
-                  // =========================================================
-                  onRestore: ability.hasLimitedUses
-                      ? () {
-                          restoreAbility(ability);
-                        }
-                      : null,
+                      onUse: () {
+                        useAbility(ability);
+                      },
 
-                  // =========================================================
-                  // USAR
-                  // =========================================================
-                  onUse: () {
-                    useAbility(ability);
-                  },
+                      onAttack: () {
+                        rollAttack(ability);
+                      },
 
-                  // =========================================================
-                  // ATAQUE
-                  // =========================================================
-                  onAttack: () {
-                    rollAttack(ability);
-                  },
+                      onResolveEffects: () {
+                        resolveAllEffects(ability);
+                      },
+                    );
+                  }),
 
-                  // =========================================================
-                  // EFECTOS
-                  // =========================================================
+                  if (passives.isNotEmpty) const SizedBox(height: 24),
+                ],
 
-                  /*
-                   * Para habilidades sin ataque:
-                   *
-                   * Bola de fuego
-                   * Aliento
-                   * Curación
-                   * etc.
-                   *
-                   * Abrimos directamente el popup
-                   * de todos los efectos.
-                   */
-                  onResolveEffects: () {
-                    resolveAllEffects(ability);
-                  },
-                );
-              },
+                // =============================================================
+                // PASIVAS
+                // =============================================================
+                if (passives.isNotEmpty) ...[
+                  SectionHeader(
+                    icon: Icons.auto_awesome_rounded,
+                    title: 'Pasivas',
+                    subtitle:
+                        '${passives.length} ${passives.length == 1 ? 'pasiva' : 'pasivas'}',
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ...passives.map((passive) {
+                    final isItemPassive = itemPassives.contains(passive);
+
+                    return PassiveCard(
+                      passive: passive,
+
+                      isItemPassive: isItemPassive,
+
+                      /*
+                         * NUEVO:
+                         * queremos mostrar el badge
+                         * "PASIVA" en esta pantalla.
+                         */
+                      showPassiveBadge: true,
+
+                      onToggle: isItemPassive
+                          ? null
+                          : (value) {
+                              togglePassive(passive, value);
+                            },
+
+                      onEdit: isItemPassive
+                          ? null
+                          : () {
+                              editPassive(passive);
+                            },
+
+                      onDelete: isItemPassive
+                          ? null
+                          : () {
+                              deletePassive(passive);
+                            },
+                    );
+                  }),
+                ],
+              ],
             ),
 
       // =======================================================================
       // CREAR
       // =======================================================================
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: createAbility,
+        onPressed: () {
+          _showCreateMenu();
+        },
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Nueva habilidad'),
+        label: const Text('Añadir'),
       ),
     );
   }
-}
 
-// =============================================================================
-// EMPTY
-// =============================================================================
+  // ===========================================================================
+  // MENÚ CREAR
+  // ===========================================================================
 
-class _EmptyAbilities extends StatelessWidget {
-  final VoidCallback onCreate;
+  Future<void> _showCreateMenu() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.flash_on_rounded),
+                  title: const Text('Nueva habilidad'),
+                  subtitle: const Text(
+                    'Ataques, poderes, curaciones y técnicas',
+                  ),
+                  onTap: () {
+                    Navigator.pop(context, 'ability');
+                  },
+                ),
 
-  const _EmptyAbilities({required this.onCreate});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_awesome_rounded,
-              size: 68,
-              color: Theme.of(context).colorScheme.primary,
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome_rounded),
+                  title: const Text('Nueva pasiva'),
+                  subtitle: const Text(
+                    'Rasgos, bonificaciones y efectos permanentes',
+                  ),
+                  onTap: () {
+                    Navigator.pop(context, 'passive');
+                  },
+                ),
+              ],
             ),
-
-            const SizedBox(height: 18),
-
-            Text(
-              'Sin habilidades',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'Añade ataques especiales, poderes, técnicas o curaciones.',
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 22),
-
-            FilledButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Crear habilidad'),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
+
+    switch (result) {
+      case 'ability':
+        await createAbility();
+        break;
+
+      case 'passive':
+        await createPassive();
+        break;
+    }
   }
 }

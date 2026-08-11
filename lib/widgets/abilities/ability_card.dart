@@ -7,6 +7,8 @@ import '../../models/character.dart';
 import '../../models/item.dart';
 import '../../models/skill.dart';
 
+import 'ability_action_badge.dart';
+
 import '../common/app_card.dart';
 import '../common/info_badge.dart';
 import '../common/section_header.dart';
@@ -147,11 +149,20 @@ class _CompactAbilityHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    ability.name,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      Text(
+                        ability.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+
+                      AbilityActionBadge(type: ability.actionType),
+                    ],
                   ),
 
                   if (ability.description.isNotEmpty) ...[
@@ -361,8 +372,6 @@ class _AbilityMeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final badges = <Widget>[
-      InfoBadge(icon: Icons.bolt_rounded, text: ability.actionType.label),
-
       InfoBadge(
         icon: Icons.psychology_rounded,
         text: ability.abilityType.shortLabel,
