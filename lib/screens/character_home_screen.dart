@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/character.dart';
+import '../models/character_resource.dart';
 
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
 
 import '../widgets/common/section_header.dart';
-
+import '../widgets/character_home/resource_edit_dialog.dart';
 import '../widgets/character_home/avatar_viewer.dart';
 import '../widgets/character_home/character_header_card.dart';
 import '../widgets/character_home/character_home_colors.dart';
@@ -24,6 +25,7 @@ import 'items_screen.dart';
 import 'journal_screen.dart';
 import 'stats_screen.dart';
 import 'story_screen.dart';
+import 'resources_screen.dart';
 
 class CharacterHomeScreen extends StatefulWidget {
   final Character character;
@@ -59,6 +61,10 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     }
 
     setState(() {});
+  }
+
+  Future<void> openResources() async {
+    await openScreen(ResourcesScreen(character: character));
   }
 
   // ===========================================================================
@@ -177,6 +183,22 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     return value >= 0 ? '+$value' : '$value';
   }
 
+  Future<void> editResourceQuick(CharacterResource resource) async {
+    final result = await ResourceEditDialog.show(context, resource: resource);
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      resource.currentValue = result;
+
+      resource.normalize();
+    });
+
+    await saveCharacter();
+  }
+
   // ===========================================================================
   // BUILD
   // ===========================================================================
@@ -217,6 +239,27 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
             ),
 
             const SizedBox(height: 12),
+
+            if (character.resources.isNotEmpty) ...[
+              const SizedBox(height: 12),
+
+              ...character.resources
+                  .where((resource) => resource.visible)
+                  .take(3)
+                  .map(
+                    (resource) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _QuickResourceCard(
+                        resource: resource,
+                        onTap: () {
+                          editResourceQuick(resource);
+                        },
+                      ),
+                    ),
+                  ),
+
+              const SizedBox(height: 12),
+            ],
 
             // =================================================================
             // COMBATE
@@ -323,6 +366,16 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
             ),
 
             CharacterMenuCard(
+              icon: Icons.battery_charging_full_rounded,
+              title: 'Recursos',
+              subtitle: character.resources.isEmpty
+                  ? 'Gestiona maná, energía, ki y otros recursos'
+                  : '${character.resources.length} recursos configurados',
+              color: Colors.teal,
+              onTap: openResources,
+            ),
+
+            CharacterMenuCard(
               icon: Icons.casino_rounded,
               title: 'Dados',
               subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
@@ -330,6 +383,66 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               onTap: () {
                 openScreen(DiceScreen(character: character));
               },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickResourceCard extends StatelessWidget {
+  final CharacterResource resource;
+  final VoidCallback onTap;
+
+  const _QuickResourceCard({required this.resource, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = resource.maxValue <= 0
+        ? 0.0
+        : (resource.currentValue / resource.maxValue).clamp(0.0, 1.0);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: resource.color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: resource.color.withValues(alpha: 0.18)),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(resource.icon, color: resource.color),
+
+                const SizedBox(width: 8),
+
+                Expanded(
+                  child: Text(
+                    resource.name,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+
+                Text(
+                  '${resource.currentValue}/${resource.maxValue}',
+                  style: TextStyle(
+                    color: resource.color,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: LinearProgressIndicator(value: progress, minHeight: 6),
             ),
           ],
         ),

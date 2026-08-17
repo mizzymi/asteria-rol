@@ -334,6 +334,7 @@ class _ExpandedAbilityContent extends StatelessWidget {
 
           _AbilityActions(
             ability: ability,
+            character: character,
             onAttack: onAttack,
             onResolveEffects: onResolveEffects,
           ),
@@ -380,6 +381,33 @@ class _AbilityMeta extends StatelessWidget {
       ),
     ];
 
+    // =========================================================================
+    // RECURSO
+    // =========================================================================
+
+    final resource = character.resourceForAbility(ability);
+
+    if (ability.usesResource) {
+      badges.add(
+        InfoBadge(
+          icon: resource?.icon ?? Icons.battery_alert_rounded,
+
+          text: resource != null
+              ? '${ability.resourceCost} ${resource.name} · '
+                    '${resource.currentValue}/${resource.maxValue}'
+              : 'Recurso no disponible',
+
+          color: resource?.color,
+
+          highlighted: true,
+        ),
+      );
+    }
+
+    // =========================================================================
+    // ATAQUE
+    // =========================================================================
+
     if (ability.requiresAttackRoll) {
       final attackBonus = character.characterAbilityAttackBonus(ability);
 
@@ -391,6 +419,10 @@ class _AbilityMeta extends StatelessWidget {
         ),
       );
     }
+
+    // =========================================================================
+    // USOS
+    // =========================================================================
 
     if (ability.hasLimitedUses) {
       badges.add(
@@ -411,12 +443,14 @@ class _AbilityMeta extends StatelessWidget {
 
 class _AbilityActions extends StatelessWidget {
   final CharacterAbility ability;
+  final Character character;
 
   final VoidCallback onAttack;
   final VoidCallback onResolveEffects;
 
   const _AbilityActions({
     required this.ability,
+    required this.character,
     required this.onAttack,
     required this.onResolveEffects,
   });
@@ -425,24 +459,38 @@ class _AbilityActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasEffects = ability.effects.any((effect) => effect.hasEffect);
 
+    final canPay = character.canPayAbilityResource(ability);
+
+    // =========================================================================
+    // ATAQUE
+    // =========================================================================
+
     if (ability.requiresAttackRoll) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          onPressed: onAttack,
+          onPressed: canPay ? onAttack : null,
+
           icon: const Icon(Icons.casino_rounded),
-          label: const Text('Atacar'),
+
+          label: Text(canPay ? 'Atacar' : 'Recurso insuficiente'),
         ),
       );
     }
+
+    // =========================================================================
+    // EFECTO DIRECTO
+    // =========================================================================
 
     if (hasEffects) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          onPressed: onResolveEffects,
+          onPressed: canPay ? onResolveEffects : null,
+
           icon: const Icon(Icons.auto_awesome_rounded),
-          label: const Text('Resolver efectos'),
+
+          label: Text(canPay ? 'Resolver efectos' : 'Recurso insuficiente'),
         ),
       );
     }

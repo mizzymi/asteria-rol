@@ -46,7 +46,9 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   Future<void> createAbility() async {
     final ability = await Navigator.push<CharacterAbility>(
       context,
-      MaterialPageRoute(builder: (_) => const AbilityFormScreen()),
+      MaterialPageRoute(
+        builder: (_) => AbilityFormScreen(character: character),
+      ),
     );
 
     if (ability == null) {
@@ -67,7 +69,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   Future<void> editAbility(CharacterAbility ability) async {
     final result = await Navigator.push<CharacterAbility>(
       context,
-      MaterialPageRoute(builder: (_) => AbilityFormScreen(ability: ability)),
+      MaterialPageRoute(
+        builder: (_) =>
+            AbilityFormScreen(ability: ability, character: character),
+      ),
     );
 
     if (result == null) {
@@ -315,6 +320,119 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     ).showSnackBar(const SnackBar(content: Text('Usos restaurados.')));
   }
 
+  bool canUseAbility(CharacterAbility ability) {
+    if (ability.hasLimitedUses && ability.currentUses <= 0) {
+      return false;
+    }
+
+    if (!character.canPayAbilityResource(ability)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  String? abilityUnavailableReason(CharacterAbility ability) {
+    if (ability.hasLimitedUses && ability.currentUses <= 0) {
+      return 'No quedan usos';
+    }
+
+    if (ability.usesResource) {
+      final resource = character.resourceForAbility(ability);
+
+      if (resource == null) {
+        return 'Recurso no disponible';
+      }
+
+      if (resource.currentValue < ability.resourceCost) {
+        return 'Falta ${resource.name}';
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> useAndResolveAbility(CharacterAbility ability) async {
+    final paid = await payAbilityCosts(ability);
+
+    if (!paid) {
+      return;
+    }
+
+    await resolveAllEffects(ability);
+  }
+
+  Future<bool> payAbilityCosts(
+    CharacterAbility ability, {
+    bool payResource = true,
+    bool payUse = true,
+  }) async {
+    // =========================================================================
+    // COMPROBAR USOS
+    // =========================================================================
+
+    if (payUse && ability.hasLimitedUses && ability.currentUses <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No quedan usos disponibles.')),
+        );
+      }
+
+      return false;
+    }
+
+    // =========================================================================
+    // COMPROBAR RECURSO
+    // =========================================================================
+
+    if (payResource && ability.usesResource) {
+      final resource = character.resourceForAbility(ability);
+
+      if (resource == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('El recurso asociado ya no existe.')),
+          );
+        }
+
+        return false;
+      }
+
+      if (resource.currentValue < ability.resourceCost) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No tienes suficiente ${resource.name}. '
+                'Necesitas ${ability.resourceCost}.',
+              ),
+            ),
+          );
+        }
+
+        return false;
+      }
+    }
+
+    // =========================================================================
+    // PAGAR TODO A LA VEZ
+    // =========================================================================
+
+    setState(() {
+      if (payResource && ability.usesResource) {
+        character.payAbilityResource(ability);
+      }
+
+      if (payUse && ability.hasLimitedUses) {
+        character.useCharacterAbility(ability);
+      }
+    });
+
+    await save();
+
+    return true;
+  }
+
   // ===========================================================================
   // RESOLVER EFECTOS
   // ===========================================================================
@@ -342,9 +460,22 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
           ability: ability,
           character: character,
           critical: critical,
+
+          // =======================================================================
+          // VOLVER A ATACAR
+          // =======================================================================
           onRerollAttack: ability.requiresAttackRoll
               ? () {
                   rollAttack(ability);
+                }
+              : null,
+
+          // =======================================================================
+          // VOLVER A TIRAR EFECTOS
+          // =======================================================================
+          onPayRerollCosts: !ability.requiresAttackRoll
+              ? () {
+                  return payAbilityCosts(ability);
                 }
               : null,
         );
@@ -356,11 +487,22 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   // ATAQUE
   // ===========================================================================
 
-  Future<void> rollAttack(CharacterAbility ability) async {
+  Future<void> rollAttack(
+    CharacterAbility ability, {
+    bool payCosts = true,
+  }) async {
     final mode = await showAttackRollModeSheet(context);
 
     if (mode == null || !mounted) {
       return;
+    }
+
+    if (payCosts) {
+      final paid = await payAbilityCosts(ability);
+
+      if (!paid) {
+        return;
+      }
     }
 
     _performAttackRoll(ability, mode);
@@ -592,7 +734,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       },
 
                       onResolveEffects: () {
-                        resolveAllEffects(ability);
+                        useAndResolveAbility(ability);
                       },
                     );
                   }),
@@ -614,11 +756,15 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                   const SizedBox(height: 12),
 
                   ...passives.map((passive) {
-                    final isItemPassive = itemPassives.contains(passive);
+                    final sourceItem = character.itemForPassive(passive);
+
+                    final isItemPassive = sourceItem != null;
 
                     return PassiveCard(
                       passive: passive,
-                      isItemPassive: isItemPassive,
+
+                      sourceItem: sourceItem,
+
                       showPassiveBadge: true,
 
                       onUseCharge: passive.usesCharges

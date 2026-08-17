@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/character.dart';
 import '../models/ability.dart';
 import '../models/dice_pool.dart';
 import '../models/skill.dart';
@@ -11,8 +12,9 @@ import '../widgets/abilities/ability_form/ability_uses_section.dart';
 
 class AbilityFormScreen extends StatefulWidget {
   final CharacterAbility? ability;
+  final Character? character;
 
-  const AbilityFormScreen({super.key, this.ability});
+  const AbilityFormScreen({super.key, this.ability, this.character});
 
   @override
   State<AbilityFormScreen> createState() => _AbilityFormScreenState();
@@ -36,6 +38,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
   late List<AbilityEffect> effects;
 
   bool get editing => widget.ability != null;
+
+  String? selectedResourceId;
+
+  late final TextEditingController resourceCostController;
 
   @override
   void initState() {
@@ -72,6 +78,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
      * hasta pulsar Guardar.
      */
     effects = ability?.effects.map(_cloneEffect).toList() ?? [];
+
+    selectedResourceId = widget.ability?.resourceId;
+
+    resourceCostController = TextEditingController(
+      text: '${widget.ability?.resourceCost ?? 0}',
+    );
   }
 
   AbilityEffect _cloneEffect(AbilityEffect effect) {
@@ -249,6 +261,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       currentUses: currentUses,
 
       notes: notesController.text.trim(),
+
+      resourceId: selectedResourceId,
+
+      resourceCost: selectedResourceId != null
+          ? (int.tryParse(resourceCostController.text) ?? 1)
+          : 0,
     );
 
     Navigator.pop(context, ability);
@@ -261,6 +279,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     attackBonusController.dispose();
     maxUsesController.dispose();
     notesController.dispose();
+    resourceCostController.dispose();
 
     super.dispose();
   }
@@ -334,6 +353,98 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                 onMoveUp: moveEffectUp,
                 onMoveDown: moveEffectDown,
               ),
+
+              if (widget.character != null &&
+                  widget.character!.resources.isNotEmpty) ...[
+                const SizedBox(height: 24),
+
+                Text(
+                  'Coste de recurso',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 6),
+
+                const Text(
+                  'Opcional. La habilidad consumirá este recurso cuando se utilice.',
+                ),
+
+                const SizedBox(height: 12),
+
+                DropdownButtonFormField<String?>(
+                  initialValue: selectedResourceId,
+                  decoration: const InputDecoration(
+                    labelText: 'Recurso',
+                    prefixIcon: Icon(Icons.battery_charging_full_rounded),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Sin recurso'),
+                    ),
+
+                    ...widget.character!.resources.map((resource) {
+                      return DropdownMenuItem<String?>(
+                        value: resource.id,
+                        child: Row(
+                          children: [
+                            Icon(
+                              resource.icon,
+                              color: resource.color,
+                              size: 20,
+                            ),
+
+                            const SizedBox(width: 8),
+
+                            Text(resource.name),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedResourceId = value;
+
+                      if (value == null) {
+                        resourceCostController.text = '0';
+                      } else if ((int.tryParse(resourceCostController.text) ??
+                              0) <=
+                          0) {
+                        resourceCostController.text = '1';
+                      }
+                    });
+                  },
+                ),
+
+                if (selectedResourceId != null) ...[
+                  const SizedBox(height: 12),
+
+                  TextFormField(
+                    controller: resourceCostController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Coste',
+                      prefixIcon: Icon(Icons.remove_circle_outline_rounded),
+                    ),
+                    validator: (value) {
+                      if (selectedResourceId == null) {
+                        return null;
+                      }
+
+                      final parsed = int.tryParse(value ?? '');
+
+                      if (parsed == null || parsed < 1) {
+                        return 'Introduce un coste mínimo de 1';
+                      }
+
+                      return null;
+                    },
+                  ),
+                ],
+              ],
 
               const SizedBox(height: 28),
 

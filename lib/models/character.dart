@@ -1,3 +1,4 @@
+import 'character_resource.dart';
 import 'ability.dart';
 import 'ability_scores.dart';
 import 'character_class_level.dart';
@@ -57,6 +58,8 @@ class Character {
 
   List<CharacterItem> items;
 
+  List<CharacterResource> resources;
+
   Character({
     required this.id,
     required this.name,
@@ -90,6 +93,7 @@ class Character {
     List<JournalEntry>? journalEntries,
     List<DiceHistoryEntry>? diceHistory,
     List<CharacterItem>? items,
+    List<CharacterResource>? resources,
   }) : classes = _resolveClasses(
          classes: classes,
          dndClass: dndClass,
@@ -106,6 +110,7 @@ class Character {
        journalEntries = journalEntries ?? [],
        diceHistory = diceHistory ?? [],
        items = items ?? [],
+       resources = resources ?? [],
        currentHealth = currentHealth ?? -1 {
     /*
      * D&D:
@@ -276,6 +281,94 @@ class Character {
     classes[index].level = newLevel < 1 ? 1 : newLevel;
 
     normalizeHealth();
+  }
+
+  // ===========================================================================
+  // RECURSOS PERSONALIZADOS
+  // ===========================================================================
+
+  void addResource(CharacterResource resource) {
+    resources.add(resource);
+  }
+
+  void removeResource(String resourceId) {
+    resources.removeWhere((resource) => resource.id == resourceId);
+  }
+
+  CharacterResource? resourceById(String id) {
+    for (final resource in resources) {
+      if (resource.id == id) {
+        return resource;
+      }
+    }
+
+    return null;
+  }
+
+  CharacterResource? resourceForAbility(CharacterAbility ability) {
+    final resourceId = ability.resourceId;
+
+    if (resourceId == null || resourceId.isEmpty) {
+      return null;
+    }
+
+    return resourceById(resourceId);
+  }
+
+  bool canPayAbilityResource(CharacterAbility ability) {
+    if (!ability.usesResource) {
+      return true;
+    }
+
+    final resource = resourceForAbility(ability);
+
+    if (resource == null) {
+      return false;
+    }
+
+    return resource.currentValue >= ability.resourceCost;
+  }
+
+  bool payAbilityResource(CharacterAbility ability) {
+    if (!ability.usesResource) {
+      return true;
+    }
+
+    final resource = resourceForAbility(ability);
+
+    if (resource == null) {
+      return false;
+    }
+
+    if (resource.currentValue < ability.resourceCost) {
+      return false;
+    }
+
+    resource.consume(ability.resourceCost);
+
+    return true;
+  }
+
+  void updateResource(CharacterResource resource) {
+    final index = resources.indexWhere((item) => item.id == resource.id);
+
+    if (index < 0) {
+      return;
+    }
+
+    resources[index] = resource;
+  }
+
+  void consumeResource(CharacterResource resource, int amount) {
+    resource.consume(amount);
+  }
+
+  void restoreResource(CharacterResource resource, int amount) {
+    resource.restore(amount);
+  }
+
+  void restoreResourceFull(CharacterResource resource) {
+    resource.restoreFull();
   }
 
   // ===========================================================================
@@ -522,6 +615,18 @@ class Character {
 
   void unequipItem(CharacterItem item) {
     item.equipped = false;
+  }
+
+  CharacterItem? itemForPassive(CharacterPassive passive) {
+    for (final item in items) {
+      for (final itemPassive in item.passives) {
+        if (itemPassive.id == passive.id) {
+          return item;
+        }
+      }
+    }
+
+    return null;
   }
   // ===========================================================================
   // HABILIDADES D&D
@@ -991,6 +1096,8 @@ class Character {
       'diceHistory': diceHistory.map((entry) => entry.toMap()).toList(),
 
       'items': items.map((item) => item.toMap()).toList(),
+
+      'resources': resources.map((resource) => resource.toMap()).toList(),
     };
   }
 
@@ -1012,6 +1119,31 @@ class Character {
         }
       }
     }
+
+    // -------------------------------------------------------------------------
+    // RECURSOS PERSONALIZADOS
+    // -------------------------------------------------------------------------
+
+    final resources = <CharacterResource>[];
+
+    final rawResources = map['resources'];
+
+    if (rawResources is List) {
+      for (final rawResource in rawResources) {
+        if (rawResource == null) {
+          continue;
+        }
+
+        try {
+          resources.add(
+            CharacterResource.fromMap(Map<dynamic, dynamic>.from(rawResource)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
     // -------------------------------------------------------------------------
     // CLASES
     // -------------------------------------------------------------------------
@@ -1281,6 +1413,8 @@ class Character {
       diceHistory: diceHistory,
 
       items: items,
+
+      resources: resources,
     );
 
     character.normalizeHealth();

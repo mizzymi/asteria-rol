@@ -181,6 +181,14 @@ class CharacterAbility {
 
   AbilityEffectType effectType;
 
+  /// ID del recurso del personaje que consume.
+  ///
+  /// null o vacío = no consume recursos.
+  String? resourceId;
+
+  /// Cantidad consumida al utilizar la habilidad.
+  int resourceCost;
+
   /// Permite cosas como:
   /// 2d6 + 1d8
   List<DicePool> dicePools;
@@ -228,6 +236,8 @@ class CharacterAbility {
     this.saveDcBonus = 0,
     this.maxUses = 0,
     this.currentUses = 0,
+    this.resourceId,
+    this.resourceCost = 0,
     List<AbilityEffect>? effects,
     this.notes = '',
   }) : dicePools = dicePools ?? [],
@@ -253,6 +263,12 @@ class CharacterAbility {
     }
 
     return dicePools.map((pool) => pool.notation).join(' + ');
+  }
+
+  bool get usesResource {
+    return resourceId != null &&
+        resourceId!.trim().isNotEmpty &&
+        resourceCost > 0;
   }
 
   int get maximumDiceValue {
@@ -281,6 +297,8 @@ class CharacterAbility {
       'effects': effects.map((effect) => effect.toMap()).toList(),
       'currentUses': currentUses,
       'notes': notes,
+      'resourceId': resourceId,
+      'resourceCost': resourceCost,
     };
   }
 
@@ -418,6 +436,12 @@ class CharacterAbility {
       maxUses: (map['maxUses'] as num?)?.toInt() ?? 0,
       currentUses: (map['currentUses'] as num?)?.toInt() ?? 0,
       notes: map['notes']?.toString() ?? '',
+      resourceId: map['resourceId']?.toString(),
+
+      resourceCost:
+      (map['resourceCost'] as num?)
+          ?.toInt() ??
+          0,
     );
   }
 

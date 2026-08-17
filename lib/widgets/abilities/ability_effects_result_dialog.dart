@@ -9,14 +9,15 @@ import 'total_result_card.dart';
 
 class AbilityEffectsResultDialog extends StatefulWidget {
   final CharacterAbility ability;
-
   final Character character;
 
   final bool critical;
 
-  /// Si la habilidad requiere ataque, este callback
-  /// permite volver al flujo completo de ataque.
   final VoidCallback? onRerollAttack;
+
+  /// Se llama antes de repetir los efectos.
+  /// Devuelve true si se pueden pagar los costes.
+  final Future<bool> Function()? onPayRerollCosts;
 
   const AbilityEffectsResultDialog({
     super.key,
@@ -24,6 +25,7 @@ class AbilityEffectsResultDialog extends StatefulWidget {
     required this.character,
     this.critical = false,
     this.onRerollAttack,
+    this.onPayRerollCosts,
   });
 
   @override
@@ -143,14 +145,11 @@ class _AbilityEffectsResultDialogState
   // VOLVER A TIRAR / VOLVER A ATACAR
   // ===========================================================================
 
-  void _reroll() {
-    /*
-     * Si esta habilidad requiere ataque,
-     * no repetimos directamente el daño.
-     *
-     * Cerramos este popup y volvemos
-     * al flujo completo de ataque.
-     */
+  Future<void> _reroll() async {
+    // =========================================================================
+    // HABILIDAD CON ATAQUE
+    // =========================================================================
+
     if (widget.ability.requiresAttackRoll && widget.onRerollAttack != null) {
       Navigator.pop(context);
 
@@ -159,16 +158,24 @@ class _AbilityEffectsResultDialogState
       return;
     }
 
-    /*
-     * Habilidades sin ataque:
-     *
-     * - Bola de fuego
-     * - Curación
-     * - Aliento
-     * - Salvaciones
-     *
-     * Repiten directamente todos sus efectos.
-     */
+    // =========================================================================
+    // EFECTO DIRECTO
+    //
+    // Volver a tirar cuenta como usar de nuevo la habilidad.
+    // =========================================================================
+
+    if (widget.onPayRerollCosts != null) {
+      final paid = await widget.onPayRerollCosts!();
+
+      if (!paid) {
+        return;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     rerollAll();
   }
 

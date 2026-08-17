@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/item.dart';
 import '../../models/passive.dart';
 import '../../models/skill.dart';
 
@@ -15,7 +16,9 @@ class PassiveCard extends StatefulWidget {
 
   /// True cuando esta pasiva procede de
   /// un objeto equipado.
-  final bool isItemPassive;
+  final CharacterItem? sourceItem;
+
+  bool get isItemPassive => sourceItem != null;
 
   /// Permite mostrar el badge PASIVA.
   ///
@@ -34,7 +37,7 @@ class PassiveCard extends StatefulWidget {
   const PassiveCard({
     super.key,
     required this.passive,
-    required this.isItemPassive,
+    this.sourceItem,
     this.showPassiveBadge = false,
     this.onToggle,
     this.onEdit,
@@ -74,6 +77,7 @@ class _PassiveCardState extends State<PassiveCard> {
           _PassiveHeader(
             passive: passive,
             color: color,
+            sourceItem: widget.sourceItem,
             expanded: expanded,
             showPassiveBadge: widget.showPassiveBadge,
             onTap: () {
@@ -121,6 +125,8 @@ class _PassiveHeader extends StatelessWidget {
 
   final bool expanded;
 
+  final CharacterItem? sourceItem;
+
   final bool showPassiveBadge;
 
   final VoidCallback onTap;
@@ -128,6 +134,7 @@ class _PassiveHeader extends StatelessWidget {
   const _PassiveHeader({
     required this.passive,
     required this.color,
+    required this.sourceItem,
     required this.expanded,
     required this.showPassiveBadge,
     required this.onTap,
@@ -203,6 +210,14 @@ class _PassiveHeader extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant,
                         height: 1.4,
                       ),
+                    ),
+                  ],
+                  if (sourceItem != null) ...[
+                    const SizedBox(height: 8),
+
+                    InfoBadge(
+                      icon: Icons.inventory_2_rounded,
+                      text: sourceItem!.name,
                     ),
                   ],
                 ],
