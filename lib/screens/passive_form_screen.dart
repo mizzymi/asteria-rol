@@ -31,6 +31,11 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
   late final TextEditingController notesController;
 
+  late final TextEditingController maxChargesController;
+  late final TextEditingController rechargeController;
+
+  bool hasCharges = false;
+
   late PassiveSourceType sourceType;
 
   bool enabled = true;
@@ -78,6 +83,17 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     sourceType = passive?.sourceType ?? PassiveSourceType.custom;
 
     enabled = passive?.enabled ?? true;
+
+    hasCharges = passive?.hasCharges ?? false;
+
+    maxChargesController = TextEditingController(
+      text: '${passive?.maxCharges ?? 1}',
+    );
+
+    rechargeController = TextEditingController(
+      text: passive?.rechargeDescription ?? '',
+    );
+
     abilityModifierBonuses = {
       for (final ability in AbilityType.values)
         ability: passive?.abilityModifierBonuses[ability] ?? 0,
@@ -214,6 +230,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
     final cleanedAbilityModifiers = <AbilityType, int>{};
 
     for (final entry in abilityModifierBonuses.entries) {
@@ -221,6 +238,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
         cleanedAbilityModifiers[entry.key] = entry.value;
       }
     }
+
     final cleanedSkills = <DndSkill, int>{};
 
     for (final entry in skillBonuses.entries) {
@@ -237,24 +255,91 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       }
     }
 
+    // =========================================================================
+    // CARGAS
+    // =========================================================================
+
+    final parsedMaxCharges = hasCharges
+        ? (int.tryParse(maxChargesController.text) ?? 1)
+        : 0;
+
+    int currentCharges = 0;
+
+    if (hasCharges) {
+      if (widget.passive?.usesCharges == true) {
+        /*
+     * Si estamos editando una pasiva existente,
+     * conservamos sus cargas actuales.
+     */
+        currentCharges = widget.passive!.currentCharges;
+
+        /*
+     * Pero nunca puede superar el nuevo máximo.
+     */
+        if (currentCharges > parsedMaxCharges) {
+          currentCharges = parsedMaxCharges;
+        }
+      } else {
+        /*
+     * Una pasiva nueva empieza llena.
+     */
+        currentCharges = parsedMaxCharges;
+      }
+    }
+
+    // =========================================================================
+    // CREAR PASIVA
+    // =========================================================================
+
     final passive = CharacterPassive(
       id:
           widget.passive?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
+
       name: nameController.text.trim(),
+
       description: descriptionController.text.trim(),
+
       sourceType: sourceType,
+
       enabled: enabled,
+
       armorClassBonus: int.tryParse(armorClassController.text) ?? 0,
+
       initiativeBonus: int.tryParse(initiativeController.text) ?? 0,
+
       speedBonus: int.tryParse(speedController.text) ?? 0,
+
       maxHealthBonus: int.tryParse(maxHealthController.text) ?? 0,
+
       attackBonus: int.tryParse(attackController.text) ?? 0,
-      skillBonuses: cleanedSkills,
+
       abilityModifierBonuses: cleanedAbilityModifiers,
+
+      skillBonuses: cleanedSkills,
+
       savingThrowBonuses: cleanedSaves,
+
+      // =======================================================================
+      // CARGAS
+      // =======================================================================
+      hasCharges: hasCharges,
+
+      maxCharges: parsedMaxCharges,
+
+      rechargeDescription: hasCharges ? rechargeController.text.trim() : '',
+
       notes: notesController.text.trim(),
     );
+
+    /*
+   * Evita cosas como:
+   *
+   * 5/3 cargas
+   * -1/3 cargas
+   * 0 cargas máximas si hasCharges = true
+   */
+    passive.normalizeCharges();
 
     Navigator.pop(context, passive);
   }
@@ -269,7 +354,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     speedController.dispose();
     maxHealthController.dispose();
     attackController.dispose();
-
+    maxChargesController.dispose();
+    rechargeController.dispose();
     notesController.dispose();
 
     super.dispose();
@@ -369,7 +455,58 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 24),
 
+              Text(
+                'Cargas',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 12),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: hasCharges,
+                title: const Text('Usa cargas'),
+                subtitle: const Text('Permite gastar y recuperar cargas'),
+                onChanged: (value) {
+                  setState(() {
+                    hasCharges = value;
+                  });
+                },
+              ),
+
+              if (hasCharges) ...[
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: maxChargesController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Cargas máximas',
+                          prefixIcon: Icon(Icons.battery_full_rounded),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                TextFormField(
+                  controller: rechargeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Recuperación',
+                    hintText: 'Descanso largo, amanecer...',
+                    prefixIcon: Icon(Icons.refresh_rounded),
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
 
               Row(

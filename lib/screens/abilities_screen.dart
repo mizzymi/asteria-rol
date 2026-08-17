@@ -182,6 +182,30 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     await save();
   }
 
+  Future<void> usePassiveCharge(CharacterPassive passive) async {
+    setState(() {
+      passive.useCharge();
+    });
+
+    await save();
+  }
+
+  Future<void> restorePassiveCharge(CharacterPassive passive) async {
+    setState(() {
+      passive.restoreCharge();
+    });
+
+    await save();
+  }
+
+  Future<void> restoreAllPassiveCharges(CharacterPassive passive) async {
+    setState(() {
+      passive.restoreCharges();
+    });
+
+    await save();
+  }
+
   // ===========================================================================
   // ELIMINAR PASIVA
   // ===========================================================================
@@ -594,15 +618,20 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
                     return PassiveCard(
                       passive: passive,
-
                       isItemPassive: isItemPassive,
-
-                      /*
-                         * NUEVO:
-                         * queremos mostrar el badge
-                         * "PASIVA" en esta pantalla.
-                         */
                       showPassiveBadge: true,
+
+                      onUseCharge: passive.usesCharges
+                          ? () {
+                              usePassiveCharge(passive);
+                            }
+                          : null,
+
+                      onRestoreCharges: passive.usesCharges
+                          ? () {
+                              restorePassiveCharge(passive);
+                            }
+                          : null,
 
                       onToggle: isItemPassive
                           ? null

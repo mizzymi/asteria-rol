@@ -28,6 +28,8 @@ class PassiveCard extends StatefulWidget {
 
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onUseCharge;
+  final VoidCallback? onRestoreCharges;
 
   const PassiveCard({
     super.key,
@@ -37,6 +39,8 @@ class PassiveCard extends StatefulWidget {
     this.onToggle,
     this.onEdit,
     this.onDelete,
+    this.onUseCharge,
+    this.onRestoreCharges,
   });
 
   @override
@@ -95,6 +99,9 @@ class _PassiveCardState extends State<PassiveCard> {
               onToggle: widget.onToggle,
               onEdit: widget.onEdit,
               onDelete: widget.onDelete,
+
+              onUseCharge: widget.onUseCharge,
+              onRestoreCharges: widget.onRestoreCharges,
             ),
           ),
         ],
@@ -273,6 +280,8 @@ class _PassiveExpandedContent extends StatelessWidget {
 
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onUseCharge;
+  final VoidCallback? onRestoreCharges;
 
   const _PassiveExpandedContent({
     required this.passive,
@@ -281,6 +290,8 @@ class _PassiveExpandedContent extends StatelessWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
+    required this.onUseCharge,
+    required this.onRestoreCharges,
   });
 
   @override
@@ -335,6 +346,87 @@ class _PassiveExpandedContent extends StatelessWidget {
               ),
             ],
           ),
+
+          // ===================================================================
+          // CARGAS
+          // ===================================================================
+          if (passive.usesCharges) ...[
+            const SizedBox(height: 18),
+
+            _SectionLabel(
+              icon: Icons.bolt_rounded,
+              label: 'Cargas',
+              color: color,
+            ),
+
+            const SizedBox(height: 10),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: PassiveColors.softBackground(
+                  context,
+                  color,
+                  strength: 0.12,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.battery_charging_full_rounded, color: color),
+
+                      const SizedBox(width: 8),
+
+                      Text(
+                        '${passive.currentCharges}/${passive.maxCharges}',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: color,
+                            ),
+                      ),
+                    ],
+                  ),
+
+                  if (passive.rechargeDescription.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+
+                    Text('Recuperación: ${passive.rechargeDescription}'),
+                  ],
+
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: passive.currentCharges > 0
+                              ? onUseCharge
+                              : null,
+                          icon: const Icon(Icons.remove_rounded),
+                          label: const Text('Gastar'),
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onRestoreCharges,
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Recuperar'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // ===================================================================
           // EFECTOS
