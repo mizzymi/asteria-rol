@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/character.dart';
 import '../models/character_resource.dart';
+import '../models/character_effect.dart';
 
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
@@ -26,6 +27,7 @@ import 'journal_screen.dart';
 import 'stats_screen.dart';
 import 'story_screen.dart';
 import 'resources_screen.dart';
+import 'effects_screen.dart';
 
 class CharacterHomeScreen extends StatefulWidget {
   final Character character;
@@ -261,6 +263,61 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               const SizedBox(height: 12),
             ],
 
+            if (character.enabledEffects.isNotEmpty) ...[
+              const SizedBox(height: 18),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Estados activos',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+
+                  TextButton(
+                    onPressed: () {
+                      openScreen(EffectsScreen(character: character));
+                    },
+                    child: const Text('Ver todos'),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: character.enabledEffects
+                    .take(5)
+                    .map(
+                      (effect) => _ActiveEffectChip(
+                        effect: effect,
+                        onTap: () {
+                          openScreen(EffectsScreen(character: character));
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+
+              if (character.enabledEffects.length > 5) ...[
+                const SizedBox(height: 8),
+
+                Text(
+                  '+${character.enabledEffects.length - 5} más',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 18),
+            ],
+
             // =================================================================
             // COMBATE
             // =================================================================
@@ -332,6 +389,18 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               color: CharacterHomeColors.abilities,
               onTap: () {
                 openScreen(AbilitiesScreen(character: character));
+              },
+            ),
+
+            CharacterMenuCard(
+              icon: Icons.auto_awesome_rounded,
+              title: 'Estados y efectos',
+              subtitle: character.enabledEffects.isEmpty
+                  ? 'Sin efectos activos'
+                  : '${character.enabledEffects.length} activos',
+              color: const Color(0xFF9B6CE8),
+              onTap: () {
+                openScreen(EffectsScreen(character: character));
               },
             ),
 
@@ -448,5 +517,108 @@ class _QuickResourceCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ActiveEffectChip extends StatelessWidget {
+  final CharacterEffect effect;
+  final VoidCallback onTap;
+
+  const _ActiveEffectChip({required this.effect, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _effectColor(effect);
+    final icon = _effectIcon(effect);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: color.withValues(alpha: 0.22)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: color),
+
+              const SizedBox(width: 6),
+
+              Text(
+                effect.name,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+
+              if (effect.hasDuration) ...[
+                const SizedBox(width: 6),
+
+                Text(
+                  '· ${effect.durationText}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _effectColor(CharacterEffect effect) {
+    if (!effect.enabled) {
+      return Colors.grey;
+    }
+
+    if (effect.expired) {
+      return Colors.grey;
+    }
+
+    switch (effect.type) {
+      case CharacterEffectType.buff:
+        return const Color(0xFF4CAF7D);
+
+      case CharacterEffectType.debuff:
+        return const Color(0xFFE45D68);
+
+      case CharacterEffectType.condition:
+        return const Color(0xFF9B6CE8);
+
+      case CharacterEffectType.neutral:
+        return const Color(0xFF5F8FD8);
+    }
+  }
+
+  IconData _effectIcon(CharacterEffect effect) {
+    if (effect.expired) {
+      return Icons.timer_off_rounded;
+    }
+
+    if (!effect.enabled) {
+      return Icons.visibility_off_rounded;
+    }
+
+    switch (effect.type) {
+      case CharacterEffectType.buff:
+        return Icons.trending_up_rounded;
+
+      case CharacterEffectType.debuff:
+        return Icons.trending_down_rounded;
+
+      case CharacterEffectType.condition:
+        return Icons.warning_amber_rounded;
+
+      case CharacterEffectType.neutral:
+        return Icons.auto_awesome_rounded;
+    }
   }
 }

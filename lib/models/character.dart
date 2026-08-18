@@ -11,6 +11,7 @@ import 'proficiency.dart';
 import 'skill.dart';
 import 'weapon.dart';
 import 'item.dart';
+import 'character_effect.dart';
 
 class Character {
   final String id;
@@ -60,6 +61,8 @@ class Character {
 
   List<CharacterResource> resources;
 
+  List<CharacterEffect> effects;
+
   Character({
     required this.id,
     required this.name,
@@ -94,6 +97,7 @@ class Character {
     List<DiceHistoryEntry>? diceHistory,
     List<CharacterItem>? items,
     List<CharacterResource>? resources,
+    List<CharacterEffect>? effects,
   }) : classes = _resolveClasses(
          classes: classes,
          dndClass: dndClass,
@@ -111,6 +115,7 @@ class Character {
        diceHistory = diceHistory ?? [],
        items = items ?? [],
        resources = resources ?? [],
+       effects = effects ?? [],
        currentHealth = currentHealth ?? -1 {
     /*
      * D&D:
@@ -372,6 +377,42 @@ class Character {
   }
 
   // ===========================================================================
+  // EFECTOS ACTIVOS
+  // ===========================================================================
+
+  Iterable<CharacterEffect> get enabledEffects {
+    return effects.where((effect) => effect.enabled && !effect.expired);
+  }
+
+  void addEffect(CharacterEffect effect) {
+    effects.add(effect);
+  }
+
+  void removeEffect(String effectId) {
+    effects.removeWhere((effect) => effect.id == effectId);
+  }
+
+  CharacterEffect? effectById(String id) {
+    for (final effect in effects) {
+      if (effect.id == id) {
+        return effect;
+      }
+    }
+
+    return null;
+  }
+
+  void updateEffect(CharacterEffect effect) {
+    final index = effects.indexWhere((item) => item.id == effect.id);
+
+    if (index < 0) {
+      return;
+    }
+
+    effects[index] = effect;
+  }
+
+  // ===========================================================================
   // ATRIBUTOS / MODIFICADORES
   // ===========================================================================
 
@@ -395,7 +436,9 @@ class Character {
   /// Pasiva = +1 SAB
   /// Resultado = +4
   int abilityModifier(AbilityType ability) {
-    return baseAbilityModifier(ability) + passiveAbilityModifierBonus(ability);
+    return baseAbilityModifier(ability) +
+        passiveAbilityModifierBonus(ability) +
+        effectAbilityModifierBonus(ability);
   }
 
   int get strengthModifier => abilityModifier(AbilityType.strength);
@@ -409,6 +452,13 @@ class Character {
   int get wisdomModifier => abilityModifier(AbilityType.wisdom);
 
   int get charismaModifier => abilityModifier(AbilityType.charisma);
+
+  int effectAbilityModifierBonus(AbilityType ability) {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + (effect.abilityModifierBonuses[ability] ?? 0),
+    );
+  }
 
   // ===========================================================================
   // COMPETENCIA
@@ -424,7 +474,15 @@ class Character {
   // COMBATE
   // ===========================================================================
 
-  int get initiative => dexterityModifier + passiveInitiativeBonus;
+  int get initiative =>
+      dexterityModifier + passiveInitiativeBonus + effectInitiativeBonus;
+
+  int get effectInitiativeBonus {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + effect.initiativeBonus,
+    );
+  }
 
   int get calculatedArmorClass {
     final armor = equippedArmor;
@@ -467,7 +525,14 @@ class Character {
     }
   }
 
-  int get totalSpeed => speed + passiveSpeedBonus;
+  int get totalSpeed => speed + passiveSpeedBonus + effectSpeedBonus;
+
+  int get effectSpeedBonus {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + effect.speedBonus,
+    );
+  }
 
   /// Para compatibilidad visual.
   /// En multiclase hay realmente varios dados de golpe.
@@ -537,8 +602,16 @@ class Character {
    * se añaden al total final.
    */
     total += passiveMaxHealthBonus;
+    total += effectMaxHealthBonus;
 
     return total < 1 ? 1 : total;
+  }
+
+  int get effectMaxHealthBonus {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + effect.maxHealthBonus,
+    );
   }
 
   void normalizeHealth() {
@@ -671,7 +744,8 @@ class Character {
 
     return modifier +
         proficiency.bonus(proficiencyBonus) +
-        passiveSkillBonus(skill);
+        passiveSkillBonus(skill) +
+        effectSkillBonus(skill);
   }
 
   ProficiencyLevel skillProficiency(DndSkill skill) {
@@ -701,7 +775,15 @@ class Character {
 
     return modifier +
         (proficient ? proficiencyBonus : 0) +
-        passiveSavingThrowBonus(ability);
+        passiveSavingThrowBonus(ability) +
+        effectSavingThrowBonus(ability);
+  }
+
+  int effectSavingThrowBonus(AbilityType ability) {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + (effect.savingThrowBonuses[ability] ?? 0),
+    );
   }
 
   bool isSavingThrowProficient(AbilityType ability) {
@@ -728,7 +810,18 @@ class Character {
 
     final proficiency = weapon.proficient ? proficiencyBonus : 0;
 
-    return modifier + proficiency + weapon.magicBonus + passiveAttackBonus;
+    return modifier +
+        proficiency +
+        weapon.magicBonus +
+        passiveAttackBonus +
+        effectAttackBonus;
+  }
+
+  int get effectAttackBonus {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + effect.attackBonus,
+    );
   }
 
   int damageModifier(Weapon weapon) {
@@ -782,7 +875,18 @@ class Character {
 
     final proficiency = ability.proficient ? proficiencyBonus : 0;
 
-    return modifier + proficiency + ability.attackBonus + passiveAttackBonus;
+    return modifier +
+        proficiency +
+        ability.attackBonus +
+        passiveAttackBonus +
+        effectAttackBonus;
+  }
+
+  int effectSkillBonus(DndSkill skill) {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + (effect.skillBonuses[skill] ?? 0),
+    );
   }
 
   int characterAbilityEffectModifier(CharacterAbility ability) {
@@ -1098,6 +1202,8 @@ class Character {
       'items': items.map((item) => item.toMap()).toList(),
 
       'resources': resources.map((resource) => resource.toMap()).toList(),
+
+      'effects': effects.map((effect) => effect.toMap()).toList(),
     };
   }
 
@@ -1127,6 +1233,26 @@ class Character {
     final resources = <CharacterResource>[];
 
     final rawResources = map['resources'];
+
+    final effects = <CharacterEffect>[];
+
+    final rawEffects = map['effects'];
+
+    if (rawEffects is List) {
+      for (final rawEffect in rawEffects) {
+        if (rawEffect == null) {
+          continue;
+        }
+
+        try {
+          effects.add(
+            CharacterEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
 
     if (rawResources is List) {
       for (final rawResource in rawResources) {
@@ -1415,6 +1541,8 @@ class Character {
       items: items,
 
       resources: resources,
+
+      effects: effects,
     );
 
     character.normalizeHealth();
