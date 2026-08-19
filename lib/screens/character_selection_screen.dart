@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
 
+import '../models/dnd_class.dart';
+import '../services/character_import_export_service.dart';
 import 'package:flutter/material.dart';
-import 'package:rol/models/dnd_class.dart';
 import 'item_library_screen.dart';
 import '../models/character.dart';
 import '../services/character_storage_service.dart';
@@ -63,6 +66,132 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
     loadCharacters();
   }
 
+  Future<void> exportCharacter(Character character) async {
+    try {
+      await CharacterImportExportService.shareCharacter(character);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar el personaje: $error')),
+      );
+    }
+  }
+
+  Future<void> importCharacter() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria', 'json'],
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+
+      final path = result.files.single.path;
+
+      if (path == null) {
+        throw const FormatException('No se pudo acceder al archivo.');
+      }
+
+      final character = await CharacterImportExportService.importFileAsCopy(
+        File(path),
+      );
+
+      await CharacterStorageService.saveCharacter(character);
+
+      if (!mounted) {
+        return;
+      }
+
+      loadCharacters();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${character.name} importado correctamente.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar el personaje: $error')),
+      );
+    }
+  }
+
+  Future<void> duplicateCharacter(Character character) async {
+    try {
+      final raw = jsonEncode(character.toMap());
+
+      final copy = CharacterImportExportService.importCharacterAsCopy(raw);
+
+      await CharacterStorageService.saveCharacter(copy);
+
+      if (!mounted) {
+        return;
+      }
+
+      loadCharacters();
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${copy.name} creado.')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo duplicar el personaje: $error')),
+      );
+    }
+  }
+
+  Future<void> deleteCharacter(Character character) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar personaje'),
+          content: Text(
+            '¿Quieres eliminar "${character.name}"? Esta acción no se puede deshacer.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await CharacterStorageService.deleteCharacter(character.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    loadCharacters();
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredCharacters = characters.where((character) {
@@ -76,6 +205,12 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Importar personaje',
+            onPressed: importCharacter,
+            icon: const Icon(Icons.file_download_rounded),
+          ),
+
           IconButton(
             tooltip: 'Biblioteca de objetos',
             onPressed: openItemLibrary,
@@ -115,8 +250,21 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
 
                           return _CharacterCard(
                             character: character,
+
                             onTap: () {
                               openCharacter(character);
+                            },
+
+                            onExport: () {
+                              exportCharacter(character);
+                            },
+
+                            onDuplicate: () {
+                              duplicateCharacter(character);
+                            },
+
+                            onDelete: () {
+                              deleteCharacter(character);
                             },
                           );
                         },
@@ -139,7 +287,17 @@ class _CharacterCard extends StatelessWidget {
   final Character character;
   final VoidCallback onTap;
 
-  const _CharacterCard({required this.character, required this.onTap});
+  final VoidCallback onExport;
+  final VoidCallback onDuplicate;
+  final VoidCallback onDelete;
+
+  const _CharacterCard({
+    required this.character,
+    required this.onTap,
+    required this.onExport,
+    required this.onDuplicate,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +354,50 @@ class _CharacterCard extends StatelessWidget {
                 ),
               ),
 
-              const Icon(Icons.chevron_right_rounded),
+              PopupMenuButton<String>(
+                tooltip: 'Opciones',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'export':
+                      onExport();
+                      break;
+
+                    case 'duplicate':
+                      onDuplicate();
+                      break;
+
+                    case 'delete':
+                      onDelete();
+                      break;
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'export',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.ios_share_rounded),
+                      title: Text('Exportar'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'duplicate',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.copy_rounded),
+                      title: Text('Duplicar'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.delete_outline_rounded),
+                      title: Text('Eliminar'),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

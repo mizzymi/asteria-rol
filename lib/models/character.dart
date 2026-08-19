@@ -487,42 +487,33 @@ class Character {
   int get calculatedArmorClass {
     final armor = equippedArmor;
 
-    /*
-   * Sin armadura:
-   * 10 + DES
-   */
     if (armor == null || armor.armorCategory == null) {
-      return 10 + dexterityModifier;
+      return 10 + dexterityModifier + totalArmorClassBonus;
     }
 
     switch (armor.armorCategory!) {
-      /*
-     * Ligera:
-     *
-     * CA base + toda DES
-     */
       case ArmorCategory.light:
-        return armor.armorBaseClass + dexterityModifier;
+        return armor.armorBaseClass + dexterityModifier + totalArmorClassBonus;
 
-      /*
-     * Media:
-     *
-     * CA base + DES
-     * máximo +2
-     */
       case ArmorCategory.medium:
         final dexBonus = dexterityModifier > 2 ? 2 : dexterityModifier;
 
-        return armor.armorBaseClass + dexBonus;
+        return armor.armorBaseClass + dexBonus + totalArmorClassBonus;
 
-      /*
-     * Pesada:
-     *
-     * Solo CA base.
-     */
       case ArmorCategory.heavy:
-        return armor.armorBaseClass;
+        return armor.armorBaseClass + totalArmorClassBonus;
     }
+  }
+
+  int get effectArmorClassBonus {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + effect.armorClassBonus,
+    );
+  }
+
+  int get totalArmorClassBonus {
+    return passiveArmorClassBonus + effectArmorClassBonus;
   }
 
   int get totalSpeed => speed + passiveSpeedBonus + effectSpeedBonus;
