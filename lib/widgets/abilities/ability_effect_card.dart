@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/character_resource.dart';
 
 import '../../models/ability.dart';
 import '../../models/character.dart';
@@ -62,49 +63,101 @@ class AbilityEffectCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                ...effect.parts.map((part) {
+                  final pieces = <String>[];
 
-                const SizedBox(height: 7),
+                  if (part.diceNotation.isNotEmpty) {
+                    pieces.add(part.diceNotation);
+                  }
 
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (effect.diceNotation.isNotEmpty)
-                      InfoBadge(
-                        icon: Icons.casino_rounded,
-                        text: _diceText(modifier),
-                        color: color,
+                  for (final entry in part.abilityModifierMultipliers.entries) {
+                    if (entry.value == 0) {
+                      continue;
+                    }
+
+                    if (entry.value == 1) {
+                      pieces.add(entry.key.shortLabel);
+                    } else {
+                      pieces.add('${entry.value}×${entry.key.shortLabel}');
+                    }
+                  }
+
+                  for (final entry in part.resourceValueMultipliers.entries) {
+                    final resource = character.resources
+                        .where((resource) => resource.id == entry.key)
+                        .cast<CharacterResource?>()
+                        .firstOrNull;
+
+                    if (resource == null) {
+                      continue;
+                    }
+
+                    if (entry.value == 1) {
+                      pieces.add(resource.name);
+                    } else {
+                      pieces.add('${entry.value}×${resource.name}');
+                    }
+                  }
+
+                  if (part.flatBonus != 0) {
+                    pieces.add(
+                      part.flatBonus > 0
+                          ? '+${part.flatBonus}'
+                          : '${part.flatBonus}',
+                    );
+                  }
+
+                  final formula = pieces.isEmpty
+                      ? 'Sin fórmula'
+                      : pieces.join(' + ').replaceAll('+ -', '- ');
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            effect.heals
+                                ? Icons.favorite_rounded
+                                : Icons.flash_on_rounded,
+                            size: 18,
+                          ),
 
-                    if (effect.effectTypeName.isNotEmpty)
-                      InfoBadge(
-                        icon: AbilityColors.effectIcon(effect),
-                        text: effect.effectTypeName,
-                        color: color,
-                      ),
+                          const SizedBox(width: 8),
 
-                    if (effect.usesSavingThrow)
-                      InfoBadge(
-                        icon: Icons.shield_rounded,
-                        text:
-                            '${effect.savingThrowAbility.shortLabel} · CD $dc',
-                        color: const Color(0xFF8B5CF6),
-                        highlighted: true,
-                      ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  part.typeName.trim().isNotEmpty
+                                      ? part.typeName
+                                      : effect.effectType.label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
 
-                    if (effect.usesSavingThrow)
-                      InfoBadge(
-                        icon: Icons.verified_user_outlined,
-                        text: _saveText(effect.saveSuccessEffect),
+                                const SizedBox(height: 2),
+
+                                Text(formula),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                  ],
-                ),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -143,46 +196,6 @@ class AbilityEffectCard extends StatelessWidget {
     }
 
     return 'Efecto';
-  }
-
-  IconData get _icon {
-    if (effect.heals) {
-      return Icons.favorite_rounded;
-    }
-
-    if (effect.usesSavingThrow) {
-      return Icons.shield_rounded;
-    }
-
-    if (effect.dealsDamage) {
-      return Icons.flash_on_rounded;
-    }
-
-    return Icons.auto_awesome_rounded;
-  }
-
-  Color _iconBackground(ThemeData theme) {
-    if (effect.heals) {
-      return theme.colorScheme.tertiaryContainer;
-    }
-
-    if (effect.usesSavingThrow) {
-      return theme.colorScheme.secondaryContainer;
-    }
-
-    return theme.colorScheme.primaryContainer;
-  }
-
-  Color _iconColor(ThemeData theme) {
-    if (effect.heals) {
-      return theme.colorScheme.onTertiaryContainer;
-    }
-
-    if (effect.usesSavingThrow) {
-      return theme.colorScheme.onSecondaryContainer;
-    }
-
-    return theme.colorScheme.primary;
   }
 
   String _saveText(SaveSuccessEffect value) {

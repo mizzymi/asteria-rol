@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rol/widgets/items/item_form/item_calculation_section.dart';
 
 import '../models/ability.dart';
 import '../models/item.dart';
@@ -7,7 +8,10 @@ import '../models/skill.dart';
 import '../models/weapon.dart';
 import '../models/weapon_damage.dart';
 import '../models/dice_pool.dart';
+import '../models/consumable.dart';
+import '../models/character.dart';
 
+import '../widgets/items/item_form/item_consumable_section.dart';
 import '../widgets/items/item_form/item_weapon_section.dart';
 import '../widgets/items/item_form/item_image_section.dart';
 import '../widgets/items/item_form/item_general_section.dart';
@@ -22,7 +26,13 @@ import 'passive_form_screen.dart';
 class ItemFormScreen extends StatefulWidget {
   final CharacterItem? item;
 
-  const ItemFormScreen({super.key, this.item});
+  /// Personaje al que pertenece el objeto.
+  ///
+  /// Puede ser null cuando editamos un objeto
+  /// directamente desde la biblioteca.
+  final Character? character;
+
+  const ItemFormScreen({super.key, this.item, this.character});
 
   @override
   State<ItemFormScreen> createState() => _ItemFormScreenState();
@@ -73,6 +83,18 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   late List<WeaponDamage> weaponDamages;
 
+  late bool calculable;
+
+  late List<ItemCalculationCost> calculationCosts;
+
+  // ===========================================================================
+  // CONSUMIBLE
+  // ===========================================================================
+
+  late String consumableUseText;
+
+  late List<AbilityEffect> consumableEffects;
+
   // ===========================================================================
   // INIT
   // ===========================================================================
@@ -99,6 +121,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     itemType = item?.type ?? ItemType.other;
 
+    calculable = item?.calculable ?? false;
+
+    calculationCosts =
+        item?.calculationCosts
+            .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
+            .toList() ??
+        [];
+
     armorCategory = item?.armorCategory ?? ArmorCategory.light;
 
     final weapon = item?.weapon;
@@ -116,6 +146,18 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
             .map((damage) => WeaponDamage.fromMap(damage.toMap()))
             .toList() ??
         [];
+
+    final consumable = item?.consumable;
+
+    consumableUseText = consumable?.useText.trim().isNotEmpty == true
+        ? consumable!.useText
+        : 'Usar';
+
+    consumableEffects =
+        consumable?.effects
+            .map<AbilityEffect>((effect) => _cloneConsumableEffect(effect))
+            .toList() ??
+        <AbilityEffect>[];
 
     equipped = item?.equipped ?? false;
 
@@ -143,6 +185,78 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   // ===========================================================================
+  // EFECTOS DEL CONSUMIBLE
+  // ===========================================================================
+
+  void addConsumableEffect() {
+    setState(() {
+      consumableEffects.add(
+        AbilityEffect(
+          id: '${DateTime.now().microsecondsSinceEpoch}_consumable_effect',
+
+          name: '',
+
+          effectType: AbilityEffectType.healing,
+
+          dicePools: [DicePool(count: 1, sides: 4)],
+
+          abilityModifierMultipliers: {},
+
+          legacyAddAbilityModifier: false,
+
+          effectBonus: 0,
+
+          saveSuccessEffect: SaveSuccessEffect.half,
+        ),
+      );
+    });
+  }
+
+  void updateConsumableEffect(int index, AbilityEffect effect) {
+    if (index < 0 || index >= consumableEffects.length) {
+      return;
+    }
+
+    setState(() {
+      consumableEffects[index] = effect;
+    });
+  }
+
+  void removeConsumableEffect(int index) {
+    if (index < 0 || index >= consumableEffects.length) {
+      return;
+    }
+
+    setState(() {
+      consumableEffects.removeAt(index);
+    });
+  }
+
+  void moveConsumableEffectUp(int index) {
+    if (index <= 0 || index >= consumableEffects.length) {
+      return;
+    }
+
+    setState(() {
+      final effect = consumableEffects.removeAt(index);
+
+      consumableEffects.insert(index - 1, effect);
+    });
+  }
+
+  void moveConsumableEffectDown(int index) {
+    if (index < 0 || index >= consumableEffects.length - 1) {
+      return;
+    }
+
+    setState(() {
+      final effect = consumableEffects.removeAt(index);
+
+      consumableEffects.insert(index + 1, effect);
+    });
+  }
+
+  // ===========================================================================
   // PASIVAS
   // ===========================================================================
 
@@ -166,6 +280,38 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     setState(() {
       passives.add(passive);
     });
+  }
+
+  AbilityEffect _cloneConsumableEffect(AbilityEffect effect) {
+    return AbilityEffect(
+      id: effect.id,
+
+      name: effect.name,
+
+      effectType: effect.effectType,
+
+      dicePools: effect.dicePools
+          .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+          .toList(),
+
+      abilityModifierMultipliers: Map<AbilityType, int>.from(
+        effect.abilityModifierMultipliers,
+      ),
+
+      legacyAddAbilityModifier: effect.legacyAddAbilityModifier,
+
+      effectBonus: effect.effectBonus,
+
+      effectTypeName: effect.effectTypeName,
+
+      usesSavingThrow: effect.usesSavingThrow,
+
+      savingThrowAbility: effect.savingThrowAbility,
+
+      saveDcBonus: effect.saveDcBonus,
+
+      saveSuccessEffect: effect.saveSuccessEffect,
+    );
   }
 
   Future<void> editPassive(int index) async {
@@ -368,6 +514,18 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       );
     }
 
+    Consumable? consumable;
+
+    if (itemType == ItemType.consumable) {
+      consumable = Consumable(
+        useText: consumableUseText.trim().isEmpty
+            ? 'Usar'
+            : consumableUseText.trim(),
+
+        effects: consumableEffects.map(_cloneConsumableEffect).toList(),
+      );
+    }
+
     final quantity = int.tryParse(quantityController.text) ?? 1;
 
     final armorBaseClass = int.tryParse(armorBaseClassController.text) ?? 10;
@@ -375,6 +533,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     final item = CharacterItem(
       id: widget.item?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
 
+      calculable: calculable,
+
+      calculationCosts: calculationCosts
+          .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
+          .toList(),
       // Imagen
       imagePath: imagePath,
 
@@ -399,6 +562,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
       //Arma
       weapon: weapon,
+
+      // Consumible
+      consumable: consumable,
 
       // Pasivas
       passives: passives
@@ -694,6 +860,71 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     return pools;
   }
 
+  void addCalculationCost() {
+    final candidates = widget.character?.items ?? [];
+
+    CharacterItem? candidate;
+
+    for (final item in candidates) {
+      final key = item.templateId.isNotEmpty ? item.templateId : item.id;
+
+      final alreadyUsed = calculationCosts.any((cost) => cost.itemId == key);
+
+      if (!alreadyUsed) {
+        candidate = item;
+        break;
+      }
+    }
+
+    if (candidate == null) {
+      return;
+    }
+
+    final key = candidate.templateId.isNotEmpty
+        ? candidate.templateId
+        : candidate.id;
+
+    setState(() {
+      calculationCosts.add(
+        ItemCalculationCost(itemId: key, quantityPerUnit: 1),
+      );
+    });
+  }
+
+  void updateCalculationCostItem(int index, String itemId) {
+    if (index < 0 || index >= calculationCosts.length) {
+      return;
+    }
+
+    setState(() {
+      calculationCosts[index].itemId = itemId;
+    });
+  }
+
+  void updateCalculationCostQuantity(int index, int quantity) {
+    if (index < 0 || index >= calculationCosts.length) {
+      return;
+    }
+
+    if (quantity < 1) {
+      return;
+    }
+
+    setState(() {
+      calculationCosts[index].quantityPerUnit = quantity;
+    });
+  }
+
+  void removeCalculationCost(int index) {
+    if (index < 0 || index >= calculationCosts.length) {
+      return;
+    }
+
+    setState(() {
+      calculationCosts.removeAt(index);
+    });
+  }
+
   // ===========================================================================
   // DISPOSE
   // ===========================================================================
@@ -788,6 +1019,31 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 },
               ),
 
+              const SizedBox(height: 28),
+
+              ItemCalculationSection(
+                calculable: calculable,
+
+                availableItems:
+                    widget.character?.items ?? const <CharacterItem>[],
+
+                costs: calculationCosts,
+
+                onCalculableChanged: (value) {
+                  setState(() {
+                    calculable = value;
+                  });
+                },
+
+                onAddCost: addCalculationCost,
+
+                onCostItemChanged: updateCalculationCostItem,
+
+                onCostQuantityChanged: updateCalculationCostQuantity,
+
+                onRemoveCost: removeCalculationCost,
+              ),
+
               // ===============================================================
               // ARMADURA
               // ===============================================================
@@ -836,6 +1092,32 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   onEditDamage: editWeaponDamage,
 
                   onDeleteDamage: deleteWeaponDamage,
+                ),
+              ],
+
+              if (itemType == ItemType.consumable) ...[
+                const SizedBox(height: 28),
+
+                ItemConsumableSection(
+                  useText: consumableUseText,
+
+                  onUseTextChanged: (value) {
+                    consumableUseText = value;
+                  },
+
+                  effects: consumableEffects,
+
+                  resources: widget.character?.resources ?? const [],
+
+                  onAddEffect: addConsumableEffect,
+
+                  onEffectChanged: updateConsumableEffect,
+
+                  onRemoveEffect: removeConsumableEffect,
+
+                  onMoveUp: moveConsumableEffectUp,
+
+                  onMoveDown: moveConsumableEffectDown,
                 ),
               ],
 

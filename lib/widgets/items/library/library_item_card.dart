@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/ability.dart';
+import 'package:rol/models/skill.dart';
 
 import '../../../models/item_library_entry.dart';
 import '../../../models/item.dart';
@@ -51,6 +53,8 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
     final color = ItemTypeColors.color(item.type);
 
+    final theme = Theme.of(context);
+
     return AppCard(
       margin: const EdgeInsets.only(bottom: 14),
       padding: EdgeInsets.zero,
@@ -95,8 +99,9 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                       children: [
                         Text(
                           item.name,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
 
                         const SizedBox(height: 6),
@@ -105,6 +110,9 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
+                            // =================================================
+                            // TIPO
+                            // =================================================
                             InfoBadge(
                               icon: ItemTypeColors.icon(item.type),
                               text: item.type.label,
@@ -112,18 +120,47 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                               highlighted: true,
                             ),
 
+                            // =================================================
+                            // CANTIDAD
+                            // =================================================
                             if (item.quantity > 1)
                               InfoBadge(
                                 icon: Icons.layers_rounded,
                                 text: 'x${item.quantity}',
                               ),
 
+                            // =================================================
+                            // ARMA
+                            // =================================================
+                            if (item.weapon != null)
+                              InfoBadge(
+                                icon: Icons.gavel_rounded,
+                                text:
+                                    '${item.weapon!.damages.length} daño${item.weapon!.damages.length == 1 ? '' : 's'}',
+                              ),
+
+                            // =================================================
+                            // CONSUMIBLE
+                            // =================================================
+                            if (item.consumable != null)
+                              InfoBadge(
+                                icon: Icons.science_rounded,
+                                text:
+                                    '${item.consumable!.effects.length} efecto${item.consumable!.effects.length == 1 ? '' : 's'}',
+                              ),
+
+                            // =================================================
+                            // PASIVAS
+                            // =================================================
                             if (item.passives.isNotEmpty)
                               InfoBadge(
                                 icon: Icons.auto_awesome_rounded,
                                 text: '${item.passives.length}',
                               ),
 
+                            // =================================================
+                            // HABILIDADES
+                            // =================================================
                             if (item.abilities.isNotEmpty)
                               InfoBadge(
                                 icon: Icons.flash_on_rounded,
@@ -132,6 +169,9 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                           ],
                         ),
 
+                        // =====================================================
+                        // DESCRIPCIÓN
+                        // =====================================================
                         if (item.description.isNotEmpty) ...[
                           const SizedBox(height: 8),
 
@@ -139,13 +179,10 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                             item.description,
                             maxLines: expanded ? null : 2,
                             overflow: expanded ? null : TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                  height: 1.35,
-                                ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              height: 1.35,
+                            ),
                           ),
                         ],
                       ],
@@ -244,6 +281,42 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                   const Divider(height: 1),
 
                   // ===========================================================
+                  // ARMA
+                  // ===========================================================
+                  if (item.type == ItemType.weapon && item.weapon != null) ...[
+                    const SizedBox(height: 16),
+
+                    _SectionTitle(
+                      icon: Icons.gavel_rounded,
+                      title: 'Arma',
+                      color: color,
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    _WeaponLibraryPreview(item: item, color: color),
+                  ],
+
+                  // ===========================================================
+                  // CONSUMIBLE
+                  // ===========================================================
+                  if (item.type == ItemType.consumable &&
+                      item.consumable != null) ...[
+                    const SizedBox(height: 16),
+
+                    _SectionTitle(
+                      icon: Icons.science_rounded,
+                      title: 'Consumible',
+                      count: item.consumable!.effects.length,
+                      color: color,
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    _ConsumableLibraryPreview(item: item, color: color),
+                  ],
+
+                  // ===========================================================
                   // PASIVAS
                   // ===========================================================
                   if (item.passives.isNotEmpty) ...[
@@ -312,7 +385,7 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                       ),
                       child: Text(
                         item.notes,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: theme.textTheme.bodyMedium,
                       ),
                     ),
                   ],
@@ -321,8 +394,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
                   // ===========================================================
                   // AÑADIR AL PERSONAJE
-                  //
-                  // Solo aparece en ItemLibraryMode.select
                   // ===========================================================
                   if (widget.onAdd != null) ...[
                     SizedBox(
@@ -362,6 +433,284 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// PREVIEW ARMA
+// =============================================================================
+
+class _WeaponLibraryPreview extends StatelessWidget {
+  final CharacterItem item;
+  final Color color;
+
+  const _WeaponLibraryPreview({required this.item, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final weapon = item.weapon;
+
+    if (weapon == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.gps_fixed_rounded, size: 18, color: color),
+
+              const SizedBox(width: 7),
+
+              Text(
+                'Ataque',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+
+              const Spacer(),
+
+              Text(
+                weapon.attackAbility.name,
+                style: TextStyle(color: color, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              InfoBadge(
+                icon: Icons.verified_rounded,
+                text: weapon.proficient ? 'Competente' : 'No competente',
+              ),
+
+              if (weapon.magicBonus != 0)
+                InfoBadge(
+                  icon: Icons.auto_awesome_rounded,
+                  text:
+                      '${weapon.magicBonus > 0 ? '+' : ''}${weapon.magicBonus} mágico',
+                ),
+            ],
+          ),
+
+          if (weapon.damages.isNotEmpty) ...[
+            const SizedBox(height: 12),
+
+            ...weapon.damages.map((damage) {
+              final pieces = <String>[];
+
+              if (damage.diceNotation.isNotEmpty) {
+                pieces.add(damage.diceNotation);
+              }
+
+              if (damage.addAbilityModifier) {
+                pieces.add(damage.abilityType.name);
+              }
+
+              if (damage.bonus != 0) {
+                pieces.add(
+                  damage.bonus > 0 ? '+${damage.bonus}' : '${damage.bonus}',
+                );
+              }
+
+              final formula = pieces.join(' + ').replaceAll('+ -', '- ');
+
+              return Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.casino_rounded, size: 17, color: color),
+
+                    const SizedBox(width: 7),
+
+                    Expanded(
+                      child: Text(
+                        damage.damageType.trim().isNotEmpty
+                            ? '$formula · ${damage.damageType}'
+                            : formula,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// PREVIEW CONSUMIBLE
+// =============================================================================
+
+class _ConsumableLibraryPreview extends StatelessWidget {
+  final CharacterItem item;
+  final Color color;
+
+  const _ConsumableLibraryPreview({required this.item, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final consumable = item.consumable;
+
+    if (consumable == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.science_rounded, size: 18, color: color),
+
+              const SizedBox(width: 7),
+
+              Expanded(
+                child: Text(
+                  consumable.useText.trim().isNotEmpty
+                      ? consumable.useText
+                      : 'Usar',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+
+              if (item.quantity > 1)
+                Text(
+                  'x${item.quantity}',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+            ],
+          ),
+
+          if (consumable.effects.isEmpty) ...[
+            const SizedBox(height: 8),
+
+            Text(
+              'Sin efectos configurados',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 10),
+
+            ...consumable.effects.map((effect) {
+              final pieces = <String>[];
+
+              if (effect.diceNotation.isNotEmpty) {
+                pieces.add(effect.diceNotation);
+              }
+
+              for (final entry in effect.abilityModifierMultipliers.entries) {
+                if (entry.value == 0) {
+                  continue;
+                }
+
+                if (entry.value == 1) {
+                  pieces.add(entry.key.shortLabel);
+                } else {
+                  pieces.add('${entry.value}×${entry.key.shortLabel}');
+                }
+              }
+
+              if (effect.effectBonus != 0) {
+                pieces.add(
+                  effect.effectBonus > 0
+                      ? '+${effect.effectBonus}'
+                      : '${effect.effectBonus}',
+                );
+              }
+
+              final formula = pieces.isEmpty
+                  ? effect.effectType.label
+                  : pieces.join(' + ');
+
+              return Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      effect.heals
+                          ? Icons.favorite_rounded
+                          : effect.dealsDamage
+                          ? Icons.bolt_rounded
+                          : Icons.auto_awesome_rounded,
+                      size: 17,
+                      color: color,
+                    ),
+
+                    const SizedBox(width: 7),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            effect.effectTypeName.trim().isNotEmpty
+                                ? '$formula · ${effect.effectTypeName}'
+                                : formula,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+
+                          if (effect.name.trim().isNotEmpty) ...[
+                            const SizedBox(height: 2),
+
+                            Text(
+                              effect.name,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );

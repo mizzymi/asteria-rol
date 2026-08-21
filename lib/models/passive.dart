@@ -1,4 +1,7 @@
+import 'healing_bonus.dart';
 import 'skill.dart';
+import 'damage_bonus.dart';
+import 'critical_damage_bonus.dart';
 
 enum PassiveSourceType { race, classFeature, feat, item, background, custom }
 
@@ -47,6 +50,12 @@ class CharacterPassive {
 
   Map<AbilityType, int> savingThrowBonuses;
 
+  List<DamageBonus> damageBonuses;
+
+  List<CriticalDamageBonus> criticalDamageBonuses;
+
+  List<HealingBonus> healingBonuses;
+
   // ===========================================================================
   // CARGAS
   // ===========================================================================
@@ -80,6 +89,9 @@ class CharacterPassive {
     Map<AbilityType, int>? abilityModifierBonuses,
     Map<DndSkill, int>? skillBonuses,
     Map<AbilityType, int>? savingThrowBonuses,
+    List<DamageBonus>? damageBonuses,
+    List<HealingBonus>? healingBonuses,
+    List<CriticalDamageBonus>? criticalDamageBonuses,
 
     // =======================================================================
     // CARGAS
@@ -92,6 +104,10 @@ class CharacterPassive {
     this.notes = '',
   }) : skillBonuses = skillBonuses ?? {},
        abilityModifierBonuses = abilityModifierBonuses ?? {},
+       damageBonuses = damageBonuses ?? [],
+
+       criticalDamageBonuses = criticalDamageBonuses ?? [],
+       healingBonuses = healingBonuses ?? [],
        savingThrowBonuses = savingThrowBonuses ?? {};
 
   // ===========================================================================
@@ -106,7 +122,9 @@ class CharacterPassive {
         attackBonus != 0 ||
         abilityModifierBonuses.values.any((value) => value != 0) ||
         skillBonuses.values.any((value) => value != 0) ||
-        savingThrowBonuses.values.any((value) => value != 0);
+        savingThrowBonuses.values.any((value) => value != 0) ||
+        damageBonuses.any((damage) => damage.hasDamage) ||
+        criticalDamageBonuses.any((damage) => damage.canTrigger);
   }
 
   // ===========================================================================
@@ -216,6 +234,13 @@ class CharacterPassive {
           entry.key.name: entry.value,
       },
 
+      'damageBonuses': damageBonuses.map((damage) => damage.toMap()).toList(),
+
+      'criticalDamageBonuses': criticalDamageBonuses
+          .map((damage) => damage.toMap())
+          .toList(),
+
+      'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
       // =======================================================================
       // CARGAS
       // =======================================================================
@@ -293,6 +318,46 @@ class CharacterPassive {
       }
     }
 
+    final damageBonuses = <DamageBonus>[];
+
+    final rawDamageBonuses = map['damageBonuses'];
+
+    if (rawDamageBonuses is List) {
+      for (final rawDamage in rawDamageBonuses) {
+        if (rawDamage is! Map) {
+          continue;
+        }
+
+        try {
+          damageBonuses.add(
+            DamageBonus.fromMap(Map<dynamic, dynamic>.from(rawDamage)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    final criticalDamageBonuses = <CriticalDamageBonus>[];
+
+    final rawCriticalDamageBonuses = map['criticalDamageBonuses'];
+
+    if (rawCriticalDamageBonuses is List) {
+      for (final rawDamage in rawCriticalDamageBonuses) {
+        if (rawDamage is! Map) {
+          continue;
+        }
+
+        try {
+          criticalDamageBonuses.add(
+            CriticalDamageBonus.fromMap(Map<dynamic, dynamic>.from(rawDamage)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
     // =========================================================================
     // CARGAS
     // =========================================================================
@@ -358,6 +423,10 @@ class CharacterPassive {
       savingThrowBonuses: savingThrowBonuses,
 
       abilityModifierBonuses: abilityModifierBonuses,
+
+      damageBonuses: damageBonuses,
+
+      criticalDamageBonuses: criticalDamageBonuses,
 
       // =======================================================================
       // CARGAS

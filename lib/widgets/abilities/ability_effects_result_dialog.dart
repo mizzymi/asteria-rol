@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/dice_pool.dart';
 
 import '../../models/ability.dart';
+import '../../models/ability_effect_part.dart';
 import '../../models/character.dart';
+import '../../models/dice_pool.dart';
 
 import 'effect_result_card.dart';
 import 'total_result_card.dart';
@@ -49,43 +50,111 @@ class _AbilityEffectsResultDialogState
   // ===========================================================================
 
   void _rollAllEffects() {
-    rolledEffects = widget.ability.effects
-        .where((effect) => effect.hasEffect)
-        .map((effect) {
-          /*
-             * Solo los daños procedentes de una tirada
-             * de ataque pueden ser críticos.
-             *
-             * Los efectos con salvación nunca son críticos.
-             */
-          final canCritical =
-              widget.critical &&
-              widget.ability.requiresAttackRoll &&
-              effect.dealsDamage &&
-              !effect.usesSavingThrow;
+    rolledEffects = [];
 
-          final result = widget.character.rollAbilityEffectPart(
-            widget.ability,
-            effect,
-            critical: canCritical,
-          );
+    for (final effect in widget.ability.effects) {
+      if (!effect.hasEffect) {
+        continue;
+      }
 
-          return _RolledEffect(
-            effect: effect,
-            result: result,
-            saved: false,
-            critical: canCritical,
-          );
-        })
-        .toList();
+      /*
+       * Solo los daños procedentes de una tirada
+       * de ataque pueden ser críticos.
+       *
+       * Los efectos con salvación nunca son críticos.
+       */
+      final canCritical =
+          widget.critical &&
+          widget.ability.requiresAttackRoll &&
+          effect.dealsDamage &&
+          !effect.usesSavingThrow;
+
+      final rolledParts = <_RolledPart>[];
+
+      // =======================================================================
+      // NUEVO SISTEMA: PARTES DEL EFECTO
+      // =======================================================================
+
+      for (final part in effect.parts) {
+        if (!part.hasValue) {
+          continue;
+        }
+
+        final result = widget.character.rollAbilityEffectPart(
+          widget.ability,
+          effect,
+          part,
+          critical: canCritical,
+        );
+
+        rolledParts.add(_RolledPart(part: part, result: result));
+      }
+
+      /*
+       * Si por cualquier motivo el efecto no tiene
+       * componentes válidos, no lo mostramos.
+       */
+      if (rolledParts.isEmpty) {
+        continue;
+      }
+
+      rolledEffects.add(
+        _RolledEffect(
+          effect: effect,
+          parts: rolledParts,
+          saved: false,
+          critical: canCritical,
+        ),
+      );
+    }
   }
 
   // ===========================================================================
-  // TOTAL DE UN EFECTO
+  // TOTAL BRUTO DE UN EFECTO
+  // ===========================================================================
+
+  int _effectRawTotal(_RolledEffect rolled) {
+    return rolled.parts.fold<int>(0, (sum, part) => sum + part.result.total);
+  }
+
+  // ===========================================================================
+  // TOTAL FINAL DE UN EFECTO
+  //
+  // La salvación afecta al efecto completo.
   // ===========================================================================
 
   int _effectTotal(_RolledEffect rolled) {
-    final baseTotal = rolled.result.total;
+    final baseTotal = _effectRawTotal(rolled);
+
+    if (!rolled.effect.usesSavingThrow) {
+      return baseTotal;
+    }
+
+    if (!rolled.saved) {
+      return baseTotal;
+    }
+
+    switch (rolled.effect.saveSuccessEffect) {
+      case SaveSuccessEffect.full:
+        return baseTotal;
+
+      case SaveSuccessEffect.half:
+        return baseTotal ~/ 2;
+
+      case SaveSuccessEffect.none:
+        return 0;
+    }
+  }
+
+  // ===========================================================================
+  // TOTAL FINAL DE UNA PARTE
+  //
+  // Esto nos permite mostrar correctamente cada tipo de daño después
+  // de una salvación.
+  // ===========================================================================
+
+  int _partTotal(_RolledEffect rolled, _RolledPart part) {
+    final baseTotal = part.result.total;
 
     if (!rolled.effect.usesSavingThrow) {
       return baseTotal;
@@ -177,6 +246,58 @@ class _AbilityEffectsResultDialogState
     }
 
     rerollAll();
+  }
+
+  // ===========================================================================
+  // ICONO DE UNA PARTE
+  // ===========================================================================
+
+  IconData _partIcon(AbilityEffect effect) {
+    if (effect.heals) {
+      return Icons.favorite_rounded;
+    }
+
+    if (effect.dealsDamage) {
+      return Icons.flash_on_rounded;
+    }
+
+    return Icons.auto_awesome_rounded;
+  }
+
+  // ===========================================================================
+  // FÓRMULA DE UNA PARTE
+  // ===========================================================================
+
+  String _partFormula(AbilityEffectPart part) {
+    final pieces = <String>[];
+
+    if (part.diceNotation.isNotEmpty) {
+      pieces.add(part.diceNotation);
+    }
+
+    for (final entry in part.abilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        pieces.add(entry.key.name);
+      } else {
+        pieces.add('${entry.value}×${entry.key.name}');
+      }
+    }
+
+    if (part.flatBonus != 0) {
+      pieces.add(
+        part.flatBonus > 0 ? '+${part.flatBonus}' : '${part.flatBonus}',
+      );
+    }
+
+    if (pieces.isEmpty) {
+      return 'Sin tirada';
+    }
+
+    return pieces.join(' + ').replaceAll('+ -', '- ');
   }
 
   // ===========================================================================
@@ -290,13 +411,18 @@ class _AbilityEffectsResultDialogState
                         padding: EdgeInsets.only(
                           bottom: index == rolledEffects.length - 1 ? 0 : 12,
                         ),
-                        child: EffectResultCard(
-                          effect: rolled.effect,
-                          result: rolled.result,
-                          total: _effectTotal(rolled),
-                          saved: rolled.saved,
-                          critical: rolled.critical,
+                        child: _EffectPartsCard(
+                          rolled: rolled,
+
                           saveDc: dc,
+
+                          partTotal: (part) => _partTotal(rolled, part),
+
+                          effectTotal: _effectTotal(rolled),
+
+                          partFormula: _partFormula,
+
+                          partIcon: _partIcon,
 
                           onSavedChanged: rolled.effect.usesSavingThrow
                               ? (saved) {
@@ -383,13 +509,11 @@ class _AbilityEffectsResultDialogState
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: _reroll,
-
                       icon: Icon(
                         rerollsAttack
                             ? Icons.gps_fixed_rounded
                             : Icons.casino_rounded,
                       ),
-
                       label: Text(
                         rerollsAttack ? 'Volver a atacar' : 'Volver a tirar',
                       ),
@@ -406,13 +530,245 @@ class _AbilityEffectsResultDialogState
 }
 
 // =============================================================================
-// MODELO INTERNO
+// TARJETA DE EFECTO CON VARIOS COMPONENTES
 // =============================================================================
+
+class _EffectPartsCard extends StatelessWidget {
+  final _RolledEffect rolled;
+
+  final int? saveDc;
+
+  final int Function(_RolledPart) partTotal;
+
+  final int effectTotal;
+
+  final String Function(AbilityEffectPart) partFormula;
+
+  final IconData Function(AbilityEffect) partIcon;
+
+  final ValueChanged<bool>? onSavedChanged;
+
+  const _EffectPartsCard({
+    required this.rolled,
+    required this.saveDc,
+    required this.partTotal,
+    required this.effectTotal,
+    required this.partFormula,
+    required this.partIcon,
+    required this.onSavedChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ===================================================================
+          // NOMBRE DEL EFECTO
+          // ===================================================================
+          Row(
+            children: [
+              Icon(partIcon(rolled.effect), color: theme.colorScheme.primary),
+
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: Text(
+                  rolled.effect.name.trim().isNotEmpty
+                      ? rolled.effect.name
+                      : rolled.effect.effectType.label,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+
+              if (rolled.critical)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'CRÍTICO',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // ===================================================================
+          // COMPONENTES
+          // ===================================================================
+          ...List.generate(rolled.parts.length, (index) {
+            final rolledPart = rolled.parts[index];
+
+            final part = rolledPart.part;
+
+            final total = partTotal(rolledPart);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == rolled.parts.length - 1 ? 0 : 8,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      partIcon(rolled.effect),
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+
+                    const SizedBox(width: 9),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            part.typeName.trim().isNotEmpty
+                                ? part.typeName
+                                : rolled.effect.effectType.label,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+
+                          const SizedBox(height: 2),
+
+                          Text(
+                            partFormula(part),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    Text(
+                      '$total',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+
+          // ===================================================================
+          // SALVACIÓN
+          // ===================================================================
+          if (rolled.effect.usesSavingThrow) ...[
+            const SizedBox(height: 12),
+
+            const Divider(),
+
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Salvación ${rolled.effect.savingThrowAbility.name}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+
+                      if (saveDc != null)
+                        Text('CD $saveDc', style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+
+                const Text('Superada'),
+
+                const SizedBox(width: 6),
+
+                Switch(value: rolled.saved, onChanged: onSavedChanged),
+              ],
+            ),
+          ],
+
+          // ===================================================================
+          // TOTAL DEL EFECTO
+          // ===================================================================
+          if (rolled.parts.length > 1) ...[
+            const SizedBox(height: 12),
+
+            const Divider(),
+
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Total del efecto',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+
+                Text(
+                  '$effectTotal',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// MODELOS INTERNOS
+// =============================================================================
+
+class _RolledPart {
+  final AbilityEffectPart part;
+
+  final DiceCalculationResult result;
+
+  const _RolledPart({required this.part, required this.result});
+}
 
 class _RolledEffect {
   final AbilityEffect effect;
 
-  final DiceCalculationResult result;
+  final List<_RolledPart> parts;
 
   final bool critical;
 
@@ -420,7 +776,7 @@ class _RolledEffect {
 
   _RolledEffect({
     required this.effect,
-    required this.result,
+    required this.parts,
     required this.critical,
     required this.saved,
   });

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../models/ability_effect_part.dart';
 import '../models/character.dart';
 import '../models/ability.dart';
 import '../models/dice_pool.dart';
 import '../models/skill.dart';
+import '../models/character_resource.dart';
 
 import '../widgets/abilities/ability_form/ability_general_section.dart';
 import '../widgets/abilities/ability_form/ability_attack_section.dart';
@@ -92,11 +94,45 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       name: effect.name,
       effectType: effect.effectType,
 
+      // =========================================================
+      // NUEVO SISTEMA: PARTES / GRUPOS DE DAÑO
+      // =========================================================
+      parts: effect.parts
+          .map(
+            (part) => AbilityEffectPart(
+              id: part.id,
+
+              dicePools: part.dicePools
+                  .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+                  .toList(),
+
+              abilityModifierMultipliers: Map<AbilityType, int>.from(
+                part.abilityModifierMultipliers,
+              ),
+
+              resourceValueMultipliers: Map<String, int>.from(
+                part.resourceValueMultipliers,
+              ),
+
+              flatBonus: part.flatBonus,
+
+              typeName: part.typeName,
+            ),
+          )
+          .toList(),
+
+      // =========================================================
+      // LEGACY
+      // =========================================================
       dicePools: effect.dicePools
           .map((pool) => DicePool(count: pool.count, sides: pool.sides))
           .toList(),
 
-      addAbilityModifierToEffect: effect.addAbilityModifierToEffect,
+      abilityModifierMultipliers: Map<AbilityType, int>.from(
+        effect.abilityModifierMultipliers,
+      ),
+
+      legacyAddAbilityModifier: effect.legacyAddAbilityModifier,
 
       effectBonus: effect.effectBonus,
 
@@ -117,10 +153,26 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       effects.add(
         AbilityEffect(
           id: '${DateTime.now().microsecondsSinceEpoch}_effect',
+
           name: '',
+
           effectType: AbilityEffectType.damage,
-          dicePools: [DicePool(count: 1, sides: 6)],
-          addAbilityModifierToEffect: false,
+
+          // No forzamos dados.
+          //
+          // Ahora son válidos:
+          // 2×SAB
+          // +5
+          // SAB + CAR
+          // etc.
+          dicePools: [],
+
+          abilityModifierMultipliers: {},
+
+          legacyAddAbilityModifier: false,
+
+          effectBonus: 0,
+
           saveSuccessEffect: SaveSuccessEffect.half,
         ),
       );
@@ -193,16 +245,29 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     }
 
     /*
-     * Compatibilidad con el sistema antiguo.
-     *
-     * CharacterAbility todavía tiene los campos
-     * effectType, dicePools, savingThrowAbility...
-     *
-     * Los rellenamos usando el primer efecto.
-     *
-     * El sistema nuevo trabajará con effects.
-     */
+ * Compatibilidad con el sistema antiguo.
+ *
+ * CharacterAbility todavía conserva
+ * algunos campos legacy.
+ *
+ * El sistema real trabaja con effects.
+ */
+
     final firstEffect = effects.isNotEmpty ? effects.first : null;
+
+    /*
+ * El sistema antiguo solo soportaba:
+ *
+ * +1 × atributo principal.
+ *
+ * Por tanto solo marcamos el booleano
+ * legacy cuando el nuevo efecto puede
+ * representarse exactamente así.
+ */
+    final legacyAddAbilityModifier =
+        firstEffect != null &&
+        firstEffect.abilityModifierMultipliers[abilityType] == 1 &&
+        firstEffect.abilityModifierMultipliers.length == 1;
 
     final ability = CharacterAbility(
       id:
@@ -223,14 +288,14 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
       attackBonus: int.tryParse(attackBonusController.text) ?? 0,
 
-      // ============================
+      // ============================================================
       // NUEVO SISTEMA
-      // ============================
+      // ============================================================
       effects: effects.map(_cloneEffect).toList(),
 
-      // ============================
+      // ============================================================
       // LEGACY
-      // ============================
+      // ============================================================
       effectType: firstEffect?.effectType ?? AbilityEffectType.none,
 
       dicePools:
@@ -239,8 +304,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
               .toList() ??
           [],
 
-      addAbilityModifierToEffect:
-          firstEffect?.addAbilityModifierToEffect ?? false,
+      addAbilityModifierToEffect: legacyAddAbilityModifier,
 
       effectBonus: firstEffect?.effectBonus ?? 0,
 
@@ -253,9 +317,9 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
       saveDcBonus: firstEffect?.saveDcBonus ?? 0,
 
-      // ============================
+      // ============================================================
       // USOS
-      // ============================
+      // ============================================================
       maxUses: maxUses,
 
       currentUses: currentUses,
@@ -352,6 +416,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                 onRemoveEffect: removeEffect,
                 onMoveUp: moveEffectUp,
                 onMoveDown: moveEffectDown,
+                resources:
+                    widget.character?.resources ?? const <CharacterResource>[],
               ),
 
               if (widget.character != null &&

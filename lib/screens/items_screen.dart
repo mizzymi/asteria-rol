@@ -1,16 +1,21 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:rol/models/ability_effect_part.dart';
 
 import 'dart:convert';
+
+import '../models/skill.dart';
 import '../models/character.dart';
 import '../models/item.dart';
-import '../models/dice_history_entry.dart';
+import '../models/ability.dart';
+import '../models/dice_pool.dart';
+import '../models/healing_bonus_result.dart';
+import '../models/damage_bonus_result.dart';
 
 import '../services/character_storage_service.dart';
 import '../services/item_library_service.dart';
 
-import '../models/weapon.dart';
 import '../widgets/weapons/weapon_damage_result_dialog.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/section_header.dart';
@@ -326,6 +331,34 @@ class _ItemsScreenState extends State<ItemsScreen> {
     );
   }
 
+  Future<void> editItemQuantityQuick(CharacterItem item) async {
+    final baseValue = item.quantity;
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return _ItemQuantityCalculatorDialog(
+          itemName: item.name,
+          baseValue: baseValue,
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      item.quantity = result;
+
+      if (item.quantity <= 0) {
+        character.removeItem(item.id);
+      }
+    });
+
+    await save();
+  }
+
   Future<void> rollWeaponAttack(CharacterItem item) async {
     final weapon = item.weapon;
 
@@ -583,6 +616,454 @@ class _ItemsScreenState extends State<ItemsScreen> {
         );
       },
     );
+  }
+
+  // ===========================================================================
+  // USAR CONSUMIBLE
+  // ===========================================================================
+
+  Future<void> useConsumable(CharacterItem item) async {
+    final consumable = item.consumable;
+
+    if (consumable == null) {
+      return;
+    }
+
+    if (item.quantity <= 0) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No quedan unidades de este consumible.')),
+      );
+
+      return;
+    }
+
+    if (consumable.effects.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Este consumible no tiene efectos configurados.'),
+        ),
+      );
+
+      return;
+    }
+
+    // ===========================================================================
+    // HABILIDAD TEMPORAL
+    //
+    // Los consumibles reutilizan el mismo sistema de efectos
+    // que las habilidades.
+    // ===========================================================================
+
+    final consumableAbility = CharacterAbility(
+      id: '${item.id}_consumable',
+      name: item.name,
+      abilityType: AbilityType.strength,
+    );
+
+    // ===========================================================================
+    // TIRAR EFECTOS Y SUS COMPONENTES
+    // ===========================================================================
+
+    final rolledEffects = <_ConsumableRolledEffect>[];
+
+    for (final effect in consumable.effects) {
+      if (!effect.hasEffect) {
+        continue;
+      }
+
+      final rolledParts = <_ConsumableRolledPart>[];
+
+      for (final part in effect.parts) {
+        if (!part.hasValue) {
+          continue;
+        }
+
+        final result = character.rollAbilityEffectPart(
+          consumableAbility,
+          effect,
+          part,
+          critical: false,
+        );
+
+        rolledParts.add(_ConsumableRolledPart(part: part, result: result));
+      }
+
+      if (rolledParts.isEmpty) {
+        continue;
+      }
+
+      rolledEffects.add(
+        _ConsumableRolledEffect(effect: effect, parts: rolledParts),
+      );
+    }
+
+    if (rolledEffects.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Este consumible no tiene efectos utilizables.'),
+        ),
+      );
+
+      return;
+    }
+
+    // ===========================================================================
+    // TOTALES BASE
+    // ===========================================================================
+
+    int totalHealing = 0;
+    int totalDamage = 0;
+
+    for (final rolled in rolledEffects) {
+      final effectTotal = rolled.total;
+
+      if (rolled.effect.heals) {
+        totalHealing += effectTotal;
+      }
+
+      if (rolled.effect.dealsDamage) {
+        totalDamage += effectTotal;
+      }
+    }
+
+    // ===========================================================================
+    // BONOS GLOBALES DE CURACIÓN
+    // ===========================================================================
+
+    final healingBonuses = <HealingBonusResult>[];
+
+    if (totalHealing > 0) {
+      healingBonuses.addAll(character.rollActiveHealingBonuses());
+
+      totalHealing += healingBonuses.fold<int>(
+        0,
+        (sum, result) => sum + result.total,
+      );
+    }
+
+    // ===========================================================================
+    // BONOS GLOBALES DE DAÑO
+    // ===========================================================================
+
+    final damageBonuses = <DamageBonusResult>[];
+
+    if (totalDamage > 0) {
+      damageBonuses.addAll(character.rollActiveDamageBonuses());
+
+      totalDamage += damageBonuses.fold<int>(
+        0,
+        (sum, result) => sum + result.total,
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    // ===========================================================================
+    // DIÁLOGO
+    // ===========================================================================
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.science_rounded),
+
+              const SizedBox(width: 10),
+
+              Expanded(child: Text(item.name)),
+            ],
+          ),
+
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ===============================================================
+                // EFECTOS
+                // ===============================================================
+                ...rolledEffects.map((rolled) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ===================================================
+                          // NOMBRE DEL EFECTO
+                          // ===================================================
+                          Row(
+                            children: [
+                              Icon(
+                                rolled.effect.heals
+                                    ? Icons.favorite_rounded
+                                    : rolled.effect.dealsDamage
+                                    ? Icons.flash_on_rounded
+                                    : Icons.auto_awesome_rounded,
+                              ),
+
+                              const SizedBox(width: 8),
+
+                              Expanded(
+                                child: Text(
+                                  rolled.effect.name.trim().isNotEmpty
+                                      ? rolled.effect.name
+                                      : rolled.effect.effectType.label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+
+                              if (rolled.parts.length > 1)
+                                Text(
+                                  '${rolled.total}',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // ===================================================
+                          // COMPONENTES
+                          // ===================================================
+                          ...rolled.parts.map((rolledPart) {
+                            final part = rolledPart.part;
+
+                            return Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 7),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 9,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          part.typeName.trim().isNotEmpty
+                                              ? part.typeName
+                                              : rolled.effect.effectType.label,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+
+                                        if (part.diceNotation.isNotEmpty)
+                                          Text(
+                                            part.diceNotation,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 8),
+
+                                  Text(
+                                    '${rolledPart.result.total}',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+
+                // ===============================================================
+                // BONOS DE CURACIÓN
+                // ===============================================================
+                if (healingBonuses.isNotEmpty) ...[
+                  const Divider(),
+
+                  const Text(
+                    'Bonos de curación',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  ...healingBonuses.map(
+                    (result) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.favorite_border_rounded),
+                      title: Text(
+                        result.bonus.name.trim().isNotEmpty
+                            ? result.bonus.name
+                            : 'Bonus de curación',
+                      ),
+                      trailing: Text(
+                        '+${result.total}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // ===============================================================
+                // BONOS DE DAÑO
+                // ===============================================================
+                if (damageBonuses.isNotEmpty) ...[
+                  const Divider(),
+
+                  const Text(
+                    'Bonos de daño',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  ...damageBonuses.map(
+                    (result) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.bolt_rounded),
+                      title: Text(
+                        result.bonus.name.trim().isNotEmpty
+                            ? result.bonus.name
+                            : 'Bonus de daño',
+                      ),
+                      trailing: Text(
+                        '+${result.total}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // ===============================================================
+                // TOTALES
+                // ===============================================================
+                const Divider(),
+
+                if (totalHealing > 0)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.favorite_rounded),
+                    title: const Text('Curación total'),
+                    trailing: Text(
+                      '$totalHealing',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+
+                if (totalDamage > 0)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.flash_on_rounded),
+                    title: const Text('Daño total'),
+                    trailing: Text(
+                      '$totalDamage',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+
+                Text('Cantidad restante después de usar: ${item.quantity - 1}'),
+              ],
+            ),
+          ),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              icon: const Icon(Icons.check_rounded),
+              label: Text(
+                consumable.useText.trim().isEmpty ? 'Usar' : consumable.useText,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    // ===========================================================================
+    // APLICAR CONSUMIBLE
+    // ===========================================================================
+
+    setState(() {
+      if (totalHealing > 0) {
+        character.heal(totalHealing);
+      }
+
+      item.quantity -= 1;
+
+      // =========================================================================
+      // CONSUMIBLE AGOTADO
+      // =========================================================================
+
+      if (item.quantity <= 0) {
+        character.removeItem(item.id);
+      }
+
+      character.normalizeHealth();
+    });
+
+    await save();
   }
 
   // ===========================================================================
@@ -880,6 +1361,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
                     (item) => ItemCard(
                       item: item,
 
+                      character: character,
+
                       onEquip: () {
                         toggleEquip(item);
                       },
@@ -899,6 +1382,12 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       onSaveToLibrary: () {
                         saveItemToLibrary(item);
                       },
+
+                      onQuickQuantityEdit: item.calculable
+                          ? () {
+                              editItemQuantityQuick(item);
+                            }
+                          : null,
 
                       // =========================================================
                       // ARMA
@@ -974,6 +1463,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
                     (item) => ItemCard(
                       item: item,
 
+                      character: character,
+
                       onEquip: () {
                         toggleEquip(item);
                       },
@@ -993,6 +1484,20 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       onSaveToLibrary: () {
                         saveItemToLibrary(item);
                       },
+
+                      onQuickQuantityEdit: item.calculable
+                          ? () {
+                              editItemQuantityQuick(item);
+                            }
+                          : null,
+
+                      onConsumableUse:
+                          item.type == ItemType.consumable &&
+                              item.consumable != null
+                          ? () {
+                              useConsumable(item);
+                            }
+                          : null,
                     ),
                   ),
               ],
@@ -1007,8 +1512,275 @@ class _ItemsScreenState extends State<ItemsScreen> {
   }
 }
 
-enum _WeaponAttackMode {
-  normal,
-  advantage,
-  disadvantage,
+enum _WeaponAttackMode { normal, advantage, disadvantage }
+
+class _ConsumableRolledPart {
+  final AbilityEffectPart part;
+
+  final DiceCalculationResult result;
+
+  const _ConsumableRolledPart({required this.part, required this.result});
+}
+
+class _ConsumableRolledEffect {
+  final AbilityEffect effect;
+
+  final List<_ConsumableRolledPart> parts;
+
+  const _ConsumableRolledEffect({required this.effect, required this.parts});
+
+  int get total {
+    return parts.fold<int>(0, (sum, part) => sum + part.result.total);
+  }
+}
+
+class _ItemQuantityCalculatorDialog extends StatefulWidget {
+  final String itemName;
+  final int baseValue;
+
+  const _ItemQuantityCalculatorDialog({
+    required this.itemName,
+    required this.baseValue,
+  });
+
+  @override
+  State<_ItemQuantityCalculatorDialog> createState() =>
+      _ItemQuantityCalculatorDialogState();
+}
+
+class _ItemQuantityCalculatorDialogState
+    extends State<_ItemQuantityCalculatorDialog> {
+  late final TextEditingController valueController;
+
+  String operation = '+';
+
+  @override
+  void initState() {
+    super.initState();
+
+    valueController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    valueController.dispose();
+
+    super.dispose();
+  }
+
+  int get secondValue {
+    return int.tryParse(valueController.text.trim()) ?? 0;
+  }
+
+  int get calculated {
+    switch (operation) {
+      case '+':
+        return widget.baseValue + secondValue;
+
+      case '-':
+        return max(0, widget.baseValue - secondValue);
+
+      case '×':
+        return widget.baseValue * secondValue;
+
+      case '÷':
+        if (secondValue <= 0) {
+          return widget.baseValue;
+        }
+
+        return widget.baseValue ~/ secondValue;
+
+      default:
+        return widget.baseValue;
+    }
+  }
+
+  String get operationLabel {
+    switch (operation) {
+      case '+':
+        return 'sumar';
+
+      case '-':
+        return 'restar';
+
+      case '×':
+        return 'multiplicar';
+
+      case '÷':
+        return 'dividir';
+
+      default:
+        return 'usar';
+    }
+  }
+
+  void setQuickValue(int value) {
+    setState(() {
+      valueController.text = '$value';
+
+      valueController.selection = TextSelection.collapsed(
+        offset: valueController.text.length,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.calculate_rounded),
+
+          const SizedBox(width: 10),
+
+          Expanded(child: Text(widget.itemName)),
+        ],
+      ),
+
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Cantidad actual',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+
+            const SizedBox(height: 4),
+
+            Text(
+              '${widget.baseValue}',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+
+            const SizedBox(height: 18),
+
+            Row(
+              children: [
+                for (final op in const ['+', '-', '×', '÷'])
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: operation == op
+                          ? FilledButton(
+                              onPressed: () {
+                                setState(() {
+                                  operation = op;
+                                });
+                              },
+                              child: Text(op),
+                            )
+                          : OutlinedButton(
+                              onPressed: () {
+                                setState(() {
+                                  operation = op;
+                                });
+                              },
+                              child: Text(op),
+                            ),
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            TextFormField(
+              controller: valueController,
+
+              autofocus: true,
+
+              keyboardType: TextInputType.number,
+
+              textAlign: TextAlign.center,
+
+              decoration: InputDecoration(
+                labelText: 'Cantidad a $operationLabel',
+
+                prefixIcon: const Icon(Icons.functions_rounded),
+              ),
+
+              onChanged: (_) {
+                setState(() {});
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Resultado',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+
+                  const SizedBox(height: 3),
+
+                  Text(
+                    '$calculated',
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    '${widget.baseValue} '
+                    '$operation '
+                    '${valueController.text.trim().isEmpty ? '0' : valueController.text.trim()}',
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final value in const [1, 10, 100, 1000])
+                  OutlinedButton(
+                    onPressed: () {
+                      setQuickValue(value);
+                    },
+                    child: Text('$value'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: const Text('Cancelar'),
+        ),
+
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop(calculated);
+          },
+          icon: const Icon(Icons.check_rounded),
+          label: const Text('Aplicar'),
+        ),
+      ],
+    );
+  }
 }

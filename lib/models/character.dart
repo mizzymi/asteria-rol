@@ -1,3 +1,6 @@
+import 'dart:math';
+import 'package:rol/models/ability_effect_part.dart';
+
 import 'character_resource.dart';
 import 'ability.dart';
 import 'ability_scores.dart';
@@ -14,6 +17,12 @@ import 'item.dart';
 import 'character_effect.dart';
 import 'weapon_damage.dart';
 import 'weapon_damage_result.dart';
+import 'damage_bonus.dart';
+import 'damage_bonus_result.dart';
+import 'critical_damage_bonus.dart';
+import 'critical_damage_bonus_result.dart';
+import 'healing_bonus.dart';
+import 'healing_bonus_result.dart';
 
 class Character {
   final String id;
@@ -64,6 +73,83 @@ class Character {
   List<CharacterResource> resources;
 
   List<CharacterEffect> effects;
+
+  List<DamageBonus> get activeDamageBonuses {
+    final result = <DamageBonus>[];
+
+    for (final passive in enabledPassives) {
+      result.addAll(passive.damageBonuses);
+    }
+
+    for (final effect in enabledEffects) {
+      result.addAll(effect.damageBonuses);
+    }
+
+    return result;
+  }
+
+  List<CriticalDamageBonus> activeCriticalDamageBonuses(Weapon weapon) {
+    final result = <CriticalDamageBonus>[...weapon.criticalDamageBonuses];
+
+    for (final passive in enabledPassives) {
+      result.addAll(passive.criticalDamageBonuses);
+    }
+
+    for (final effect in enabledEffects) {
+      result.addAll(effect.criticalDamageBonuses);
+    }
+
+    return result;
+  }
+
+  List<HealingBonus> get activeHealingBonuses {
+    final result = <HealingBonus>[];
+
+    for (final passive in enabledPassives) {
+      result.addAll(passive.healingBonuses);
+    }
+
+    for (final effect in enabledEffects) {
+      result.addAll(effect.healingBonuses);
+    }
+
+    return result;
+  }
+
+  List<HealingBonusResult> rollActiveHealingBonuses() {
+    final results = <HealingBonusResult>[];
+
+    for (final bonus in activeHealingBonuses) {
+      if (!bonus.hasHealing) {
+        continue;
+      }
+
+      results.add(rollHealingBonus(bonus));
+    }
+
+    return results;
+  }
+
+  int activeHealingBonusTotal() {
+    return rollActiveHealingBonuses().fold<int>(
+      0,
+      (sum, result) => sum + result.total,
+    );
+  }
+
+  List<DamageBonusResult> rollActiveDamageBonuses({bool critical = false}) {
+    final results = <DamageBonusResult>[];
+
+    for (final bonus in activeDamageBonuses) {
+      if (!bonus.hasDamage) {
+        continue;
+      }
+
+      results.add(rollDamageBonus(bonus, critical: critical));
+    }
+
+    return results;
+  }
 
   Character({
     required this.id,
@@ -541,6 +627,48 @@ class Character {
         .join(' + ');
   }
 
+  int calculateAbilityMultipliers(Map<AbilityType, int> multipliers) {
+    int result = 0;
+
+    for (final entry in multipliers.entries) {
+      result += abilityModifier(entry.key) * entry.value;
+    }
+
+    return result;
+  }
+
+  int damageBonusModifier(DamageBonus bonus) {
+    return bonus.flatBonus +
+        calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+  }
+
+  DamageBonusResult rollDamageBonus(
+    DamageBonus bonus, {
+    bool critical = false,
+  }) {
+    final baseModifier = damageBonusModifier(bonus);
+
+    /*
+   * Crítico Asteria:
+   *
+   * máximo dados
+   * + tirada
+   * + modificador
+   * + modificador
+   */
+    final modifier = critical ? baseModifier * 2 : baseModifier;
+
+    final roll = DicePoolRoller.roll(
+      pools: bonus.dicePools,
+
+      modifier: modifier,
+
+      critical: critical,
+    );
+
+    return DamageBonusResult(bonus: bonus, roll: roll);
+  }
+
   // ===========================================================================
   // PUNTOS DE VIDA
   // ===========================================================================
@@ -659,6 +787,126 @@ class Character {
     return null;
   }
 
+  // ===========================================================================
+  // CALCULADORA DE OBJETOS
+  // ===========================================================================
+
+  /// Devuelve cuántas unidades de [target] puede pagar el personaje
+  /// usando los objetos definidos en calculationCosts.
+  ///
+  /// Ejemplo:
+  ///
+  /// Poción:
+  /// 2 × Moneda de oro
+  /// 3 × Moneda de plata
+  ///
+  /// Inventario:
+  /// 15 oro
+  /// 32 plata
+  ///
+  /// Resultado:
+  /// min(15 ~/ 2, 32 ~/ 3) = 7
+  int maxCalculableQuantity(CharacterItem target) {
+    if (!target.calculable || target.calculationCosts.isEmpty) {
+      return 0;
+    }
+
+    int? maximum;
+
+    for (final cost in target.calculationCosts) {
+      if (cost.itemId.trim().isEmpty || cost.quantityPerUnit <= 0) {
+        return 0;
+      }
+
+      final available = itemQuantityById(cost.itemId);
+
+      final possible = available ~/ cost.quantityPerUnit;
+
+      if (maximum == null || possible < maximum) {
+        maximum = possible;
+      }
+    }
+
+    return maximum ?? 0;
+  }
+
+  /// Cantidad total de un objeto concreto.
+  ///
+  /// Se suma por si en algún momento existen varias pilas
+  /// con el mismo ID/referencia.
+  int itemQuantityById(String itemId) {
+    int total = 0;
+
+    for (final item in items) {
+      if (item.id == itemId) {
+        total += item.quantity;
+      }
+    }
+
+    return total;
+  }
+
+  /// Comprueba si puede pagar [amount] unidades del objeto.
+  bool canCalculateItem(CharacterItem target, int amount) {
+    if (amount <= 0) {
+      return false;
+    }
+
+    if (!target.calculable || target.calculationCosts.isEmpty) {
+      return false;
+    }
+
+    for (final cost in target.calculationCosts) {
+      if (cost.quantityPerUnit <= 0) {
+        return false;
+      }
+
+      final required = cost.quantityPerUnit * amount;
+
+      if (itemQuantityById(cost.itemId) < required) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// Consume los objetos necesarios.
+  ///
+  /// IMPORTANTE:
+  /// Esto solamente paga el coste.
+  /// No añade automáticamente el objeto comprado.
+  bool payCalculatedItem(CharacterItem target, int amount) {
+    if (!canCalculateItem(target, amount)) {
+      return false;
+    }
+
+    for (final cost in target.calculationCosts) {
+      var remaining = cost.quantityPerUnit * amount;
+
+      for (var i = items.length - 1; i >= 0 && remaining > 0; i--) {
+        final item = items[i];
+
+        if (item.id != cost.itemId) {
+          continue;
+        }
+
+        final consumed = min(item.quantity, remaining);
+
+        item.quantity -= consumed;
+        remaining -= consumed;
+
+        // Igual que con tus consumibles:
+        // si llega a 0 desaparece del inventario.
+        if (item.quantity <= 0) {
+          items.removeAt(i);
+        }
+      }
+    }
+
+    return true;
+  }
+
   void equipItem(CharacterItem item) {
     if (!item.type.isEquipable) {
       return;
@@ -701,7 +949,20 @@ class Character {
   int abilityEffectModifier(CharacterAbility ability, AbilityEffect effect) {
     int result = effect.effectBonus;
 
-    if (effect.addAbilityModifierToEffect) {
+    // =========================================================================
+    // NUEVO SISTEMA
+    // =========================================================================
+
+    if (effect.abilityModifierMultipliers.isNotEmpty) {
+      result += calculateAbilityMultipliers(effect.abilityModifierMultipliers);
+    }
+    // =========================================================================
+    // LEGACY
+    //
+    // Las habilidades antiguas usaban el
+    // atributo principal de la habilidad.
+    // =========================================================================
+    else if (effect.legacyAddAbilityModifier) {
       result += abilityModifier(ability.abilityType);
     }
 
@@ -782,6 +1043,8 @@ class Character {
   // ARMAS
   // ===========================================================================
 
+  static final Random _criticalDamageRandom = Random();
+
   int attackBonus(Weapon weapon) {
     final modifier = abilityModifier(weapon.attackAbility);
 
@@ -804,6 +1067,24 @@ class Character {
   // ===========================================================================
   // DAÑO DE ARMAS
   // ===========================================================================
+
+  int calculateResourceValueMultipliers(Map<String, int> multipliers) {
+    int result = 0;
+
+    for (final entry in multipliers.entries) {
+      final resource = resources
+          .where((resource) => resource.id == entry.key)
+          .firstOrNull;
+
+      if (resource == null) {
+        continue;
+      }
+
+      result += resource.currentValue * entry.value;
+    }
+
+    return result;
+  }
 
   /// Modificador del sistema antiguo.
   ///
@@ -939,6 +1220,76 @@ class Character {
   // TIRADA DE UN COMPONENTE
   // ===========================================================================
 
+  HealingBonusResult rollHealingBonus(HealingBonus bonus) {
+    final modifier =
+        bonus.flatBonus +
+        calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+
+    final roll = DicePoolRoller.roll(
+      pools: bonus.dicePools,
+
+      modifier: modifier,
+
+      critical: false,
+    );
+
+    return HealingBonusResult(bonus: bonus, roll: roll);
+  }
+
+  CriticalDamageBonusResult rollCriticalDamageBonus(CriticalDamageBonus bonus) {
+    final chance = bonus.chancePercent.clamp(0, 100);
+
+    int chanceRoll;
+
+    bool triggered;
+
+    if (chance >= 100) {
+      chanceRoll = 100;
+
+      triggered = true;
+    } else if (chance <= 0) {
+      chanceRoll = 1;
+
+      triggered = false;
+    } else {
+      chanceRoll = _criticalDamageRandom.nextInt(100) + 1;
+
+      triggered = chanceRoll <= chance;
+    }
+
+    if (!triggered) {
+      return CriticalDamageBonusResult(
+        bonus: bonus,
+        chanceRoll: chanceRoll,
+        triggered: false,
+      );
+    }
+
+    /*
+   * MUY IMPORTANTE:
+   *
+   * estos dados han aparecido
+   * POR EL CRÍTICO.
+   *
+   * No se maximizan.
+   * No se duplican.
+   */
+    final roll = DicePoolRoller.roll(
+      pools: bonus.dicePools,
+
+      modifier: 0,
+
+      critical: false,
+    );
+
+    return CriticalDamageBonusResult(
+      bonus: bonus,
+      chanceRoll: chanceRoll,
+      triggered: true,
+      roll: roll,
+    );
+  }
+
   /*
    * En Asteria un crítico duplica:
    *
@@ -960,26 +1311,37 @@ class Character {
   }) {
     final baseModifier = weaponDamageModifier(weapon, damage);
 
-    final finalModifier = critical ? baseModifier * 2 : baseModifier;
+    final modifier = critical ? baseModifier * 2 : baseModifier;
 
     return DicePoolRoller.roll(
       pools: damage.dicePools,
-      modifier: finalModifier,
+
+      modifier: modifier,
+
       critical: critical,
     );
   }
 
   DiceCalculationResult rollAbilityEffectPart(
     CharacterAbility ability,
-    AbilityEffect effect, {
+    AbilityEffect effect,
+    AbilityEffectPart part, {
     bool critical = false,
   }) {
-    final baseModifier = abilityEffectModifier(ability, effect);
+    final abilityModifier = calculateAbilityMultipliers(
+      part.abilityModifierMultipliers,
+    );
+
+    final resourceModifier = calculateResourceValueMultipliers(
+      part.resourceValueMultipliers,
+    );
+
+    final baseModifier = part.flatBonus + abilityModifier + resourceModifier;
 
     final finalModifier = critical ? baseModifier * 2 : baseModifier;
 
     return DicePoolRoller.roll(
-      pools: effect.dicePools,
+      pools: part.dicePools,
       modifier: finalModifier,
       critical: critical,
     );
@@ -992,9 +1354,13 @@ class Character {
   WeaponDamageResult rollWeaponDamage(Weapon weapon, {bool critical = false}) {
     final parts = <WeaponDamagePartResult>[];
 
-    // -------------------------------------------------------------------------
-    // NUEVO SISTEMA
-    // -------------------------------------------------------------------------
+    final bonusDamageParts = <DamageBonusResult>[];
+
+    final criticalBonusParts = <CriticalDamageBonusResult>[];
+
+    // =========================================================================
+    // DAÑO PROPIO DEL ARMA
+    // =========================================================================
 
     if (weapon.damages.isNotEmpty) {
       for (final damage in weapon.damages) {
@@ -1002,35 +1368,58 @@ class Character {
 
         parts.add(WeaponDamagePartResult(damage: damage, roll: roll));
       }
+    } else {
+      /*
+     * Fallback legacy.
+     */
+      final legacyDamage = _legacyWeaponDamage(weapon);
 
-      return WeaponDamageResult(parts: parts, critical: critical);
+      if (legacyDamage != null) {
+        final roll = rollWeaponDamagePart(
+          weapon,
+          legacyDamage,
+          critical: critical,
+        );
+
+        parts.add(WeaponDamagePartResult(damage: legacyDamage, roll: roll));
+      }
     }
 
-    // -------------------------------------------------------------------------
-    // FALLBACK LEGACY
+    // =========================================================================
+    // DAÑOS DE PASIVAS Y ESTADOS
     //
-    // Normalmente Weapon.fromMap()
-    // ya habrá convertido las armas
-    // antiguas a damages.
+    // SE APLICAN SIEMPRE
+    // =========================================================================
+
+    bonusDamageParts.addAll(rollActiveDamageBonuses(critical: critical));
+
+    // =========================================================================
+    // DADOS EXTRA GENERADOS POR CRÍTICO
     //
-    // Pero dejamos este fallback por
-    // seguridad para armas creadas en
-    // memoria con el sistema antiguo.
-    // -------------------------------------------------------------------------
+    // SOLO EN CRÍTICO
+    // =========================================================================
 
-    final legacyDamage = _legacyWeaponDamage(weapon);
+    if (critical) {
+      final criticalBonuses = activeCriticalDamageBonuses(weapon);
 
-    if (legacyDamage != null) {
-      final roll = rollWeaponDamagePart(
-        weapon,
-        legacyDamage,
-        critical: critical,
-      );
+      for (final bonus in criticalBonuses) {
+        if (!bonus.canTrigger) {
+          continue;
+        }
 
-      parts.add(WeaponDamagePartResult(damage: legacyDamage, roll: roll));
+        criticalBonusParts.add(rollCriticalDamageBonus(bonus));
+      }
     }
 
-    return WeaponDamageResult(parts: parts, critical: critical);
+    return WeaponDamageResult(
+      parts: parts,
+
+      bonusDamageParts: bonusDamageParts,
+
+      criticalBonusParts: criticalBonusParts,
+
+      critical: critical,
+    );
   }
 
   // ===========================================================================

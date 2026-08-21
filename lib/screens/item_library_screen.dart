@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/ability.dart';
+import 'package:rol/models/skill.dart';
 
 import '../models/item.dart';
 import '../models/item_library_entry.dart';
@@ -78,9 +80,58 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
     return entries.where((entry) {
       final item = entry.item;
 
-      return item.name.toLowerCase().contains(query) ||
-          item.description.toLowerCase().contains(query) ||
-          item.type.label.toLowerCase().contains(query);
+      final searchable = <String>[
+        item.name,
+        item.description,
+        item.type.label,
+        item.notes,
+
+        // =========================================================
+        // ARMA
+        // =========================================================
+        if (item.weapon != null) ...[
+          item.weapon!.name,
+          item.weapon!.attackAbility.name,
+          '${item.weapon!.magicBonus}',
+
+          ...item.weapon!.damages.expand(
+            (damage) => [damage.name, damage.diceNotation, damage.damageType],
+          ),
+        ],
+
+        // =========================================================
+        // CONSUMIBLE
+        // =========================================================
+        if (item.consumable != null) ...[
+          item.consumable!.useText,
+
+          ...item.consumable!.effects.expand(
+            (effect) => [
+              effect.name,
+              effect.effectType.label,
+              effect.diceNotation,
+              effect.effectTypeName,
+
+              ...effect.abilityModifierMultipliers.entries.map(
+                (entry) => '${entry.value} ${entry.key.label}',
+              ),
+            ],
+          ),
+        ],
+
+        // =========================================================
+        // PASIVAS / HABILIDADES
+        // =========================================================
+        ...item.passives.expand(
+          (passive) => [passive.name, passive.description],
+        ),
+
+        ...item.abilities.expand(
+          (ability) => [ability.name, ability.description],
+        ),
+      ].join(' ').toLowerCase();
+
+      return searchable.contains(query);
     }).toList();
   }
 

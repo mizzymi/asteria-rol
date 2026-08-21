@@ -1,3 +1,5 @@
+import 'package:rol/models/consumable.dart';
+
 import 'ability.dart';
 import 'passive.dart';
 import 'weapon.dart';
@@ -97,6 +99,12 @@ class CharacterItem {
 
   String description;
 
+  bool calculable;
+
+  List<ItemCalculationCost> calculationCosts;
+
+  String templateId;
+
   // ===========================================================================
   // IMAGEN
   // ===========================================================================
@@ -140,11 +148,15 @@ class CharacterItem {
 
   String notes;
 
+  Consumable? consumable;
+
   CharacterItem({
     required this.id,
     required this.name,
     this.description = '',
-
+    this.calculable = false,
+    List<ItemCalculationCost>? calculationCosts,
+    String? templateId,
     // Imagen
     this.imagePath = '',
 
@@ -166,7 +178,10 @@ class CharacterItem {
     // Inventario
     this.quantity = 1,
     this.notes = '',
+    this.consumable,
   }) : passives = passives ?? [],
+       calculationCosts = calculationCosts ?? [],
+       templateId = templateId?.trim().isNotEmpty == true ? templateId! : id,
        abilities = abilities ?? [];
 
   // ===========================================================================
@@ -189,6 +204,10 @@ class CharacterItem {
     return type == ItemType.weapon && weapon != null;
   }
 
+  bool get isConsumable {
+    return type == ItemType.consumable && consumable != null;
+  }
+
   // ===========================================================================
   // SERIALIZACIÓN
   // ===========================================================================
@@ -198,7 +217,10 @@ class CharacterItem {
       'id': id,
       'name': name,
       'description': description,
+      'calculable': calculable,
 
+      'calculationCosts': calculationCosts.map((cost) => cost.toMap()).toList(),
+      'templateId': templateId,
       // Imagen
       'imagePath': imagePath,
 
@@ -215,6 +237,7 @@ class CharacterItem {
       // Inventario
       'quantity': quantity,
       'notes': notes,
+      'consumable': consumable?.toMap(),
 
       // Armadura
       'armorCategory': armorCategory?.name,
@@ -247,6 +270,20 @@ class CharacterItem {
         } catch (_) {
           continue;
         }
+      }
+    }
+
+    Consumable? consumable;
+
+    final rawConsumable = map['consumable'];
+
+    if (rawConsumable is Map) {
+      try {
+        consumable = Consumable.fromMap(
+          Map<dynamic, dynamic>.from(rawConsumable),
+        );
+      } catch (_) {
+        consumable = null;
       }
     }
 
@@ -302,6 +339,25 @@ class CharacterItem {
       }
     }
 
+    final calculationCosts = <ItemCalculationCost>[];
+
+    final rawCalculationCosts = map['calculationCosts'];
+
+    if (rawCalculationCosts is List) {
+      for (final rawCost in rawCalculationCosts) {
+        if (rawCost is! Map) {
+          continue;
+        }
+
+        try {
+          calculationCosts.add(
+            ItemCalculationCost.fromMap(Map<dynamic, dynamic>.from(rawCost)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
     // =========================================================================
     // OBJETO
     // =========================================================================
@@ -313,6 +369,11 @@ class CharacterItem {
 
       description: map['description']?.toString() ?? '',
 
+      calculable: map['calculable'] as bool? ?? false,
+
+      calculationCosts: calculationCosts,
+
+      templateId: map['templateId']?.toString() ?? map['id']?.toString() ?? '',
       // Imagen
       imagePath: map['imagePath']?.toString() ?? '',
 
@@ -346,6 +407,27 @@ class CharacterItem {
       armorBaseClass: (map['armorBaseClass'] as num?)?.toInt() ?? 10,
 
       weapon: weapon,
+
+      consumable: consumable,
+    );
+  }
+}
+
+class ItemCalculationCost {
+  String itemId;
+
+  int quantityPerUnit;
+
+  ItemCalculationCost({required this.itemId, this.quantityPerUnit = 1});
+
+  Map<String, dynamic> toMap() {
+    return {'itemId': itemId, 'quantityPerUnit': quantityPerUnit};
+  }
+
+  factory ItemCalculationCost.fromMap(Map<dynamic, dynamic> map) {
+    return ItemCalculationCost(
+      itemId: map['itemId']?.toString() ?? '',
+      quantityPerUnit: (map['quantityPerUnit'] as num?)?.toInt() ?? 1,
     );
   }
 }

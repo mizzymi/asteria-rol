@@ -1,6 +1,7 @@
 import 'skill.dart';
 import 'weapon_damage.dart';
 import 'dice_pool.dart';
+import 'critical_damage_bonus.dart';
 
 class Weapon {
   String id;
@@ -26,6 +27,8 @@ class Weapon {
 
   List<WeaponDamage> damages;
 
+  List<CriticalDamageBonus> criticalDamageBonuses;
+
   Weapon({
     required this.id,
     required this.name,
@@ -39,7 +42,9 @@ class Weapon {
 
     // Nuevo
     List<WeaponDamage>? damages,
-  }) : damages = damages ?? [];
+    List<CriticalDamageBonus>? criticalDamageBonuses,
+  }) : damages = damages ?? [],
+       criticalDamageBonuses = criticalDamageBonuses ?? [];
 
   // ===========================================================================
   // HELPERS
@@ -75,6 +80,9 @@ class Weapon {
 
       // Nuevo
       'damages': damages.map((damage) => damage.toMap()).toList(),
+      'criticalDamageBonuses': criticalDamageBonuses
+          .map((damage) => damage.toMap())
+          .toList(),
     };
   }
 
@@ -105,6 +113,26 @@ class Weapon {
         try {
           damages.add(
             WeaponDamage.fromMap(Map<dynamic, dynamic>.from(rawDamage)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    final criticalDamageBonuses = <CriticalDamageBonus>[];
+
+    final rawCriticalDamageBonuses = map['criticalDamageBonuses'];
+
+    if (rawCriticalDamageBonuses is List) {
+      for (final rawDamage in rawCriticalDamageBonuses) {
+        if (rawDamage is! Map) {
+          continue;
+        }
+
+        try {
+          criticalDamageBonuses.add(
+            CriticalDamageBonus.fromMap(Map<dynamic, dynamic>.from(rawDamage)),
           );
         } catch (_) {
           continue;
@@ -179,6 +207,8 @@ class Weapon {
       damageType: oldDamageType,
 
       damages: damages,
+
+      criticalDamageBonuses: criticalDamageBonuses,
     );
   }
 }
