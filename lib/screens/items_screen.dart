@@ -1,12 +1,17 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import 'dart:convert';
 import '../models/character.dart';
 import '../models/item.dart';
+import '../models/dice_history_entry.dart';
 
 import '../services/character_storage_service.dart';
 import '../services/item_library_service.dart';
 
+import '../models/weapon.dart';
+import '../widgets/weapons/weapon_damage_result_dialog.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/section_header.dart';
 
@@ -271,6 +276,313 @@ class _ItemsScreenState extends State<ItemsScreen> {
     });
 
     await save();
+  }
+
+  // ===========================================================================
+  // DAÑO DE ARMA
+  // ===========================================================================
+
+  Future<void> rollWeaponDamage(
+    CharacterItem item, {
+    bool critical = false,
+  }) async {
+    final weapon = item.weapon;
+
+    if (weapon == null) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Este objeto no tiene un arma configurada.'),
+        ),
+      );
+
+      return;
+    }
+
+    final result = character.rollWeaponDamage(weapon, critical: critical);
+
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return WeaponDamageResultDialog(
+          character: character,
+          weapon: weapon,
+          result: result,
+
+          onReroll: () {
+            Navigator.of(dialogContext).pop();
+
+            rollWeaponDamage(item, critical: critical);
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> rollWeaponAttack(CharacterItem item) async {
+    final weapon = item.weapon;
+
+    if (weapon == null) {
+      return;
+    }
+
+    final mode = await showModalBottomSheet<_WeaponAttackMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Tirada de ataque',
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+
+                const SizedBox(height: 16),
+
+                ListTile(
+                  leading: const Icon(Icons.casino_rounded),
+                  title: const Text('Normal'),
+                  onTap: () {
+                    Navigator.pop(sheetContext, _WeaponAttackMode.normal);
+                  },
+                ),
+
+                ListTile(
+                  leading: const Icon(Icons.trending_up_rounded),
+                  title: const Text('Ventaja'),
+                  subtitle: const Text('Tira 2d20 y usa el mayor'),
+                  onTap: () {
+                    Navigator.pop(sheetContext, _WeaponAttackMode.advantage);
+                  },
+                ),
+
+                ListTile(
+                  leading: const Icon(Icons.trending_down_rounded),
+                  title: const Text('Desventaja'),
+                  subtitle: const Text('Tira 2d20 y usa el menor'),
+                  onTap: () {
+                    Navigator.pop(sheetContext, _WeaponAttackMode.disadvantage);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (mode == null || !mounted) {
+      return;
+    }
+
+    _performWeaponAttackRoll(item, mode);
+  }
+
+  Future<void> _performWeaponAttackRoll(
+    CharacterItem item,
+    _WeaponAttackMode mode,
+  ) async {
+    final weapon = item.weapon;
+
+    if (weapon == null) {
+      return;
+    }
+
+    final random = Random();
+
+    final firstRoll = random.nextInt(20) + 1;
+
+    int? secondRoll;
+
+    int naturalRoll;
+
+    switch (mode) {
+      case _WeaponAttackMode.normal:
+        naturalRoll = firstRoll;
+        break;
+
+      case _WeaponAttackMode.advantage:
+        secondRoll = random.nextInt(20) + 1;
+
+        naturalRoll = max(firstRoll, secondRoll);
+        break;
+
+      case _WeaponAttackMode.disadvantage:
+        secondRoll = random.nextInt(20) + 1;
+
+        naturalRoll = min(firstRoll, secondRoll);
+        break;
+    }
+
+    final bonus = character.attackBonus(weapon);
+
+    final total = naturalRoll + bonus;
+
+    final critical = naturalRoll == 20;
+
+    final criticalFail = naturalRoll == 1;
+
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                critical
+                    ? Icons.local_fire_department_rounded
+                    : criticalFail
+                    ? Icons.warning_rounded
+                    : Icons.gps_fixed_rounded,
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(child: Text(weapon.name)),
+            ],
+          ),
+
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (mode != _WeaponAttackMode.normal)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        mode == _WeaponAttackMode.advantage
+                            ? 'Ventaja'
+                            : 'Desventaja',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      Text(
+                        '$firstRoll  /  $secondRoll',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              Text('d20', style: Theme.of(context).textTheme.bodySmall),
+
+              const SizedBox(height: 4),
+
+              Text(
+                '$naturalRoll',
+                style: Theme.of(
+                  context,
+                ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+
+              const SizedBox(height: 12),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Bonificador '),
+
+                  Text(
+                    bonus >= 0 ? '+$bonus' : '$bonus',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              const Divider(),
+
+              const SizedBox(height: 8),
+
+              Text('TOTAL', style: Theme.of(context).textTheme.labelLarge),
+
+              Text(
+                '$total',
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              if (critical) ...[
+                const SizedBox(height: 8),
+
+                const Text(
+                  '💥 CRÍTICO',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+
+              if (criticalFail) ...[
+                const SizedBox(height: 8),
+
+                const Text(
+                  '💀 PIFIA',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ],
+          ),
+
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+
+                _performWeaponAttackRoll(item, mode);
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Volver a atacar'),
+            ),
+
+            if (!criticalFail)
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+
+                  rollWeaponDamage(item, critical: critical);
+                },
+                icon: Icon(
+                  critical
+                      ? Icons.local_fire_department_rounded
+                      : Icons.casino_rounded,
+                ),
+                label: Text(critical ? 'Daño crítico' : 'Tirar daño'),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   // ===========================================================================
@@ -587,6 +899,21 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       onSaveToLibrary: () {
                         saveItemToLibrary(item);
                       },
+
+                      // =========================================================
+                      // ARMA
+                      // =========================================================
+                      onWeaponAttack: item.isWeapon
+                          ? () {
+                              rollWeaponAttack(item);
+                            }
+                          : null,
+
+                      onWeaponDamage: item.isWeapon
+                          ? () {
+                              rollWeaponDamage(item);
+                            }
+                          : null,
                     ),
                   ),
 
@@ -678,4 +1005,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
       ),
     );
   }
+}
+
+enum _WeaponAttackMode {
+  normal,
+  advantage,
+  disadvantage,
 }

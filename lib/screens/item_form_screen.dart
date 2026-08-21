@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import '../models/ability.dart';
 import '../models/item.dart';
 import '../models/passive.dart';
+import '../models/skill.dart';
+import '../models/weapon.dart';
+import '../models/weapon_damage.dart';
+import '../models/dice_pool.dart';
 
+import '../widgets/items/item_form/item_weapon_section.dart';
 import '../widgets/items/item_form/item_image_section.dart';
 import '../widgets/items/item_form/item_general_section.dart';
 import '../widgets/items/item_form/item_armor_section.dart';
@@ -60,6 +65,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     return widget.item != null;
   }
 
+  late final TextEditingController magicBonusController;
+
+  late AbilityType weaponAttackAbility;
+
+  bool weaponProficient = true;
+
+  late List<WeaponDamage> weaponDamages;
+
   // ===========================================================================
   // INIT
   // ===========================================================================
@@ -87,6 +100,22 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     itemType = item?.type ?? ItemType.other;
 
     armorCategory = item?.armorCategory ?? ArmorCategory.light;
+
+    final weapon = item?.weapon;
+
+    magicBonusController = TextEditingController(
+      text: '${weapon?.magicBonus ?? 0}',
+    );
+
+    weaponAttackAbility = weapon?.attackAbility ?? AbilityType.strength;
+
+    weaponProficient = weapon?.proficient ?? true;
+
+    weaponDamages =
+        weapon?.damages
+            .map((damage) => WeaponDamage.fromMap(damage.toMap()))
+            .toList() ??
+        [];
 
     equipped = item?.equipped ?? false;
 
@@ -293,6 +322,52 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
+    if (itemType == ItemType.weapon && weaponDamages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Añade al menos un componente de daño al arma.'),
+        ),
+      );
+
+      return;
+    }
+
+    Weapon? weapon;
+
+    if (itemType == ItemType.weapon) {
+      final primaryDamage = weaponDamages.isNotEmpty
+          ? weaponDamages.first
+          : null;
+
+      weapon = Weapon(
+        id:
+            widget.item?.weapon?.id ??
+            DateTime.now().microsecondsSinceEpoch.toString(),
+
+        name: nameController.text.trim(),
+
+        attackAbility: weaponAttackAbility,
+
+        proficient: weaponProficient,
+
+        magicBonus: int.tryParse(magicBonusController.text) ?? 0,
+
+        // =========================================================
+        // LEGACY
+        // =========================================================
+        damageDice: primaryDamage?.diceNotation ?? '1d6',
+
+        damageType: primaryDamage?.damageType ?? 'Cortante',
+
+        // =========================================================
+        // NUEVO SISTEMA
+        // =========================================================
+        damages: weaponDamages
+            .map((damage) => WeaponDamage.fromMap(damage.toMap()))
+            .toList(),
+      );
+    }
+
     final quantity = int.tryParse(quantityController.text) ?? 1;
 
     final armorBaseClass = int.tryParse(armorBaseClassController.text) ?? 10;
@@ -322,6 +397,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
       armorBaseClass: itemType == ItemType.armor ? armorBaseClass : 10,
 
+      //Arma
+      weapon: weapon,
+
       // Pasivas
       passives: passives
           .map((passive) => CharacterPassive.fromMap(passive.toMap()))
@@ -334,6 +412,286 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     );
 
     Navigator.pop(context, item);
+  }
+
+  // ===========================================================================
+  // DAÑOS DEL ARMA
+  // ===========================================================================
+
+  Future<void> addWeaponDamage() async {
+    final result = await openWeaponDamageForm();
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      weaponDamages.add(result);
+    });
+  }
+
+  Future<void> editWeaponDamage(int index) async {
+    if (index < 0 || index >= weaponDamages.length) {
+      return;
+    }
+
+    final current = weaponDamages[index];
+
+    final result = await openWeaponDamageForm(damage: current);
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      weaponDamages[index] = result;
+    });
+  }
+
+  Future<void> deleteWeaponDamage(int index) async {
+    if (index < 0 || index >= weaponDamages.length) {
+      return;
+    }
+
+    final damage = weaponDamages[index];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar daño'),
+          content: Text(
+            damage.name.trim().isNotEmpty
+                ? '¿Quieres eliminar "${damage.name}"?'
+                : '¿Quieres eliminar este componente de daño?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      weaponDamages.removeAt(index);
+    });
+  }
+
+  Future<WeaponDamage?> openWeaponDamageForm({WeaponDamage? damage}) async {
+    final diceController = TextEditingController(
+      text: damage?.diceNotation ?? '1d8',
+    );
+
+    final nameController = TextEditingController(text: damage?.name ?? '');
+
+    final damageTypeController = TextEditingController(
+      text: damage?.damageType ?? 'Cortante',
+    );
+
+    final bonusController = TextEditingController(
+      text: '${damage?.bonus ?? 0}',
+    );
+
+    bool addAbilityModifier = damage?.addAbilityModifier ?? true;
+
+    AbilityType abilityType = damage?.abilityType ?? weaponAttackAbility;
+
+    final result = await showDialog<WeaponDamage>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(damage == null ? 'Añadir daño' : 'Editar daño'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre',
+                        hintText: 'Daño principal',
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    TextField(
+                      controller: diceController,
+                      decoration: const InputDecoration(
+                        labelText: 'Dados',
+                        hintText: '1d8',
+                        prefixIcon: Icon(Icons.casino_rounded),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    TextField(
+                      controller: damageTypeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo de daño',
+                        hintText: 'Cortante',
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    TextField(
+                      controller: bonusController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        signed: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Bonificador',
+                        hintText: '0',
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Añadir modificador de atributo'),
+                      value: addAbilityModifier,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          addAbilityModifier = value;
+                        });
+                      },
+                    ),
+
+                    if (addAbilityModifier)
+                      DropdownButtonFormField<AbilityType>(
+                        initialValue: abilityType,
+                        decoration: const InputDecoration(
+                          labelText: 'Atributo',
+                        ),
+                        items: AbilityType.values.map((ability) {
+                          return DropdownMenuItem(
+                            value: ability,
+                            child: Text(ability.label),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setDialogState(() {
+                              abilityType = value;
+                            });
+                          }
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancelar'),
+                ),
+
+                FilledButton(
+                  onPressed: () {
+                    final pools = _parseWeaponDice(diceController.text);
+
+                    if (pools == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Usa un formato de dados válido, por ejemplo 1d8 o 2d6.',
+                          ),
+                        ),
+                      );
+
+                      return;
+                    }
+
+                    Navigator.pop(
+                      dialogContext,
+                      WeaponDamage(
+                        id:
+                            damage?.id ??
+                            DateTime.now().microsecondsSinceEpoch.toString(),
+                        name: nameController.text.trim(),
+                        dicePools: pools,
+                        addAbilityModifier: addAbilityModifier,
+                        abilityType: abilityType,
+                        bonus: int.tryParse(bonusController.text) ?? 0,
+                        damageType: damageTypeController.text.trim(),
+                      ),
+                    );
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    diceController.dispose();
+    nameController.dispose();
+    damageTypeController.dispose();
+    bonusController.dispose();
+
+    return result;
+  }
+
+  List<DicePool>? _parseWeaponDice(String value) {
+    final pieces = value
+        .split('+')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    if (pieces.isEmpty) {
+      return null;
+    }
+
+    final pools = <DicePool>[];
+
+    for (final piece in pieces) {
+      final match = RegExp(
+        r'^(\d+)d(\d+)$',
+        caseSensitive: false,
+      ).firstMatch(piece);
+
+      if (match == null) {
+        return null;
+      }
+
+      final count = int.tryParse(match.group(1) ?? '');
+
+      final sides = int.tryParse(match.group(2) ?? '');
+
+      if (count == null || sides == null || count <= 0 || sides <= 0) {
+        return null;
+      }
+
+      pools.add(DicePool(count: count, sides: sides));
+    }
+
+    return pools;
   }
 
   // ===========================================================================
@@ -351,6 +709,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     notesController.dispose();
 
     armorBaseClassController.dispose();
+
+    magicBonusController.dispose();
 
     super.dispose();
   }
@@ -444,6 +804,38 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                       armorCategory = value;
                     });
                   },
+                ),
+              ],
+
+              if (itemType == ItemType.weapon) ...[
+                const SizedBox(height: 28),
+
+                ItemWeaponSection(
+                  attackAbility: weaponAttackAbility,
+
+                  proficient: weaponProficient,
+
+                  magicBonusController: magicBonusController,
+
+                  damages: weaponDamages,
+
+                  onAttackAbilityChanged: (value) {
+                    setState(() {
+                      weaponAttackAbility = value;
+                    });
+                  },
+
+                  onProficientChanged: (value) {
+                    setState(() {
+                      weaponProficient = value;
+                    });
+                  },
+
+                  onAddDamage: addWeaponDamage,
+
+                  onEditDamage: editWeaponDamage,
+
+                  onDeleteDamage: deleteWeaponDamage,
                 ),
               ],
 

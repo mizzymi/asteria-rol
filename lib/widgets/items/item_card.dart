@@ -20,6 +20,8 @@ class ItemCard extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onExport;
   final VoidCallback onSaveToLibrary;
+  final VoidCallback? onWeaponAttack;
+  final VoidCallback? onWeaponDamage;
 
   const ItemCard({
     super.key,
@@ -29,6 +31,8 @@ class ItemCard extends StatefulWidget {
     required this.onDelete,
     required this.onExport,
     required this.onSaveToLibrary,
+    this.onWeaponAttack,
+    this.onWeaponDamage,
   });
 
   @override
@@ -87,6 +91,8 @@ class _ItemCardState extends State<ItemCard> {
             secondChild: _ItemExpandedContent(
               item: item,
               onEquip: widget.onEquip,
+              onWeaponAttack: widget.onWeaponAttack,
+              onWeaponDamage: widget.onWeaponDamage,
             ),
           ),
         ],
@@ -335,7 +341,15 @@ class _ItemExpandedContent extends StatelessWidget {
 
   final VoidCallback onEquip;
 
-  const _ItemExpandedContent({required this.item, required this.onEquip});
+  final VoidCallback? onWeaponAttack;
+  final VoidCallback? onWeaponDamage;
+
+  const _ItemExpandedContent({
+    required this.item,
+    required this.onEquip,
+    this.onWeaponAttack,
+    this.onWeaponDamage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -350,6 +364,66 @@ class _ItemExpandedContent extends StatelessWidget {
         children: [
           const Divider(height: 1),
 
+          // ===========================================================================
+          // INFORMACIÓN DEL ARMA
+          // ===========================================================================
+          if (item.type == ItemType.weapon) ...[
+            const SizedBox(height: 16),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: Color.lerp(theme.colorScheme.surface, color, 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: color.withValues(alpha: 0.20)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Color.lerp(theme.colorScheme.surface, color, 0.22),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.gavel_rounded, color: color),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Arma',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+
+                        const SizedBox(height: 3),
+
+                        if (item.weapon != null)
+                          ...item.weapon!.damages.map(
+                            (damage) => Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                '${damage.diceNotation} ${damage.damageType}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           // ===================================================================
           // INFORMACIÓN DE ARMADURA
           // ===================================================================
@@ -405,6 +479,36 @@ class _ItemExpandedContent extends StatelessWidget {
             ),
           ],
 
+          // ===========================================================================
+          // ACCIONES DEL ARMA
+          // ===========================================================================
+          if (item.isWeapon &&
+              item.equipped &&
+              (onWeaponAttack != null || onWeaponDamage != null)) ...[
+            const SizedBox(height: 14),
+
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onWeaponAttack,
+                    icon: const Icon(Icons.gps_fixed_rounded),
+                    label: const Text('Atacar'),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: onWeaponDamage,
+                    icon: const Icon(Icons.casino_rounded),
+                    label: const Text('Daño'),
+                  ),
+                ),
+              ],
+            ),
+          ],
           // ===================================================================
           // PASIVAS
           // ===================================================================

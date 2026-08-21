@@ -12,6 +12,8 @@ import 'skill.dart';
 import 'weapon.dart';
 import 'item.dart';
 import 'character_effect.dart';
+import 'weapon_damage.dart';
+import 'weapon_damage_result.dart';
 
 class Character {
   final String id;
@@ -706,22 +708,6 @@ class Character {
     return result;
   }
 
-  DiceCalculationResult rollAbilityEffectPart(
-    CharacterAbility ability,
-    AbilityEffect effect, {
-    bool critical = false,
-  }) {
-    return DicePoolRoller.roll(
-      pools: effect.dicePools,
-      modifier: abilityEffectModifier(ability, effect),
-      critical:
-          critical &&
-          ability.requiresAttackRoll &&
-          !effect.usesSavingThrow &&
-          effect.effectType == AbilityEffectType.damage,
-    );
-  }
-
   int abilityEffectSaveDc(CharacterAbility ability, AbilityEffect effect) {
     final modifier = abilityModifier(ability.abilityType);
 
@@ -815,11 +801,278 @@ class Character {
     );
   }
 
+  // ===========================================================================
+  // DAÑO DE ARMAS
+  // ===========================================================================
+
+  /// Modificador del sistema antiguo.
+  ///
+  /// Se mantiene porque todavía puede haber
+  /// widgets o código usando:
+  ///
+  /// weapon.damageDice
+  /// weapon.damageType
   int damageModifier(Weapon weapon) {
     final modifier = abilityModifier(weapon.attackAbility);
 
     return modifier + weapon.magicBonus;
   }
+
+  /// Calcula el modificador de un componente
+  /// concreto de daño.
+  ///
+  /// Ejemplo:
+  ///
+  /// 1d8 + FUE + 1 mágico
+  ///
+  /// Si:
+  /// FUE = +4
+  /// magicBonus = +1
+  ///
+  /// resultado = +5
+  int weaponDamageModifier(Weapon weapon, WeaponDamage damage) {
+    int result = damage.bonus;
+
+    // -------------------------------------------------------------------------
+    // ATRIBUTO
+    // -------------------------------------------------------------------------
+
+    if (damage.addAbilityModifier) {
+      result += abilityModifier(damage.abilityType);
+    }
+
+    // -------------------------------------------------------------------------
+    // BONUS MÁGICO
+    //
+    // Solo se aplica al PRIMER componente.
+    //
+    // Ejemplo:
+    //
+    // Espada +1
+    //
+    // 1d8 + FUE + 1 cortante
+    // 1d6 fuego
+    //
+    // y NO:
+    //
+    // 1d8 + FUE + 1
+    // 1d6 + 1
+    // -------------------------------------------------------------------------
+
+    if (weapon.damages.isNotEmpty && identical(weapon.damages.first, damage)) {
+      result += weapon.magicBonus;
+    }
+
+    return result;
+  }
+
+  /// Texto de un componente de daño.
+  ///
+  /// Ejemplo:
+  ///
+  /// 1d8 + 5 Cortante
+  ///
+  /// 2d6 Fuego
+  String weaponDamagePartText(Weapon weapon, WeaponDamage damage) {
+    final modifier = weaponDamageModifier(weapon, damage);
+
+    String result = damage.diceNotation;
+
+    if (modifier > 0) {
+      if (result.isNotEmpty) {
+        result += ' + $modifier';
+      } else {
+        result = '$modifier';
+      }
+    }
+
+    if (modifier < 0) {
+      if (result.isNotEmpty) {
+        result += ' - ${modifier.abs()}';
+      } else {
+        result = '$modifier';
+      }
+    }
+
+    if (damage.damageType.trim().isNotEmpty) {
+      result += ' ${damage.damageType.trim()}';
+    }
+
+    return result.trim();
+  }
+
+  /// Texto completo del daño del arma.
+  ///
+  /// Nuevo sistema:
+  ///
+  /// 1d8 + 5 Cortante + 1d6 Fuego
+  ///
+  /// Si no existen damages, utiliza el
+  /// sistema antiguo automáticamente.
+  String damageText(Weapon weapon) {
+    // -------------------------------------------------------------------------
+    // NUEVO SISTEMA
+    // -------------------------------------------------------------------------
+
+    if (weapon.damages.isNotEmpty) {
+      return weapon.damages
+          .map((damage) => weaponDamagePartText(weapon, damage))
+          .join(' + ');
+    }
+
+    // -------------------------------------------------------------------------
+    // LEGACY
+    // -------------------------------------------------------------------------
+
+    final modifier = damageModifier(weapon);
+
+    if (modifier == 0) {
+      return '${weapon.damageDice} ${weapon.damageType}'.trim();
+    }
+
+    final modifierText = modifier > 0 ? '+ $modifier' : '- ${modifier.abs()}';
+
+    return '${weapon.damageDice} $modifierText ${weapon.damageType}'.trim();
+  }
+
+  // ===========================================================================
+  // TIRADA DE UN COMPONENTE
+  // ===========================================================================
+
+  /*
+   * En Asteria un crítico duplica:
+   *
+   * - todos los dados de daño
+   * - todos los modificadores de daño
+   *
+   * Ejemplo:
+   *
+   * 1d8 + 4
+   *
+   * pasa a:
+   *
+   * 2d8 + 8
+   */
+  DiceCalculationResult rollWeaponDamagePart(
+    Weapon weapon,
+    WeaponDamage damage, {
+    bool critical = false,
+  }) {
+    final baseModifier = weaponDamageModifier(weapon, damage);
+
+    final finalModifier = critical ? baseModifier * 2 : baseModifier;
+
+    return DicePoolRoller.roll(
+      pools: damage.dicePools,
+      modifier: finalModifier,
+      critical: critical,
+    );
+  }
+
+  DiceCalculationResult rollAbilityEffectPart(
+    CharacterAbility ability,
+    AbilityEffect effect, {
+    bool critical = false,
+  }) {
+    final baseModifier = abilityEffectModifier(ability, effect);
+
+    final finalModifier = critical ? baseModifier * 2 : baseModifier;
+
+    return DicePoolRoller.roll(
+      pools: effect.dicePools,
+      modifier: finalModifier,
+      critical: critical,
+    );
+  }
+
+  // ===========================================================================
+  // TIRADA COMPLETA DEL ARMA
+  // ===========================================================================
+
+  WeaponDamageResult rollWeaponDamage(Weapon weapon, {bool critical = false}) {
+    final parts = <WeaponDamagePartResult>[];
+
+    // -------------------------------------------------------------------------
+    // NUEVO SISTEMA
+    // -------------------------------------------------------------------------
+
+    if (weapon.damages.isNotEmpty) {
+      for (final damage in weapon.damages) {
+        final roll = rollWeaponDamagePart(weapon, damage, critical: critical);
+
+        parts.add(WeaponDamagePartResult(damage: damage, roll: roll));
+      }
+
+      return WeaponDamageResult(parts: parts, critical: critical);
+    }
+
+    // -------------------------------------------------------------------------
+    // FALLBACK LEGACY
+    //
+    // Normalmente Weapon.fromMap()
+    // ya habrá convertido las armas
+    // antiguas a damages.
+    //
+    // Pero dejamos este fallback por
+    // seguridad para armas creadas en
+    // memoria con el sistema antiguo.
+    // -------------------------------------------------------------------------
+
+    final legacyDamage = _legacyWeaponDamage(weapon);
+
+    if (legacyDamage != null) {
+      final roll = rollWeaponDamagePart(
+        weapon,
+        legacyDamage,
+        critical: critical,
+      );
+
+      parts.add(WeaponDamagePartResult(damage: legacyDamage, roll: roll));
+    }
+
+    return WeaponDamageResult(parts: parts, critical: critical);
+  }
+
+  // ===========================================================================
+  // LEGACY → WEAPON DAMAGE
+  // ===========================================================================
+
+  WeaponDamage? _legacyWeaponDamage(Weapon weapon) {
+    final match = RegExp(
+      r'^(\d+)d(\d+)$',
+      caseSensitive: false,
+    ).firstMatch(weapon.damageDice.trim());
+
+    if (match == null) {
+      return null;
+    }
+
+    final count = int.tryParse(match.group(1) ?? '');
+
+    final sides = int.tryParse(match.group(2) ?? '');
+
+    if (count == null || sides == null || count <= 0 || sides <= 0) {
+      return null;
+    }
+
+    return WeaponDamage(
+      id: '${weapon.id}_legacy_damage',
+
+      name: 'Daño',
+
+      dicePools: [DicePool(count: count, sides: sides)],
+
+      addAbilityModifier: true,
+
+      abilityType: weapon.attackAbility,
+
+      damageType: weapon.damageType,
+    );
+  }
+
+  // ===========================================================================
+  // TEXTO DE ATAQUE
+  // ===========================================================================
 
   String attackBonusText(Weapon weapon) {
     final bonus = attackBonus(weapon);
@@ -827,17 +1080,9 @@ class Character {
     return bonus >= 0 ? '+$bonus' : '$bonus';
   }
 
-  String damageText(Weapon weapon) {
-    final modifier = damageModifier(weapon);
-
-    if (modifier == 0) {
-      return '${weapon.damageDice} ${weapon.damageType}';
-    }
-
-    final modifierText = modifier > 0 ? '+ $modifier' : '- ${modifier.abs()}';
-
-    return '${weapon.damageDice} $modifierText ${weapon.damageType}';
-  }
+  // ===========================================================================
+  // CRUD ARMAS
+  // ===========================================================================
 
   void addWeapon(Weapon weapon) {
     weapons.add(weapon);

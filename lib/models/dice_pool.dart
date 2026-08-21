@@ -6,9 +6,21 @@ class DicePool {
 
   DicePool({this.count = 1, this.sides = 6});
 
-  int get maximum => count * sides;
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
 
-  String get notation => '${count}d$sides';
+  int get maximum {
+    return count * sides;
+  }
+
+  String get notation {
+    return '${count}d$sides';
+  }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
 
   Map<String, dynamic> toMap() {
     return {'count': count, 'sides': sides};
@@ -22,22 +34,54 @@ class DicePool {
   }
 }
 
+// =============================================================================
+// GRUPO DE DADOS
+// =============================================================================
+
 class DiceGroupRoll {
   final DicePool pool;
+
   final List<int> rolls;
 
   const DiceGroupRoll({required this.pool, required this.rolls});
 
+  // ===========================================================================
+  // RESULTADO REAL
+  // ===========================================================================
+
   int get total {
-    return rolls.fold(0, (sum, value) => sum + value);
+    return rolls.fold<int>(0, (sum, value) => sum + value);
   }
 
-  int get maximum => pool.maximum;
+  // ===========================================================================
+  // MÁXIMO POSIBLE
+  // ===========================================================================
+
+  int get maximum {
+    return pool.maximum;
+  }
 }
+
+// =============================================================================
+// RESULTADO COMPLETO
+// =============================================================================
 
 class DiceCalculationResult {
   final List<DiceGroupRoll> groups;
+
+  /// Modificador FINAL que debe aplicarse.
+  ///
+  /// En una tirada normal:
+  ///
+  /// +4
+  ///
+  /// En un crítico de Asteria:
+  ///
+  /// +8
+  ///
+  /// porque el atributo/modificador se aplica dos veces.
   final int modifier;
+
   final bool critical;
 
   const DiceCalculationResult({
@@ -46,22 +90,77 @@ class DiceCalculationResult {
     this.critical = false,
   });
 
+  // ===========================================================================
+  // TOTAL TIRADO
+  // ===========================================================================
+
   int get rolledTotal {
-    return groups.fold(0, (sum, group) => sum + group.total);
+    return groups.fold<int>(0, (sum, group) => sum + group.total);
   }
+
+  // ===========================================================================
+  // MÁXIMO DE LOS DADOS
+  // ===========================================================================
 
   int get maximumDiceTotal {
-    return groups.fold(0, (sum, group) => sum + group.maximum);
+    return groups.fold<int>(0, (sum, group) => sum + group.maximum);
   }
+
+  // ===========================================================================
+  // TOTAL
+  // ===========================================================================
 
   int get total {
-    if (critical) {
-      return maximumDiceTotal + rolledTotal + modifier;
+    /*
+     * TIRADA NORMAL
+     *
+     * dados + modificador
+     *
+     * Ej:
+     *
+     * 1d8 → 6
+     * FUE +4
+     *
+     * 6 + 4 = 10
+     */
+    if (!critical) {
+      return rolledTotal + modifier;
     }
 
-    return rolledTotal + modifier;
+    /*
+     * CRÍTICO ASTERIA
+     *
+     * máximo de dados
+     * + tirada normal
+     * + modificadores
+     *
+     * IMPORTANTE:
+     *
+     * El modificador que recibimos aquí
+     * YA debe venir duplicado.
+     *
+     * Ej:
+     *
+     * 1d8 + FUE
+     * FUE = +4
+     *
+     * modifier = +8
+     *
+     * Si sale 6:
+     *
+     * 8 máximo
+     * + 6 tirada
+     * + 8 modificador
+     *
+     * = 22
+     */
+    return maximumDiceTotal + rolledTotal + modifier;
   }
 }
+
+// =============================================================================
+// ROLLER
+// =============================================================================
 
 class DicePoolRoller {
   static final Random _random = Random();

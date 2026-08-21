@@ -1,4 +1,6 @@
 import 'skill.dart';
+import 'weapon_damage.dart';
+import 'dice_pool.dart';
 
 class Weapon {
   String id;
@@ -10,9 +12,19 @@ class Weapon {
 
   int magicBonus;
 
+  // ===========================================================================
+  // SISTEMA ANTIGUO
+  // ===========================================================================
+
   String damageDice;
 
   String damageType;
+
+  // ===========================================================================
+  // NUEVO SISTEMA
+  // ===========================================================================
+
+  List<WeaponDamage> damages;
 
   Weapon({
     required this.id,
@@ -20,9 +32,34 @@ class Weapon {
     this.attackAbility = AbilityType.strength,
     this.proficient = true,
     this.magicBonus = 0,
+
+    // Legacy
     this.damageDice = '1d6',
     this.damageType = 'Cortante',
-  });
+
+    // Nuevo
+    List<WeaponDamage>? damages,
+  }) : damages = damages ?? [];
+
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
+
+  bool get hasDamageComponents {
+    return damages.isNotEmpty;
+  }
+
+  WeaponDamage? get primaryDamage {
+    if (damages.isEmpty) {
+      return null;
+    }
+
+    return damages.first;
+  }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
 
   Map<String, dynamic> toMap() {
     return {
@@ -31,23 +68,142 @@ class Weapon {
       'attackAbility': attackAbility.name,
       'proficient': proficient,
       'magicBonus': magicBonus,
+
+      // Legacy
       'damageDice': damageDice,
       'damageType': damageType,
+
+      // Nuevo
+      'damages': damages.map((damage) => damage.toMap()).toList(),
     };
   }
 
+  // ===========================================================================
+  // FROM MAP
+  // ===========================================================================
+
   factory Weapon.fromMap(Map<dynamic, dynamic> map) {
+    final attackAbility = AbilityType.values.firstWhere(
+      (value) => value.name == map['attackAbility']?.toString(),
+      orElse: () => AbilityType.strength,
+    );
+
+    // =========================================================================
+    // CARGAR NUEVO SISTEMA
+    // =========================================================================
+
+    final damages = <WeaponDamage>[];
+
+    final rawDamages = map['damages'];
+
+    if (rawDamages is List) {
+      for (final rawDamage in rawDamages) {
+        if (rawDamage == null) {
+          continue;
+        }
+
+        try {
+          damages.add(
+            WeaponDamage.fromMap(Map<dynamic, dynamic>.from(rawDamage)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
+    // COMPATIBILIDAD CON ARMAS ANTIGUAS
+    // =========================================================================
+
+    final oldDamageDice = map['damageDice']?.toString().trim() ?? '1d6';
+
+    final oldDamageType = map['damageType']?.toString().trim() ?? 'Cortante';
+
+    /*
+     * Si todavía no existen componentes de daño,
+     * convertimos automáticamente el sistema antiguo.
+     */
+    if (damages.isEmpty) {
+      final legacyPool = _parseLegacyDice(oldDamageDice);
+
+      if (legacyPool != null) {
+        damages.add(
+          WeaponDamage(
+            id: '${map['id']?.toString() ?? 'weapon'}_damage_1',
+
+            name: 'Daño',
+
+            dicePools: [legacyPool],
+
+            /*
+             * Tu sistema antiguo calculaba:
+             *
+             * daño del arma + modificador del atributo.
+             *
+             * Así conservamos exactamente ese comportamiento.
+             */
+            addAbilityModifier: true,
+
+            abilityType: attackAbility,
+
+            /*
+             * El magicBonus ya se aplica desde Character.
+             * De momento no lo duplicamos aquí.
+             */
+            bonus: 0,
+
+            damageType: oldDamageType,
+          ),
+        );
+      }
+    }
+
+    // =========================================================================
+    // CREAR ARMA
+    // =========================================================================
+
     return Weapon(
-      id: map['id'] ?? '',
-      name: map['name'] ?? '',
-      attackAbility: AbilityType.values.firstWhere(
-        (value) => value.name == map['attackAbility'],
-        orElse: () => AbilityType.strength,
-      ),
-      proficient: map['proficient'] ?? true,
-      magicBonus: map['magicBonus'] ?? 0,
-      damageDice: map['damageDice'] ?? '1d6',
-      damageType: map['damageType'] ?? 'Cortante',
+      id: map['id']?.toString() ?? '',
+
+      name: map['name']?.toString() ?? '',
+
+      attackAbility: attackAbility,
+
+      proficient: map['proficient'] as bool? ?? true,
+
+      magicBonus: (map['magicBonus'] as num?)?.toInt() ?? 0,
+
+      damageDice: oldDamageDice,
+
+      damageType: oldDamageType,
+
+      damages: damages,
     );
   }
+}
+
+// =============================================================================
+// LEGACY DICE PARSER
+// =============================================================================
+
+DicePool? _parseLegacyDice(String value) {
+  final match = RegExp(
+    r'^(\d+)d(\d+)$',
+    caseSensitive: false,
+  ).firstMatch(value.trim());
+
+  if (match == null) {
+    return null;
+  }
+
+  final count = int.tryParse(match.group(1) ?? '');
+
+  final sides = int.tryParse(match.group(2) ?? '');
+
+  if (count == null || sides == null || count <= 0 || sides <= 0) {
+    return null;
+  }
+
+  return DicePool(count: count, sides: sides);
 }

@@ -1,5 +1,6 @@
 import 'ability.dart';
 import 'passive.dart';
+import 'weapon.dart';
 
 enum ItemType {
   armor,
@@ -118,6 +119,12 @@ class CharacterItem {
   int armorBaseClass;
 
   // ===========================================================================
+  // ARMA
+  // ===========================================================================
+
+  Weapon? weapon;
+
+  // ===========================================================================
   // CONTENIDO
   // ===========================================================================
 
@@ -149,6 +156,9 @@ class CharacterItem {
     this.armorCategory,
     this.armorBaseClass = 10,
 
+    //Arma
+    this.weapon,
+
     // Contenido
     List<CharacterPassive>? passives,
     List<CharacterAbility>? abilities,
@@ -173,6 +183,10 @@ class CharacterItem {
 
   bool get hasAbilities {
     return abilities.isNotEmpty;
+  }
+
+  bool get isWeapon {
+    return type == ItemType.weapon && weapon != null;
   }
 
   // ===========================================================================
@@ -205,6 +219,9 @@ class CharacterItem {
       // Armadura
       'armorCategory': armorCategory?.name,
       'armorBaseClass': armorBaseClass,
+
+      //Arma
+      'weapon': weapon?.toMap(),
     };
   }
 
@@ -273,6 +290,18 @@ class CharacterItem {
       }
     }
 
+    Weapon? weapon;
+
+    final rawWeapon = map['weapon'];
+
+    if (rawWeapon is Map) {
+      try {
+        weapon = Weapon.fromMap(Map<dynamic, dynamic>.from(rawWeapon));
+      } catch (_) {
+        weapon = null;
+      }
+    }
+
     // =========================================================================
     // OBJETO
     // =========================================================================
@@ -315,6 +344,8 @@ class CharacterItem {
             ),
 
       armorBaseClass: (map['armorBaseClass'] as num?)?.toInt() ?? 10,
+
+      weapon: weapon,
     );
   }
 }
