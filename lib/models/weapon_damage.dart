@@ -8,6 +8,13 @@ class WeaponDamage {
 
   List<DicePool> dicePools;
 
+  /// Dados adicionales que SOLO se tiran en un crítico.
+  ///
+  /// Ejemplo:
+  /// Daño normal: 1d8
+  /// Crítico extra: 2d6
+  List<DicePool> criticalDicePools;
+
   bool addAbilityModifier;
 
   AbilityType abilityType;
@@ -20,18 +27,23 @@ class WeaponDamage {
     required this.id,
     this.name = '',
     List<DicePool>? dicePools,
+    List<DicePool>? criticalDicePools,
     this.addAbilityModifier = false,
     this.abilityType = AbilityType.strength,
     this.bonus = 0,
     this.damageType = '',
-  }) : dicePools = dicePools ?? [DicePool(count: 1, sides: 6)];
+  }) : dicePools = dicePools ?? [DicePool(count: 1, sides: 6)],
+       criticalDicePools = criticalDicePools ?? [];
 
   // ===========================================================================
   // HELPERS
   // ===========================================================================
 
   bool get hasDamage {
-    return dicePools.isNotEmpty || bonus != 0 || addAbilityModifier;
+    return dicePools.isNotEmpty ||
+        criticalDicePools.isNotEmpty ||
+        bonus != 0 ||
+        addAbilityModifier;
   }
 
   String get diceNotation {
@@ -42,6 +54,20 @@ class WeaponDamage {
     return dicePools.map((pool) => '${pool.count}d${pool.sides}').join(' + ');
   }
 
+  String get criticalDiceNotation {
+    if (criticalDicePools.isEmpty) {
+      return '';
+    }
+
+    return criticalDicePools
+        .map((pool) => '${pool.count}d${pool.sides}')
+        .join(' + ');
+  }
+
+  bool get hasCriticalDamage {
+    return criticalDicePools.isNotEmpty;
+  }
+
   // ===========================================================================
   // SERIALIZACIÓN
   // ===========================================================================
@@ -50,9 +76,15 @@ class WeaponDamage {
     return {
       'id': id,
       'name': name,
+
       'dicePools': dicePools
           .map((pool) => {'count': pool.count, 'sides': pool.sides})
           .toList(),
+
+      'criticalDicePools': criticalDicePools
+          .map((pool) => {'count': pool.count, 'sides': pool.sides})
+          .toList(),
+
       'addAbilityModifier': addAbilityModifier,
       'abilityType': abilityType.name,
       'bonus': bonus,
@@ -62,6 +94,7 @@ class WeaponDamage {
 
   factory WeaponDamage.fromMap(Map<dynamic, dynamic> map) {
     final dicePools = <DicePool>[];
+    final criticalDicePools = <DicePool>[];
 
     final rawDicePools = map['dicePools'];
 
@@ -86,10 +119,34 @@ class WeaponDamage {
       }
     }
 
+    final rawCriticalDicePools = map['criticalDicePools'];
+
+    if (rawCriticalDicePools is List) {
+      for (final rawPool in rawCriticalDicePools) {
+        if (rawPool == null) {
+          continue;
+        }
+
+        try {
+          final poolMap = Map<dynamic, dynamic>.from(rawPool);
+
+          criticalDicePools.add(
+            DicePool(
+              count: (poolMap['count'] as num?)?.toInt() ?? 1,
+              sides: (poolMap['sides'] as num?)?.toInt() ?? 6,
+            ),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
     return WeaponDamage(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
       dicePools: dicePools,
+      criticalDicePools: criticalDicePools,
       addAbilityModifier: map['addAbilityModifier'] as bool? ?? false,
       abilityType: AbilityType.values.firstWhere(
         (value) => value.name == map['abilityType']?.toString(),

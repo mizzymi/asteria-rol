@@ -137,6 +137,75 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
   }
 
   // ===========================================================================
+  // NOMBRE
+  // ===========================================================================
+
+  Future<void> editCharacterName() async {
+    var newName = character.name;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cambiar nombre'),
+          content: TextFormField(
+            initialValue: character.name,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Nombre del personaje',
+              prefixIcon: Icon(Icons.person_rounded),
+            ),
+            onChanged: (value) {
+              newName = value;
+            },
+            onFieldSubmitted: (_) {
+              final name = newName.trim();
+
+              if (name.isEmpty) {
+                return;
+              }
+
+              Navigator.pop(dialogContext, name);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                final name = newName.trim();
+
+                if (name.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(dialogContext, name);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      character.name = result;
+    });
+
+    await saveCharacter();
+  }
+
+  // ===========================================================================
   // CLASES
   // ===========================================================================
 
@@ -208,7 +277,27 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(character.name)),
+      appBar: AppBar(
+        title: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: editCharacterName,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(character.name, overflow: TextOverflow.ellipsis),
+                ),
+
+                const SizedBox(width: 6),
+
+                const Icon(Icons.edit_rounded, size: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
 
       body: SafeArea(
         child: ListView(

@@ -1367,6 +1367,18 @@ class Character {
     );
   }
 
+  DiceCalculationResult? rollWeaponCriticalDamagePart(WeaponDamage damage) {
+    if (damage.criticalDicePools.isEmpty) {
+      return null;
+    }
+
+    return DicePoolRoller.roll(
+      pools: damage.criticalDicePools,
+      modifier: 0,
+      critical: false,
+    );
+  }
+
   DiceCalculationResult rollAbilityEffectPart(
     AbilityEffectPart part, {
     bool critical = false,
@@ -1409,7 +1421,17 @@ class Character {
       for (final damage in weapon.damages) {
         final roll = rollWeaponDamagePart(weapon, damage, critical: critical);
 
-        parts.add(WeaponDamagePartResult(damage: damage, roll: roll));
+        final criticalExtraRoll = critical
+            ? rollWeaponCriticalDamagePart(damage)
+            : null;
+
+        parts.add(
+          WeaponDamagePartResult(
+            damage: damage,
+            roll: roll,
+            criticalExtraRoll: criticalExtraRoll,
+          ),
+        );
       }
     } else {
       /*

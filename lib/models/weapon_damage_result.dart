@@ -8,10 +8,24 @@ class WeaponDamagePartResult {
 
   final DiceCalculationResult roll;
 
-  WeaponDamagePartResult({required this.damage, required this.roll});
+  final DiceCalculationResult? criticalExtraRoll;
+
+  WeaponDamagePartResult({
+    required this.damage,
+    required this.roll,
+    this.criticalExtraRoll,
+  });
+
+  int get baseTotal {
+    return roll.total;
+  }
+
+  int get criticalExtraTotal {
+    return criticalExtraRoll?.total ?? 0;
+  }
 
   int get total {
-    return roll.total;
+    return baseTotal + criticalExtraTotal;
   }
 }
 

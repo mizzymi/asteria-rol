@@ -659,6 +659,89 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     });
   }
 
+  Future<void> editWeaponCriticalDamage(int index) async {
+    if (index < 0 || index >= weaponDamages.length) {
+      return;
+    }
+
+    final damage = weaponDamages[index];
+
+    var diceText = damage.criticalDiceNotation;
+
+    final result = await showDialog<List<DicePool>>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Dados extra de crítico'),
+
+          content: TextFormField(
+            initialValue: diceText,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Dados',
+              hintText: 'Ej. 2d6',
+              prefixIcon: Icon(Icons.flash_on_rounded),
+              helperText: 'Solo se tiran en un crítico y no se multiplican.',
+            ),
+            onChanged: (value) {
+              diceText = value;
+            },
+          ),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                final text = diceText.trim();
+
+                // Vacío = eliminar los dados
+                // extra de crítico.
+                if (text.isEmpty) {
+                  Navigator.pop(dialogContext, <DicePool>[]);
+
+                  return;
+                }
+
+                final pools = _parseWeaponDice(text);
+
+                if (pools == null) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Usa un formato válido, por ejemplo 2d6 o 1d6 + 1d4.',
+                      ),
+                    ),
+                  );
+
+                  return;
+                }
+
+                Navigator.pop(dialogContext, pools);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      damage.criticalDicePools = result
+          .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+          .toList();
+    });
+  }
+
   Future<WeaponDamage?> openWeaponDamageForm({WeaponDamage? damage}) async {
     final diceController = TextEditingController(
       text: damage?.diceNotation ?? '1d8',
@@ -803,6 +886,16 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         abilityType: abilityType,
                         bonus: int.tryParse(bonusController.text) ?? 0,
                         damageType: damageTypeController.text.trim(),
+                        criticalDicePools:
+                            damage?.criticalDicePools
+                                .map(
+                                  (pool) => DicePool(
+                                    count: pool.count,
+                                    sides: pool.sides,
+                                  ),
+                                )
+                                .toList() ??
+                            [],
                       ),
                     );
                   },
@@ -1092,6 +1185,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   onEditDamage: editWeaponDamage,
 
                   onDeleteDamage: deleteWeaponDamage,
+
+                  onEditCriticalDamage: editWeaponCriticalDamage,
                 ),
               ],
 

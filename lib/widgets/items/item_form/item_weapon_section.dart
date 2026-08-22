@@ -18,6 +18,7 @@ class ItemWeaponSection extends StatelessWidget {
   final VoidCallback onAddDamage;
   final ValueChanged<int> onEditDamage;
   final ValueChanged<int> onDeleteDamage;
+  final ValueChanged<int> onEditCriticalDamage;
 
   const ItemWeaponSection({
     super.key,
@@ -30,6 +31,7 @@ class ItemWeaponSection extends StatelessWidget {
     required this.onAddDamage,
     required this.onEditDamage,
     required this.onDeleteDamage,
+    required this.onEditCriticalDamage,
   });
 
   @override
@@ -176,9 +178,15 @@ class ItemWeaponSection extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: _DamageCard(
                 damage: damage,
+
                 onEdit: () {
                   onEditDamage(index);
                 },
+
+                onEditCritical: () {
+                  onEditCriticalDamage(index);
+                },
+
                 onDelete: () {
                   onDeleteDamage(index);
                 },
@@ -193,11 +201,13 @@ class ItemWeaponSection extends StatelessWidget {
 class _DamageCard extends StatelessWidget {
   final WeaponDamage damage;
 
+  final VoidCallback onEditCritical;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _DamageCard({
     required this.damage,
+    required this.onEditCritical,
     required this.onEdit,
     required this.onDelete,
   });
@@ -222,76 +232,135 @@ class _DamageCard extends StatelessWidget {
 
     final formula = parts.join(' + ').replaceAll('+ -', '- ');
 
+    final criticalFormula = damage.criticalDiceNotation;
+
     return Material(
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
       borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onEdit,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.casino_rounded,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
-                child: Icon(
-                  Icons.casino_rounded,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
 
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
 
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      damage.name.trim().isNotEmpty
-                          ? damage.name
-                          : damage.damageType.trim().isNotEmpty
-                          ? damage.damageType
-                          : 'Daño',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-
-                    const SizedBox(height: 3),
-
-                    Text(
-                      formula.isEmpty ? 'Sin fórmula' : formula,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-
-                    if (damage.damageType.trim().isNotEmpty &&
-                        damage.name.trim().isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        damage.damageType,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        damage.name.trim().isNotEmpty
+                            ? damage.name
+                            : damage.damageType.trim().isNotEmpty
+                            ? damage.damageType
+                            : 'Daño',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    ],
-                  ],
-                ),
-              ),
 
-              IconButton(
-                tooltip: 'Eliminar daño',
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline_rounded),
-              ),
-            ],
-          ),
+                      const SizedBox(height: 3),
+
+                      Text(
+                        formula.isEmpty ? 'Sin fórmula' : formula,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+
+                      if (damage.damageType.trim().isNotEmpty &&
+                          damage.name.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+
+                        Text(
+                          damage.damageType,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+
+                      if (criticalFormula.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.flash_on_rounded,
+                              size: 16,
+                              color: theme.colorScheme.primary,
+                            ),
+
+                            const SizedBox(width: 5),
+
+                            Expanded(
+                              child: Text(
+                                'Crítico: +$criticalFormula',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                IconButton(
+                  tooltip: 'Eliminar daño',
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.casino_rounded),
+                    label: const Text('Editar daño'),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: onEditCritical,
+                    icon: const Icon(Icons.flash_on_rounded),
+                    label: Text(
+                      criticalFormula.isEmpty
+                          ? 'Añadir crítico'
+                          : 'Editar crítico',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

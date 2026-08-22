@@ -47,6 +47,9 @@ class WeaponDamageResultDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // =================================================================
+            // DAÑO BASE DEL ARMA
+            // =================================================================
             ...result.parts.map((part) {
               final damage = part.damage;
               final roll = part.roll;
@@ -75,15 +78,16 @@ class WeaponDamageResultDialog extends StatelessWidget {
                       ),
                     ),
 
-                    const SizedBox(height: 6),
+                    if (damage.damageType.isNotEmpty) ...[
+                      const SizedBox(height: 4),
 
-                    if (damage.damageType.isNotEmpty)
                       Text(
                         damage.damageType,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
+                    ],
 
                     const SizedBox(height: 10),
 
@@ -97,7 +101,7 @@ class WeaponDamageResultDialog extends StatelessWidget {
                     const SizedBox(height: 8),
 
                     Text(
-                      '${roll.total}',
+                      '${part.total}',
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -107,9 +111,117 @@ class WeaponDamageResultDialog extends StatelessWidget {
               );
             }),
 
+            // =================================================================
+            // BONUS DE DAÑO DE PASIVAS / EFECTOS
+            // =================================================================
+            if (result.bonusDamageParts.isNotEmpty) ...[
+              const SizedBox(height: 4),
+
+              Text(
+                'Daño adicional',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              ...result.bonusDamageParts.map((part) {
+                final bonus = part.bonus;
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+
+                  leading: const Icon(Icons.bolt_rounded),
+
+                  title: Text(
+                    bonus.name.trim().isNotEmpty ? bonus.name : 'Bonus de daño',
+                  ),
+
+                  subtitle: Text(
+                    _bonusFormula(bonus.diceNotation, bonus.flatBonus),
+                  ),
+
+                  trailing: Text(
+                    '+${part.total}',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                );
+              }),
+            ],
+
+            // =================================================================
+            // BONUS DE CRÍTICO DE PASIVAS / EFECTOS
+            // =================================================================
+            if (result.critical && result.criticalBonusParts.isNotEmpty) ...[
+              const Divider(),
+
+              Text(
+                'Daño extra de crítico',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              ...result.criticalBonusParts.map((part) {
+                final bonus = part.bonus;
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+
+                  leading: Icon(
+                    part.triggered
+                        ? Icons.local_fire_department_rounded
+                        : Icons.casino_outlined,
+                  ),
+
+                  title: Text(
+                    bonus.name.trim().isNotEmpty ? bonus.name : 'Bonus crítico',
+                  ),
+
+                  subtitle: Text(
+                    part.triggered
+                        ? _bonusFormula(bonus.diceNotation, bonus.flatBonus)
+                        : 'No activado · ${part.chanceRoll}/${bonus.chancePercent}',
+                  ),
+
+                  trailing: Text(
+                    part.triggered ? '+${part.total}' : '0',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: part.triggered
+                          ? null
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              }),
+            ],
+
             const Divider(),
 
             const SizedBox(height: 8),
+
+            // =================================================================
+            // RESUMEN
+            // =================================================================
+            _TotalRow(label: 'Daño del arma', value: result.weaponDamageTotal),
+
+            if (result.bonusDamageTotal != 0)
+              _TotalRow(
+                label: 'Daño adicional',
+                value: result.bonusDamageTotal,
+              ),
+
+            if (result.critical && result.criticalBonusTotal != 0)
+              _TotalRow(
+                label: 'Daño crítico extra',
+                value: result.criticalBonusTotal,
+              ),
+
+            const SizedBox(height: 12),
 
             Center(
               child: Column(
@@ -160,16 +272,55 @@ class WeaponDamageResultDialog extends StatelessWidget {
       parts.add(group.rolls.join(' + '));
     }
 
-    String result = parts.join(' + ');
+    var text = parts.join(' + ');
 
     if (modifier > 0) {
-      result += ' + $modifier';
+      text += ' + $modifier';
     }
 
     if (modifier < 0) {
-      result += ' - ${modifier.abs()}';
+      text += ' - ${modifier.abs()}';
     }
 
-    return result;
+    return text;
+  }
+
+  String _bonusFormula(String diceNotation, int flatBonus) {
+    final parts = <String>[];
+
+    if (diceNotation.trim().isNotEmpty) {
+      parts.add(diceNotation.trim());
+    }
+
+    if (flatBonus != 0) {
+      parts.add(flatBonus > 0 ? '+$flatBonus' : '$flatBonus');
+    }
+
+    if (parts.isEmpty) {
+      return 'Daño adicional';
+    }
+
+    return parts.join(' + ').replaceAll('+ -', '- ');
+  }
+}
+
+class _TotalRow extends StatelessWidget {
+  final String label;
+  final int value;
+
+  const _TotalRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+
+          Text('$value', style: const TextStyle(fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
   }
 }

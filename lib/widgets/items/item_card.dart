@@ -204,15 +204,11 @@ class _ItemHeader extends StatelessWidget {
                       if (item.quantity > 1 || item.calculable)
                         InkWell(
                           borderRadius: BorderRadius.circular(20),
-                          onTap: item.calculable
-                              ? onQuickQuantityEdit
-                              : null,
+                          onTap: item.calculable ? onQuickQuantityEdit : null,
                           child: InfoBadge(
                             icon: Icons.layers_rounded,
                             text: '×${formatThousands(item.quantity)}',
-                            color: item.calculable
-                                ? color
-                                : null,
+                            color: item.calculable ? color : null,
                             highlighted: item.calculable,
                           ),
                         ),
@@ -429,7 +425,7 @@ class _ItemExpandedContent extends StatelessWidget {
           // ===========================================================================
           // INFORMACIÓN DEL ARMA
           // ===========================================================================
-          if (item.type == ItemType.weapon) ...[
+          if (item.type == ItemType.weapon && item.weapon != null) ...[
             const SizedBox(height: 16),
 
             Container(
@@ -441,6 +437,7 @@ class _ItemExpandedContent extends StatelessWidget {
                 border: Border.all(color: color.withValues(alpha: 0.20)),
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     width: 40,
@@ -465,20 +462,123 @@ class _ItemExpandedContent extends StatelessWidget {
                           ),
                         ),
 
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 8),
 
-                        if (item.weapon != null)
-                          ...item.weapon!.damages.map(
-                            (damage) => Padding(
-                              padding: const EdgeInsets.only(top: 3),
-                              child: Text(
-                                '${damage.diceNotation} ${damage.damageType}',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
+                        ...item.weapon!.damages.map((damage) {
+                          final parts = <String>[];
+
+                          // Dados normales
+                          if (damage.diceNotation.isNotEmpty) {
+                            parts.add(damage.diceNotation);
+                          }
+
+                          // Modificador de atributo
+                          if (damage.addAbilityModifier) {
+                            parts.add(damage.abilityType.shortLabel);
+                          }
+
+                          // Bonus fijo
+                          if (damage.bonus != 0) {
+                            parts.add(
+                              damage.bonus > 0
+                                  ? '+${damage.bonus}'
+                                  : '${damage.bonus}',
+                            );
+                          }
+
+                          final formula = parts
+                              .join(' + ')
+                              .replaceAll('+ -', '- ');
+
+                          final hasCriticalDice =
+                              damage.criticalDiceNotation.isNotEmpty;
+
+                          final damageName = damage.name.trim();
+
+                          final damageType = damage.damageType.trim();
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // =======================================================
+                                // NOMBRE DEL COMPONENTE
+                                // =======================================================
+                                if (damageName.isNotEmpty)
+                                  Text(
+                                    damageName,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+
+                                if (damageName.isNotEmpty)
+                                  const SizedBox(height: 2),
+
+                                // =======================================================
+                                // DAÑO NORMAL
+                                // =======================================================
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.casino_rounded,
+                                      size: 17,
+                                      color: color,
+                                    ),
+
+                                    const SizedBox(width: 6),
+
+                                    Expanded(
+                                      child: Text(
+                                        [
+                                          if (formula.isNotEmpty) formula,
+                                          if (damageType.isNotEmpty) damageType,
+                                        ].join(' · '),
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
+
+                                // =======================================================
+                                // DADOS EXTRA DE CRÍTICO
+                                // =======================================================
+                                if (hasCriticalDice) ...[
+                                  const SizedBox(height: 5),
+
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.flash_on_rounded,
+                                        size: 17,
+                                        color: color,
+                                      ),
+
+                                      const SizedBox(width: 6),
+
+                                      Expanded(
+                                        child: Text(
+                                          'Crítico: +${damage.criticalDiceNotation}',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: color,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
-                          ),
+                          );
+                        }),
                       ],
                     ),
                   ),
@@ -486,6 +586,7 @@ class _ItemExpandedContent extends StatelessWidget {
               ),
             ),
           ],
+
           // ===================================================================
           // INFORMACIÓN DE ARMADURA
           // ===================================================================
