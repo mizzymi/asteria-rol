@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/character_effect.dart';
 
 import '../models/ability.dart';
 import '../models/character.dart';
@@ -30,6 +31,92 @@ class AbilitiesScreen extends StatefulWidget {
 
 class _AbilitiesScreenState extends State<AbilitiesScreen> {
   Character get character => widget.character;
+
+  String _newLinkedEffectId(String originalId) {
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+
+    return '${originalId}_applied_$timestamp';
+  }
+
+  List<CharacterEffect> _applyLinkedEffects(List<CharacterEffect> templates) {
+    final applied = <CharacterEffect>[];
+
+    for (final template in templates) {
+      final effect = template.copyWith(
+        id: _newLinkedEffectId(template.id),
+        enabled: true,
+        currentDuration: template.hasDuration ? template.maxDuration : 0,
+      );
+
+      effect.normalizeDuration();
+
+      character.addEffect(effect);
+
+      applied.add(effect);
+    }
+
+    return applied;
+  }
+
+  Future<void> applyAbilityLinkedEffects(CharacterAbility ability) async {
+    if (ability.linkedEffects.isEmpty) {
+      return;
+    }
+
+    late List<CharacterEffect> applied;
+
+    setState(() {
+      applied = _applyLinkedEffects(ability.linkedEffects);
+
+      character.normalizeHealth();
+    });
+
+    await save();
+
+    if (!mounted || applied.isEmpty) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          applied.length == 1
+              ? 'Se ha aplicado ${applied.first.name}.'
+              : 'Se han aplicado ${applied.length} efectos.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> applyPassiveLinkedEffects(CharacterPassive passive) async {
+    if (!passive.enabled || passive.linkedEffects.isEmpty) {
+      return;
+    }
+
+    late List<CharacterEffect> applied;
+
+    setState(() {
+      applied = _applyLinkedEffects(passive.linkedEffects);
+
+      character.normalizeHealth();
+    });
+
+    await save();
+
+    if (!mounted || applied.isEmpty) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          applied.length == 1
+              ? 'Se ha aplicado ${applied.first.name}.'
+              : 'Se han aplicado ${applied.length} efectos.',
+        ),
+      ),
+    );
+  }
 
   // ===========================================================================
   // GUARDAR
@@ -360,6 +447,8 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     }
 
     await resolveAllEffects(ability);
+
+    await applyAbilityLinkedEffects(ability);
   }
 
   Future<bool> payAbilityCosts(
@@ -710,11 +799,15 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
           total: total,
           critical: critical,
           criticalFailure: criticalFailure,
-          onRollDamage: ability.effects.any((effect) => effect.hasEffect)
-              ? () {
+          onRollDamage:
+              ability.effects.any((effect) => effect.hasEffect) ||
+                  ability.linkedEffects.isNotEmpty
+              ? () async {
                   Navigator.pop(dialogContext);
 
-                  resolveAllEffects(ability, critical: critical);
+                  await resolveAllEffects(ability, critical: critical);
+
+                  await applyAbilityLinkedEffects(ability);
                 }
               : null,
         );
@@ -902,6 +995,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       onRoll: passive.hasRoll
                           ? () {
                               rollPassive(passive);
+                            }
+                          : null,
+
+                      onApplyLinkedEffects: passive.linkedEffects.isNotEmpty
+                          ? () {
+                              applyPassiveLinkedEffects(passive);
                             }
                           : null,
 

@@ -251,6 +251,79 @@ class CharacterEffect {
     }
   }
 
+  CharacterEffect copyWith({
+    String? id,
+    String? name,
+    String? description,
+    bool? enabled,
+    CharacterEffectType? type,
+    CharacterEffectDurationType? durationType,
+    int? maxDuration,
+    int? currentDuration,
+    String? durationNote,
+    int? armorClassBonus,
+    int? initiativeBonus,
+    int? speedBonus,
+    int? maxHealthBonus,
+    int? attackBonus,
+    Map<AbilityType, int>? abilityModifierBonuses,
+    Map<DndSkill, int>? skillBonuses,
+    Map<AbilityType, int>? savingThrowBonuses,
+    List<DamageBonus>? damageBonuses,
+    List<CriticalDamageBonus>? criticalDamageBonuses,
+    List<HealingBonus>? healingBonuses,
+    String? notes,
+  }) {
+    return CharacterEffect(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      enabled: enabled ?? this.enabled,
+      type: type ?? this.type,
+
+      durationType: durationType ?? this.durationType,
+      maxDuration: maxDuration ?? this.maxDuration,
+      currentDuration: currentDuration ?? this.currentDuration,
+      durationNote: durationNote ?? this.durationNote,
+
+      armorClassBonus: armorClassBonus ?? this.armorClassBonus,
+      initiativeBonus: initiativeBonus ?? this.initiativeBonus,
+      speedBonus: speedBonus ?? this.speedBonus,
+      maxHealthBonus: maxHealthBonus ?? this.maxHealthBonus,
+      attackBonus: attackBonus ?? this.attackBonus,
+
+      abilityModifierBonuses:
+          abilityModifierBonuses ??
+          Map<AbilityType, int>.from(this.abilityModifierBonuses),
+
+      skillBonuses: skillBonuses ?? Map<DndSkill, int>.from(this.skillBonuses),
+
+      savingThrowBonuses:
+          savingThrowBonuses ??
+          Map<AbilityType, int>.from(this.savingThrowBonuses),
+
+      damageBonuses:
+          damageBonuses ??
+          this.damageBonuses
+              .map((bonus) => DamageBonus.fromMap(bonus.toMap()))
+              .toList(),
+
+      criticalDamageBonuses:
+          criticalDamageBonuses ??
+          this.criticalDamageBonuses
+              .map((bonus) => CriticalDamageBonus.fromMap(bonus.toMap()))
+              .toList(),
+
+      healingBonuses:
+          healingBonuses ??
+          this.healingBonuses
+              .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+              .toList(),
+
+      notes: notes ?? this.notes,
+    );
+  }
+
   // ===========================================================================
   // SERIALIZACIÓN
   // ===========================================================================

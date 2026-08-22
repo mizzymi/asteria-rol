@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/character_effect.dart';
+
+import 'effect_form_screen.dart';
 
 import '../models/ability_effect_part.dart';
 import '../models/character.dart';
@@ -38,6 +41,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
   bool proficient = true;
 
   late List<AbilityEffect> effects;
+
+  late List<CharacterEffect> linkedEffects;
 
   bool get editing => widget.ability != null;
 
@@ -80,6 +85,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
      * hasta pulsar Guardar.
      */
     effects = ability?.effects.map(_cloneEffect).toList() ?? [];
+
+    linkedEffects =
+        ability?.linkedEffects
+            .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+            .toList() ??
+        [];
 
     selectedResourceId = widget.ability?.resourceId;
 
@@ -223,6 +234,56 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     });
   }
 
+  // ===========================================================================
+  // EFECTOS VINCULADOS
+  // ===========================================================================
+
+  Future<void> addLinkedEffect() async {
+    final result = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(builder: (_) => const EffectFormScreen()),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects.add(CharacterEffect.fromMap(result.toMap()));
+    });
+  }
+
+  Future<void> editLinkedEffect(int index) async {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    final copy = CharacterEffect.fromMap(linkedEffects[index].toMap());
+
+    final result = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(builder: (_) => EffectFormScreen(effect: copy)),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects[index] = CharacterEffect.fromMap(result.toMap());
+    });
+  }
+
+  void removeLinkedEffect(int index) {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects.removeAt(index);
+    });
+  }
+
   void saveAbility() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -295,6 +356,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       // NUEVO SISTEMA
       // ============================================================
       effects: effects.map(_cloneEffect).toList(),
+
+      linkedEffects: linkedEffects
+          .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+          .toList(),
 
       // ============================================================
       // LEGACY
@@ -423,6 +488,88 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                     widget.character?.resources ?? const <CharacterResource>[],
               ),
 
+              const SizedBox(height: 28),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Efectos vinculados',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  IconButton.filledTonal(
+                    tooltip: 'Añadir efecto vinculado',
+                    onPressed: addLinkedEffect,
+                    icon: const Icon(Icons.add_rounded),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 6),
+
+              Text(
+                'Estados y efectos que esta habilidad puede aplicar al personaje.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+
+              const SizedBox(height: 12),
+
+              if (linkedEffects.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      const Expanded(
+                        child: Text(
+                          'Esta habilidad no aplica efectos vinculados.',
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < linkedEffects.length; i++) ...[
+                        _LinkedEffectTile(
+                          effect: linkedEffects[i],
+
+                          onEdit: () {
+                            editLinkedEffect(i);
+                          },
+
+                          onDelete: () {
+                            removeLinkedEffect(i);
+                          },
+                        ),
+
+                        if (i < linkedEffects.length - 1)
+                          const Divider(height: 1),
+                      ],
+                    ],
+                  ),
+                ),
+
               if (widget.character != null &&
                   widget.character!.resources.isNotEmpty) ...[
                 const SizedBox(height: 24),
@@ -536,5 +683,111 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
         ),
       ),
     );
+  }
+}
+
+class _LinkedEffectTile extends StatelessWidget {
+  final CharacterEffect effect;
+
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _LinkedEffectTile({
+    required this.effect,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ListTile(
+      onTap: onEdit,
+
+      leading: CircleAvatar(child: Icon(_iconForType(effect.type))),
+
+      title: Text(
+        effect.name.trim().isNotEmpty ? effect.name : 'Efecto sin nombre',
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+
+      subtitle: Text(_subtitle(effect)),
+
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Editar',
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_rounded),
+          ),
+
+          IconButton(
+            tooltip: 'Eliminar',
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconForType(CharacterEffectType type) {
+    switch (type) {
+      case CharacterEffectType.buff:
+        return Icons.trending_up_rounded;
+
+      case CharacterEffectType.debuff:
+        return Icons.trending_down_rounded;
+
+      case CharacterEffectType.condition:
+        return Icons.warning_amber_rounded;
+
+      case CharacterEffectType.neutral:
+        return Icons.auto_awesome_rounded;
+    }
+  }
+
+  static String _subtitle(CharacterEffect effect) {
+    final pieces = <String>[];
+
+    if (effect.description.trim().isNotEmpty) {
+      pieces.add(effect.description.trim());
+    }
+
+    switch (effect.durationType) {
+      case CharacterEffectDurationType.permanent:
+        pieces.add('Permanente');
+        break;
+
+      case CharacterEffectDurationType.turns:
+        pieces.add(
+          '${effect.maxDuration} '
+          '${effect.maxDuration == 1 ? 'turno' : 'turnos'}',
+        );
+        break;
+
+      case CharacterEffectDurationType.rounds:
+        pieces.add(
+          '${effect.maxDuration} '
+          '${effect.maxDuration == 1 ? 'ronda' : 'rondas'}',
+        );
+        break;
+
+      case CharacterEffectDurationType.minutes:
+        pieces.add('${effect.maxDuration} min');
+        break;
+
+      case CharacterEffectDurationType.custom:
+        if (effect.durationNote.trim().isNotEmpty) {
+          pieces.add(effect.durationNote.trim());
+        } else {
+          pieces.add('Duración personalizada');
+        }
+        break;
+    }
+
+    return pieces.join(' · ');
   }
 }

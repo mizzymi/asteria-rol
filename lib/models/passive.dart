@@ -1,3 +1,5 @@
+import 'package:rol/models/character_effect.dart';
+
 import 'healing_bonus.dart';
 import 'skill.dart';
 import 'damage_bonus.dart';
@@ -69,6 +71,8 @@ class CharacterPassive {
   /// 2d6 + 1d4
   List<DicePool> rollDicePools;
 
+  List<CharacterEffect> linkedEffects;
+
   /// Atributos que se suman a la tirada.
   ///
   /// Ejemplo:
@@ -124,6 +128,7 @@ class CharacterPassive {
     List<HealingBonus>? healingBonuses,
     List<CriticalDamageBonus>? criticalDamageBonuses,
     List<DicePool>? rollDicePools,
+    List<CharacterEffect>? linkedEffects,
     Map<AbilityType, int>? rollAbilityModifierMultipliers,
     this.rollFlatBonus = 0,
 
@@ -149,6 +154,7 @@ class CharacterPassive {
        ),
        healingBonuses = List<HealingBonus>.from(healingBonuses ?? []),
        rollDicePools = List<DicePool>.from(rollDicePools ?? []),
+       linkedEffects = List<CharacterEffect>.from(linkedEffects ?? []),
        rollAbilityModifierMultipliers = Map<AbilityType, int>.from(
          rollAbilityModifierMultipliers ?? {},
        );
@@ -161,6 +167,10 @@ class CharacterPassive {
 
   String get rollDiceNotation {
     return rollDicePools.map((pool) => pool.notation).join(' + ');
+  }
+
+  bool get hasLinkedEffects {
+    return linkedEffects.isNotEmpty;
   }
 
   // ===========================================================================
@@ -298,6 +308,8 @@ class CharacterPassive {
       'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
 
       'rollDicePools': rollDicePools.map((pool) => pool.toMap()).toList(),
+
+      'linkedEffects': linkedEffects.map((effect) => effect.toMap()).toList(),
 
       'rollAbilityModifierMultipliers': {
         for (final entry in rollAbilityModifierMultipliers.entries)
@@ -483,6 +495,30 @@ class CharacterPassive {
     }
 
     // =========================================================================
+    // EFECTOS VINCULADOS
+    // =========================================================================
+
+    final linkedEffects = <CharacterEffect>[];
+
+    final rawLinkedEffects = map['linkedEffects'];
+
+    if (rawLinkedEffects is List) {
+      for (final rawEffect in rawLinkedEffects) {
+        if (rawEffect is! Map) {
+          continue;
+        }
+
+        try {
+          linkedEffects.add(
+            CharacterEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
     // CARGAS
     // =========================================================================
 
@@ -555,6 +591,8 @@ class CharacterPassive {
       healingBonuses: healingBonuses,
 
       rollDicePools: rollDicePools,
+
+      linkedEffects: linkedEffects,
 
       rollAbilityModifierMultipliers: rollAbilityModifierMultipliers,
 

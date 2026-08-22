@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/character_effect.dart';
 
 import '../models/passive.dart';
 import '../models/skill.dart';
@@ -6,6 +7,8 @@ import '../models/damage_bonus.dart';
 import '../models/critical_damage_bonus.dart';
 import '../models/healing_bonus.dart';
 import '../models/dice_pool.dart';
+
+import 'effect_form_screen.dart';
 
 class PassiveFormScreen extends StatefulWidget {
   final CharacterPassive? passive;
@@ -52,7 +55,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
   late List<CriticalDamageBonus> criticalDamageBonuses;
   late List<HealingBonus> healingBonuses;
   late List<DicePool> rollDicePools;
-
+  late List<CharacterEffect> linkedEffects;
   late Map<AbilityType, int> rollAbilityModifierMultipliers;
 
   late final TextEditingController rollFlatBonusController;
@@ -141,6 +144,12 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     rollDicePools =
         passive?.rollDicePools
             .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+            .toList() ??
+        [];
+
+    linkedEffects =
+        passive?.linkedEffects
+            .map((effect) => CharacterEffect.fromMap(effect.toMap()))
             .toList() ??
         [];
 
@@ -315,6 +324,56 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
     setState(() {
       savingThrowBonuses[ability] = value;
+    });
+  }
+
+  // =============================================================================
+  // EFECTOS VINCULADOS
+  // =============================================================================
+
+  Future<void> addLinkedEffect() async {
+    final result = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(builder: (_) => const EffectFormScreen()),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects.add(CharacterEffect.fromMap(result.toMap()));
+    });
+  }
+
+  Future<void> editLinkedEffect(int index) async {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    final copy = CharacterEffect.fromMap(linkedEffects[index].toMap());
+
+    final result = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(builder: (_) => EffectFormScreen(effect: copy)),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects[index] = CharacterEffect.fromMap(result.toMap());
+    });
+  }
+
+  void removeLinkedEffect(int index) {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects.removeAt(index);
     });
   }
 
@@ -694,6 +753,10 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
           .map((pool) => DicePool(count: pool.count, sides: pool.sides))
           .toList(),
 
+      linkedEffects: linkedEffects
+          .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+          .toList(),
+
       rollAbilityModifierMultipliers: Map<AbilityType, int>.from(
         rollAbilityModifierMultipliers,
       ),
@@ -915,6 +978,86 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                     ),
                 ],
               ),
+
+              const SizedBox(height: 28),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Efectos vinculados',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  IconButton.filledTonal(
+                    tooltip: 'Añadir efecto vinculado',
+                    onPressed: addLinkedEffect,
+                    icon: const Icon(Icons.add_rounded),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 6),
+
+              Text(
+                'Estados y efectos que esta pasiva puede aplicar.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+
+              const SizedBox(height: 12),
+
+              if (linkedEffects.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      const Expanded(
+                        child: Text('Esta pasiva no tiene efectos vinculados.'),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < linkedEffects.length; i++) ...[
+                        _LinkedEffectTile(
+                          effect: linkedEffects[i],
+
+                          onEdit: () {
+                            editLinkedEffect(i);
+                          },
+
+                          onDelete: () {
+                            removeLinkedEffect(i);
+                          },
+                        ),
+
+                        if (i < linkedEffects.length - 1)
+                          const Divider(height: 1),
+                      ],
+                    ],
+                  ),
+                ),
 
               const SizedBox(height: 28),
 
@@ -2225,5 +2368,109 @@ class _BonusAttributeMultipliers extends StatelessWidget {
         }),
       ],
     );
+  }
+}
+
+class _LinkedEffectTile extends StatelessWidget {
+  final CharacterEffect effect;
+
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _LinkedEffectTile({
+    required this.effect,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onEdit,
+
+      leading: CircleAvatar(child: Icon(_iconForType(effect.type))),
+
+      title: Text(
+        effect.name.trim().isNotEmpty ? effect.name : 'Efecto sin nombre',
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+
+      subtitle: Text(_subtitle(effect)),
+
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Editar',
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_rounded),
+          ),
+
+          IconButton(
+            tooltip: 'Eliminar',
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconForType(CharacterEffectType type) {
+    switch (type) {
+      case CharacterEffectType.buff:
+        return Icons.trending_up_rounded;
+
+      case CharacterEffectType.debuff:
+        return Icons.trending_down_rounded;
+
+      case CharacterEffectType.condition:
+        return Icons.warning_amber_rounded;
+
+      case CharacterEffectType.neutral:
+        return Icons.auto_awesome_rounded;
+    }
+  }
+
+  static String _subtitle(CharacterEffect effect) {
+    final pieces = <String>[];
+
+    if (effect.description.trim().isNotEmpty) {
+      pieces.add(effect.description.trim());
+    }
+
+    switch (effect.durationType) {
+      case CharacterEffectDurationType.permanent:
+        pieces.add('Permanente');
+        break;
+
+      case CharacterEffectDurationType.turns:
+        pieces.add(
+          '${effect.maxDuration} '
+          '${effect.maxDuration == 1 ? 'turno' : 'turnos'}',
+        );
+        break;
+
+      case CharacterEffectDurationType.rounds:
+        pieces.add(
+          '${effect.maxDuration} '
+          '${effect.maxDuration == 1 ? 'ronda' : 'rondas'}',
+        );
+        break;
+
+      case CharacterEffectDurationType.minutes:
+        pieces.add('${effect.maxDuration} min');
+        break;
+
+      case CharacterEffectDurationType.custom:
+        pieces.add(
+          effect.durationNote.trim().isNotEmpty
+              ? effect.durationNote.trim()
+              : 'Duración personalizada',
+        );
+        break;
+    }
+
+    return pieces.join(' · ');
   }
 }

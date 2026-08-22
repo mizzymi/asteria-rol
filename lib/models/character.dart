@@ -2065,6 +2065,26 @@ class Character {
       }
     }
 
+    final effectTemplates = <CharacterEffect>[];
+
+    final rawEffectTemplates = map['effectTemplates'];
+
+    if (rawEffectTemplates is List) {
+      for (final rawEffect in rawEffectTemplates) {
+        if (rawEffect == null) {
+          continue;
+        }
+
+        try {
+          effectTemplates.add(
+            CharacterEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
     // -------------------------------------------------------------------------
     // SALVACIONES
     // -------------------------------------------------------------------------

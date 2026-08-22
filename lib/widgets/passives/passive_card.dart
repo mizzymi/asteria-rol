@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/character_effect.dart';
 
 import '../../models/damage_bonus.dart';
 import '../../models/critical_damage_bonus.dart';
@@ -31,7 +32,7 @@ class PassiveCard extends StatefulWidget {
   final bool showPassiveBadge;
 
   final ValueChanged<bool>? onToggle;
-
+  final VoidCallback? onApplyLinkedEffects;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onUseCharge;
@@ -44,6 +45,7 @@ class PassiveCard extends StatefulWidget {
     this.sourceItem,
     this.showPassiveBadge = false,
     this.onToggle,
+    this.onApplyLinkedEffects,
     this.onEdit,
     this.onDelete,
     this.onUseCharge,
@@ -111,6 +113,7 @@ class _PassiveCardState extends State<PassiveCard> {
               onUseCharge: widget.onUseCharge,
               onRestoreCharges: widget.onRestoreCharges,
               onRoll: widget.onRoll,
+              onApplyLinkedEffects: widget.onApplyLinkedEffects,
             ),
           ),
         ],
@@ -297,7 +300,7 @@ class _PassiveExpandedContent extends StatelessWidget {
   final bool isItemPassive;
 
   final ValueChanged<bool>? onToggle;
-
+  final VoidCallback? onApplyLinkedEffects;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onUseCharge;
@@ -313,6 +316,7 @@ class _PassiveExpandedContent extends StatelessWidget {
     required this.onDelete,
     required this.onUseCharge,
     required this.onRestoreCharges,
+    required this.onApplyLinkedEffects,
     required this.onRoll,
   });
 
@@ -476,6 +480,63 @@ class _PassiveExpandedContent extends StatelessWidget {
             ),
           ],
 
+          if (passive.linkedEffects.isNotEmpty) ...[
+            const SizedBox(height: 18),
+
+            _SectionLabel(
+              icon: Icons.auto_awesome_rounded,
+              label: 'Efectos vinculados',
+              color: color,
+            ),
+
+            const SizedBox(height: 10),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: PassiveColors.softBackground(
+                  context,
+                  color,
+                  strength: 0.10,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  ...passive.linkedEffects.map((effect) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+
+                      leading: Icon(
+                        _linkedEffectIcon(effect.type),
+                        color: color,
+                      ),
+
+                      title: Text(
+                        effect.name.trim().isNotEmpty ? effect.name : 'Efecto',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+
+                      subtitle: Text(_linkedEffectDuration(effect)),
+                    );
+                  }),
+
+                  const SizedBox(height: 6),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonalIcon(
+                      onPressed: passive.enabled ? onApplyLinkedEffects : null,
+                      icon: const Icon(Icons.add_circle_rounded),
+                      label: const Text('Aplicar efectos'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // ===================================================================
           // CARGAS
           // ===================================================================
@@ -577,7 +638,9 @@ class _PassiveExpandedContent extends StatelessWidget {
           // ===================================================================
           // SIN EFECTOS MECÁNICOS
           // ===================================================================
-          if (effects.isEmpty && !passive.hasRoll) ...[
+          if (effects.isEmpty &&
+              !passive.hasRoll &&
+              passive.linkedEffects.isEmpty) ...[
             const SizedBox(height: 18),
 
             Container(
@@ -731,6 +794,45 @@ class _PassiveExpandedContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static IconData _linkedEffectIcon(CharacterEffectType type) {
+    switch (type) {
+      case CharacterEffectType.buff:
+        return Icons.trending_up_rounded;
+
+      case CharacterEffectType.debuff:
+        return Icons.trending_down_rounded;
+
+      case CharacterEffectType.condition:
+        return Icons.warning_amber_rounded;
+
+      case CharacterEffectType.neutral:
+        return Icons.auto_awesome_rounded;
+    }
+  }
+
+  static String _linkedEffectDuration(CharacterEffect effect) {
+    switch (effect.durationType) {
+      case CharacterEffectDurationType.permanent:
+        return 'Permanente';
+
+      case CharacterEffectDurationType.turns:
+        return '${effect.maxDuration} '
+            '${effect.maxDuration == 1 ? 'turno' : 'turnos'}';
+
+      case CharacterEffectDurationType.rounds:
+        return '${effect.maxDuration} '
+            '${effect.maxDuration == 1 ? 'ronda' : 'rondas'}';
+
+      case CharacterEffectDurationType.minutes:
+        return '${effect.maxDuration} min';
+
+      case CharacterEffectDurationType.custom:
+        return effect.durationNote.trim().isNotEmpty
+            ? effect.durationNote.trim()
+            : 'Duración personalizada';
+    }
   }
 
   // ===========================================================================

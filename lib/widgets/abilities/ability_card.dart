@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rol/models/character_effect.dart';
 import 'package:rol/widgets/abilities/ability_effect_card.dart';
 
 import 'ability_attribute_colors.dart';
@@ -330,6 +331,29 @@ class _ExpandedAbilityContent extends StatelessWidget {
             ),
           ],
 
+          if (ability.linkedEffects.isNotEmpty) ...[
+            const SizedBox(height: 20),
+
+            SectionHeader(
+              icon: Icons.auto_awesome_rounded,
+              title: ability.linkedEffects.length == 1
+                  ? 'Efecto vinculado'
+                  : 'Efectos vinculados',
+              subtitle:
+                  '${ability.linkedEffects.length} '
+                  '${ability.linkedEffects.length == 1 ? 'efecto' : 'efectos'}',
+            ),
+
+            const SizedBox(height: 10),
+
+            ...ability.linkedEffects.map(
+              (effect) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _LinkedEffectPreview(effect: effect),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 8),
 
           _AbilityActions(
@@ -459,6 +483,8 @@ class _AbilityActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasEffects = ability.effects.any((effect) => effect.hasEffect);
 
+    final hasLinkedEffects = ability.linkedEffects.isNotEmpty;
+
     final canPay = character.canPayAbilityResource(ability);
 
     // =========================================================================
@@ -482,7 +508,7 @@ class _AbilityActions extends StatelessWidget {
     // EFECTO DIRECTO
     // =========================================================================
 
-    if (hasEffects) {
+    if (hasEffects || hasLinkedEffects) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
@@ -616,5 +642,108 @@ class _NotesSection extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _LinkedEffectPreview extends StatelessWidget {
+  final CharacterEffect effect;
+
+  const _LinkedEffectPreview({required this.effect});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            child: Icon(_iconForType(effect.type), size: 18),
+          ),
+
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  effect.name.trim().isEmpty ? 'Efecto' : effect.name,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+
+                if (effect.description.trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+
+                  Text(
+                    effect.description.trim(),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+
+                const SizedBox(height: 4),
+
+                Text(
+                  _durationText(effect),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconForType(CharacterEffectType type) {
+    switch (type) {
+      case CharacterEffectType.buff:
+        return Icons.trending_up_rounded;
+
+      case CharacterEffectType.debuff:
+        return Icons.trending_down_rounded;
+
+      case CharacterEffectType.condition:
+        return Icons.warning_amber_rounded;
+
+      case CharacterEffectType.neutral:
+        return Icons.auto_awesome_rounded;
+    }
+  }
+
+  static String _durationText(CharacterEffect effect) {
+    switch (effect.durationType) {
+      case CharacterEffectDurationType.permanent:
+        return 'Permanente';
+
+      case CharacterEffectDurationType.turns:
+        return '${effect.maxDuration} '
+            '${effect.maxDuration == 1 ? 'turno' : 'turnos'}';
+
+      case CharacterEffectDurationType.rounds:
+        return '${effect.maxDuration} '
+            '${effect.maxDuration == 1 ? 'ronda' : 'rondas'}';
+
+      case CharacterEffectDurationType.minutes:
+        return '${effect.maxDuration} min';
+
+      case CharacterEffectDurationType.custom:
+        return effect.durationNote.trim().isNotEmpty
+            ? effect.durationNote.trim()
+            : 'Duración personalizada';
+    }
   }
 }

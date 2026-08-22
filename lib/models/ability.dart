@@ -1,3 +1,5 @@
+import 'package:rol/models/character_effect.dart';
+
 import 'dice_pool.dart';
 import 'skill.dart';
 import 'ability_effect_part.dart';
@@ -414,6 +416,7 @@ class CharacterAbility {
 
   int saveDcBonus;
 
+  List<CharacterEffect> linkedEffects;
   // ==========================================================================
   // SISTEMA MODERNO
   // ==========================================================================
@@ -465,9 +468,11 @@ class CharacterAbility {
     this.resourceId,
     this.resourceCost = 0,
     List<AbilityEffect>? effects,
+    List<CharacterEffect>? linkedEffects,
     this.notes = '',
-  }) : dicePools = dicePools ?? [],
-       effects = effects ?? [];
+  }) : dicePools = List<DicePool>.from(dicePools ?? []),
+       effects = List<AbilityEffect>.from(effects ?? []),
+       linkedEffects = List<CharacterEffect>.from(linkedEffects ?? []);
 
   // ==========================================================================
   // HELPERS
@@ -475,6 +480,10 @@ class CharacterAbility {
 
   bool get hasLimitedUses {
     return maxUses > 0;
+  }
+
+  bool get hasLinkedEffects {
+    return linkedEffects.isNotEmpty;
   }
 
   bool get hasEffect {
@@ -609,6 +618,8 @@ class CharacterAbility {
       'resourceCost': resourceCost,
 
       'notes': notes,
+
+      'linkedEffects': linkedEffects.map((effect) => effect.toMap()).toList(),
     };
   }
 
@@ -859,6 +870,30 @@ class CharacterAbility {
     }
 
     // ========================================================================
+    // EFECTOS VINCULADOS
+    // ========================================================================
+
+    final linkedEffects = <CharacterEffect>[];
+
+    final rawLinkedEffects = map['linkedEffects'];
+
+    if (rawLinkedEffects is List) {
+      for (final rawEffect in rawLinkedEffects) {
+        if (rawEffect is! Map) {
+          continue;
+        }
+
+        try {
+          linkedEffects.add(
+            CharacterEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // ========================================================================
     // RESULTADO
     // ========================================================================
 
@@ -913,6 +948,8 @@ class CharacterAbility {
       resourceCost: (map['resourceCost'] as num?)?.toInt() ?? 0,
 
       notes: map['notes']?.toString() ?? '',
+
+      linkedEffects: linkedEffects,
     );
   }
 
