@@ -324,7 +324,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           onReroll: () {
             Navigator.of(dialogContext).pop();
 
-            rollWeaponDamage(item, critical: critical);
+            rollWeaponAttack(item);
           },
         );
       },

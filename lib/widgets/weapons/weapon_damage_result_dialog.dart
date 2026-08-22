@@ -251,10 +251,9 @@ class WeaponDamageResultDialog extends StatelessWidget {
       actions: [
         TextButton.icon(
           onPressed: onReroll,
-          icon: const Icon(Icons.refresh_rounded),
-          label: const Text('Volver a tirar'),
+          icon: const Icon(Icons.gps_fixed_rounded),
+          label: const Text('Volver a atacar'),
         ),
-
         FilledButton(
           onPressed: () {
             Navigator.pop(context);
