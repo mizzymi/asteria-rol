@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/character_resource.dart';
+import '../../utils/number_format.dart';
 
 class ResourceEditDialog {
   const ResourceEditDialog._();
@@ -8,149 +9,260 @@ class ResourceEditDialog {
   static Future<int?> show(
     BuildContext context, {
     required CharacterResource resource,
-  }) async {
-    int value = resource.currentValue;
-
+  }) {
     return showDialog<int>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            void decrease() {
-              if (value <= 0) {
-                return;
-              }
+      builder: (_) {
+        return _ResourceEditDialogContent(resource: resource);
+      },
+    );
+  }
+}
 
-              setState(() {
-                value--;
-              });
-            }
+class _ResourceEditDialogContent extends StatefulWidget {
+  final CharacterResource resource;
 
-            void increase() {
-              if (value >= resource.maxValue) {
-                return;
-              }
+  const _ResourceEditDialogContent({required this.resource});
 
-              setState(() {
-                value++;
-              });
-            }
+  @override
+  State<_ResourceEditDialogContent> createState() =>
+      _ResourceEditDialogContentState();
+}
 
-            return AlertDialog(
-              title: Row(
-                children: [
-                  Icon(resource.icon, color: resource.color),
+class _ResourceEditDialogContentState
+    extends State<_ResourceEditDialogContent> {
+  late int value;
 
-                  const SizedBox(width: 10),
+  late final TextEditingController amountController;
 
-                  Expanded(child: Text(resource.name)),
-                ],
+  CharacterResource get resource => widget.resource;
+
+  @override
+  void initState() {
+    super.initState();
+
+    value = resource.currentValue;
+
+    amountController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+
+    super.dispose();
+  }
+
+  int readAmount() {
+    final text = amountController.text.trim().replaceAll('.', '');
+
+    return int.tryParse(text) ?? 0;
+  }
+
+  int normalizeValue(int newValue) {
+    if (newValue < 0) {
+      return 0;
+    }
+
+    if (resource.hasMaximum && newValue > resource.maxValue) {
+      return resource.maxValue;
+    }
+
+    return newValue;
+  }
+
+  void subtract() {
+    final amount = readAmount();
+
+    if (amount <= 0) {
+      return;
+    }
+
+    setState(() {
+      value = normalizeValue(value - amount);
+    });
+  }
+
+  void add() {
+    final amount = readAmount();
+
+    if (amount <= 0) {
+      return;
+    }
+
+    setState(() {
+      value = normalizeValue(value + amount);
+    });
+  }
+
+  void setExact() {
+    final amount = readAmount();
+
+    setState(() {
+      value = normalizeValue(amount);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(resource.icon, color: resource.color),
+
+          const SizedBox(width: 10),
+
+          Expanded(child: Text(resource.name)),
+        ],
+      ),
+
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Valor actual', style: theme.textTheme.labelLarge),
+
+            const SizedBox(height: 4),
+
+            Text(
+              formatThousands(value),
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: resource.color,
               ),
+            ),
 
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      IconButton.filledTonal(
-                        onPressed: value > 0 ? decrease : null,
-                        icon: const Icon(Icons.remove_rounded),
-                      ),
+            const SizedBox(height: 4),
 
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              '$value',
-                              style: Theme.of(context).textTheme.displaySmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: resource.color,
-                                  ),
-                            ),
+            Text(
+              resource.hasMaximum
+                  ? 'Máximo: ${formatThousands(resource.maxValue)}'
+                  : 'Sin máximo',
+              style: theme.textTheme.bodySmall,
+            ),
 
-                            Text(
-                              'de ${resource.maxValue}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
+            if (resource.hasMaximum) ...[
+              const SizedBox(height: 14),
 
-                      IconButton.filledTonal(
-                        onPressed: value < resource.maxValue ? increase : null,
-                        icon: const Icon(Icons.add_rounded),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: LinearProgressIndicator(
-                      value: resource.maxValue <= 0
-                          ? 0
-                          : value / resource.maxValue,
-                      minHeight: 8,
-                      color: resource.color,
-                      backgroundColor: resource.color.withValues(alpha: 0.12),
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              value = 0;
-                            });
-                          },
-                          icon: const Icon(Icons.battery_0_bar_rounded),
-                          label: const Text('Vaciar'),
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () {
-                            setState(() {
-                              value = resource.maxValue;
-                            });
-                          },
-                          icon: const Icon(Icons.battery_full_rounded),
-                          label: const Text('Llenar'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: LinearProgressIndicator(
+                  value: resource.maxValue <= 0
+                      ? 0
+                      : (value / resource.maxValue).clamp(0.0, 1.0),
+                  minHeight: 8,
+                  color: resource.color,
+                  backgroundColor: resource.color.withValues(alpha: 0.12),
+                ),
               ),
+            ],
 
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Cancelar'),
+            const SizedBox(height: 22),
+
+            TextFormField(
+              controller: amountController,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Cantidad',
+                hintText: 'Ej. 25000',
+                prefixIcon: Icon(Icons.calculate_rounded),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: subtract,
+                    icon: const Icon(Icons.remove_rounded),
+                    label: const Text('Restar'),
+                  ),
                 ),
 
-                FilledButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext, value);
-                  },
-                  child: const Text('Guardar'),
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: add,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Sumar'),
+                  ),
                 ),
               ],
-            );
+            ),
+
+            const SizedBox(height: 10),
+
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: setExact,
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('Establecer valor'),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        value = 0;
+                      });
+                    },
+                    icon: const Icon(Icons.battery_0_bar_rounded),
+                    label: const Text('Vaciar'),
+                  ),
+                ),
+
+                if (resource.hasMaximum) ...[
+                  const SizedBox(width: 10),
+
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          value = resource.maxValue;
+                        });
+                      },
+                      icon: const Icon(Icons.battery_full_rounded),
+                      label: const Text('Llenar'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
           },
-        );
-      },
+          child: const Text('Cancelar'),
+        ),
+
+        FilledButton(
+          onPressed: () {
+            Navigator.pop(context, value);
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
     );
   }
 }

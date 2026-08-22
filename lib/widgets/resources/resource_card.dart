@@ -24,9 +24,9 @@ class ResourceCard extends StatelessWidget {
 
     final color = resource.color;
 
-    final progress = resource.maxValue <= 0
-        ? 0.0
-        : (resource.currentValue / resource.maxValue).clamp(0.0, 1.0);
+    final progress = resource.hasMaximum
+        ? resource.percentage.clamp(0.0, 1.0)
+        : 0.0;
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 12),
@@ -61,7 +61,7 @@ class ResourceCard extends StatelessWidget {
               ),
 
               Text(
-                '${resource.currentValue}/${resource.maxValue}',
+                resource.displayText,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: color,
@@ -70,17 +70,19 @@ class ResourceCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 14),
+          if (resource.hasMaximum) ...[
+            const SizedBox(height: 14),
 
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 9,
-              color: color,
-              backgroundColor: color.withValues(alpha: 0.12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 9,
+                color: color,
+                backgroundColor: color.withValues(alpha: 0.12),
+              ),
             ),
-          ),
+          ],
 
           const SizedBox(height: 14),
 
@@ -98,11 +100,13 @@ class ResourceCard extends StatelessWidget {
 
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: resource.currentValue < resource.maxValue
+                  onPressed:
+                      !resource.hasMaximum ||
+                          resource.currentValue < resource.maxValue
                       ? onIncrease
                       : null,
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('Recuperar'),
+                  label: Text(resource.hasMaximum ? 'Recuperar' : 'Añadir'),
                 ),
               ),
             ],

@@ -143,9 +143,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final resources = character.resources
-        .where((resource) => resource.visible)
-        .toList();
+    final resources = character.resources;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Recursos')),

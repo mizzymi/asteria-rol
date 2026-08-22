@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:rol/utils/number_format.dart';
 
 class CharacterResource {
   String id;
-
   String name;
 
   int currentValue;
-
   int maxValue;
 
+  /// false = el recurso puede crecer sin límite.
+  bool hasMaximum;
+
   IconData icon;
-
   int colorValue;
-
   bool visible;
 
   CharacterResource({
@@ -20,36 +20,43 @@ class CharacterResource {
     required this.name,
     this.currentValue = 0,
     this.maxValue = 0,
+    this.hasMaximum = true,
     this.icon = Icons.bolt_rounded,
     this.colorValue = 0xFF8B5CF6,
     this.visible = true,
   });
 
-  // ===========================================================================
-  // GETTERS
-  // ===========================================================================
-
   Color get color => Color(colorValue);
 
   bool get isEmpty => currentValue <= 0;
 
-  bool get isFull => currentValue >= maxValue;
+  bool get isUnlimited => !hasMaximum;
+
+  bool get isFull {
+    if (!hasMaximum) {
+      return false;
+    }
+
+    return currentValue >= maxValue;
+  }
 
   double get percentage {
-    if (maxValue <= 0) {
+    if (!hasMaximum || maxValue <= 0) {
       return 0;
     }
 
-    return currentValue / maxValue;
+    return (currentValue / maxValue).clamp(0.0, 1.0);
   }
 
   String get displayText {
-    return '$currentValue/$maxValue';
-  }
+    if (!hasMaximum) {
+      return formatThousands(
+        currentValue,
+      );
+    }
 
-  // ===========================================================================
-  // OPERACIONES
-  // ===========================================================================
+    return '${formatThousands(currentValue)}/${formatThousands(maxValue)}';
+  }
 
   void consume(int amount) {
     if (amount <= 0) {
@@ -70,12 +77,16 @@ class CharacterResource {
 
     currentValue += amount;
 
-    if (currentValue > maxValue) {
+    if (hasMaximum && currentValue > maxValue) {
       currentValue = maxValue;
     }
   }
 
   void restoreFull() {
+    if (!hasMaximum) {
+      return;
+    }
+
     currentValue = maxValue;
   }
 
@@ -84,8 +95,18 @@ class CharacterResource {
   }
 
   void normalize() {
-    if (maxValue < 0) {
+    if (!hasMaximum) {
       maxValue = 0;
+
+      if (currentValue < 0) {
+        currentValue = 0;
+      }
+
+      return;
+    }
+
+    if (maxValue < 1) {
+      maxValue = 1;
     }
 
     if (currentValue < 0) {
@@ -97,16 +118,13 @@ class CharacterResource {
     }
   }
 
-  // ===========================================================================
-  // SERIALIZACIÓN
-  // ===========================================================================
-
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
       'currentValue': currentValue,
       'maxValue': maxValue,
+      'hasMaximum': hasMaximum,
       'iconCodePoint': icon.codePoint,
       'colorValue': colorValue,
       'visible': visible,
@@ -122,6 +140,10 @@ class CharacterResource {
       currentValue: (map['currentValue'] as num?)?.toInt() ?? 0,
 
       maxValue: (map['maxValue'] as num?)?.toInt() ?? 0,
+
+      // Los recursos antiguos no tenían este campo,
+      // así que siguen teniendo máximo.
+      hasMaximum: map['hasMaximum'] as bool? ?? true,
 
       icon: IconData(
         (map['iconCodePoint'] as num?)?.toInt() ?? Icons.bolt_rounded.codePoint,

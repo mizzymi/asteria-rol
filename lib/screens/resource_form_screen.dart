@@ -26,6 +26,8 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
 
   bool visible = true;
 
+  bool hasMaximum = true;
+
   bool get editing => widget.resource != null;
 
   // ===========================================================================
@@ -83,6 +85,8 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
     selectedIcon = resource?.icon ?? availableIcons.first;
 
     visible = resource?.visible ?? true;
+
+    hasMaximum = resource?.hasMaximum ?? true;
   }
 
   // ===========================================================================
@@ -94,11 +98,15 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
       return;
     }
 
-    final max = int.tryParse(maxController.text) ?? 1;
+    final parsedMax = int.tryParse(maxController.text) ?? 1;
 
-    final safeMax = max < 1 ? 1 : max;
+    final safeMax = hasMaximum ? (parsedMax < 1 ? 1 : parsedMax) : 0;
 
-    final safeCurrent = currentValue.clamp(0, safeMax);
+    final safeCurrent = hasMaximum
+        ? currentValue.clamp(0, safeMax)
+        : currentValue < 0
+        ? 0
+        : currentValue;
 
     final resource = CharacterResource(
       id:
@@ -110,6 +118,8 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
       currentValue: safeCurrent,
 
       maxValue: safeMax,
+
+      hasMaximum: hasMaximum,
 
       icon: selectedIcon,
 
@@ -130,7 +140,11 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
   void changeMax(int delta) {
     final currentMax = int.tryParse(maxController.text) ?? 1;
 
-    final newValue = (currentMax + delta).clamp(1, 999);
+    var newValue = currentMax + delta;
+
+    if (newValue < 1) {
+      newValue = 1;
+    }
 
     setState(() {
       maxController.text = '$newValue';
@@ -146,10 +160,20 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
   // ===========================================================================
 
   void changeCurrent(int delta) {
-    final max = int.tryParse(maxController.text) ?? 1;
-
     setState(() {
-      currentValue = (currentValue + delta).clamp(0, max < 1 ? 1 : max);
+      final next = currentValue + delta;
+
+      if (!hasMaximum) {
+        currentValue = next < 0 ? 0 : next;
+
+        return;
+      }
+
+      final max = int.tryParse(maxController.text) ?? 1;
+
+      final safeMax = max < 1 ? 1 : max;
+
+      currentValue = next.clamp(0, safeMax);
     });
   }
 
@@ -256,7 +280,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                         ),
 
                         Text(
-                          '$currentValue/$max',
+                          hasMaximum ? '$currentValue/$max' : '$currentValue',
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w900,
                             color: color,
@@ -265,17 +289,19 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 14),
+                    if (hasMaximum) ...[
+                      const SizedBox(height: 14),
 
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 9,
-                        color: color,
-                        backgroundColor: color.withValues(alpha: 0.12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 9,
+                          color: color,
+                          backgroundColor: color.withValues(alpha: 0.12),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -285,58 +311,94 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
               // ===============================================================
               // VALOR MÁXIMO
               // ===============================================================
-              Text(
-                'Valor máximo',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: !hasMaximum,
+                title: const Text('Sin máximo'),
+                subtitle: const Text(
+                  'El recurso puede aumentar indefinidamente.',
                 ),
+                secondary: const Icon(Icons.all_inclusive_rounded),
+                onChanged: (value) {
+                  setState(() {
+                    hasMaximum = !value;
+
+                    if (hasMaximum) {
+                      var max = int.tryParse(maxController.text) ?? 1;
+
+                      if (max < 1) {
+                        max = 1;
+                        maxController.text = '1';
+                      }
+
+                      if (currentValue > max) {
+                        currentValue = max;
+                      }
+                    }
+                  });
+                },
               ),
 
-              const SizedBox(height: 12),
+              if (hasMaximum) ...[
+                const SizedBox(height: 12),
 
-              Row(
-                children: [
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      changeMax(-1);
-                    },
-                    icon: const Icon(Icons.remove_rounded),
+                Text(
+                  'Valor máximo',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
 
-                  const SizedBox(width: 12),
+                const SizedBox(height: 12),
 
-                  Expanded(
-                    child: TextFormField(
-                      controller: maxController,
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                      decoration: const InputDecoration(labelText: 'Máximo'),
-                      onChanged: (_) {
-                        setState(() {
-                          final currentMax =
-                              int.tryParse(maxController.text) ?? 1;
-
-                          if (currentValue > currentMax) {
-                            currentValue = currentMax;
-                          }
-                        });
+                Row(
+                  children: [
+                    IconButton.filledTonal(
+                      onPressed: () {
+                        changeMax(-1);
                       },
+                      icon: const Icon(Icons.remove_rounded),
                     ),
-                  ),
 
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 12),
 
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      changeMax(1);
-                    },
-                    icon: const Icon(Icons.add_rounded),
-                  ),
-                ],
-              ),
+                    Expanded(
+                      child: TextFormField(
+                        controller: maxController,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                        decoration: const InputDecoration(labelText: 'Máximo'),
+                        onChanged: (_) {
+                          setState(() {
+                            var currentMax =
+                                int.tryParse(maxController.text) ?? 1;
+
+                            if (currentMax < 1) {
+                              currentMax = 1;
+                            }
+
+                            if (currentValue > currentMax) {
+                              currentValue = currentMax;
+                            }
+                          });
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    IconButton.filledTonal(
+                      onPressed: () {
+                        changeMax(1);
+                      },
+                      icon: const Icon(Icons.add_rounded),
+                    ),
+                  ],
+                ),
+              ],
 
               const SizedBox(height: 26),
 
@@ -375,7 +437,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                   ),
 
                   IconButton.filledTonal(
-                    onPressed: currentValue < max
+                    onPressed: !hasMaximum || currentValue < max
                         ? () {
                             changeCurrent(1);
                           }

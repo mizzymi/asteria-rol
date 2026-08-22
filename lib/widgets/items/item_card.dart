@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rol/models/ability.dart';
 import 'package:rol/models/skill.dart';
+import 'package:rol/utils/number_format.dart';
 
 import '../../models/character.dart';
 import '../../models/item.dart';
@@ -208,7 +209,7 @@ class _ItemHeader extends StatelessWidget {
                               : null,
                           child: InfoBadge(
                             icon: Icons.layers_rounded,
-                            text: 'x${item.quantity}',
+                            text: '×${formatThousands(item.quantity)}',
                             color: item.calculable
                                 ? color
                                 : null,

@@ -247,7 +247,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
               ...character.resources
                   .where((resource) => resource.visible)
-                  .take(3)
                   .map(
                     (resource) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -292,7 +291,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: character.enabledEffects
-                    .take(5)
                     .map(
                       (effect) => _ActiveEffectChip(
                         effect: effect,
@@ -468,9 +466,9 @@ class _QuickResourceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = resource.maxValue <= 0
-        ? 0.0
-        : (resource.currentValue / resource.maxValue).clamp(0.0, 1.0);
+    final progress = resource.hasMaximum
+        ? resource.percentage.clamp(0.0, 1.0)
+        : 0.0;
 
     return InkWell(
       onTap: onTap,
@@ -498,7 +496,7 @@ class _QuickResourceCard extends StatelessWidget {
                 ),
 
                 Text(
-                  '${resource.currentValue}/${resource.maxValue}',
+                  resource.displayText,
                   style: TextStyle(
                     color: resource.color,
                     fontWeight: FontWeight.w900,
@@ -509,10 +507,14 @@ class _QuickResourceCard extends StatelessWidget {
 
             const SizedBox(height: 8),
 
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: LinearProgressIndicator(value: progress, minHeight: 6),
-            ),
+            if (resource.hasMaximum) ...[
+              const SizedBox(height: 8),
+
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: LinearProgressIndicator(value: progress, minHeight: 6),
+              ),
+            ],
           ],
         ),
       ),
