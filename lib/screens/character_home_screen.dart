@@ -270,6 +270,48 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     await saveCharacter();
   }
 
+  List<_EffectStack> get stackedEnabledEffects {
+    final stacks = <String, _EffectStack>{};
+
+    for (final effect in character.enabledEffects) {
+      final map = Map<String, dynamic>.from(effect.toMap());
+
+      // Campos que identifican la instancia,
+      // pero no el contenido real del efecto.
+      map.remove('id');
+
+      final key = _stableEffectKey(map);
+
+      final existing = stacks[key];
+
+      if (existing == null) {
+        stacks[key] = _EffectStack(effect: effect, count: 1);
+      } else {
+        existing.count++;
+      }
+    }
+
+    return stacks.values.toList();
+  }
+
+  String _stableEffectKey(dynamic value) {
+    if (value is Map) {
+      final keys = value.keys.map((key) => key.toString()).toList()..sort();
+
+      return keys
+          .map((key) {
+            return '$key:${_stableEffectKey(value[key])}';
+          })
+          .join('|');
+    }
+
+    if (value is List) {
+      return value.map(_stableEffectKey).join(',');
+    }
+
+    return value.toString();
+  }
+
   // ===========================================================================
   // BUILD
   // ===========================================================================
@@ -379,10 +421,11 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: character.enabledEffects
+                children: stackedEnabledEffects
                     .map(
-                      (effect) => _ActiveEffectChip(
-                        effect: effect,
+                      (stack) => _ActiveEffectChip(
+                        effect: stack.effect,
+                        count: stack.count,
                         onTap: () {
                           openScreen(EffectsScreen(character: character));
                         },
@@ -390,17 +433,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                     )
                     .toList(),
               ),
-
-              if (character.enabledEffects.length > 5) ...[
-                const SizedBox(height: 8),
-
-                Text(
-                  '+${character.enabledEffects.length - 5} más',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
 
               const SizedBox(height: 18),
             ],
@@ -611,11 +643,23 @@ class _QuickResourceCard extends StatelessWidget {
   }
 }
 
+class _EffectStack {
+  final CharacterEffect effect;
+  int count;
+
+  _EffectStack({required this.effect, required this.count});
+}
+
 class _ActiveEffectChip extends StatelessWidget {
   final CharacterEffect effect;
+  final int count;
   final VoidCallback onTap;
 
-  const _ActiveEffectChip({required this.effect, required this.onTap});
+  const _ActiveEffectChip({
+    required this.effect,
+    required this.count,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -642,7 +686,7 @@ class _ActiveEffectChip extends StatelessWidget {
               const SizedBox(width: 6),
 
               Text(
-                effect.name,
+                count > 1 ? '${effect.name} ×$count' : effect.name,
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
 

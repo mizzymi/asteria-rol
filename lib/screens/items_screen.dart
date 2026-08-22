@@ -1,7 +1,9 @@
 import 'dart:math';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:rol/models/ability_effect_part.dart';
+import 'package:rol/utils/number_format.dart';
 
 import 'dart:convert';
 
@@ -19,9 +21,14 @@ import '../services/item_library_service.dart';
 import '../widgets/weapons/weapon_damage_result_dialog.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/section_header.dart';
-
 import '../widgets/items/item_card.dart';
+import '../widgets/items/item_grid_card.dart';
+import '../widgets/items/item_extended_content.dart';
+import '../widgets/items/item_image.dart';
+import '../widgets/items/item_image_viewer.dart';
+import '../widgets/items/item_type_colors.dart';
 import '../services/item_import_export_service.dart';
+
 import 'item_library_screen.dart';
 import 'item_form_screen.dart';
 
@@ -37,6 +44,10 @@ class ItemsScreen extends StatefulWidget {
 class _ItemsScreenState extends State<ItemsScreen> {
   Character get character => widget.character;
 
+  static const String _gridViewPreferenceKey = 'items_grid_view';
+
+  bool gridView = false;
+  bool viewPreferenceLoaded = false;
   // ===========================================================================
   // GUARDAR
   // ===========================================================================
@@ -1299,9 +1310,252 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
   }
 
+  Future<void> openItemFromGrid(CharacterItem item) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final color = ItemTypeColors.color(item.type);
+
+        return FractionallySizedBox(
+          heightFactor: 0.92,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ===============================================================
+                // IMAGEN
+                // ===============================================================
+                if (item.hasImage) ...[
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(22),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () {
+                        ItemImageViewer.show(sheetContext, item);
+                      },
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 240,
+                        child: ItemImage(item: item, size: double.infinity),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+                ] else ...[
+                  Container(
+                    width: double.infinity,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      color: Color.lerp(theme.colorScheme.surface, color, 0.12),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Icon(
+                      ItemTypeColors.icon(item.type),
+                      size: 54,
+                      color: color,
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+                ],
+
+                // ===============================================================
+                // NOMBRE
+                // ===============================================================
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.name,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+
+                    IconButton(
+                      tooltip: 'Editar',
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        editItem(item);
+                      },
+                      icon: const Icon(Icons.edit_rounded),
+                    ),
+                  ],
+                ),
+
+                // ===============================================================
+                // TIPO / CANTIDAD
+                // ===============================================================
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(
+                      avatar: Icon(
+                        ItemTypeColors.icon(item.type),
+                        size: 17,
+                        color: color,
+                      ),
+                      label: Text(item.type.label),
+                    ),
+
+                    Chip(
+                      avatar: const Icon(Icons.layers_rounded, size: 17),
+                      label: Text('×${formatThousands(item.quantity)}'),
+                    ),
+
+                    if (item.equipped)
+                      const Chip(
+                        avatar: Icon(Icons.check_circle_rounded, size: 17),
+                        label: Text('Equipado'),
+                      ),
+                  ],
+                ),
+
+                // ===============================================================
+                // DESCRIPCIÓN
+                // ===============================================================
+                if (item.description.trim().isNotEmpty) ...[
+                  const SizedBox(height: 14),
+
+                  Text(item.description, style: theme.textTheme.bodyMedium),
+                ],
+
+                const SizedBox(height: 18),
+
+                // ===============================================================
+                // CONTENIDO EXTENDIDO
+                // ===============================================================
+                ItemExtendedContent(
+                  item: item,
+                  character: character,
+                  padding: EdgeInsets.zero,
+
+                  onEquip: () {
+                    Navigator.pop(sheetContext);
+                    toggleEquip(item);
+                  },
+
+                  onWeaponAttack: item.isWeapon && item.equipped
+                      ? () {
+                          Navigator.pop(sheetContext);
+                          rollWeaponAttack(item);
+                        }
+                      : null,
+
+                  onWeaponDamage: item.isWeapon && item.equipped
+                      ? () {
+                          Navigator.pop(sheetContext);
+                          rollWeaponDamage(item);
+                        }
+                      : null,
+
+                  onConsumableUse:
+                      item.type == ItemType.consumable &&
+                          item.consumable != null
+                      ? () {
+                          Navigator.pop(sheetContext);
+                          useConsumable(item);
+                        }
+                      : null,
+                ),
+
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
+
+  Widget buildItemGrid(List<CharacterItem> items) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        var columns = 3;
+
+        if (constraints.maxWidth < 360) {
+          columns = 2;
+        } else if (constraints.maxWidth >= 700) {
+          columns = 4;
+        }
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1,
+          ),
+          itemBuilder: (context, index) {
+            final item = items[index];
+
+            return ItemGridCard(
+              item: item,
+              onTap: () {
+                openItemFromGrid(item);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleViewMode() async {
+    final newValue = !gridView;
+
+    setState(() {
+      gridView = newValue;
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setBool(_gridViewPreferenceKey, newValue);
+  }
+
   // ===========================================================================
   // BUILD
   // ===========================================================================
+  @override
+  void initState() {
+    super.initState();
+
+    _loadViewPreference();
+  }
+
+  Future<void> _loadViewPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedGridView = prefs.getBool(_gridViewPreferenceKey) ?? false;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      gridView = savedGridView;
+      viewPreferenceLoaded = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1313,6 +1567,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
       appBar: AppBar(
         title: const Text('Objetos'),
         actions: [
+          IconButton(
+            tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
+            onPressed: _toggleViewMode,
+            icon: Icon(
+              gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+            ),
+          ),
+
           IconButton(
             tooltip: 'Importar objeto',
             onPressed: importItem,
@@ -1327,7 +1589,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
         ],
       ),
 
-      body: character.items.isEmpty
+      body: !viewPreferenceLoaded
+          ? const Center(child: CircularProgressIndicator())
+          : character.items.isEmpty
           ? EmptyState(
               icon: Icons.inventory_2_rounded,
               title: 'Inventario vacío',
@@ -1352,54 +1616,53 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
                   const SizedBox(height: 14),
 
-                  ...equipped.map(
-                    (item) => ItemCard(
-                      item: item,
+                  if (gridView)
+                    buildItemGrid(equipped)
+                  else
+                    ...equipped.map(
+                      (item) => ItemCard(
+                        item: item,
+                        character: character,
 
-                      character: character,
+                        onEquip: () {
+                          toggleEquip(item);
+                        },
 
-                      onEquip: () {
-                        toggleEquip(item);
-                      },
+                        onEdit: () {
+                          editItem(item);
+                        },
 
-                      onEdit: () {
-                        editItem(item);
-                      },
+                        onDelete: () {
+                          deleteItem(item);
+                        },
 
-                      onDelete: () {
-                        deleteItem(item);
-                      },
+                        onExport: () {
+                          exportItem(item);
+                        },
 
-                      onExport: () {
-                        exportItem(item);
-                      },
+                        onSaveToLibrary: () {
+                          saveItemToLibrary(item);
+                        },
 
-                      onSaveToLibrary: () {
-                        saveItemToLibrary(item);
-                      },
+                        onQuickQuantityEdit: item.calculable
+                            ? () {
+                                editItemQuantityQuick(item);
+                              }
+                            : null,
 
-                      onQuickQuantityEdit: item.calculable
-                          ? () {
-                              editItemQuantityQuick(item);
-                            }
-                          : null,
+                        onWeaponAttack: item.isWeapon
+                            ? () {
+                                rollWeaponAttack(item);
+                              }
+                            : null,
 
-                      // =========================================================
-                      // ARMA
-                      // =========================================================
-                      onWeaponAttack: item.isWeapon
-                          ? () {
-                              rollWeaponAttack(item);
-                            }
-                          : null,
-
-                      onWeaponDamage: item.isWeapon
-                          ? () {
-                              rollWeaponDamage(item);
-                            }
-                          : null,
+                        onWeaponDamage: item.isWeapon
+                            ? () {
+                                rollWeaponDamage(item);
+                              }
+                            : null,
+                      ),
                     ),
-                  ),
 
                   const SizedBox(height: 24),
                 ],
@@ -1453,6 +1716,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       ],
                     ),
                   )
+                else if (gridView)
+                  buildItemGrid(inventory)
                 else
                   ...inventory.map(
                     (item) => ItemCard(

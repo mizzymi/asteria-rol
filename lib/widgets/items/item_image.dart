@@ -8,6 +8,10 @@ import 'item_type_colors.dart';
 class ItemImage extends StatelessWidget {
   final CharacterItem item;
 
+  /// Tamaño fijo del widget.
+  ///
+  /// Si recibe double.infinity, ocupará todo el espacio disponible
+  /// sin propagar Infinity al Icon ni al BorderRadius.
   final double size;
 
   final VoidCallback? onTap;
@@ -21,22 +25,72 @@ class ItemImage extends StatelessWidget {
     final hasImage =
         item.imagePath.isNotEmpty && File(item.imagePath).existsSync();
 
-    final child = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: ItemTypeColors.background(context, item.type, strength: 0.22),
-        borderRadius: BorderRadius.circular(size * 0.28),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: hasImage
-          ? Image.file(File(item.imagePath), fit: BoxFit.cover)
-          : Icon(
-              ItemTypeColors.icon(item.type),
-              color: color,
-              size: size * 0.46,
-            ),
-    );
+    final expanded = !size.isFinite;
+
+    Widget buildContent(double width, double height) {
+      final shortestSide = width < height ? width : height;
+
+      final safeBaseSize = shortestSide.isFinite && shortestSide > 0
+          ? shortestSide
+          : 58.0;
+
+      final borderRadius = safeBaseSize * 0.20;
+
+      final iconSize = (safeBaseSize * 0.46).clamp(24.0, 72.0);
+
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: ItemTypeColors.background(context, item.type, strength: 0.22),
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: hasImage
+            ? Image.file(
+                File(item.imagePath),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Icon(
+                      ItemTypeColors.icon(item.type),
+                      color: color,
+                      size: iconSize,
+                    ),
+                  );
+                },
+              )
+            : Center(
+                child: Icon(
+                  ItemTypeColors.icon(item.type),
+                  color: color,
+                  size: iconSize,
+                ),
+              ),
+      );
+    }
+
+    Widget child;
+
+    if (expanded) {
+      child = LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : 58.0;
+
+          final height = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : width;
+
+          return buildContent(width, height);
+        },
+      );
+    } else {
+      child = buildContent(size, size);
+    }
 
     if (onTap == null) {
       return child;
