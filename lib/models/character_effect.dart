@@ -159,7 +159,8 @@ class CharacterEffect {
         skillBonuses.values.any((value) => value != 0) ||
         savingThrowBonuses.values.any((value) => value != 0) ||
         damageBonuses.any((damage) => damage.hasDamage) ||
-        criticalDamageBonuses.any((damage) => damage.canTrigger);
+        criticalDamageBonuses.any((damage) => damage.canTrigger) ||
+        healingBonuses.any((bonus) => bonus.hasHealing);
   }
 
   bool get hasDuration {
@@ -395,6 +396,26 @@ class CharacterEffect {
       }
     }
 
+    final healingBonuses = <HealingBonus>[];
+
+    final rawHealingBonuses = map['healingBonuses'];
+
+    if (rawHealingBonuses is List) {
+      for (final rawBonus in rawHealingBonuses) {
+        if (rawBonus is! Map) {
+          continue;
+        }
+
+        try {
+          healingBonuses.add(
+            HealingBonus.fromMap(Map<dynamic, dynamic>.from(rawBonus)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
     final effect = CharacterEffect(
       id: map['id']?.toString() ?? '',
 
@@ -439,6 +460,8 @@ class CharacterEffect {
       damageBonuses: damageBonuses,
 
       criticalDamageBonuses: criticalDamageBonuses,
+
+      healingBonuses: healingBonuses,
 
       notes: map['notes']?.toString() ?? '',
     );

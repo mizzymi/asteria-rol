@@ -17,8 +17,14 @@ class CriticalDamageBonusResult {
     this.roll,
   });
 
+  bool get failed => !triggered;
+
+  bool get hasResult {
+    return triggered && roll != null;
+  }
+
   int get total {
-    if (!triggered || roll == null) {
+    if (!hasResult) {
       return 0;
     }
 

@@ -46,19 +46,36 @@ extension SaveSuccessEffectData on SaveSuccessEffect {
     switch (this) {
       case SaveSuccessEffect.full:
         return 'Daño completo';
+
       case SaveSuccessEffect.half:
         return 'Mitad';
+
       case SaveSuccessEffect.none:
         return 'Sin daño';
     }
   }
 }
 
+// ============================================================================
+// ABILITY EFFECT
+// ============================================================================
+
 class AbilityEffect {
   String id;
+
   String name;
 
   AbilityEffectType effectType;
+
+  // ==========================================================================
+  // CAMPOS LEGACY
+  //
+  // Se mantienen para poder cargar datos antiguos.
+  //
+  // El sistema moderno debe trabajar principalmente con:
+  //
+  // parts
+  // ==========================================================================
 
   List<DicePool> dicePools;
 
@@ -68,15 +85,25 @@ class AbilityEffect {
 
   String effectTypeName;
 
+  bool legacyAddAbilityModifier;
+
+  // ==========================================================================
+  // SISTEMA MODERNO
+  // ==========================================================================
+
   List<AbilityEffectPart> parts;
 
+  // ==========================================================================
+  // TIRADA DE SALVACIÓN
+  // ==========================================================================
+
   bool usesSavingThrow;
+
   AbilityType savingThrowAbility;
+
   int saveDcBonus;
 
   SaveSuccessEffect saveSuccessEffect;
-
-  bool legacyAddAbilityModifier;
 
   AbilityEffect({
     required this.id,
@@ -96,20 +123,49 @@ class AbilityEffect {
        parts = parts ?? [],
        abilityModifierMultipliers = abilityModifierMultipliers ?? {};
 
+  // ==========================================================================
+  // HELPERS
+  // ==========================================================================
+
   bool get hasEffect {
-    return effectType != AbilityEffectType.none &&
-        (parts.any((part) => part.hasValue) ||
-            dicePools.isNotEmpty ||
-            abilityModifierMultipliers.values.any((value) => value != 0) ||
-            effectBonus != 0 ||
-            legacyAddAbilityModifier);
+    if (effectType == AbilityEffectType.none) {
+      return false;
+    }
+
+    // Sistema moderno.
+    if (parts.any((part) => part.hasValue)) {
+      return true;
+    }
+
+    // Compatibilidad legacy.
+    return dicePools.isNotEmpty ||
+        abilityModifierMultipliers.values.any((value) => value != 0) ||
+        effectBonus != 0 ||
+        legacyAddAbilityModifier;
   }
 
-  bool get dealsDamage => effectType == AbilityEffectType.damage;
+  bool get dealsDamage {
+    return effectType == AbilityEffectType.damage;
+  }
 
-  bool get heals => effectType == AbilityEffectType.healing;
+  bool get heals {
+    return effectType == AbilityEffectType.healing;
+  }
 
   String get diceNotation {
+    // Sistema moderno.
+    if (parts.isNotEmpty) {
+      final notations = parts
+          .where((part) => part.diceNotation.isNotEmpty)
+          .map((part) => part.diceNotation)
+          .toList();
+
+      if (notations.isNotEmpty) {
+        return notations.join(' + ');
+      }
+    }
+
+    // Compatibilidad legacy.
     if (dicePools.isEmpty) {
       return '';
     }
@@ -117,34 +173,58 @@ class AbilityEffect {
     return dicePools.map((pool) => pool.notation).join(' + ');
   }
 
+  // ==========================================================================
+  // SERIALIZACIÓN
+  // ==========================================================================
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+
       'name': name,
+
       'effectType': effectType.name,
+
+      // Legacy.
       'dicePools': dicePools.map((pool) => pool.toMap()).toList(),
+
       'abilityModifierMultipliers': {
         for (final entry in abilityModifierMultipliers.entries)
           entry.key.name: entry.value,
       },
-      'parts': parts.map((part) => part.toMap()).toList(),
+
+      'addAbilityModifierToEffect': legacyAddAbilityModifier,
+
       'effectBonus': effectBonus,
+
       'effectTypeName': effectTypeName,
+
+      // Moderno.
+      'parts': parts.map((part) => part.toMap()).toList(),
+
+      // Salvación.
       'usesSavingThrow': usesSavingThrow,
+
       'savingThrowAbility': savingThrowAbility.name,
+
       'saveDcBonus': saveDcBonus,
+
       'saveSuccessEffect': saveSuccessEffect.name,
     };
   }
 
   factory AbilityEffect.fromMap(Map<dynamic, dynamic> map) {
+    // ========================================================================
+    // DADOS LEGACY
+    // ========================================================================
+
     final pools = <DicePool>[];
 
     final rawPools = map['dicePools'];
 
     if (rawPools is List) {
       for (final rawPool in rawPools) {
-        if (rawPool == null) {
+        if (rawPool is! Map) {
           continue;
         }
 
@@ -155,6 +235,10 @@ class AbilityEffect {
         }
       }
     }
+
+    // ========================================================================
+    // PARTES MODERNAS
+    // ========================================================================
 
     final parts = <AbilityEffectPart>[];
 
@@ -176,6 +260,10 @@ class AbilityEffect {
       }
     }
 
+    // ========================================================================
+    // MODIFICADORES LEGACY
+    // ========================================================================
+
     final abilityModifierMultipliers = <AbilityType, int>{};
 
     final rawMultipliers = map['abilityModifierMultipliers'];
@@ -192,58 +280,100 @@ class AbilityEffect {
       }
     }
 
+    final legacyAddAbilityModifier =
+        map['addAbilityModifierToEffect'] as bool? ?? false;
+
+    final effectBonus = (map['effectBonus'] as num?)?.toInt() ?? 0;
+
+    final effectTypeName = map['effectTypeName']?.toString() ?? '';
+
+    // ========================================================================
+    // MIGRACIÓN LOCAL
+    //
+    // Si no existen parts pero sí información legacy que podemos migrar
+    // sin necesitar conocer el atributo principal de CharacterAbility,
+    // creamos una parte.
+    //
+    // El caso legacyAddAbilityModifier se termina de resolver más abajo
+    // desde CharacterAbility.fromMap(), porque allí sí conocemos abilityType.
+    // ========================================================================
+
     if (parts.isEmpty &&
         (pools.isNotEmpty ||
             abilityModifierMultipliers.isNotEmpty ||
-            (map['effectBonus'] as num?)?.toInt() != 0)) {
+            effectBonus != 0)) {
       parts.add(
         AbilityEffectPart(
           id: '${map['id']}_part_0',
 
-          dicePools: pools,
+          dicePools: List<DicePool>.from(pools),
 
-          abilityModifierMultipliers: abilityModifierMultipliers,
+          abilityModifierMultipliers: Map<AbilityType, int>.from(
+            abilityModifierMultipliers,
+          ),
 
-          flatBonus: (map['effectBonus'] as num?)?.toInt() ?? 0,
+          flatBonus: effectBonus,
 
-          typeName: map['effectTypeName']?.toString() ?? '',
+          typeName: effectTypeName,
         ),
       );
     }
 
     return AbilityEffect(
       id: map['id']?.toString() ?? '',
+
       name: map['name']?.toString() ?? '',
+
       effectType: AbilityEffectType.values.firstWhere(
         (item) => item.name == map['effectType'],
         orElse: () => AbilityEffectType.damage,
       ),
+
       dicePools: pools,
-      legacyAddAbilityModifier:
-          map['addAbilityModifierToEffect'] as bool? ?? false,
-      effectBonus: (map['effectBonus'] as num?)?.toInt() ?? 0,
-      effectTypeName: map['effectTypeName']?.toString() ?? '',
+
+      abilityModifierMultipliers: abilityModifierMultipliers,
+
+      legacyAddAbilityModifier: legacyAddAbilityModifier,
+
+      effectBonus: effectBonus,
+
+      effectTypeName: effectTypeName,
+
       usesSavingThrow: map['usesSavingThrow'] as bool? ?? false,
+
       savingThrowAbility: AbilityType.values.firstWhere(
         (item) => item.name == map['savingThrowAbility'],
         orElse: () => AbilityType.dexterity,
       ),
+
       saveDcBonus: (map['saveDcBonus'] as num?)?.toInt() ?? 0,
+
       saveSuccessEffect: SaveSuccessEffect.values.firstWhere(
         (item) => item.name == map['saveSuccessEffect'],
         orElse: () => SaveSuccessEffect.half,
       ),
+
       parts: parts,
     );
   }
 }
 
+// ============================================================================
+// CHARACTER ABILITY
+// ============================================================================
+
 class CharacterAbility {
   String id;
+
   String name;
+
   String description;
 
   AbilityActionType actionType;
+
+  // ==========================================================================
+  // ATAQUE
+  // ==========================================================================
 
   bool requiresAttackRoll;
 
@@ -254,20 +384,19 @@ class CharacterAbility {
   /// Bonus plano adicional a la tirada de ataque.
   int attackBonus;
 
+  // ==========================================================================
+  // CAMPOS LEGACY DE EFECTO
+  //
+  // Se mantienen para poder leer personajes/habilidades antiguas.
+  //
+  // El sistema moderno debe usar `effects`.
+  // ==========================================================================
+
   AbilityEffectType effectType;
-
-  /// ID del recurso del personaje que consume.
-  ///
-  /// null o vacío = no consume recursos.
-  String? resourceId;
-
-  /// Cantidad consumida al utilizar la habilidad.
-  int resourceCost;
 
   /// Permite cosas como:
   /// 2d6 + 1d8
   List<DicePool> dicePools;
-  List<AbilityEffect> effects;
 
   /// Suma el modificador del atributo al daño/curación.
   bool addAbilityModifierToEffect;
@@ -284,6 +413,28 @@ class CharacterAbility {
   AbilityType savingThrowAbility;
 
   int saveDcBonus;
+
+  // ==========================================================================
+  // SISTEMA MODERNO
+  // ==========================================================================
+
+  List<AbilityEffect> effects;
+
+  // ==========================================================================
+  // RECURSOS
+  // ==========================================================================
+
+  /// ID del recurso del personaje que consume.
+  ///
+  /// null o vacío = no consume recursos.
+  String? resourceId;
+
+  /// Cantidad consumida al utilizar la habilidad.
+  int resourceCost;
+
+  // ==========================================================================
+  // USOS
+  // ==========================================================================
 
   /// 0 = usos ilimitados.
   int maxUses;
@@ -318,21 +469,61 @@ class CharacterAbility {
   }) : dicePools = dicePools ?? [],
        effects = effects ?? [];
 
-  bool get hasLimitedUses => maxUses > 0;
+  // ==========================================================================
+  // HELPERS
+  // ==========================================================================
+
+  bool get hasLimitedUses {
+    return maxUses > 0;
+  }
 
   bool get hasEffect {
-    return effectType != AbilityEffectType.none && dicePools.isNotEmpty;
+    // Sistema moderno.
+    if (effects.isNotEmpty) {
+      return effects.any((effect) => effect.hasEffect);
+    }
+
+    // Compatibilidad legacy.
+    return effectType != AbilityEffectType.none &&
+        (dicePools.isNotEmpty ||
+            addAbilityModifierToEffect ||
+            effectBonus != 0);
   }
 
   bool get dealsDamage {
+    // Sistema moderno.
+    if (effects.isNotEmpty) {
+      return effects.any((effect) => effect.dealsDamage);
+    }
+
+    // Compatibilidad legacy.
     return effectType == AbilityEffectType.damage;
   }
 
   bool get heals {
+    // Sistema moderno.
+    if (effects.isNotEmpty) {
+      return effects.any((effect) => effect.heals);
+    }
+
+    // Compatibilidad legacy.
     return effectType == AbilityEffectType.healing;
   }
 
   String get diceNotation {
+    // Sistema moderno.
+    if (effects.isNotEmpty) {
+      final notations = effects
+          .where((effect) => effect.diceNotation.isNotEmpty)
+          .map((effect) => effect.diceNotation)
+          .toList();
+
+      if (notations.isNotEmpty) {
+        return notations.join(' + ');
+      }
+    }
+
+    // Compatibilidad legacy.
     if (dicePools.isEmpty) {
       return '';
     }
@@ -347,44 +538,103 @@ class CharacterAbility {
   }
 
   int get maximumDiceValue {
-    return dicePools.fold(0, (sum, pool) => sum + pool.maximum);
+    if (effects.isNotEmpty) {
+      var total = 0;
+
+      for (final effect in effects) {
+        for (final part in effect.parts) {
+          total += part.dicePools.fold<int>(
+            0,
+            (sum, pool) => sum + pool.maximum,
+          );
+        }
+      }
+
+      return total;
+    }
+
+    return dicePools.fold<int>(0, (sum, pool) => sum + pool.maximum);
   }
+
+  // ==========================================================================
+  // SERIALIZACIÓN
+  // ==========================================================================
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+
       'name': name,
+
       'description': description,
+
       'actionType': actionType.name,
+
       'requiresAttackRoll': requiresAttackRoll,
+
       'abilityType': abilityType.name,
+
       'proficient': proficient,
+
       'attackBonus': attackBonus,
+
+      // Legacy.
       'effectType': effectType.name,
+
       'dicePools': dicePools.map((pool) => pool.toMap()).toList(),
+
       'addAbilityModifierToEffect': addAbilityModifierToEffect,
+
       'effectBonus': effectBonus,
+
       'effectTypeName': effectTypeName,
+
       'usesSavingThrow': usesSavingThrow,
+
       'savingThrowAbility': savingThrowAbility.name,
+
       'saveDcBonus': saveDcBonus,
-      'maxUses': maxUses,
+
+      // Moderno.
       'effects': effects.map((effect) => effect.toMap()).toList(),
+
+      // Usos.
+      'maxUses': maxUses,
+
       'currentUses': currentUses,
-      'notes': notes,
+
+      // Recurso.
       'resourceId': resourceId,
+
       'resourceCost': resourceCost,
+
+      'notes': notes,
     };
   }
 
   factory CharacterAbility.fromMap(Map<dynamic, dynamic> map) {
+    // ========================================================================
+    // ATRIBUTO PRINCIPAL
+    //
+    // Lo obtenemos antes porque lo necesitaremos para migraciones legacy.
+    // ========================================================================
+
+    final ability = AbilityType.values.firstWhere(
+      (item) => item.name == map['abilityType'],
+      orElse: () => AbilityType.strength,
+    );
+
+    // ========================================================================
+    // DADOS LEGACY
+    // ========================================================================
+
     final pools = <DicePool>[];
 
     final rawPools = map['dicePools'];
 
     if (rawPools is List) {
       for (final rawPool in rawPools) {
-        if (rawPool == null) {
+        if (rawPool is! Map) {
           continue;
         }
 
@@ -395,13 +645,82 @@ class CharacterAbility {
         }
       }
     }
+
+    // ========================================================================
+    // COMPATIBILIDAD MUY ANTIGUA
+    //
+    // damageDice = "2d6"
+    // ========================================================================
+
+    if (pools.isEmpty) {
+      final oldDice = map['damageDice']?.toString() ?? '';
+
+      final parsed = _parseLegacyDice(oldDice);
+
+      if (parsed != null) {
+        pools.add(parsed);
+      }
+    }
+
+    // ========================================================================
+    // TIPO DE EFECTO LEGACY
+    // ========================================================================
+
+    final storedEffect = map['effectType']?.toString();
+
+    AbilityEffectType effectType;
+
+    if (storedEffect != null) {
+      effectType = AbilityEffectType.values.firstWhere(
+        (item) => item.name == storedEffect,
+        orElse: () => AbilityEffectType.none,
+      );
+    } else {
+      // Datos muy antiguos.
+      effectType = pools.isNotEmpty
+          ? AbilityEffectType.damage
+          : AbilityEffectType.none;
+    }
+
+    // ========================================================================
+    // VALORES LEGACY
+    // ========================================================================
+
+    final legacyAddModifier =
+        map['addAbilityModifierToEffect'] as bool? ??
+        map['addAbilityToDamage'] as bool? ??
+        true;
+
+    final legacyEffectBonus =
+        (map['effectBonus'] as num?)?.toInt() ??
+        (map['damageBonus'] as num?)?.toInt() ??
+        0;
+
+    final legacyEffectTypeName =
+        map['effectTypeName']?.toString() ??
+        map['damageType']?.toString() ??
+        '';
+
+    final legacyUsesSavingThrow = map['usesSavingThrow'] as bool? ?? false;
+
+    final legacySavingThrowAbility = AbilityType.values.firstWhere(
+      (item) => item.name == map['savingThrowAbility'],
+      orElse: () => AbilityType.dexterity,
+    );
+
+    final legacySaveDcBonus = (map['saveDcBonus'] as num?)?.toInt() ?? 0;
+
+    // ========================================================================
+    // EFECTOS MODERNOS
+    // ========================================================================
+
     final effects = <AbilityEffect>[];
 
     final rawEffects = map['effects'];
 
     if (rawEffects is List) {
       for (final rawEffect in rawEffects) {
-        if (rawEffect == null) {
+        if (rawEffect is! Map) {
           continue;
         }
 
@@ -414,40 +733,97 @@ class CharacterAbility {
         }
       }
     }
-    /*
-     * Compatibilidad con habilidades antiguas que tenían
-     * damageDice = "2d6".
-     */
-    if (pools.isEmpty) {
-      final oldDice = map['damageDice']?.toString() ?? '';
 
-      final parsed = _parseLegacyDice(oldDice);
+    // ========================================================================
+    // NORMALIZACIÓN DE EFECTOS YA EXISTENTES
+    //
+    // Puede ocurrir que una versión anterior guardase:
+    //
+    // legacyAddAbilityModifier = true
+    //
+    // pero todavía no hubiese convertido ese modificador a:
+    //
+    // abilityModifierMultipliers
+    //
+    // Como aquí sí conocemos el atributo principal de la habilidad,
+    // podemos terminar correctamente la migración.
+    // ========================================================================
 
-      if (parsed != null) {
-        pools.add(parsed);
+    for (var effectIndex = 0; effectIndex < effects.length; effectIndex++) {
+      final currentEffect = effects[effectIndex];
+
+      if (!currentEffect.legacyAddAbilityModifier) {
+        continue;
       }
-    }
 
-    final storedEffect = map['effectType']?.toString();
-
-    AbilityEffectType effect;
-
-    if (storedEffect != null) {
-      effect = AbilityEffectType.values.firstWhere(
-        (item) => item.name == storedEffect,
-        orElse: () => AbilityEffectType.none,
+      // Si ya existe el atributo en alguna parte,
+      // no volvemos a añadirlo.
+      final alreadyHasAbilityModifier = currentEffect.parts.any(
+        (part) =>
+            part.abilityModifierMultipliers.values.any((value) => value != 0),
       );
-    } else {
-      // Datos antiguos.
-      effect = pools.isNotEmpty
-          ? AbilityEffectType.damage
-          : AbilityEffectType.none;
+
+      if (alreadyHasAbilityModifier) {
+        currentEffect.legacyAddAbilityModifier = false;
+
+        continue;
+      }
+
+      // Si no existe ninguna parte todavía,
+      // creamos una.
+      if (currentEffect.parts.isEmpty) {
+        currentEffect.parts.add(
+          AbilityEffectPart(
+            id: '${currentEffect.id}_part_0',
+
+            dicePools: List<DicePool>.from(currentEffect.dicePools),
+
+            abilityModifierMultipliers: {ability: 1},
+
+            flatBonus: currentEffect.effectBonus,
+
+            typeName: currentEffect.effectTypeName,
+          ),
+        );
+      } else {
+        // Si la parte ya existe por dados/bonus,
+        // añadimos el atributo a la primera.
+        currentEffect.parts.first.abilityModifierMultipliers[ability] = 1;
+      }
+
+      currentEffect.legacyAddAbilityModifier = false;
     }
-    if (effects.isEmpty && pools.isNotEmpty) {
-      final legacyAddModifier =
-          map['addAbilityModifierToEffect'] as bool? ??
-          map['addAbilityToDamage'] as bool? ??
-          true;
+
+    // ========================================================================
+    // MIGRACIÓN COMPLETA DE HABILIDAD ANTIGUA
+    //
+    // Antes solo se migraba si había dados.
+    //
+    // Eso rompía habilidades como:
+    //
+    // +FUE
+    // +5
+    // FUE + 5
+    //
+    // Ahora cualquiera de esos casos genera Effect + Part.
+    // ========================================================================
+
+    final hasLegacyEffect =
+        effectType != AbilityEffectType.none &&
+        (pools.isNotEmpty || legacyAddModifier || legacyEffectBonus != 0);
+
+    if (effects.isEmpty && hasLegacyEffect) {
+      final part = AbilityEffectPart(
+        id: '${map['id']}_effect_0_part_0',
+
+        dicePools: List<DicePool>.from(pools),
+
+        abilityModifierMultipliers: legacyAddModifier ? {ability: 1} : {},
+
+        flatBonus: legacyEffectBonus,
+
+        typeName: legacyEffectTypeName,
+      );
 
       effects.add(
         AbilityEffect(
@@ -455,97 +831,94 @@ class CharacterAbility {
 
           name: '',
 
-          effectType: effect,
+          effectType: effectType,
 
+          // Guardamos también los valores legacy
+          // por compatibilidad.
           dicePools: List<DicePool>.from(pools),
 
-          // ===============================================================
-          // MIGRACIÓN DEL MODIFICADOR ANTIGUO
-          //
-          // Antes:
-          // addAbilityModifierToEffect = true
-          //
-          // Ahora:
-          // { atributo: 1 }
-          // ===============================================================
-          abilityModifierMultipliers: legacyAddModifier
-              ? {
-                  AbilityType.values.firstWhere(
-                    (item) => item.name == map['abilityType'],
-                    orElse: () => AbilityType.strength,
-                  ): 1,
-                }
-              : {},
+          abilityModifierMultipliers: legacyAddModifier ? {ability: 1} : {},
 
           legacyAddAbilityModifier: false,
 
-          effectBonus:
-              (map['effectBonus'] as num?)?.toInt() ??
-              (map['damageBonus'] as num?)?.toInt() ??
-              0,
+          effectBonus: legacyEffectBonus,
 
-          effectTypeName:
-              map['effectTypeName']?.toString() ??
-              map['damageType']?.toString() ??
-              '',
+          effectTypeName: legacyEffectTypeName,
 
-          usesSavingThrow: map['usesSavingThrow'] as bool? ?? false,
+          parts: [part],
 
-          savingThrowAbility: AbilityType.values.firstWhere(
-            (item) => item.name == map['savingThrowAbility'],
-            orElse: () => AbilityType.dexterity,
-          ),
+          usesSavingThrow: legacyUsesSavingThrow,
 
-          saveDcBonus: (map['saveDcBonus'] as num?)?.toInt() ?? 0,
+          savingThrowAbility: legacySavingThrowAbility,
+
+          saveDcBonus: legacySaveDcBonus,
 
           saveSuccessEffect: SaveSuccessEffect.half,
         ),
       );
     }
+
+    // ========================================================================
+    // RESULTADO
+    // ========================================================================
+
     return CharacterAbility(
       id: map['id']?.toString() ?? '',
+
       name: map['name']?.toString() ?? '',
+
       description: map['description']?.toString() ?? '',
+
       actionType: AbilityActionType.values.firstWhere(
         (item) => item.name == map['actionType'],
         orElse: () => AbilityActionType.action,
       ),
-      effects: effects,
+
       requiresAttackRoll: map['requiresAttackRoll'] as bool? ?? false,
-      abilityType: AbilityType.values.firstWhere(
-        (item) => item.name == map['abilityType'],
-        orElse: () => AbilityType.strength,
-      ),
+
+      abilityType: ability,
+
       proficient: map['proficient'] as bool? ?? true,
+
       attackBonus: (map['attackBonus'] as num?)?.toInt() ?? 0,
-      effectType: effect,
+
+      // Legacy.
+      effectType: effectType,
+
       dicePools: pools,
-      addAbilityModifierToEffect:
-          map['addAbilityModifierToEffect'] as bool? ??
-          map['addAbilityToDamage'] as bool? ??
-          true,
-      effectBonus:
-          (map['effectBonus'] as num?)?.toInt() ??
-          (map['damageBonus'] as num?)?.toInt() ??
-          0,
-      effectTypeName:
-          map['effectTypeName']?.toString() ??
-          map['damageType']?.toString() ??
-          '',
-      usesSavingThrow: map['usesSavingThrow'] as bool? ?? false,
-      savingThrowAbility: AbilityType.values.firstWhere(
-        (item) => item.name == map['savingThrowAbility'],
-        orElse: () => AbilityType.dexterity,
-      ),
-      saveDcBonus: (map['saveDcBonus'] as num?)?.toInt() ?? 0,
+
+      addAbilityModifierToEffect: legacyAddModifier,
+
+      effectBonus: legacyEffectBonus,
+
+      effectTypeName: legacyEffectTypeName,
+
+      usesSavingThrow: legacyUsesSavingThrow,
+
+      savingThrowAbility: legacySavingThrowAbility,
+
+      saveDcBonus: legacySaveDcBonus,
+
+      // Moderno.
+      effects: effects,
+
+      // Usos.
       maxUses: (map['maxUses'] as num?)?.toInt() ?? 0,
+
       currentUses: (map['currentUses'] as num?)?.toInt() ?? 0,
-      notes: map['notes']?.toString() ?? '',
+
+      // Recurso.
       resourceId: map['resourceId']?.toString(),
 
       resourceCost: (map['resourceCost'] as num?)?.toInt() ?? 0,
+
+      notes: map['notes']?.toString() ?? '',
     );
   }
+
+  // ==========================================================================
+  // DADOS LEGACY
+  // ==========================================================================
 
   static DicePool? _parseLegacyDice(String value) {
     final clean = value.trim().toLowerCase();

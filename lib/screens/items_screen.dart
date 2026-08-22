@@ -324,7 +324,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           onReroll: () {
             Navigator.of(dialogContext).pop();
 
-            rollWeaponDamage(item, critical: critical);
+            rollWeaponAttack(item);
           },
         );
       },
@@ -686,12 +686,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           continue;
         }
 
-        final result = character.rollAbilityEffectPart(
-          consumableAbility,
-          effect,
-          part,
-          critical: false,
-        );
+        final result = character.rollAbilityEffectPart(part, critical: false);
 
         rolledParts.add(_ConsumableRolledPart(part: part, result: result));
       }

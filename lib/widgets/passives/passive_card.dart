@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../models/damage_bonus.dart';
+import '../../models/critical_damage_bonus.dart';
+import '../../models/healing_bonus.dart';
 import '../../models/item.dart';
 import '../../models/passive.dart';
 import '../../models/skill.dart';
@@ -750,12 +753,165 @@ class _PassiveExpandedContent extends StatelessWidget {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // DAÑO ADICIONAL
+    // -------------------------------------------------------------------------
+
+    for (final bonus in passive.damageBonuses) {
+      if (!bonus.hasDamage) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: Icons.local_fire_department_rounded,
+          label: _damageBonusLabel(bonus),
+          color: PassiveColors.attack,
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // DAÑO CRÍTICO
+    // -------------------------------------------------------------------------
+
+    for (final bonus in passive.criticalDamageBonuses) {
+      if (!bonus.canTrigger) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: Icons.flash_on_rounded,
+          label: _criticalDamageBonusLabel(bonus),
+          color: PassiveColors.attack,
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // CURACIÓN
+    // -------------------------------------------------------------------------
+
+    for (final bonus in passive.healingBonuses) {
+      if (!bonus.hasHealing) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: Icons.favorite_rounded,
+          label: _healingBonusLabel(bonus),
+          color: PassiveColors.health,
+        ),
+      );
+    }
+
     return effects;
   }
 
   // ===========================================================================
   // HELPERS
   // ===========================================================================
+  static String _damageBonusLabel(DamageBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    for (final entry in bonus.abilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        pieces.add(entry.key.shortLabel);
+      } else {
+        pieces.add('${entry.value}×${entry.key.shortLabel}');
+      }
+    }
+
+    if (bonus.flatBonus != 0) {
+      pieces.add(
+        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
+      );
+    }
+
+    var formula = pieces.isEmpty
+        ? 'Daño adicional'
+        : pieces.join(' + ').replaceAll('+ -', '- ');
+
+    if (bonus.damageType.trim().isNotEmpty) {
+      formula += ' ${bonus.damageType.trim()}';
+    }
+
+    if (bonus.name.trim().isNotEmpty) {
+      return '${bonus.name}: $formula';
+    }
+
+    return formula;
+  }
+
+  static String _criticalDamageBonusLabel(CriticalDamageBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    if (bonus.damageType.trim().isNotEmpty) {
+      pieces.add(bonus.damageType.trim());
+    }
+
+    if (!bonus.alwaysTriggers) {
+      pieces.add('${bonus.chancePercent}%');
+    }
+
+    final formula = pieces.isEmpty ? 'Daño crítico' : pieces.join(' · ');
+
+    if (bonus.name.trim().isNotEmpty) {
+      return '${bonus.name}: $formula';
+    }
+
+    return formula;
+  }
+
+  static String _healingBonusLabel(HealingBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    for (final entry in bonus.abilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        pieces.add(entry.key.shortLabel);
+      } else {
+        pieces.add('${entry.value}×${entry.key.shortLabel}');
+      }
+    }
+
+    if (bonus.flatBonus != 0) {
+      pieces.add(
+        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
+      );
+    }
+
+    final formula = pieces.isEmpty
+        ? 'Curación adicional'
+        : pieces.join(' + ').replaceAll('+ -', '- ');
+
+    if (bonus.name.trim().isNotEmpty) {
+      return '${bonus.name}: $formula';
+    }
+
+    return formula;
+  }
 
   static String _bonusText(int value) {
     return value >= 0 ? '+$value' : '$value';

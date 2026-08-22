@@ -88,13 +88,20 @@ class Character {
     return result;
   }
 
-  List<CriticalDamageBonus> activeCriticalDamageBonuses(Weapon weapon) {
-    final result = <CriticalDamageBonus>[...weapon.criticalDamageBonuses];
+  List<CriticalDamageBonus> activeCriticalDamageBonuses([Weapon? weapon]) {
+    final result = <CriticalDamageBonus>[];
 
+    // Bonus exclusivos del arma.
+    if (weapon != null) {
+      result.addAll(weapon.criticalDamageBonuses);
+    }
+
+    // Bonus globales de pasivas.
     for (final passive in enabledPassives) {
       result.addAll(passive.criticalDamageBonuses);
     }
 
+    // Bonus globales de estados/efectos.
     for (final effect in enabledEffects) {
       result.addAll(effect.criticalDamageBonuses);
     }
@@ -969,6 +976,31 @@ class Character {
     return result;
   }
 
+  DiceCalculationResult rollAbilityEffectExtra(
+    CharacterAbility ability,
+    AbilityEffect effect, {
+    bool critical = false,
+  }) {
+    final baseModifier = abilityEffectModifier(ability, effect);
+
+    /*
+   * Crítico Asteria:
+   *
+   * Dados:
+   * máximo + tirada
+   *
+   * Modificadores:
+   * ×2
+   */
+    final modifier = critical ? baseModifier * 2 : baseModifier;
+
+    return DicePoolRoller.roll(
+      pools: effect.dicePools,
+      modifier: modifier,
+      critical: critical,
+    );
+  }
+
   int abilityEffectSaveDc(CharacterAbility ability, AbilityEffect effect) {
     final modifier = abilityModifier(ability.abilityType);
 
@@ -1265,19 +1297,14 @@ class Character {
       );
     }
 
-    /*
-   * MUY IMPORTANTE:
-   *
-   * estos dados han aparecido
-   * POR EL CRÍTICO.
-   *
-   * No se maximizan.
-   * No se duplican.
-   */
+    final modifier =
+        bonus.flatBonus +
+        calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+
     final roll = DicePoolRoller.roll(
       pools: bonus.dicePools,
 
-      modifier: 0,
+      modifier: modifier,
 
       critical: false,
     );
@@ -1288,6 +1315,24 @@ class Character {
       triggered: true,
       roll: roll,
     );
+  }
+
+  List<CriticalDamageBonusResult> rollActiveCriticalDamageBonuses({
+    Weapon? weapon,
+  }) {
+    final results = <CriticalDamageBonusResult>[];
+
+    final bonuses = activeCriticalDamageBonuses(weapon);
+
+    for (final bonus in bonuses) {
+      if (!bonus.canTrigger) {
+        continue;
+      }
+
+      results.add(rollCriticalDamageBonus(bonus));
+    }
+
+    return results;
   }
 
   /*
@@ -1323,8 +1368,6 @@ class Character {
   }
 
   DiceCalculationResult rollAbilityEffectPart(
-    CharacterAbility ability,
-    AbilityEffect effect,
     AbilityEffectPart part, {
     bool critical = false,
   }) {
@@ -1400,15 +1443,9 @@ class Character {
     // =========================================================================
 
     if (critical) {
-      final criticalBonuses = activeCriticalDamageBonuses(weapon);
-
-      for (final bonus in criticalBonuses) {
-        if (!bonus.canTrigger) {
-          continue;
-        }
-
-        criticalBonusParts.add(rollCriticalDamageBonus(bonus));
-      }
+      criticalBonusParts.addAll(
+        rollActiveCriticalDamageBonuses(weapon: weapon),
+      );
     }
 
     return WeaponDamageResult(
@@ -1528,10 +1565,17 @@ class Character {
     CharacterAbility ability, {
     bool critical = false,
   }) {
+    final isCritical =
+        critical && ability.effectType == AbilityEffectType.damage;
+
+    final baseModifier = characterAbilityEffectModifier(ability);
+
+    final modifier = isCritical ? baseModifier * 2 : baseModifier;
+
     return DicePoolRoller.roll(
       pools: ability.dicePools,
-      modifier: characterAbilityEffectModifier(ability),
-      critical: critical && ability.effectType == AbilityEffectType.damage,
+      modifier: modifier,
+      critical: isCritical,
     );
   }
 

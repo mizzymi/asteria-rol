@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/passive.dart';
 import '../models/skill.dart';
+import '../models/damage_bonus.dart';
+import '../models/critical_damage_bonus.dart';
+import '../models/healing_bonus.dart';
+import '../models/dice_pool.dart';
 
 class PassiveFormScreen extends StatefulWidget {
   final CharacterPassive? passive;
@@ -44,6 +48,9 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
   late Map<AbilityType, int> savingThrowBonuses;
   late Map<AbilityType, int> abilityModifierBonuses;
+  late List<DamageBonus> damageBonuses;
+  late List<CriticalDamageBonus> criticalDamageBonuses;
+  late List<HealingBonus> healingBonuses;
   bool get editing => widget.passive != null;
 
   @override
@@ -107,6 +114,24 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       for (final ability in AbilityType.values)
         ability: passive?.savingThrowBonuses[ability] ?? 0,
     };
+
+    damageBonuses =
+        passive?.damageBonuses
+            .map((bonus) => DamageBonus.fromMap(bonus.toMap()))
+            .toList() ??
+        [];
+
+    criticalDamageBonuses =
+        passive?.criticalDamageBonuses
+            .map((bonus) => CriticalDamageBonus.fromMap(bonus.toMap()))
+            .toList() ??
+        [];
+
+    healingBonuses =
+        passive?.healingBonuses
+            .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+            .toList() ??
+        [];
   }
 
   String bonusText(int value) {
@@ -226,6 +251,262 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     });
   }
 
+  // =============================================================================
+  // DAMAGE BONUS
+  // =============================================================================
+
+  Future<void> addDamageBonus() async {
+    final bonus = DamageBonus(
+      id: '${DateTime.now().microsecondsSinceEpoch}_damage_bonus',
+      name: 'Daño adicional',
+      dicePools: [DicePool(count: 1, sides: 6)],
+    );
+
+    final result = await _editDamageBonusDialog(bonus);
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      damageBonuses.add(result);
+    });
+  }
+
+  Future<void> editDamageBonus(int index) async {
+    if (index < 0 || index >= damageBonuses.length) {
+      return;
+    }
+
+    final result = await _editDamageBonusDialog(
+      DamageBonus.fromMap(damageBonuses[index].toMap()),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      damageBonuses[index] = result;
+    });
+  }
+
+  Future<DamageBonus?> _editDamageBonusDialog(DamageBonus bonus) async {
+    return showDialog<DamageBonus>(
+      context: context,
+      builder: (_) {
+        return _DamageBonusEditorDialog(bonus: bonus);
+      },
+    );
+  }
+
+  // =============================================================================
+  // CRITICAL DAMAGE BONUS
+  // =============================================================================
+
+  Future<void> addCriticalDamageBonus() async {
+    final bonus = CriticalDamageBonus(
+      id: '${DateTime.now().microsecondsSinceEpoch}_critical_bonus',
+      name: 'Daño crítico adicional',
+      dicePools: [DicePool(count: 1, sides: 6)],
+      chancePercent: 100,
+    );
+
+    final result = await _editCriticalDamageBonusDialog(bonus);
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      criticalDamageBonuses.add(result);
+    });
+  }
+
+  Future<void> editCriticalDamageBonus(int index) async {
+    if (index < 0 || index >= criticalDamageBonuses.length) {
+      return;
+    }
+
+    final result = await _editCriticalDamageBonusDialog(
+      CriticalDamageBonus.fromMap(criticalDamageBonuses[index].toMap()),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      criticalDamageBonuses[index] = result;
+    });
+  }
+
+  Future<CriticalDamageBonus?> _editCriticalDamageBonusDialog(
+    CriticalDamageBonus bonus,
+  ) async {
+    return showDialog<CriticalDamageBonus>(
+      context: context,
+      builder: (_) {
+        return _CriticalDamageBonusEditorDialog(bonus: bonus);
+      },
+    );
+  }
+
+  // =============================================================================
+  // HEALING BONUS
+  // =============================================================================
+
+  Future<void> addHealingBonus() async {
+    final bonus = HealingBonus(
+      id: '${DateTime.now().microsecondsSinceEpoch}_healing_bonus',
+      name: 'Curación adicional',
+      dicePools: [DicePool(count: 1, sides: 6)],
+    );
+
+    final result = await _editHealingBonusDialog(bonus);
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      healingBonuses.add(result);
+    });
+  }
+
+  Future<void> editHealingBonus(int index) async {
+    if (index < 0 || index >= healingBonuses.length) {
+      return;
+    }
+
+    final result = await _editHealingBonusDialog(
+      HealingBonus.fromMap(healingBonuses[index].toMap()),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      healingBonuses[index] = result;
+    });
+  }
+
+  Future<HealingBonus?> _editHealingBonusDialog(HealingBonus bonus) async {
+    return showDialog<HealingBonus>(
+      context: context,
+      builder: (_) {
+        return _HealingBonusEditorDialog(bonus: bonus);
+      },
+    );
+  }
+
+  String _damageBonusText(DamageBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    for (final entry in bonus.abilityModifierMultipliers.entries) {
+      if (entry.value == 1) {
+        pieces.add(_abilityShortName(entry.key));
+      } else {
+        pieces.add('${entry.value}×${_abilityShortName(entry.key)}');
+      }
+    }
+
+    if (bonus.flatBonus != 0) {
+      pieces.add(
+        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
+      );
+    }
+
+    var result = pieces.isEmpty ? 'Sin daño' : pieces.join(' + ');
+
+    if (bonus.damageType.trim().isNotEmpty) {
+      result += ' · ${bonus.damageType.trim()}';
+    }
+
+    if (bonus.name.trim().isNotEmpty) {
+      return '${bonus.name} · $result';
+    }
+
+    return result;
+  }
+
+  String _criticalBonusText(CriticalDamageBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    for (final entry in bonus.abilityModifierMultipliers.entries) {
+      if (entry.value == 1) {
+        pieces.add(_abilityShortName(entry.key));
+      } else {
+        pieces.add('${entry.value}×${_abilityShortName(entry.key)}');
+      }
+    }
+
+    if (bonus.flatBonus != 0) {
+      pieces.add(
+        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
+      );
+    }
+
+    var result = pieces.isEmpty
+        ? 'Sin daño'
+        : pieces.join(' + ').replaceAll('+ -', '- ');
+
+    if (bonus.damageType.trim().isNotEmpty) {
+      result += ' · ${bonus.damageType.trim()}';
+    }
+
+    if (!bonus.alwaysTriggers) {
+      result += ' · ${bonus.chancePercent}%';
+    }
+
+    if (bonus.name.trim().isNotEmpty) {
+      return '${bonus.name} · $result';
+    }
+
+    return result;
+  }
+
+  String _healingBonusText(HealingBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    for (final entry in bonus.abilityModifierMultipliers.entries) {
+      if (entry.value == 1) {
+        pieces.add(_abilityShortName(entry.key));
+      } else {
+        pieces.add('${entry.value}×${_abilityShortName(entry.key)}');
+      }
+    }
+
+    if (bonus.flatBonus != 0) {
+      pieces.add(
+        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
+      );
+    }
+
+    final result = pieces.isEmpty
+        ? 'Sin curación'
+        : pieces.join(' + ').replaceAll('+ -', '- ');
+
+    if (bonus.name.trim().isNotEmpty) {
+      return '${bonus.name} · $result';
+    }
+
+    return result;
+  }
+
   void savePassive() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -330,6 +611,17 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       rechargeDescription: hasCharges ? rechargeController.text.trim() : '',
 
       notes: notesController.text.trim(),
+      damageBonuses: damageBonuses
+          .map((bonus) => DamageBonus.fromMap(bonus.toMap()))
+          .toList(),
+
+      criticalDamageBonuses: criticalDamageBonuses
+          .map((bonus) => CriticalDamageBonus.fromMap(bonus.toMap()))
+          .toList(),
+
+      healingBonuses: healingBonuses
+          .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+          .toList(),
     );
 
     /*
@@ -455,6 +747,97 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 28),
+
+              Text(
+                'Efectos extra',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 6),
+
+              Text(
+                'Bonificaciones que se aplican automáticamente al daño, críticos y curaciones.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+
+              const SizedBox(height: 14),
+
+              _EffectBonusSection(
+                icon: Icons.local_fire_department_rounded,
+                title: 'Daño',
+                subtitle: 'Daño adicional al causar daño',
+                count: damageBonuses.length,
+                onAdd: addDamageBonus,
+                children: [
+                  for (var i = 0; i < damageBonuses.length; i++)
+                    _PassiveEffectTile(
+                      title: _damageBonusText(damageBonuses[i]),
+                      icon: Icons.local_fire_department_rounded,
+                      onTap: () {
+                        editDamageBonus(i);
+                      },
+                      onDelete: () {
+                        setState(() {
+                          damageBonuses.removeAt(i);
+                        });
+                      },
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              _EffectBonusSection(
+                icon: Icons.bolt_rounded,
+                title: 'Daño crítico',
+                subtitle: 'Dados o daño adicional al realizar un crítico',
+                count: criticalDamageBonuses.length,
+                onAdd: addCriticalDamageBonus,
+                children: [
+                  for (var i = 0; i < criticalDamageBonuses.length; i++)
+                    _PassiveEffectTile(
+                      title: _criticalBonusText(criticalDamageBonuses[i]),
+                      icon: Icons.bolt_rounded,
+                      onTap: () {
+                        editCriticalDamageBonus(i);
+                      },
+                      onDelete: () {
+                        setState(() {
+                          criticalDamageBonuses.removeAt(i);
+                        });
+                      },
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              _EffectBonusSection(
+                icon: Icons.favorite_rounded,
+                title: 'Curación',
+                subtitle: 'Bonificación adicional al realizar curaciones',
+                count: healingBonuses.length,
+                onAdd: addHealingBonus,
+                children: [
+                  for (var i = 0; i < healingBonuses.length; i++)
+                    _PassiveEffectTile(
+                      title: _healingBonusText(healingBonuses[i]),
+                      icon: Icons.favorite_rounded,
+                      onTap: () {
+                        editHealingBonus(i);
+                      },
+                      onDelete: () {
+                        setState(() {
+                          healingBonuses.removeAt(i);
+                        });
+                      },
+                    ),
+                ],
+              ),
+
               const SizedBox(height: 24),
 
               Text(
@@ -784,5 +1167,808 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       case AbilityType.charisma:
         return 'CAR';
     }
+  }
+}
+
+class _EffectBonusSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final int count;
+  final VoidCallback onAdd;
+  final List<Widget> children;
+
+  const _EffectBonusSection({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.count,
+    required this.onAdd,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                CircleAvatar(child: Icon(icon, size: 19)),
+
+                const SizedBox(width: 12),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(subtitle, style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+
+                if (count > 0) Badge(label: Text('$count')),
+
+                IconButton(
+                  tooltip: 'Añadir',
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
+            ),
+
+            if (children.isNotEmpty) ...[const Divider(), ...children],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PassiveEffectTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _PassiveEffectTile({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+
+      leading: Icon(icon),
+
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+
+      onTap: onTap,
+
+      trailing: IconButton(
+        tooltip: 'Eliminar',
+        onPressed: onDelete,
+        icon: const Icon(Icons.delete_outline_rounded),
+      ),
+    );
+  }
+}
+
+class _DamageBonusEditorDialog extends StatefulWidget {
+  final DamageBonus bonus;
+
+  const _DamageBonusEditorDialog({required this.bonus});
+
+  @override
+  State<_DamageBonusEditorDialog> createState() =>
+      _DamageBonusEditorDialogState();
+}
+
+class _DamageBonusEditorDialogState extends State<_DamageBonusEditorDialog> {
+  late DamageBonus bonus;
+
+  late final TextEditingController nameController;
+
+  late final TextEditingController typeController;
+
+  late final TextEditingController flatController;
+
+  static const availableDice = [4, 6, 8, 10, 12, 20];
+
+  @override
+  void initState() {
+    super.initState();
+
+    bonus = DamageBonus.fromMap(widget.bonus.toMap());
+
+    nameController = TextEditingController(text: bonus.name);
+
+    typeController = TextEditingController(text: bonus.damageType);
+
+    flatController = TextEditingController(text: '${bonus.flatBonus}');
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    typeController.dispose();
+    flatController.dispose();
+
+    super.dispose();
+  }
+
+  void addDice() {
+    setState(() {
+      bonus.dicePools.add(DicePool(count: 1, sides: 6));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Daño adicional'),
+
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nombre'),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: typeController,
+              decoration: const InputDecoration(
+                labelText: 'Tipo de daño',
+                hintText: 'Fuego, radiante...',
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            ...List.generate(bonus.dicePools.length, (index) {
+              final pool = bonus.dicePools[index];
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: pool.count,
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad',
+                        ),
+                        items: List.generate(20, (i) => i + 1)
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text('$value'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            pool.count = value;
+                          });
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: pool.sides,
+                        decoration: const InputDecoration(labelText: 'Dado'),
+                        items: availableDice
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text('d$value'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            pool.sides = value;
+                          });
+                        },
+                      ),
+                    ),
+
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          bonus.dicePools.removeAt(index);
+                        });
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+            OutlinedButton.icon(
+              onPressed: addDice,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Añadir dados'),
+            ),
+
+            const SizedBox(height: 16),
+
+            _BonusAttributeMultipliers(
+              multipliers: bonus.abilityModifierMultipliers,
+              onChanged: (value) {
+                setState(() {
+                  bonus.abilityModifierMultipliers = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: flatController,
+              keyboardType: const TextInputType.numberWithOptions(signed: true),
+              decoration: const InputDecoration(labelText: 'Bonus fijo'),
+            ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Cancelar'),
+        ),
+
+        FilledButton(
+          onPressed: () {
+            bonus.name = nameController.text.trim();
+
+            bonus.damageType = typeController.text.trim();
+
+            bonus.flatBonus = int.tryParse(flatController.text) ?? 0;
+
+            Navigator.pop(context, bonus);
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _HealingBonusEditorDialog extends StatefulWidget {
+  final HealingBonus bonus;
+
+  const _HealingBonusEditorDialog({required this.bonus});
+
+  @override
+  State<_HealingBonusEditorDialog> createState() =>
+      _HealingBonusEditorDialogState();
+}
+
+class _HealingBonusEditorDialogState extends State<_HealingBonusEditorDialog> {
+  late HealingBonus bonus;
+
+  late final TextEditingController nameController;
+
+  late final TextEditingController flatController;
+
+  static const availableDice = [4, 6, 8, 10, 12, 20];
+
+  @override
+  void initState() {
+    super.initState();
+
+    bonus = HealingBonus.fromMap(widget.bonus.toMap());
+
+    nameController = TextEditingController(text: bonus.name);
+
+    flatController = TextEditingController(text: '${bonus.flatBonus}');
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    flatController.dispose();
+
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Curación adicional'),
+
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nombre'),
+            ),
+
+            const SizedBox(height: 16),
+
+            ...List.generate(bonus.dicePools.length, (index) {
+              final pool = bonus.dicePools[index];
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: pool.count,
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad',
+                        ),
+                        items: List.generate(20, (i) => i + 1)
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text('$value'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            pool.count = value;
+                          });
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: pool.sides,
+                        decoration: const InputDecoration(labelText: 'Dado'),
+                        items: availableDice
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text('d$value'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            pool.sides = value;
+                          });
+                        },
+                      ),
+                    ),
+
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          bonus.dicePools.removeAt(index);
+                        });
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  bonus.dicePools.add(DicePool(count: 1, sides: 6));
+                });
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Añadir dados'),
+            ),
+
+            const SizedBox(height: 16),
+
+            _BonusAttributeMultipliers(
+              multipliers: bonus.abilityModifierMultipliers,
+              onChanged: (value) {
+                setState(() {
+                  bonus.abilityModifierMultipliers = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: flatController,
+              keyboardType: const TextInputType.numberWithOptions(signed: true),
+              decoration: const InputDecoration(labelText: 'Bonus fijo'),
+            ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Cancelar'),
+        ),
+
+        FilledButton(
+          onPressed: () {
+            bonus.name = nameController.text.trim();
+
+            bonus.flatBonus = int.tryParse(flatController.text) ?? 0;
+
+            Navigator.pop(context, bonus);
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CriticalDamageBonusEditorDialog extends StatefulWidget {
+  final CriticalDamageBonus bonus;
+
+  const _CriticalDamageBonusEditorDialog({required this.bonus});
+
+  @override
+  State<_CriticalDamageBonusEditorDialog> createState() =>
+      _CriticalDamageBonusEditorDialogState();
+}
+
+class _CriticalDamageBonusEditorDialogState
+    extends State<_CriticalDamageBonusEditorDialog> {
+  late CriticalDamageBonus bonus;
+
+  late final TextEditingController nameController;
+
+  late final TextEditingController typeController;
+
+  late final TextEditingController chanceController;
+
+  late final TextEditingController descriptionController;
+
+  late final TextEditingController flatBonusController;
+
+  static const availableDice = [4, 6, 8, 10, 12, 20];
+
+  @override
+  void initState() {
+    super.initState();
+
+    bonus = CriticalDamageBonus.fromMap(widget.bonus.toMap());
+
+    nameController = TextEditingController(text: bonus.name);
+
+    typeController = TextEditingController(text: bonus.damageType);
+
+    chanceController = TextEditingController(text: '${bonus.chancePercent}');
+
+    descriptionController = TextEditingController(text: bonus.description);
+
+    flatBonusController = TextEditingController(text: '${bonus.flatBonus}');
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    typeController.dispose();
+    chanceController.dispose();
+    descriptionController.dispose();
+    flatBonusController.dispose();
+
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Daño crítico adicional'),
+
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nombre'),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: typeController,
+              decoration: const InputDecoration(labelText: 'Tipo de daño'),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: chanceController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Probabilidad',
+                suffixText: '%',
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            ...List.generate(bonus.dicePools.length, (index) {
+              final pool = bonus.dicePools[index];
+
+              return Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: pool.count,
+                      decoration: const InputDecoration(labelText: 'Cantidad'),
+                      items: List.generate(20, (i) => i + 1)
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text('$value'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+
+                        setState(() {
+                          pool.count = value;
+                        });
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: pool.sides,
+                      decoration: const InputDecoration(labelText: 'Dado'),
+                      items: availableDice
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text('d$value'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+
+                        setState(() {
+                          pool.sides = value;
+                        });
+                      },
+                    ),
+                  ),
+
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        bonus.dicePools.removeAt(index);
+                      });
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                ],
+              );
+            }),
+
+            const SizedBox(height: 8),
+
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  bonus.dicePools.add(DicePool(count: 1, sides: 6));
+                });
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Añadir dados'),
+            ),
+            const SizedBox(height: 16),
+
+            _BonusAttributeMultipliers(
+              multipliers: bonus.abilityModifierMultipliers,
+              onChanged: (value) {
+                setState(() {
+                  bonus.abilityModifierMultipliers = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: flatBonusController,
+              keyboardType: const TextInputType.numberWithOptions(signed: true),
+              decoration: const InputDecoration(
+                labelText: 'Modificador fijo',
+                hintText: 'Ej. 3 o -2',
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: descriptionController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Descripción'),
+            ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Cancelar'),
+        ),
+
+        FilledButton(
+          onPressed: () {
+            bonus.name = nameController.text.trim();
+
+            bonus.damageType = typeController.text.trim();
+
+            bonus.description = descriptionController.text.trim();
+
+            bonus.flatBonus =
+                int.tryParse(flatBonusController.text.trim()) ?? 0;
+
+            bonus.chancePercent = int.tryParse(chanceController.text) ?? 100;
+
+            bonus.normalize();
+
+            Navigator.pop(context, bonus);
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _BonusAttributeMultipliers extends StatelessWidget {
+  final Map<AbilityType, int> multipliers;
+
+  final ValueChanged<Map<AbilityType, int>> onChanged;
+
+  const _BonusAttributeMultipliers({
+    required this.multipliers,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Modificadores',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+
+            IconButton.filledTonal(
+              onPressed: () {
+                for (final ability in AbilityType.values) {
+                  if (!multipliers.containsKey(ability)) {
+                    final updated = Map<AbilityType, int>.from(multipliers);
+
+                    updated[ability] = 1;
+
+                    onChanged(updated);
+
+                    return;
+                  }
+                }
+              },
+              icon: const Icon(Icons.add_rounded),
+            ),
+          ],
+        ),
+
+        ...multipliers.entries.map((entry) {
+          return Row(
+            children: [
+              Expanded(child: Text(entry.key.label)),
+
+              IconButton(
+                onPressed: entry.value > 1
+                    ? () {
+                        final updated = Map<AbilityType, int>.from(multipliers);
+
+                        updated[entry.key] = entry.value - 1;
+
+                        onChanged(updated);
+                      }
+                    : null,
+                icon: const Icon(Icons.remove_rounded),
+              ),
+
+              Text(
+                '×${entry.value}',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+
+              IconButton(
+                onPressed: () {
+                  final updated = Map<AbilityType, int>.from(multipliers);
+
+                  updated[entry.key] = entry.value + 1;
+
+                  onChanged(updated);
+                },
+                icon: const Icon(Icons.add_rounded),
+              ),
+
+              IconButton(
+                onPressed: () {
+                  final updated = Map<AbilityType, int>.from(multipliers);
+
+                  updated.remove(entry.key);
+
+                  onChanged(updated);
+                },
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
+          );
+        }),
+      ],
+    );
   }
 }

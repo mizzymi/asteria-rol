@@ -78,27 +78,19 @@ class AbilityEffectsSection extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: AbilityEffectEditor(
                 key: ValueKey(effects[index].id),
-
                 effect: effects[index],
-
                 resources: resources,
-
                 index: index,
-
                 totalEffects: effects.length,
-
                 onChanged: (effect) {
                   onEffectChanged(index, effect);
                 },
-
                 onDelete: () {
                   onRemoveEffect(index);
                 },
-
                 onMoveUp: () {
                   onMoveUp(index);
                 },
-
                 onMoveDown: () {
                   onMoveDown(index);
                 },
@@ -155,15 +147,19 @@ class AbilityEffectEditor extends StatefulWidget {
 }
 
 class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
-  static const availableDice = [4, 6, 8, 10, 12, 20, 100];
-
   late final TextEditingController nameController;
 
-  late final TextEditingController bonusController;
-
-  late final TextEditingController typeNameController;
-
   late final TextEditingController saveDcBonusController;
+
+  // ===========================================================================
+  // BONUS EXTRA DEL EFECTO
+  // ===========================================================================
+
+  late final TextEditingController extraDiceController;
+
+  late final TextEditingController extraBonusController;
+
+  late final TextEditingController extraTypeController;
 
   late AbilityEffect effect;
 
@@ -177,26 +173,30 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
     nameController = TextEditingController(text: effect.name);
 
-    bonusController = TextEditingController(text: '${effect.effectBonus}');
-
-    typeNameController = TextEditingController(text: effect.effectTypeName);
-
     saveDcBonusController = TextEditingController(
       text: '${effect.saveDcBonus}',
     );
+
+    extraDiceController = TextEditingController(text: _legacyDiceNotation);
+
+    extraBonusController = TextEditingController(text: '${effect.effectBonus}');
+
+    extraTypeController = TextEditingController(text: effect.effectTypeName);
   }
 
   AbilityEffect _clone(AbilityEffect source) {
     return AbilityEffect(
       id: source.id,
+
       name: source.name,
+
       effectType: source.effectType,
 
       parts: source.parts
           .map((part) => AbilityEffectPart.fromMap(part.toMap()))
           .toList(),
 
-      // Legacy
+      // Legacy / bonus extra del efecto.
       dicePools: source.dicePools
           .map((pool) => DicePool(count: pool.count, sides: pool.sides))
           .toList(),
@@ -208,6 +208,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
       legacyAddAbilityModifier: source.legacyAddAbilityModifier,
 
       effectBonus: source.effectBonus,
+
       effectTypeName: source.effectTypeName,
 
       usesSavingThrow: source.usesSavingThrow,
@@ -220,33 +221,25 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     );
   }
 
+  // ===========================================================================
+  // NOTIFICAR CAMBIOS
+  // ===========================================================================
+
   void notifyParent() {
     effect.name = nameController.text.trim();
 
-    effect.effectBonus = int.tryParse(bonusController.text) ?? 0;
+    effect.saveDcBonus = int.tryParse(saveDcBonusController.text.trim()) ?? 0;
 
-    effect.effectTypeName = typeNameController.text.trim();
+    effect.effectBonus = int.tryParse(extraBonusController.text.trim()) ?? 0;
 
-    effect.saveDcBonus = int.tryParse(saveDcBonusController.text) ?? 0;
+    effect.effectTypeName = extraTypeController.text.trim();
 
     widget.onChanged(_clone(effect));
   }
 
-  void addDice() {
-    setState(() {
-      effect.dicePools.add(DicePool(count: 1, sides: 6));
-    });
-
-    notifyParent();
-  }
-
-  void removeDice(int index) {
-    setState(() {
-      effect.dicePools.removeAt(index);
-    });
-
-    notifyParent();
-  }
+  // ===========================================================================
+  // COMPONENTES
+  // ===========================================================================
 
   void addPart() {
     setState(() {
@@ -258,9 +251,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
           abilityModifierMultipliers: {},
 
+          resourceValueMultipliers: {},
+
           flatBonus: 0,
 
-          typeName: effect.dealsDamage ? 'Daño' : 'Curación',
+          typeName: effect.heals ? 'Curación' : '',
         ),
       );
     });
@@ -292,79 +287,83 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     notifyParent();
   }
 
+  // ===========================================================================
+  // EXTRA DEL EFECTO
+  // ===========================================================================
+
+  String get _legacyDiceNotation {
+    if (effect.dicePools.isEmpty) {
+      return '';
+    }
+
+    return effect.dicePools.map((pool) => pool.notation).join(' + ');
+  }
+
+  bool get _hasExtraEffectBonus {
+    return effect.dicePools.isNotEmpty ||
+        effect.abilityModifierMultipliers.values.any((value) => value != 0) ||
+        effect.effectBonus != 0 ||
+        effect.effectTypeName.trim().isNotEmpty;
+  }
+
+  void _updateExtraDice(String value) {
+    final parsed = _parseDicePools(value);
+
+    if (parsed == null) {
+      return;
+    }
+
+    setState(() {
+      effect.dicePools = parsed;
+    });
+
+    notifyParent();
+  }
+
+  void _clearExtraBonus() {
+    setState(() {
+      effect.dicePools.clear();
+
+      effect.abilityModifierMultipliers.clear();
+
+      effect.effectBonus = 0;
+
+      effect.effectTypeName = '';
+
+      effect.legacyAddAbilityModifier = false;
+
+      extraDiceController.clear();
+
+      extraBonusController.text = '0';
+
+      extraTypeController.clear();
+    });
+
+    notifyParent();
+  }
+
+  // ===========================================================================
+  // DISPOSE
+  // ===========================================================================
+
   @override
   void dispose() {
     nameController.dispose();
-    bonusController.dispose();
-    typeNameController.dispose();
+
     saveDcBonusController.dispose();
+
+    extraDiceController.dispose();
+
+    extraBonusController.dispose();
+
+    extraTypeController.dispose();
 
     super.dispose();
   }
 
-  void addAbilityModifier() {
-    final available = AbilityType.values.where(
-      (ability) => !effect.abilityModifierMultipliers.containsKey(ability),
-    );
-
-    if (available.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      effect.abilityModifierMultipliers[available.first] = 1;
-
-      // Ya estamos usando el sistema moderno.
-      effect.legacyAddAbilityModifier = false;
-    });
-
-    notifyParent();
-  }
-
-  void removeAbilityModifier(AbilityType ability) {
-    setState(() {
-      effect.abilityModifierMultipliers.remove(ability);
-    });
-
-    notifyParent();
-  }
-
-  void changeAbilityModifierType(
-    AbilityType oldAbility,
-    AbilityType newAbility,
-  ) {
-    if (oldAbility == newAbility) {
-      return;
-    }
-
-    final multiplier = effect.abilityModifierMultipliers[oldAbility] ?? 1;
-
-    setState(() {
-      effect.abilityModifierMultipliers.remove(oldAbility);
-
-      effect.abilityModifierMultipliers[newAbility] = multiplier;
-
-      effect.legacyAddAbilityModifier = false;
-    });
-
-    notifyParent();
-  }
-
-  void changeAbilityMultiplier(AbilityType ability, int value) {
-    if (value <= 0) {
-      removeAbilityModifier(ability);
-
-      return;
-    }
-
-    setState(() {
-      effect.abilityModifierMultipliers[ability] = value;
-
-      effect.legacyAddAbilityModifier = false;
-    });
-
-    notifyParent();
-  }
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -440,11 +439,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
                   if (effect.effectType != AbilityEffectType.none) ...[
                     const SizedBox(height: 18),
 
-                    _buildDiceSection(),
+                    _buildPartsSection(),
 
                     const SizedBox(height: 18),
 
-                    _buildModifierSection(),
+                    _buildExtraEffectSection(),
 
                     const SizedBox(height: 18),
 
@@ -463,6 +462,10 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     );
   }
 
+  // ===========================================================================
+  // CAMPOS PRINCIPALES
+  // ===========================================================================
+
   Widget _buildMainFields() {
     return Column(
       children: [
@@ -474,6 +477,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
           ),
           onChanged: (_) {
             setState(() {});
+
             notifyParent();
           },
         ),
@@ -495,358 +499,130 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
               effect.effectType = value;
 
               if (value == AbilityEffectType.none) {
+                // Sistema moderno.
+                effect.parts.clear();
+
+                // Bonus extra / legacy.
                 effect.dicePools.clear();
 
                 effect.abilityModifierMultipliers.clear();
 
                 effect.effectBonus = 0;
 
-                bonusController.text = '0';
+                effect.effectTypeName = '';
 
                 effect.legacyAddAbilityModifier = false;
+
+                // UI.
+                extraDiceController.clear();
+
+                extraBonusController.text = '0';
+
+                extraTypeController.clear();
+
+                // Una salvación sin efecto
+                // tampoco tiene utilidad.
+                effect.usesSavingThrow = false;
               }
             });
 
             notifyParent();
           },
         ),
-
-        if (effect.effectType != AbilityEffectType.none) ...[
-          const SizedBox(height: 12),
-
-          TextFormField(
-            controller: typeNameController,
-            decoration: InputDecoration(
-              labelText: effect.effectType == AbilityEffectType.healing
-                  ? 'Descripción'
-                  : 'Tipo de daño',
-              hintText: effect.effectType == AbilityEffectType.healing
-                  ? 'Curación mágica'
-                  : 'Hielo, veneno, fuego...',
-            ),
-            onChanged: (_) {
-              notifyParent();
-            },
-          ),
-        ],
       ],
     );
   }
 
-  Widget _buildDiceSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          effect.heals ? 'Componentes de curación' : 'Componentes de daño',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+  // ===========================================================================
+  // COMPONENTES PRINCIPALES
+  // ===========================================================================
 
-        const SizedBox(height: 10),
-
-        ...List.generate(effect.parts.length, (partIndex) {
-          final part = effect.parts[partIndex];
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ================================================================
-                // CABECERA DEL COMPONENTE
-                // ================================================================
-                Row(
-                  children: [
-                    Icon(
-                      effect.heals
-                          ? Icons.favorite_rounded
-                          : Icons.flash_on_rounded,
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    Expanded(
-                      child: Text(
-                        effect.heals
-                            ? 'Componente de curación'
-                            : 'Componente de daño',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-
-                    IconButton(
-                      tooltip: 'Eliminar componente',
-                      onPressed: () {
-                        setState(() {
-                          effect.parts.removeAt(partIndex);
-                        });
-
-                        notifyParent();
-                      },
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // ================================================================
-                // TIPO DE DAÑO / CURACIÓN
-                // ================================================================
-                TextFormField(
-                  initialValue: part.typeName,
-                  decoration: InputDecoration(
-                    labelText: effect.heals
-                        ? 'Tipo de curación'
-                        : 'Tipo de daño',
-                    hintText: effect.heals
-                        ? 'Curación'
-                        : 'Veneno, fuego, cortante...',
-                  ),
-                  onChanged: (value) {
-                    part.typeName = value.trim();
-
-                    notifyParent();
-                  },
-                ),
-
-                const SizedBox(height: 14),
-
-                // ================================================================
-                // DADOS DEL COMPONENTE
-                // ================================================================
-                Text(
-                  effect.heals
-                      ? 'Dados'
-                      : 'Dados de ${part.typeName.trim().isEmpty ? 'daño' : part.typeName}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-
-                const SizedBox(height: 10),
-
-                ...List.generate(part.dicePools.length, (diceIndex) {
-                  final pool = part.dicePools[diceIndex];
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: pool.count,
-                            decoration: const InputDecoration(
-                              labelText: 'Cantidad',
-                            ),
-                            items: List.generate(20, (i) => i + 1)
-                                .map(
-                                  (count) => DropdownMenuItem(
-                                    value: count,
-                                    child: Text('$count'),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-
-                              setState(() {
-                                pool.count = value;
-                              });
-
-                              notifyParent();
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(width: 10),
-
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: pool.sides,
-                            decoration: const InputDecoration(
-                              labelText: 'Dado',
-                            ),
-                            items: availableDice
-                                .map(
-                                  (sides) => DropdownMenuItem(
-                                    value: sides,
-                                    child: Text('d$sides'),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-
-                              setState(() {
-                                pool.sides = value;
-                              });
-
-                              notifyParent();
-                            },
-                          ),
-                        ),
-
-                        IconButton(
-                          tooltip: 'Eliminar dado',
-                          onPressed: () {
-                            setState(() {
-                              part.dicePools.removeAt(diceIndex);
-                            });
-
-                            notifyParent();
-                          },
-                          icon: const Icon(Icons.delete_outline_rounded),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-
-                // ================================================================
-                // AÑADIR DADO AL MISMO COMPONENTE
-                // ================================================================
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        part.dicePools.add(DicePool(count: 1, sides: 6));
-                      });
-
-                      notifyParent();
-                    },
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Añadir dado al componente'),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-
-        const SizedBox(height: 8),
-
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.tonalIcon(
-            onPressed: () {
-              setState(() {
-                effect.parts.add(
-                  AbilityEffectPart(
-                    id: '${DateTime.now().microsecondsSinceEpoch}_part',
-
-                    typeName: effect.heals ? 'Curación' : '',
-
-                    dicePools: [DicePool(count: 1, sides: 6)],
-                  ),
-                );
-              });
-
-              notifyParent();
-            },
-            icon: const Icon(Icons.add_rounded),
-            label: Text(
-              effect.heals ? 'Añadir curación' : 'Añadir tipo de daño',
-            ),
-          ),
-        ),
-
-        if (effect.dicePools.isNotEmpty) ...[
-          const SizedBox(height: 10),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.casino_rounded),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Text(
-                    effect.diceNotation,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-
-                Text(
-                  'Máx. ${effect.dicePools.fold<int>(0, (sum, pool) => sum + pool.maximum)}',
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildModifierSection() {
-    final theme = Theme.of(context);
-
-    final entries = effect.abilityModifierMultipliers.entries.toList();
-
+  Widget _buildPartsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(Icons.psychology_rounded, color: theme.colorScheme.primary),
+            Icon(
+              effect.heals ? Icons.favorite_rounded : Icons.flash_on_rounded,
+              color: Theme.of(context).colorScheme.primary,
+            ),
 
             const SizedBox(width: 8),
 
             Expanded(
               child: Text(
                 effect.heals
-                    ? 'Modificadores de curación'
-                    : 'Modificadores de daño',
+                    ? 'Componentes de curación'
+                    : 'Componentes de daño',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
+
+            if (effect.parts.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${effect.parts.length}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
           ],
         ),
 
         const SizedBox(height: 6),
 
         Text(
-          'Puedes añadir uno o varios atributos y decidir cuántas veces se suma cada modificador.',
-          style: theme.textTheme.bodySmall,
+          effect.heals
+              ? 'Cada componente puede tener sus propios dados, atributos, recursos y bonus fijo.'
+              : 'Cada tipo de daño puede tener sus propios dados, atributos, recursos y bonus fijo.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
 
         const SizedBox(height: 12),
 
-        if (entries.isEmpty)
+        if (effect.parts.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: const Text(
-              'Sin modificadores de atributo',
+            child: Text(
+              effect.heals
+                  ? 'Todavía no hay componentes de curación.'
+                  : 'Todavía no hay componentes de daño.',
               textAlign: TextAlign.center,
             ),
           )
         else
-          ...entries.map((entry) {
+          ...List.generate(effect.parts.length, (partIndex) {
             return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _buildAbilityModifierRow(entry.key, entry.value),
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _AbilityEffectPartCard(
+                key: ValueKey(effect.parts[partIndex].id),
+
+                part: effect.parts[partIndex],
+
+                effectType: effect.effectType,
+
+                resources: widget.resources,
+
+                onChanged: (part) {
+                  updatePart(partIndex, part);
+                },
+
+                onDelete: () {
+                  removePart(partIndex);
+                },
+              ),
             );
           }),
 
@@ -854,167 +630,197 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: entries.length < AbilityType.values.length
-                ? addAbilityModifier
-                : null,
+          child: FilledButton.tonalIcon(
+            onPressed: addPart,
             icon: const Icon(Icons.add_rounded),
-            label: const Text('Añadir modificador'),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        TextFormField(
-          controller: bonusController,
-          keyboardType: const TextInputType.numberWithOptions(signed: true),
-          decoration: InputDecoration(
-            labelText: effect.heals
-                ? 'Bonus fijo de curación'
-                : 'Bonus fijo de daño',
-            hintText: 'Ej: 5 o -2',
-            prefixIcon: const Icon(Icons.add_circle_outline_rounded),
-          ),
-          onChanged: (_) {
-            notifyParent();
-          },
-        ),
-
-        if (effect.abilityModifierMultipliers.isNotEmpty) ...[
-          const SizedBox(height: 12),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.functions_rounded, color: theme.colorScheme.primary),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Text(
-                    _modifierSummary,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+            label: Text(
+              effect.heals ? 'Añadir curación' : 'Añadir tipo de daño',
             ),
           ),
-        ],
+        ),
       ],
     );
   }
 
-  Widget _buildAbilityModifierRow(AbilityType ability, int multiplier) {
+  // ===========================================================================
+  // DAÑO / CURACIÓN EXTRA DEL EFECTO
+  // ===========================================================================
+
+  Widget _buildExtraEffectSection() {
     final theme = Theme.of(context);
 
-    final usedAbilities = effect.abilityModifierMultipliers.keys
-        .where((item) => item != ability)
-        .toSet();
-
     return Container(
-      padding: const EdgeInsets.all(10),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.55,
-        ),
-        borderRadius: BorderRadius.circular(14),
+        color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: DropdownButtonFormField<AbilityType>(
-                  initialValue: ability,
-
-                  decoration: const InputDecoration(
-                    labelText: 'Atributo',
-                    isDense: true,
-                  ),
-
-                  items: AbilityType.values
-                      .where((item) => !usedAbilities.contains(item))
-                      .map(
-                        (item) => DropdownMenuItem(
-                          value: item,
-                          child: Text(item.label),
-                        ),
-                      )
-                      .toList(),
-
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-
-                    changeAbilityModifierType(ability, value);
-                  },
-                ),
+              Icon(
+                Icons.add_circle_outline_rounded,
+                color: theme.colorScheme.tertiary,
               ),
 
               const SizedBox(width: 8),
 
-              IconButton(
-                tooltip: 'Eliminar modificador',
-                onPressed: () {
-                  removeAbilityModifier(ability);
-                },
-                icon: const Icon(Icons.delete_outline_rounded),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          Row(
-            children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Veces que se suma',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  effect.heals ? 'Curación extra' : 'Daño extra',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
 
-              IconButton.filledTonal(
-                tooltip: 'Restar',
-                onPressed: multiplier > 1
-                    ? () {
-                        changeAbilityMultiplier(ability, multiplier - 1);
-                      }
-                    : null,
-                icon: const Icon(Icons.remove_rounded),
-              ),
+              if (_hasExtraEffectBonus)
+                IconButton(
+                  tooltip: 'Limpiar extra',
+                  onPressed: _clearExtraBonus,
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                ),
+            ],
+          ),
 
-              Container(
-                constraints: const BoxConstraints(minWidth: 54),
-                alignment: Alignment.center,
-                child: Text(
-                  '×$multiplier',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
+          const SizedBox(height: 4),
+
+          Text(
+            effect.heals
+                ? 'Este bonus se suma una sola vez al resultado total de este efecto.'
+                : 'Este daño se suma una sola vez al resultado total de este efecto.',
+            style: theme.textTheme.bodySmall,
+          ),
+
+          const SizedBox(height: 14),
+
+          // ===================================================================
+          // DADOS EXTRA
+          // ===================================================================
+          TextFormField(
+            controller: extraDiceController,
+            decoration: InputDecoration(
+              labelText: effect.heals
+                  ? 'Dados de curación extra'
+                  : 'Dados de daño extra',
+              hintText: 'Ej: 1d6 + 1d4',
+              prefixIcon: const Icon(Icons.casino_rounded),
+              helperText: 'Déjalo vacío si el extra no usa dados.',
+            ),
+            onChanged: _updateExtraDice,
+          ),
+
+          const SizedBox(height: 12),
+
+          // ===================================================================
+          // TIPO EXTRA
+          // ===================================================================
+          TextFormField(
+            controller: extraTypeController,
+            decoration: InputDecoration(
+              labelText: effect.heals
+                  ? 'Tipo de curación extra'
+                  : 'Tipo de daño extra',
+              hintText: effect.heals
+                  ? 'Curación mágica'
+                  : 'Fuego, radiante, veneno...',
+            ),
+            onChanged: (_) {
+              notifyParent();
+            },
+          ),
+
+          const SizedBox(height: 12),
+
+          // ===================================================================
+          // BONUS FIJO EXTRA
+          // ===================================================================
+          TextFormField(
+            controller: extraBonusController,
+            keyboardType: const TextInputType.numberWithOptions(signed: true),
+            decoration: InputDecoration(
+              labelText: effect.heals
+                  ? 'Bonus fijo de curación extra'
+                  : 'Bonus fijo de daño extra',
+              hintText: '0',
+              prefixIcon: const Icon(Icons.exposure_plus_1_rounded),
+            ),
+            onChanged: (_) {
+              notifyParent();
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // ===================================================================
+          // ATRIBUTOS DEL EXTRA
+          // ===================================================================
+          _PartAbilityModifiersEditor(
+            title: effect.heals
+                ? 'Modificadores de la curación extra'
+                : 'Modificadores del daño extra',
+
+            multipliers: effect.abilityModifierMultipliers,
+
+            onChanged: (multipliers) {
+              setState(() {
+                effect.abilityModifierMultipliers = multipliers;
+
+                // Ya no necesitamos este
+                // booleano para cálculos.
+                effect.legacyAddAbilityModifier = false;
+              });
+
+              notifyParent();
+            },
+          ),
+
+          if (_hasExtraEffectBonus) ...[
+            const SizedBox(height: 14),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.auto_awesome_rounded),
+
+                  const SizedBox(width: 10),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Extra actual',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+
+                        const SizedBox(height: 3),
+
+                        Text(_extraSummary),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
-
-              IconButton.filledTonal(
-                tooltip: 'Sumar',
-                onPressed: () {
-                  changeAbilityMultiplier(ability, multiplier + 1);
-                },
-                icon: const Icon(Icons.add_rounded),
-              ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
   }
+
+  // ===========================================================================
+  // SALVACIÓN
+  // ===========================================================================
 
   Widget _buildSavingThrowSection() {
     return Column(
@@ -1022,11 +828,15 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
       children: [
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
+
           value: effect.usesSavingThrow,
+
           title: const Text('Requiere salvación'),
+
           subtitle: const Text(
             'Este efecto tiene su propia tirada de salvación',
           ),
+
           onChanged: (value) {
             setState(() {
               effect.usesSavingThrow = value;
@@ -1041,16 +851,19 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
           DropdownButtonFormField<AbilityType>(
             initialValue: effect.savingThrowAbility,
+
             decoration: const InputDecoration(
               labelText: 'Salvación',
               prefixIcon: Icon(Icons.shield_rounded),
             ),
+
             items: AbilityType.values.map((ability) {
               return DropdownMenuItem(
                 value: ability,
                 child: Text(ability.label),
               );
             }).toList(),
+
             onChanged: (value) {
               if (value == null) {
                 return;
@@ -1068,11 +881,15 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
           TextFormField(
             controller: saveDcBonusController,
+
             keyboardType: const TextInputType.numberWithOptions(signed: true),
+
             decoration: const InputDecoration(
               labelText: 'Bonus adicional a la CD',
+
               helperText: 'CD = 8 + competencia + atributo + bonus',
             ),
+
             onChanged: (_) {
               notifyParent();
             },
@@ -1082,13 +899,17 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
           DropdownButtonFormField<SaveSuccessEffect>(
             initialValue: effect.saveSuccessEffect,
+
             decoration: const InputDecoration(
               labelText: 'Si supera la salvación',
+
               prefixIcon: Icon(Icons.verified_user_rounded),
             ),
+
             items: SaveSuccessEffect.values.map((result) {
               return DropdownMenuItem(value: result, child: Text(result.label));
             }).toList(),
+
             onChanged: (value) {
               if (value == null) {
                 return;
@@ -1106,20 +927,28 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     );
   }
 
+  // ===========================================================================
+  // ACCIONES
+  // ===========================================================================
+
   Widget _buildActions() {
     return Row(
       children: [
         IconButton(
           tooltip: 'Mover arriba',
+
           onPressed: widget.index > 0 ? widget.onMoveUp : null,
+
           icon: const Icon(Icons.arrow_upward_rounded),
         ),
 
         IconButton(
           tooltip: 'Mover abajo',
+
           onPressed: widget.index < widget.totalEffects - 1
               ? widget.onMoveDown
               : null,
+
           icon: const Icon(Icons.arrow_downward_rounded),
         ),
 
@@ -1127,12 +956,18 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
         TextButton.icon(
           onPressed: widget.onDelete,
+
           icon: const Icon(Icons.delete_outline_rounded),
+
           label: const Text('Eliminar'),
         ),
       ],
     );
   }
+
+  // ===========================================================================
+  // ICONO
+  // ===========================================================================
 
   IconData get _effectIcon {
     switch (effect.effectType) {
@@ -1149,19 +984,115 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     }
   }
 
+  // ===========================================================================
+  // RESUMEN GENERAL
+  // ===========================================================================
+
   String get _summary {
     if (effect.effectType == AbilityEffectType.none) {
       return 'Sin daño ni curación';
     }
 
-    final formula = <String>[];
+    final pieces = <String>[];
 
-    // Dados
-    if (effect.diceNotation.isNotEmpty) {
-      formula.add(effect.diceNotation);
+    // Componentes.
+    for (final part in effect.parts) {
+      final value = _partSummary(part);
+
+      if (value.isNotEmpty) {
+        pieces.add(value);
+      }
     }
 
-    // Modificadores
+    // Bonus extra.
+    if (_hasExtraEffectBonus) {
+      pieces.add('Extra: $_extraSummary');
+    }
+
+    // Salvación.
+    if (effect.usesSavingThrow) {
+      pieces.add(
+        '${effect.savingThrowAbility.shortLabel} · '
+        '${effect.saveSuccessEffect.label}',
+      );
+    }
+
+    if (pieces.isEmpty) {
+      return effect.effectType.label;
+    }
+
+    return pieces.join(' · ');
+  }
+
+  // ===========================================================================
+  // RESUMEN DE UN COMPONENTE
+  // ===========================================================================
+
+  String _partSummary(AbilityEffectPart part) {
+    final formula = <String>[];
+
+    if (part.diceNotation.isNotEmpty) {
+      formula.add(part.diceNotation);
+    }
+
+    for (final entry in part.abilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        formula.add(entry.key.shortLabel);
+      } else {
+        formula.add('${entry.value}×${entry.key.shortLabel}');
+      }
+    }
+
+    for (final entry in part.resourceValueMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      final resourceName = _resourceName(entry.key);
+
+      if (entry.value == 1) {
+        formula.add(resourceName);
+      } else {
+        formula.add('${entry.value}×$resourceName');
+      }
+    }
+
+    if (part.flatBonus != 0) {
+      formula.add(
+        part.flatBonus > 0 ? '+${part.flatBonus}' : '${part.flatBonus}',
+      );
+    }
+
+    var result = formula.join(' + ').replaceAll('+ -', '- ');
+
+    final type = part.typeName.trim();
+
+    if (type.isNotEmpty) {
+      if (result.isEmpty) {
+        result = type;
+      } else {
+        result += ' $type';
+      }
+    }
+
+    return result;
+  }
+
+  // ===========================================================================
+  // RESUMEN DEL EXTRA
+  // ===========================================================================
+
+  String get _extraSummary {
+    final formula = <String>[];
+
+    if (effect.dicePools.isNotEmpty) {
+      formula.add(effect.dicePools.map((pool) => pool.notation).join(' + '));
+    }
+
     for (final entry in effect.abilityModifierMultipliers.entries) {
       if (entry.value == 0) {
         continue;
@@ -1174,7 +1105,6 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
       }
     }
 
-    // Bonus fijo
     if (effect.effectBonus != 0) {
       formula.add(
         effect.effectBonus > 0
@@ -1183,56 +1113,33 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
       );
     }
 
-    final pieces = <String>[];
+    var result = formula.join(' + ').replaceAll('+ -', '- ');
 
-    if (formula.isNotEmpty) {
-      pieces.add(formula.join(' + '));
+    final type = effect.effectTypeName.trim();
+
+    if (type.isNotEmpty) {
+      if (result.isEmpty) {
+        result = type;
+      } else {
+        result += ' $type';
+      }
     }
 
-    if (effect.effectTypeName.isNotEmpty) {
-      pieces.add(effect.effectTypeName);
+    if (result.isEmpty) {
+      return effect.heals ? 'Sin curación extra' : 'Sin daño extra';
     }
 
-    if (effect.usesSavingThrow) {
-      pieces.add(
-        '${effect.savingThrowAbility.shortLabel} · '
-        '${effect.saveSuccessEffect.label}',
-      );
-    }
-
-    return pieces.isEmpty ? effect.effectType.label : pieces.join(' · ');
+    return result;
   }
 
-  String get _modifierSummary {
-    final pieces = <String>[];
-
-    for (final entry in effect.abilityModifierMultipliers.entries) {
-      final multiplier = entry.value;
-
-      if (multiplier == 0) {
-        continue;
-      }
-
-      final ability = entry.key.shortLabel;
-
-      if (multiplier == 1) {
-        pieces.add(ability);
-      } else {
-        pieces.add('$multiplier×$ability');
+  String _resourceName(String resourceId) {
+    for (final resource in widget.resources) {
+      if (resource.id == resourceId) {
+        return resource.name;
       }
     }
 
-    final bonus = int.tryParse(bonusController.text) ?? effect.effectBonus;
-
-    if (bonus != 0) {
-      pieces.add(bonus > 0 ? '+$bonus' : '$bonus');
-    }
-
-    if (pieces.isEmpty) {
-      return 'Sin modificadores';
-    }
-
-    return pieces.join(' + ');
+    return resourceId;
   }
 }
 
@@ -1290,6 +1197,10 @@ class _EmptyEffects extends StatelessWidget {
   }
 }
 
+// =============================================================================
+// COMPONENTE DE EFECTO
+// =============================================================================
+
 class _AbilityEffectPartCard extends StatefulWidget {
   final AbilityEffectPart part;
 
@@ -1302,6 +1213,7 @@ class _AbilityEffectPartCard extends StatefulWidget {
   final VoidCallback onDelete;
 
   const _AbilityEffectPartCard({
+    super.key,
     required this.part,
     required this.effectType,
     required this.resources,
@@ -1352,7 +1264,7 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
           part.resourceValueMultipliers,
         ),
 
-        flatBonus: int.tryParse(bonusController.text) ?? 0,
+        flatBonus: int.tryParse(bonusController.text.trim()) ?? 0,
 
         typeName: typeController.text.trim(),
       ),
@@ -1362,7 +1274,9 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
   @override
   void dispose() {
     diceController.dispose();
+
     typeController.dispose();
+
     bonusController.dispose();
 
     super.dispose();
@@ -1393,10 +1307,12 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
 
               const SizedBox(width: 8),
 
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Componente',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  widget.effectType == AbilityEffectType.healing
+                      ? 'Componente de curación'
+                      : 'Componente de daño',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
 
@@ -1410,12 +1326,16 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
 
           const SizedBox(height: 10),
 
+          // ===================================================================
+          // DADOS
+          // ===================================================================
           TextFormField(
             controller: diceController,
             decoration: const InputDecoration(
               labelText: 'Dados',
               hintText: '2d4 + 1d6',
               prefixIcon: Icon(Icons.casino_rounded),
+              helperText: 'Puedes usar varios grupos, por ejemplo 2d6 + 1d8.',
             ),
             onChanged: (value) {
               final parsed = _parseDicePools(value);
@@ -1432,6 +1352,9 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
 
           const SizedBox(height: 12),
 
+          // ===================================================================
+          // TIPO
+          // ===================================================================
           TextFormField(
             controller: typeController,
             decoration: InputDecoration(
@@ -1449,20 +1372,27 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
 
           const SizedBox(height: 12),
 
+          // ===================================================================
+          // BONUS FIJO
+          // ===================================================================
           TextFormField(
             controller: bonusController,
             keyboardType: const TextInputType.numberWithOptions(signed: true),
             decoration: const InputDecoration(
               labelText: 'Bonus fijo',
               hintText: '0',
+              prefixIcon: Icon(Icons.exposure_plus_1_rounded),
             ),
             onChanged: (_) {
               notify();
             },
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
+          // ===================================================================
+          // ATRIBUTOS
+          // ===================================================================
           _PartAbilityModifiersEditor(
             multipliers: part.abilityModifierMultipliers,
 
@@ -1474,8 +1404,12 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
               notify();
             },
           ),
+
           const SizedBox(height: 16),
 
+          // ===================================================================
+          // RECURSOS
+          // ===================================================================
           _PartResourceModifiersEditor(
             resources: widget.resources,
 
@@ -1495,8 +1429,18 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
   }
 }
 
+// =============================================================================
+// PARSER DE DADOS
+// =============================================================================
+
 List<DicePool>? _parseDicePools(String value) {
-  final pieces = value
+  final clean = value.trim();
+
+  if (clean.isEmpty) {
+    return [];
+  }
+
+  final pieces = clean
       .split('+')
       .map((part) => part.trim())
       .where((part) => part.isNotEmpty)
@@ -1532,12 +1476,19 @@ List<DicePool>? _parseDicePools(String value) {
   return pools;
 }
 
+// =============================================================================
+// MODIFICADORES DE ATRIBUTO
+// =============================================================================
+
 class _PartAbilityModifiersEditor extends StatelessWidget {
+  final String title;
+
   final Map<AbilityType, int> multipliers;
 
   final ValueChanged<Map<AbilityType, int>> onChanged;
 
   const _PartAbilityModifiersEditor({
+    this.title = 'Modificadores',
     required this.multipliers,
     required this.onChanged,
   });
@@ -1547,13 +1498,14 @@ class _PartAbilityModifiersEditor extends StatelessWidget {
     final entries = multipliers.entries.toList();
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Modificadores',
-                style: TextStyle(fontWeight: FontWeight.w700),
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
 
@@ -1579,83 +1531,140 @@ class _PartAbilityModifiersEditor extends StatelessWidget {
           ],
         ),
 
+        if (entries.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Sin modificadores de atributo.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+
         ...entries.map((entry) {
-          return Row(
-            children: [
-              Expanded(
-                child: DropdownButton<AbilityType>(
-                  isExpanded: true,
-                  value: entry.key,
-                  items: AbilityType.values
-                      .map(
-                        (ability) => DropdownMenuItem(
-                          value: ability,
-                          child: Text(ability.label),
+          return Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<AbilityType>(
+                        initialValue: entry.key,
+
+                        decoration: const InputDecoration(
+                          labelText: 'Atributo',
+                          isDense: true,
                         ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
 
-                    final updated = Map<AbilityType, int>.from(multipliers);
+                        items: AbilityType.values.map((ability) {
+                          return DropdownMenuItem(
+                            value: ability,
+                            child: Text(ability.label),
+                          );
+                        }).toList(),
 
-                    final count = updated.remove(entry.key) ?? 1;
+                        onChanged: (value) {
+                          if (value == null || value == entry.key) {
+                            return;
+                          }
 
-                    updated[value] = count;
+                          final updated = Map<AbilityType, int>.from(
+                            multipliers,
+                          );
 
-                    onChanged(updated);
-                  },
-                ),
-              ),
+                          final count = updated.remove(entry.key) ?? 1;
 
-              IconButton(
-                onPressed: entry.value > 1
-                    ? () {
+                          updated[value] = (updated[value] ?? 0) + count;
+
+                          onChanged(updated);
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    IconButton(
+                      tooltip: 'Eliminar atributo',
+                      onPressed: () {
                         final updated = Map<AbilityType, int>.from(multipliers);
 
-                        updated[entry.key] = entry.value - 1;
+                        updated.remove(entry.key);
 
                         onChanged(updated);
-                      }
-                    : null,
-                icon: const Icon(Icons.remove_rounded),
-              ),
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ],
+                ),
 
-              Text(
-                '×${entry.value}',
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
+                const SizedBox(height: 6),
 
-              IconButton(
-                onPressed: () {
-                  final updated = Map<AbilityType, int>.from(multipliers);
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Veces que se suma',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
 
-                  updated[entry.key] = entry.value + 1;
+                    IconButton.filledTonal(
+                      tooltip: 'Restar',
+                      onPressed: entry.value > 1
+                          ? () {
+                              final updated = Map<AbilityType, int>.from(
+                                multipliers,
+                              );
 
-                  onChanged(updated);
-                },
-                icon: const Icon(Icons.add_rounded),
-              ),
+                              updated[entry.key] = entry.value - 1;
 
-              IconButton(
-                onPressed: () {
-                  final updated = Map<AbilityType, int>.from(multipliers);
+                              onChanged(updated);
+                            }
+                          : null,
+                      icon: const Icon(Icons.remove_rounded),
+                    ),
 
-                  updated.remove(entry.key);
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 48),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '×${entry.value}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
 
-                  onChanged(updated);
-                },
-                icon: const Icon(Icons.delete_outline_rounded),
-              ),
-            ],
+                    IconButton.filledTonal(
+                      tooltip: 'Sumar',
+                      onPressed: () {
+                        final updated = Map<AbilityType, int>.from(multipliers);
+
+                        updated[entry.key] = entry.value + 1;
+
+                        onChanged(updated);
+                      },
+                      icon: const Icon(Icons.add_rounded),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           );
         }),
       ],
     );
   }
 }
+
+// =============================================================================
+// MODIFICADORES DE RECURSOS
+// =============================================================================
 
 class _PartResourceModifiersEditor extends StatelessWidget {
   final List<CharacterResource> resources;
@@ -1697,7 +1706,9 @@ class _PartResourceModifiersEditor extends StatelessWidget {
 
             IconButton.filledTonal(
               tooltip: 'Añadir recurso',
+
               onPressed: _findAvailableResource() != null ? _addResource : null,
+
               icon: const Icon(Icons.add_rounded),
             ),
           ],
@@ -1788,7 +1799,11 @@ class _PartResourceModifiersEditor extends StatelessWidget {
 
                     final multiplier = updated.remove(entry.key) ?? 1;
 
-                    updated[value] = multiplier;
+                    if (updated.containsKey(value)) {
+                      updated[value] = updated[value]! + multiplier;
+                    } else {
+                      updated[value] = multiplier;
+                    }
 
                     onChanged(updated);
                   },
@@ -1799,6 +1814,7 @@ class _PartResourceModifiersEditor extends StatelessWidget {
 
               IconButton(
                 tooltip: 'Eliminar recurso',
+
                 onPressed: () {
                   final updated = Map<String, int>.from(multipliers);
 
@@ -1806,6 +1822,7 @@ class _PartResourceModifiersEditor extends StatelessWidget {
 
                   onChanged(updated);
                 },
+
                 icon: const Icon(Icons.delete_outline_rounded),
               ),
             ],
@@ -1824,6 +1841,7 @@ class _PartResourceModifiersEditor extends StatelessWidget {
 
               IconButton.filledTonal(
                 tooltip: 'Restar',
+
                 onPressed: entry.value > 1
                     ? () {
                         final updated = Map<String, int>.from(multipliers);
@@ -1833,6 +1851,7 @@ class _PartResourceModifiersEditor extends StatelessWidget {
                         onChanged(updated);
                       }
                     : null,
+
                 icon: const Icon(Icons.remove_rounded),
               ),
 
@@ -1849,6 +1868,7 @@ class _PartResourceModifiersEditor extends StatelessWidget {
 
               IconButton.filledTonal(
                 tooltip: 'Sumar',
+
                 onPressed: () {
                   final updated = Map<String, int>.from(multipliers);
 
@@ -1856,6 +1876,7 @@ class _PartResourceModifiersEditor extends StatelessWidget {
 
                   onChanged(updated);
                 },
+
                 icon: const Icon(Icons.add_rounded),
               ),
             ],

@@ -8,15 +8,6 @@ class DamageBonus {
 
   List<DicePool> dicePools;
 
-  /// Cuántas veces se añade cada modificador.
-  ///
-  /// Ejemplo:
-  ///
-  /// SAB x2
-  ///
-  /// {
-  ///   AbilityType.wisdom: 2,
-  /// }
   Map<AbilityType, int> abilityModifierMultipliers;
 
   int flatBonus;
@@ -33,10 +24,6 @@ class DamageBonus {
   }) : dicePools = dicePools ?? [],
        abilityModifierMultipliers = abilityModifierMultipliers ?? {};
 
-  // ===========================================================================
-  // HELPERS
-  // ===========================================================================
-
   bool get hasDamage {
     return dicePools.isNotEmpty ||
         abilityModifierMultipliers.values.any((value) => value != 0) ||
@@ -46,10 +33,6 @@ class DamageBonus {
   String get diceNotation {
     return dicePools.map((pool) => pool.notation).join(' + ');
   }
-
-  // ===========================================================================
-  // SERIALIZACIÓN
-  // ===========================================================================
 
   Map<String, dynamic> toMap() {
     return {
@@ -102,26 +85,6 @@ class DamageBonus {
           multipliers[ability] = value;
         }
       }
-    }
-
-    // =========================================================================
-    // COMPATIBILIDAD ANTIGUA
-    //
-    // addAbilityModifier = true
-    // abilityType = wisdom
-    //
-    // pasa automáticamente a:
-    //
-    // wisdom: 1
-    // =========================================================================
-
-    if (multipliers.isEmpty && map['addAbilityModifier'] == true) {
-      final ability = AbilityType.values.firstWhere(
-        (value) => value.name == map['abilityType']?.toString(),
-        orElse: () => AbilityType.strength,
-      );
-
-      multipliers[ability] = 1;
     }
 
     return DamageBonus(

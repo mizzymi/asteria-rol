@@ -245,29 +245,32 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     }
 
     /*
- * Compatibilidad con el sistema antiguo.
- *
- * CharacterAbility todavía conserva
- * algunos campos legacy.
- *
- * El sistema real trabaja con effects.
- */
+     * Compatibilidad con el sistema antiguo.
+     *
+     * CharacterAbility todavía conserva
+     * algunos campos legacy.
+     *
+     * El sistema real trabaja con effects.
+     */
 
     final firstEffect = effects.isNotEmpty ? effects.first : null;
 
+    final firstPart = firstEffect != null && firstEffect.parts.isNotEmpty
+        ? firstEffect.parts.first
+        : null;
+
     /*
- * El sistema antiguo solo soportaba:
- *
- * +1 × atributo principal.
- *
- * Por tanto solo marcamos el booleano
- * legacy cuando el nuevo efecto puede
- * representarse exactamente así.
- */
+     * Los campos legacy se generan únicamente
+     * como compatibilidad.
+     *
+     * La fuente real de datos son:
+     *
+     * effects -> parts
+     */
     final legacyAddAbilityModifier =
-        firstEffect != null &&
-        firstEffect.abilityModifierMultipliers[abilityType] == 1 &&
-        firstEffect.abilityModifierMultipliers.length == 1;
+        firstPart != null &&
+        firstPart.abilityModifierMultipliers[abilityType] == 1 &&
+        firstPart.abilityModifierMultipliers.length == 1;
 
     final ability = CharacterAbility(
       id:
@@ -299,16 +302,16 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       effectType: firstEffect?.effectType ?? AbilityEffectType.none,
 
       dicePools:
-          firstEffect?.dicePools
+          firstPart?.dicePools
               .map((pool) => DicePool(count: pool.count, sides: pool.sides))
               .toList() ??
           [],
 
       addAbilityModifierToEffect: legacyAddAbilityModifier,
 
-      effectBonus: firstEffect?.effectBonus ?? 0,
+      effectBonus: firstPart?.flatBonus ?? 0,
 
-      effectTypeName: firstEffect?.effectTypeName ?? '',
+      effectTypeName: firstPart?.typeName ?? '',
 
       usesSavingThrow: firstEffect?.usesSavingThrow ?? false,
 

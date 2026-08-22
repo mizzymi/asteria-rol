@@ -1,4 +1,5 @@
 import 'dice_pool.dart';
+import 'skill.dart';
 
 class CriticalDamageBonus {
   String id;
@@ -6,6 +7,10 @@ class CriticalDamageBonus {
   String name;
 
   List<DicePool> dicePools;
+
+  Map<AbilityType, int> abilityModifierMultipliers;
+
+  int flatBonus;
 
   /// 0 - 100
   int chancePercent;
@@ -18,10 +23,13 @@ class CriticalDamageBonus {
     required this.id,
     this.name = '',
     List<DicePool>? dicePools,
+    Map<AbilityType, int>? abilityModifierMultipliers,
+    this.flatBonus = 0,
     this.chancePercent = 100,
     this.damageType = '',
     this.description = '',
-  }) : dicePools = dicePools ?? [] {
+  }) : dicePools = dicePools ?? [],
+       abilityModifierMultipliers = abilityModifierMultipliers ?? {} {
     normalize();
   }
 
@@ -33,17 +41,18 @@ class CriticalDamageBonus {
     return chancePercent >= 100;
   }
 
+  bool get hasDamage {
+    return dicePools.isNotEmpty ||
+        abilityModifierMultipliers.values.any((value) => value != 0) ||
+        flatBonus != 0;
+  }
+
   bool get canTrigger {
-    return chancePercent > 0 &&
-        dicePools.isNotEmpty;
+    return chancePercent > 0 && hasDamage;
   }
 
   String get diceNotation {
-    return dicePools
-        .map(
-          (pool) => pool.notation,
-    )
-        .join(' + ');
+    return dicePools.map((pool) => pool.notation).join(' + ');
   }
 
   void normalize() {
@@ -65,79 +74,74 @@ class CriticalDamageBonus {
       'id': id,
       'name': name,
 
-      'dicePools': dicePools
-          .map(
-            (pool) => pool.toMap(),
-      )
-          .toList(),
+      'dicePools': dicePools.map((pool) => pool.toMap()).toList(),
 
-      'chancePercent':
-      chancePercent,
+      'abilityModifierMultipliers': {
+        for (final entry in abilityModifierMultipliers.entries)
+          entry.key.name: entry.value,
+      },
 
-      'damageType':
-      damageType,
+      'flatBonus': flatBonus,
 
-      'description':
-      description,
+      'chancePercent': chancePercent,
+
+      'damageType': damageType,
+
+      'description': description,
     };
   }
 
-  factory CriticalDamageBonus.fromMap(
-      Map<dynamic, dynamic> map,
-      ) {
-    final dicePools =
-    <DicePool>[];
+  factory CriticalDamageBonus.fromMap(Map<dynamic, dynamic> map) {
+    final dicePools = <DicePool>[];
 
-    final rawPools =
-    map['dicePools'];
+    final rawPools = map['dicePools'];
 
     if (rawPools is List) {
-      for (final rawPool
-      in rawPools) {
+      for (final rawPool in rawPools) {
         if (rawPool is! Map) {
           continue;
         }
 
         try {
-          dicePools.add(
-            DicePool.fromMap(
-              Map<dynamic, dynamic>.from(
-                rawPool,
-              ),
-            ),
-          );
+          dicePools.add(DicePool.fromMap(Map<dynamic, dynamic>.from(rawPool)));
         } catch (_) {
           continue;
         }
       }
     }
 
+    final multipliers = <AbilityType, int>{};
+
+    final rawMultipliers = map['abilityModifierMultipliers'];
+
+    if (rawMultipliers is Map) {
+      final multiplierMap = Map<dynamic, dynamic>.from(rawMultipliers);
+
+      for (final ability in AbilityType.values) {
+        final value = (multiplierMap[ability.name] as num?)?.toInt() ?? 0;
+
+        if (value != 0) {
+          multipliers[ability] = value;
+        }
+      }
+    }
+
     return CriticalDamageBonus(
-      id:
-      map['id']?.toString() ??
-          '',
+      id: map['id']?.toString() ?? '',
 
-      name:
-      map['name']?.toString() ??
-          '',
+      name: map['name']?.toString() ?? '',
 
-      dicePools:
-      dicePools,
+      dicePools: dicePools,
 
-      chancePercent:
-      (map['chancePercent'] as num?)
-          ?.toInt() ??
-          100,
+      abilityModifierMultipliers: multipliers,
 
-      damageType:
-      map['damageType']
-          ?.toString() ??
-          '',
+      flatBonus: (map['flatBonus'] as num?)?.toInt() ?? 0,
 
-      description:
-      map['description']
-          ?.toString() ??
-          '',
+      chancePercent: (map['chancePercent'] as num?)?.toInt() ?? 100,
+
+      damageType: map['damageType']?.toString() ?? '',
+
+      description: map['description']?.toString() ?? '',
     );
   }
 }

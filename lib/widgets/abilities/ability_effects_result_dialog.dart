@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../models/critical_damage_bonus_result.dart';
+import '../../models/damage_bonus_result.dart';
+import '../../models/healing_bonus_result.dart';
 import '../../models/ability.dart';
 import '../../models/ability_effect_part.dart';
 import '../../models/character.dart';
 import '../../models/dice_pool.dart';
+import '../../models/skill.dart';
 
-import 'effect_result_card.dart';
 import 'total_result_card.dart';
 
 class AbilityEffectsResultDialog extends StatefulWidget {
@@ -38,6 +41,12 @@ class _AbilityEffectsResultDialogState
     extends State<AbilityEffectsResultDialog> {
   late List<_RolledEffect> rolledEffects;
 
+  late List<DamageBonusResult> rolledDamageBonuses;
+
+  late List<HealingBonusResult> rolledHealingBonuses;
+
+  late List<CriticalDamageBonusResult> rolledCriticalDamageBonuses;
+
   @override
   void initState() {
     super.initState();
@@ -52,14 +61,20 @@ class _AbilityEffectsResultDialogState
   void _rollAllEffects() {
     rolledEffects = [];
 
+    rolledDamageBonuses = [];
+
+    rolledHealingBonuses = [];
+
+    rolledCriticalDamageBonuses = [];
+
     for (final effect in widget.ability.effects) {
       if (!effect.hasEffect) {
         continue;
       }
 
       /*
-       * Solo los daños procedentes de una tirada
-       * de ataque pueden ser críticos.
+       * Solo el daño procedente de una tirada
+       * de ataque puede ser crítico.
        *
        * Los efectos con salvación nunca son críticos.
        */
@@ -72,7 +87,7 @@ class _AbilityEffectsResultDialogState
       final rolledParts = <_RolledPart>[];
 
       // =======================================================================
-      // NUEVO SISTEMA: PARTES DEL EFECTO
+      // COMPONENTES DEL EFECTO
       // =======================================================================
 
       for (final part in effect.parts) {
@@ -81,8 +96,6 @@ class _AbilityEffectsResultDialogState
         }
 
         final result = widget.character.rollAbilityEffectPart(
-          widget.ability,
-          effect,
           part,
           critical: canCritical,
         );
@@ -90,11 +103,65 @@ class _AbilityEffectsResultDialogState
         rolledParts.add(_RolledPart(part: part, result: result));
       }
 
+      // =======================================================================
+      // DAÑO / CURACIÓN EXTRA DEL EFECTO
+      //
+      // Este es el bonus que se configura directamente sobre AbilityEffect:
+      //
+      // dicePools
+      // abilityModifierMultipliers
+      // effectBonus
+      //
+      // Ej:
+      //
+      // Componente:
+      // 2d6 + FUE fuego
+      //
+      // Extra:
+      // 1d4 + SAB + 3 radiante
+      // =======================================================================
+
+      final extraMultipliers = Map<AbilityType, int>.from(
+        effect.abilityModifierMultipliers,
+      );
+
       /*
-       * Si por cualquier motivo el efecto no tiene
-       * componentes válidos, no lo mostramos.
+       * Compatibilidad antigua.
+       *
+       * Si una habilidad antigua tenía simplemente:
+       *
+       * addAbilityModifierToEffect = true
+       *
+       * convertimos temporalmente eso en:
+       *
+       * atributo principal ×1
        */
-      if (rolledParts.isEmpty) {
+      if (extraMultipliers.isEmpty && effect.legacyAddAbilityModifier) {
+        extraMultipliers[widget.ability.abilityType] = 1;
+      }
+
+      final hasExtra =
+          effect.dicePools.isNotEmpty ||
+          extraMultipliers.values.any((value) => value != 0) ||
+          effect.effectBonus != 0;
+
+      DiceCalculationResult? extraResult;
+
+      if (hasExtra) {
+        extraResult = widget.character.rollAbilityEffectExtra(
+          widget.ability,
+          effect,
+          critical: canCritical,
+        );
+      }
+
+      /*
+       * Un efecto puede existir únicamente gracias
+       * al extra.
+       *
+       * Antes se descartaba si parts estaba vacío.
+       */
+      if (rolledParts.isEmpty && extraResult == null) {
         continue;
       }
 
@@ -102,11 +169,66 @@ class _AbilityEffectsResultDialogState
         _RolledEffect(
           effect: effect,
           parts: rolledParts,
+          extraResult: extraResult,
+          extraMultipliers: extraMultipliers,
           saved: false,
           critical: canCritical,
         ),
       );
     }
+
+    // =========================================================================
+    // BONIFICACIONES ACTIVAS DEL PERSONAJE
+    //
+    // Pasivas, estados, etc.
+    //
+    // Se añaden UNA sola vez por uso de habilidad.
+    // =========================================================================
+
+    final hasDamageEffect = rolledEffects.any(
+      (rolled) => rolled.effect.dealsDamage,
+    );
+
+    final hasHealingEffect = rolledEffects.any((rolled) => rolled.effect.heals);
+
+    /*
+     * Los bonus activos solo deben recibir crítico
+     * si realmente existe un efecto de daño que haya
+     * sido crítico.
+     *
+     * Esto evita criticar bonus en un efecto que use
+     * salvación solo porque la habilidad tenga
+     * requiresAttackRoll = true.
+     */
+    final hasCriticalDamageEffect = rolledEffects.any(
+      (rolled) => rolled.effect.dealsDamage && rolled.critical,
+    );
+
+    if (hasDamageEffect) {
+      rolledDamageBonuses.addAll(
+        widget.character.rollActiveDamageBonuses(
+          critical: hasCriticalDamageEffect,
+        ),
+      );
+    }
+
+    if (hasCriticalDamageEffect) {
+      rolledCriticalDamageBonuses.addAll(
+        widget.character.rollActiveCriticalDamageBonuses(),
+      );
+    }
+
+    if (hasHealingEffect) {
+      rolledHealingBonuses.addAll(widget.character.rollActiveHealingBonuses());
+    }
+  }
+
+  // ===========================================================================
+  // TOTAL BRUTO DEL EXTRA
+  // ===========================================================================
+
+  int _extraRawTotal(_RolledEffect rolled) {
+    return rolled.extraResult?.total ?? 0;
   }
 
   // ===========================================================================
@@ -114,94 +236,123 @@ class _AbilityEffectsResultDialogState
   // ===========================================================================
 
   int _effectRawTotal(_RolledEffect rolled) {
-    return rolled.parts.fold<int>(0, (sum, part) => sum + part.result.total);
+    final partsTotal = rolled.parts.fold<int>(
+      0,
+      (sum, part) => sum + part.result.total,
+    );
+
+    return partsTotal + _extraRawTotal(rolled);
   }
 
   // ===========================================================================
-  // TOTAL FINAL DE UN EFECTO
+  // APLICAR SALVACIÓN
+  // ===========================================================================
+
+  int _applySave(_RolledEffect rolled, int baseTotal) {
+    if (!rolled.effect.usesSavingThrow) {
+      return baseTotal;
+    }
+
+    if (!rolled.saved) {
+      return baseTotal;
+    }
+
+    switch (rolled.effect.saveSuccessEffect) {
+      case SaveSuccessEffect.full:
+        return baseTotal;
+
+      case SaveSuccessEffect.half:
+        return baseTotal ~/ 2;
+
+      case SaveSuccessEffect.none:
+        return 0;
+    }
+  }
+
+  // ===========================================================================
+  // TOTAL FINAL DEL EFECTO
   //
-  // La salvación afecta al efecto completo.
+  // IMPORTANTE:
+  //
+  // La salvación se aplica AL TOTAL DEL EFECTO:
+  //
+  // partes + extra
   // ===========================================================================
 
   int _effectTotal(_RolledEffect rolled) {
-    final baseTotal = _effectRawTotal(rolled);
-
-    if (!rolled.effect.usesSavingThrow) {
-      return baseTotal;
-    }
-
-    if (!rolled.saved) {
-      return baseTotal;
-    }
-
-    switch (rolled.effect.saveSuccessEffect) {
-      case SaveSuccessEffect.full:
-        return baseTotal;
-
-      case SaveSuccessEffect.half:
-        return baseTotal ~/ 2;
-
-      case SaveSuccessEffect.none:
-        return 0;
-    }
+    return _applySave(rolled, _effectRawTotal(rolled));
   }
 
   // ===========================================================================
-  // TOTAL FINAL DE UNA PARTE
-  //
-  // Esto nos permite mostrar correctamente cada tipo de daño después
-  // de una salvación.
+  // TOTAL VISUAL DE UNA PARTE
   // ===========================================================================
 
   int _partTotal(_RolledEffect rolled, _RolledPart part) {
-    final baseTotal = part.result.total;
-
-    if (!rolled.effect.usesSavingThrow) {
-      return baseTotal;
-    }
-
-    if (!rolled.saved) {
-      return baseTotal;
-    }
-
-    switch (rolled.effect.saveSuccessEffect) {
-      case SaveSuccessEffect.full:
-        return baseTotal;
-
-      case SaveSuccessEffect.half:
-        return baseTotal ~/ 2;
-
-      case SaveSuccessEffect.none:
-        return 0;
-    }
+    return part.result.total;
   }
 
   // ===========================================================================
-  // TOTALES SEPARADOS
+  // TOTAL VISUAL DEL EXTRA
+  // ===========================================================================
+
+  int _extraTotal(_RolledEffect rolled) {
+    return rolled.extraResult?.total ?? 0;
+  }
+
+  // ===========================================================================
+  // TOTALES GENERALES
   // ===========================================================================
 
   int get totalDamage {
-    return rolledEffects
+    final effectsTotal = rolledEffects
         .where((rolled) => rolled.effect.dealsDamage)
         .fold<int>(0, (sum, rolled) => sum + _effectTotal(rolled));
+
+    final bonusesTotal = rolledDamageBonuses.fold<int>(
+      0,
+      (sum, result) => sum + result.total,
+    );
+
+    final criticalBonusesTotal = rolledCriticalDamageBonuses.fold<int>(
+      0,
+      (sum, result) => sum + result.total,
+    );
+
+    return effectsTotal + bonusesTotal + criticalBonusesTotal;
   }
 
   int get totalHealing {
-    return rolledEffects
+    final effectsTotal = rolledEffects
         .where((rolled) => rolled.effect.heals)
         .fold<int>(0, (sum, rolled) => sum + _effectTotal(rolled));
+
+    final bonusesTotal = rolledHealingBonuses.fold<int>(
+      0,
+      (sum, result) => sum + result.total,
+    );
+
+    return effectsTotal + bonusesTotal;
   }
 
   bool get hasDamage {
-    return rolledEffects.any((rolled) => rolled.effect.dealsDamage);
+    return rolledEffects.any((rolled) => rolled.effect.dealsDamage) ||
+        rolledDamageBonuses.isNotEmpty ||
+        rolledCriticalDamageBonuses.any((result) => result.triggered);
   }
 
   bool get hasHealing {
-    return rolledEffects.any((rolled) => rolled.effect.heals);
+    return rolledEffects.any((rolled) => rolled.effect.heals) ||
+        rolledHealingBonuses.isNotEmpty;
+  }
+
+  bool get hasCriticalDamage {
+    return rolledEffects.any(
+      (rolled) => rolled.effect.dealsDamage && rolled.critical,
+    );
   }
 
   // ===========================================================================
-  // REPETIR TODOS LOS DADOS
+  // REPETIR
   // ===========================================================================
 
   void rerollAll() {
@@ -215,10 +366,7 @@ class _AbilityEffectsResultDialogState
   // ===========================================================================
 
   Future<void> _reroll() async {
-    // =========================================================================
-    // HABILIDAD CON ATAQUE
-    // =========================================================================
-
+    // Habilidad con ataque.
     if (widget.ability.requiresAttackRoll && widget.onRerollAttack != null) {
       Navigator.pop(context);
 
@@ -227,12 +375,10 @@ class _AbilityEffectsResultDialogState
       return;
     }
 
-    // =========================================================================
-    // EFECTO DIRECTO
-    //
-    // Volver a tirar cuenta como usar de nuevo la habilidad.
-    // =========================================================================
-
+    /*
+     * Un reroll directo cuenta como volver
+     * a utilizar la habilidad.
+     */
     if (widget.onPayRerollCosts != null) {
       final paid = await widget.onPayRerollCosts!();
 
@@ -249,7 +395,7 @@ class _AbilityEffectsResultDialogState
   }
 
   // ===========================================================================
-  // ICONO DE UNA PARTE
+  // ICONO
   // ===========================================================================
 
   IconData _partIcon(AbilityEffect effect) {
@@ -262,6 +408,28 @@ class _AbilityEffectsResultDialogState
     }
 
     return Icons.auto_awesome_rounded;
+  }
+
+  // ===========================================================================
+  // NOMBRE CORTO DE ATRIBUTO
+  // ===========================================================================
+
+  String _abilityLabel(AbilityType ability) {
+    return ability.shortLabel;
+  }
+
+  // ===========================================================================
+  // NOMBRE DE RECURSO
+  // ===========================================================================
+
+  String _resourceName(String resourceId) {
+    for (final resource in widget.character.resources) {
+      if (resource.id == resourceId) {
+        return resource.name;
+      }
+    }
+
+    return resourceId;
   }
 
   // ===========================================================================
@@ -281,15 +449,70 @@ class _AbilityEffectsResultDialogState
       }
 
       if (entry.value == 1) {
-        pieces.add(entry.key.name);
+        pieces.add(_abilityLabel(entry.key));
       } else {
-        pieces.add('${entry.value}×${entry.key.name}');
+        pieces.add('${entry.value}×${_abilityLabel(entry.key)}');
+      }
+    }
+
+    // Recursos.
+    for (final entry in part.resourceValueMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      final name = _resourceName(entry.key);
+
+      if (entry.value == 1) {
+        pieces.add(name);
+      } else {
+        pieces.add('${entry.value}×$name');
       }
     }
 
     if (part.flatBonus != 0) {
       pieces.add(
         part.flatBonus > 0 ? '+${part.flatBonus}' : '${part.flatBonus}',
+      );
+    }
+
+    if (pieces.isEmpty) {
+      return 'Sin tirada';
+    }
+
+    return pieces.join(' + ').replaceAll('+ -', '- ');
+  }
+
+  // ===========================================================================
+  // FÓRMULA DEL EXTRA
+  // ===========================================================================
+
+  String _extraFormula(_RolledEffect rolled) {
+    final pieces = <String>[];
+
+    final effect = rolled.effect;
+
+    if (effect.dicePools.isNotEmpty) {
+      pieces.add(effect.dicePools.map((pool) => pool.notation).join(' + '));
+    }
+
+    for (final entry in rolled.extraMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        pieces.add(_abilityLabel(entry.key));
+      } else {
+        pieces.add('${entry.value}×${_abilityLabel(entry.key)}');
+      }
+    }
+
+    if (effect.effectBonus != 0) {
+      pieces.add(
+        effect.effectBonus > 0
+            ? '+${effect.effectBonus}'
+            : '${effect.effectBonus}',
       );
     }
 
@@ -311,15 +534,21 @@ class _AbilityEffectsResultDialogState
     final rerollsAttack =
         widget.ability.requiresAttackRoll && widget.onRerollAttack != null;
 
+    final isCriticalResult = hasCriticalDamage;
+
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
+
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // =================================================================
+            // HEADER
             // HEADER
             // =================================================================
             Padding(
@@ -330,16 +559,16 @@ class _AbilityEffectsResultDialogState
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: widget.critical
+                      color: isCriticalResult
                           ? theme.colorScheme.errorContainer
                           : theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(15),
                     ),
                     child: Icon(
-                      widget.critical
+                      isCriticalResult
                           ? Icons.local_fire_department_rounded
                           : Icons.auto_awesome_rounded,
-                      color: widget.critical
+                      color: isCriticalResult
                           ? theme.colorScheme.onErrorContainer
                           : theme.colorScheme.primary,
                     ),
@@ -361,7 +590,7 @@ class _AbilityEffectsResultDialogState
                         const SizedBox(height: 3),
 
                         Text(
-                          widget.critical
+                          isCriticalResult
                               ? 'Resolución crítica'
                               : 'Resolución de efectos',
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -418,9 +647,13 @@ class _AbilityEffectsResultDialogState
 
                           partTotal: (part) => _partTotal(rolled, part),
 
+                          extraTotal: _extraTotal(rolled),
+
                           effectTotal: _effectTotal(rolled),
 
                           partFormula: _partFormula,
+
+                          extraFormula: () => _extraFormula(rolled),
 
                           partIcon: _partIcon,
 
@@ -434,6 +667,55 @@ class _AbilityEffectsResultDialogState
                         ),
                       );
                     }),
+
+                    // =========================================================
+                    // BONIFICADORES ACTIVOS DE DAÑO
+                    // =========================================================
+                    if (rolledDamageBonuses.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+
+                      _BonusSection(
+                        title: 'Bonus de daño activos',
+                        icon: Icons.add_circle_rounded,
+                        children: rolledDamageBonuses
+                            .map(
+                              (result) => _BonusResultRow(
+                                name: result.bonus.name,
+                                typeName: result.bonus.damageType,
+                                result: result.roll,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+
+                    if (rolledCriticalDamageBonuses.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+
+                      _CriticalBonusSection(
+                        results: rolledCriticalDamageBonuses,
+                      ),
+                    ],
+
+                    // =========================================================
+                    // BONIFICADORES ACTIVOS DE CURACIÓN
+                    // =========================================================
+                    if (rolledHealingBonuses.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+
+                      _BonusSection(
+                        title: 'Bonus de curación activos',
+                        icon: Icons.favorite_rounded,
+                        children: rolledHealingBonuses
+                            .map(
+                              (result) => _BonusResultRow(
+                                name: result.bonus.name,
+                                result: result.roll,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
 
                     const SizedBox(height: 22),
 
@@ -463,10 +745,10 @@ class _AbilityEffectsResultDialogState
 
                     if (hasDamage)
                       TotalResultCard(
-                        icon: widget.critical
+                        icon: isCriticalResult
                             ? Icons.local_fire_department_rounded
                             : Icons.flash_on_rounded,
-                        label: widget.critical
+                        label: isCriticalResult
                             ? 'DAÑO TOTAL CRÍTICO'
                             : 'DAÑO TOTAL',
                         value: totalDamage,
@@ -530,7 +812,7 @@ class _AbilityEffectsResultDialogState
 }
 
 // =============================================================================
-// TARJETA DE EFECTO CON VARIOS COMPONENTES
+// TARJETA DEL EFECTO
 // =============================================================================
 
 class _EffectPartsCard extends StatelessWidget {
@@ -540,9 +822,13 @@ class _EffectPartsCard extends StatelessWidget {
 
   final int Function(_RolledPart) partTotal;
 
+  final int extraTotal;
+
   final int effectTotal;
 
   final String Function(AbilityEffectPart) partFormula;
+
+  final String Function() extraFormula;
 
   final IconData Function(AbilityEffect) partIcon;
 
@@ -552,8 +838,10 @@ class _EffectPartsCard extends StatelessWidget {
     required this.rolled,
     required this.saveDc,
     required this.partTotal,
+    required this.extraTotal,
     required this.effectTotal,
     required this.partFormula,
+    required this.extraFormula,
     required this.partIcon,
     required this.onSavedChanged,
   });
@@ -562,20 +850,27 @@ class _EffectPartsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final componentCount =
+        rolled.parts.length + (rolled.extraResult != null ? 1 : 0);
+
     return Container(
       width: double.infinity,
+
       padding: const EdgeInsets.all(14),
+
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(
           alpha: 0.45,
         ),
+
         borderRadius: BorderRadius.circular(18),
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ===================================================================
-          // NOMBRE DEL EFECTO
+          // NOMBRE
           // ===================================================================
           Row(
             children: [
@@ -628,70 +923,49 @@ class _EffectPartsCard extends StatelessWidget {
             final total = partTotal(rolledPart);
 
             return Padding(
-              padding: EdgeInsets.only(
-                bottom: index == rolled.parts.length - 1 ? 0 : 8,
-              ),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      partIcon(rolled.effect),
-                      size: 18,
-                      color: theme.colorScheme.primary,
-                    ),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _EffectValueRow(
+                icon: partIcon(rolled.effect),
 
-                    const SizedBox(width: 9),
+                title: part.typeName.trim().isNotEmpty
+                    ? part.typeName
+                    : rolled.effect.effectType.label,
 
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            part.typeName.trim().isNotEmpty
-                                ? part.typeName
-                                : rolled.effect.effectType.label,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                formula: partFormula(part),
 
-                          const SizedBox(height: 2),
-
-                          Text(
-                            partFormula(part),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    Text(
-                      '$total',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
+                total: total,
               ),
             );
           }),
 
           // ===================================================================
+          // EXTRA DEL EFECTO
+          // ===================================================================
+          if (rolled.extraResult != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _EffectValueRow(
+                icon: Icons.add_circle_outline_rounded,
+
+                title: rolled.effect.effectTypeName.trim().isNotEmpty
+                    ? '${rolled.effect.effectTypeName} extra'
+                    : rolled.effect.heals
+                    ? 'Curación extra'
+                    : 'Daño extra',
+
+                formula: extraFormula(),
+
+                total: extraTotal,
+
+                highlight: true,
+              ),
+            ),
+
+          // ===================================================================
           // SALVACIÓN
           // ===================================================================
           if (rolled.effect.usesSavingThrow) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
 
             const Divider(),
 
@@ -702,7 +976,7 @@ class _EffectPartsCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Salvación ${rolled.effect.savingThrowAbility.name}',
+                        'Salvación ${rolled.effect.savingThrowAbility.shortLabel}',
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
 
@@ -724,7 +998,7 @@ class _EffectPartsCard extends StatelessWidget {
           // ===================================================================
           // TOTAL DEL EFECTO
           // ===================================================================
-          if (rolled.parts.length > 1) ...[
+          if (componentCount > 1 || rolled.effect.usesSavingThrow) ...[
             const SizedBox(height: 12),
 
             const Divider(),
@@ -754,6 +1028,223 @@ class _EffectPartsCard extends StatelessWidget {
 }
 
 // =============================================================================
+// FILA DE COMPONENTE / EXTRA
+// =============================================================================
+
+class _EffectValueRow extends StatelessWidget {
+  final IconData icon;
+
+  final String title;
+
+  final String formula;
+
+  final int total;
+
+  final bool highlight;
+
+  const _EffectValueRow({
+    required this.icon,
+    required this.title,
+    required this.formula,
+    required this.total,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: highlight
+            ? theme.colorScheme.tertiaryContainer.withValues(alpha: 0.35)
+            : theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: highlight
+                ? theme.colorScheme.tertiary
+                : theme.colorScheme.primary,
+          ),
+
+          const SizedBox(width: 9),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+
+                const SizedBox(height: 2),
+
+                Text(
+                  formula,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Text(
+            '$total',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// SECCIÓN DE BONUS ACTIVOS
+// =============================================================================
+
+class _BonusSection extends StatelessWidget {
+  final String title;
+
+  final IconData icon;
+
+  final List<Widget> children;
+
+  const _BonusSection({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 19, color: theme.colorScheme.primary),
+
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// RESULTADO DE BONUS ACTIVO
+// =============================================================================
+
+class _BonusResultRow extends StatelessWidget {
+  final String name;
+
+  final String typeName;
+
+  final DiceCalculationResult result;
+
+  const _BonusResultRow({
+    required this.name,
+    this.typeName = '',
+    required this.result,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final title = name.trim().isNotEmpty ? name.trim() : 'Bonificación';
+
+    final subtitlePieces = <String>[];
+
+    if (result.groups.isNotEmpty) {
+      subtitlePieces.add(
+        result.groups.map((group) => group.pool.notation).join(' + '),
+      );
+    }
+
+    if (result.modifier != 0) {
+      subtitlePieces.add(
+        result.modifier > 0 ? '+${result.modifier}' : '${result.modifier}',
+      );
+    }
+
+    if (typeName.trim().isNotEmpty) {
+      subtitlePieces.add(typeName.trim());
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+
+                if (subtitlePieces.isNotEmpty)
+                  Text(
+                    subtitlePieces.join(' · '),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Text(
+            '+${result.total}',
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
 // MODELOS INTERNOS
 // =============================================================================
 
@@ -770,6 +1261,16 @@ class _RolledEffect {
 
   final List<_RolledPart> parts;
 
+  /// Daño/curación extra configurado directamente
+  /// en AbilityEffect.
+  final DiceCalculationResult? extraResult;
+
+  /// Multiplicadores utilizados para el extra.
+  ///
+  /// Se guarda aquí para poder representar también
+  /// datos legacy.
+  final Map<AbilityType, int> extraMultipliers;
+
   final bool critical;
 
   bool saved;
@@ -777,7 +1278,124 @@ class _RolledEffect {
   _RolledEffect({
     required this.effect,
     required this.parts,
+    required this.extraResult,
+    required this.extraMultipliers,
     required this.critical,
     required this.saved,
   });
+}
+
+class _CriticalBonusSection extends StatelessWidget {
+  final List<CriticalDamageBonusResult> results;
+
+  const _CriticalBonusSection({required this.results});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.local_fire_department_rounded,
+                color: theme.colorScheme.error,
+              ),
+
+              const SizedBox(width: 8),
+
+              const Expanded(
+                child: Text(
+                  'Bonus al hacer crítico',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          ...results.map((result) {
+            final bonus = result.bonus;
+
+            final title = bonus.name.trim().isNotEmpty
+                ? bonus.name.trim()
+                : 'Daño crítico extra';
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+
+                          const SizedBox(height: 2),
+
+                          if (bonus.damageType.trim().isNotEmpty)
+                            Text(
+                              bonus.damageType.trim(),
+                              style: theme.textTheme.bodySmall,
+                            ),
+
+                          if (!bonus.alwaysTriggers)
+                            Text(
+                              'Activación: '
+                              '${result.chanceRoll} / '
+                              '${bonus.chancePercent}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    if (result.triggered)
+                      Text(
+                        '+${result.total}',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      )
+                    else
+                      Text(
+                        'No activa',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
 }

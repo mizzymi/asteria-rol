@@ -124,7 +124,8 @@ class CharacterPassive {
         skillBonuses.values.any((value) => value != 0) ||
         savingThrowBonuses.values.any((value) => value != 0) ||
         damageBonuses.any((damage) => damage.hasDamage) ||
-        criticalDamageBonuses.any((damage) => damage.canTrigger);
+        criticalDamageBonuses.any((damage) => damage.canTrigger) ||
+        healingBonuses.any((bonus) => bonus.hasHealing);
   }
 
   // ===========================================================================
@@ -358,6 +359,26 @@ class CharacterPassive {
       }
     }
 
+    final healingBonuses = <HealingBonus>[];
+
+    final rawHealingBonuses = map['healingBonuses'];
+
+    if (rawHealingBonuses is List) {
+      for (final rawBonus in rawHealingBonuses) {
+        if (rawBonus is! Map) {
+          continue;
+        }
+
+        try {
+          healingBonuses.add(
+            HealingBonus.fromMap(Map<dynamic, dynamic>.from(rawBonus)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
     // =========================================================================
     // CARGAS
     // =========================================================================
@@ -428,6 +449,7 @@ class CharacterPassive {
 
       criticalDamageBonuses: criticalDamageBonuses,
 
+      healingBonuses: healingBonuses,
       // =======================================================================
       // CARGAS
       // =======================================================================
