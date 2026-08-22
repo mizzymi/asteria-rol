@@ -2,6 +2,7 @@ import 'healing_bonus.dart';
 import 'skill.dart';
 import 'damage_bonus.dart';
 import 'critical_damage_bonus.dart';
+import 'dice_pool.dart';
 
 enum PassiveSourceType { race, classFeature, feat, item, background, custom }
 
@@ -57,6 +58,36 @@ class CharacterPassive {
   List<HealingBonus> healingBonuses;
 
   // ===========================================================================
+  // TIRADA PROPIA DE LA PASIVA
+  // ===========================================================================
+
+  /// Dados que puede tirar manualmente esta pasiva.
+  ///
+  /// Ejemplos:
+  /// 1d6
+  /// 2d8
+  /// 2d6 + 1d4
+  List<DicePool> rollDicePools;
+
+  /// Atributos que se suman a la tirada.
+  ///
+  /// Ejemplo:
+  /// {
+  ///   AbilityType.wisdom: 1,
+  ///   AbilityType.constitution: 2,
+  /// }
+  ///
+  /// equivale a:
+  /// SAB + 2×CON
+  Map<AbilityType, int> rollAbilityModifierMultipliers;
+
+  /// Bonus fijo de la tirada.
+  ///
+  /// Ejemplo:
+  /// 2d6 + SAB + 3
+  int rollFlatBonus;
+
+  // ===========================================================================
   // CARGAS
   // ===========================================================================
 
@@ -92,6 +123,9 @@ class CharacterPassive {
     List<DamageBonus>? damageBonuses,
     List<HealingBonus>? healingBonuses,
     List<CriticalDamageBonus>? criticalDamageBonuses,
+    List<DicePool>? rollDicePools,
+    Map<AbilityType, int>? rollAbilityModifierMultipliers,
+    this.rollFlatBonus = 0,
 
     // =======================================================================
     // CARGAS
@@ -102,13 +136,32 @@ class CharacterPassive {
     this.rechargeDescription = '',
 
     this.notes = '',
-  }) : skillBonuses = skillBonuses ?? {},
-       abilityModifierBonuses = abilityModifierBonuses ?? {},
-       damageBonuses = damageBonuses ?? [],
+  }) : skillBonuses = Map<DndSkill, int>.from(skillBonuses ?? {}),
+       abilityModifierBonuses = Map<AbilityType, int>.from(
+         abilityModifierBonuses ?? {},
+       ),
+       savingThrowBonuses = Map<AbilityType, int>.from(
+         savingThrowBonuses ?? {},
+       ),
+       damageBonuses = List<DamageBonus>.from(damageBonuses ?? []),
+       criticalDamageBonuses = List<CriticalDamageBonus>.from(
+         criticalDamageBonuses ?? [],
+       ),
+       healingBonuses = List<HealingBonus>.from(healingBonuses ?? []),
+       rollDicePools = List<DicePool>.from(rollDicePools ?? []),
+       rollAbilityModifierMultipliers = Map<AbilityType, int>.from(
+         rollAbilityModifierMultipliers ?? {},
+       );
 
-       criticalDamageBonuses = criticalDamageBonuses ?? [],
-       healingBonuses = healingBonuses ?? [],
-       savingThrowBonuses = savingThrowBonuses ?? {};
+  bool get hasRoll {
+    return rollDicePools.isNotEmpty ||
+        rollAbilityModifierMultipliers.values.any((value) => value != 0) ||
+        rollFlatBonus != 0;
+  }
+
+  String get rollDiceNotation {
+    return rollDicePools.map((pool) => pool.notation).join(' + ');
+  }
 
   // ===========================================================================
   // EFECTOS MECÁNICOS
@@ -125,7 +178,8 @@ class CharacterPassive {
         savingThrowBonuses.values.any((value) => value != 0) ||
         damageBonuses.any((damage) => damage.hasDamage) ||
         criticalDamageBonuses.any((damage) => damage.canTrigger) ||
-        healingBonuses.any((bonus) => bonus.hasHealing);
+        healingBonuses.any((bonus) => bonus.hasHealing) ||
+        hasRoll;
   }
 
   // ===========================================================================
@@ -242,6 +296,15 @@ class CharacterPassive {
           .toList(),
 
       'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
+
+      'rollDicePools': rollDicePools.map((pool) => pool.toMap()).toList(),
+
+      'rollAbilityModifierMultipliers': {
+        for (final entry in rollAbilityModifierMultipliers.entries)
+          entry.key.name: entry.value,
+      },
+
+      'rollFlatBonus': rollFlatBonus,
       // =======================================================================
       // CARGAS
       // =======================================================================
@@ -380,6 +443,46 @@ class CharacterPassive {
     }
 
     // =========================================================================
+    // TIRADA PROPIA
+    // =========================================================================
+
+    final rollDicePools = <DicePool>[];
+
+    final rawRollDicePools = map['rollDicePools'];
+
+    if (rawRollDicePools is List) {
+      for (final rawPool in rawRollDicePools) {
+        if (rawPool is! Map) {
+          continue;
+        }
+
+        try {
+          rollDicePools.add(
+            DicePool.fromMap(Map<dynamic, dynamic>.from(rawPool)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    final rollAbilityModifierMultipliers = <AbilityType, int>{};
+
+    final rawRollMultipliers = map['rollAbilityModifierMultipliers'];
+
+    if (rawRollMultipliers is Map) {
+      final multiplierMap = Map<dynamic, dynamic>.from(rawRollMultipliers);
+
+      for (final ability in AbilityType.values) {
+        final value = (multiplierMap[ability.name] as num?)?.toInt() ?? 0;
+
+        if (value != 0) {
+          rollAbilityModifierMultipliers[ability] = value;
+        }
+      }
+    }
+
+    // =========================================================================
     // CARGAS
     // =========================================================================
 
@@ -450,6 +553,12 @@ class CharacterPassive {
       criticalDamageBonuses: criticalDamageBonuses,
 
       healingBonuses: healingBonuses,
+
+      rollDicePools: rollDicePools,
+
+      rollAbilityModifierMultipliers: rollAbilityModifierMultipliers,
+
+      rollFlatBonus: (map['rollFlatBonus'] as num?)?.toInt() ?? 0,
       // =======================================================================
       // CARGAS
       // =======================================================================

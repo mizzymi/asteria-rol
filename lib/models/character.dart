@@ -1662,6 +1662,59 @@ class Character {
   }
 
   // ===========================================================================
+  // TIRADAS DE PASIVAS
+  // ===========================================================================
+
+  int passiveRollModifier(CharacterPassive passive) {
+    return passive.rollFlatBonus +
+        calculateAbilityMultipliers(passive.rollAbilityModifierMultipliers);
+  }
+
+  DiceCalculationResult rollPassive(CharacterPassive passive) {
+    final modifier = passiveRollModifier(passive);
+
+    return DicePoolRoller.roll(
+      pools: passive.rollDicePools,
+      modifier: modifier,
+      critical: false,
+    );
+  }
+
+  String passiveRollText(CharacterPassive passive) {
+    if (!passive.hasRoll) {
+      return '';
+    }
+
+    final pieces = <String>[];
+
+    if (passive.rollDiceNotation.isNotEmpty) {
+      pieces.add(passive.rollDiceNotation);
+    }
+
+    for (final entry in passive.rollAbilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        pieces.add(entry.key.shortLabel);
+      } else {
+        pieces.add('${entry.value}×${entry.key.shortLabel}');
+      }
+    }
+
+    if (passive.rollFlatBonus != 0) {
+      pieces.add(
+        passive.rollFlatBonus > 0
+            ? '+${passive.rollFlatBonus}'
+            : '${passive.rollFlatBonus}',
+      );
+    }
+
+    return pieces.join(' + ').replaceAll('+ -', '- ');
+  }
+
+  // ===========================================================================
   // PASIVAS
   // ===========================================================================
 

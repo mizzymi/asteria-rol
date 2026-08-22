@@ -51,6 +51,11 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
   late List<DamageBonus> damageBonuses;
   late List<CriticalDamageBonus> criticalDamageBonuses;
   late List<HealingBonus> healingBonuses;
+  late List<DicePool> rollDicePools;
+
+  late Map<AbilityType, int> rollAbilityModifierMultipliers;
+
+  late final TextEditingController rollFlatBonusController;
   bool get editing => widget.passive != null;
 
   @override
@@ -132,6 +137,20 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
             .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
             .toList() ??
         [];
+
+    rollDicePools =
+        passive?.rollDicePools
+            .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+            .toList() ??
+        [];
+
+    rollAbilityModifierMultipliers = Map<AbilityType, int>.from(
+      passive?.rollAbilityModifierMultipliers ?? {},
+    );
+
+    rollFlatBonusController = TextEditingController(
+      text: '${passive?.rollFlatBonus ?? 0}',
+    );
   }
 
   String bonusText(int value) {
@@ -158,6 +177,54 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       case AbilityType.charisma:
         return 'Carisma';
     }
+  }
+
+  void addPassiveRollDice() {
+    setState(() {
+      rollDicePools.add(DicePool(count: 1, sides: 6));
+    });
+  }
+
+  void removePassiveRollDice(int index) {
+    if (index < 0 || index >= rollDicePools.length) {
+      return;
+    }
+
+    setState(() {
+      rollDicePools.removeAt(index);
+    });
+  }
+
+  String get passiveRollPreview {
+    final pieces = <String>[];
+
+    if (rollDicePools.isNotEmpty) {
+      pieces.add(rollDicePools.map((pool) => pool.notation).join(' + '));
+    }
+
+    for (final entry in rollAbilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        pieces.add(_abilityShortName(entry.key));
+      } else {
+        pieces.add('${entry.value}×${_abilityShortName(entry.key)}');
+      }
+    }
+
+    final flatBonus = int.tryParse(rollFlatBonusController.text.trim()) ?? 0;
+
+    if (flatBonus != 0) {
+      pieces.add(flatBonus > 0 ? '+$flatBonus' : '$flatBonus');
+    }
+
+    if (pieces.isEmpty) {
+      return 'Sin tirada';
+    }
+
+    return pieces.join(' + ').replaceAll('+ -', '- ');
   }
 
   Future<int?> editBonus({
@@ -622,6 +689,16 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       healingBonuses: healingBonuses
           .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
           .toList(),
+
+      rollDicePools: rollDicePools
+          .map((pool) => DicePool(count: pool.count, sides: pool.sides))
+          .toList(),
+
+      rollAbilityModifierMultipliers: Map<AbilityType, int>.from(
+        rollAbilityModifierMultipliers,
+      ),
+
+      rollFlatBonus: int.tryParse(rollFlatBonusController.text.trim()) ?? 0,
     );
 
     /*
@@ -649,6 +726,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     maxChargesController.dispose();
     rechargeController.dispose();
     notesController.dispose();
+    rollFlatBonusController.dispose();
 
     super.dispose();
   }
@@ -836,6 +914,183 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                       },
                     ),
                 ],
+              ),
+
+              const SizedBox(height: 28),
+
+              Text(
+                'Tirada propia',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 6),
+
+              Text(
+                'Permite tirar dados directamente desde esta pasiva.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+
+              const SizedBox(height: 14),
+
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const CircleAvatar(
+                            child: Icon(Icons.casino_rounded, size: 19),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Dados de la tirada',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+
+                                Text(
+                                  passiveRollPreview,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          IconButton(
+                            tooltip: 'Añadir dados',
+                            onPressed: addPassiveRollDice,
+                            icon: const Icon(Icons.add_rounded),
+                          ),
+                        ],
+                      ),
+
+                      if (rollDicePools.isNotEmpty) ...[
+                        const Divider(),
+
+                        ...List.generate(rollDicePools.length, (index) {
+                          final pool = rollDicePools[index];
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<int>(
+                                    initialValue: pool.count,
+
+                                    decoration: const InputDecoration(
+                                      labelText: 'Cantidad',
+                                    ),
+
+                                    items: List.generate(20, (i) => i + 1).map((
+                                      value,
+                                    ) {
+                                      return DropdownMenuItem(
+                                        value: value,
+                                        child: Text('$value'),
+                                      );
+                                    }).toList(),
+
+                                    onChanged: (value) {
+                                      if (value == null) {
+                                        return;
+                                      }
+
+                                      setState(() {
+                                        pool.count = value;
+                                      });
+                                    },
+                                  ),
+                                ),
+
+                                const SizedBox(width: 8),
+
+                                Expanded(
+                                  child: DropdownButtonFormField<int>(
+                                    initialValue: pool.sides,
+
+                                    decoration: const InputDecoration(
+                                      labelText: 'Dado',
+                                    ),
+
+                                    items: const [4, 6, 8, 10, 12, 20].map((
+                                      value,
+                                    ) {
+                                      return DropdownMenuItem(
+                                        value: value,
+                                        child: Text('d$value'),
+                                      );
+                                    }).toList(),
+
+                                    onChanged: (value) {
+                                      if (value == null) {
+                                        return;
+                                      }
+
+                                      setState(() {
+                                        pool.sides = value;
+                                      });
+                                    },
+                                  ),
+                                ),
+
+                                IconButton(
+                                  tooltip: 'Eliminar dado',
+                                  onPressed: () {
+                                    removePassiveRollDice(index);
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+
+                      const SizedBox(height: 14),
+
+                      _BonusAttributeMultipliers(
+                        multipliers: rollAbilityModifierMultipliers,
+                        onChanged: (value) {
+                          setState(() {
+                            rollAbilityModifierMultipliers = value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      TextFormField(
+                        controller: rollFlatBonusController,
+
+                        keyboardType: const TextInputType.numberWithOptions(
+                          signed: true,
+                        ),
+
+                        decoration: const InputDecoration(
+                          labelText: 'Bonus fijo de la tirada',
+                          hintText: '0',
+                          prefixIcon: Icon(Icons.exposure_plus_1_rounded),
+                        ),
+
+                        onChanged: (_) {
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
               const SizedBox(height: 24),

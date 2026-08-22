@@ -36,6 +36,7 @@ class PassiveCard extends StatefulWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onUseCharge;
   final VoidCallback? onRestoreCharges;
+  final VoidCallback? onRoll;
 
   const PassiveCard({
     super.key,
@@ -47,6 +48,7 @@ class PassiveCard extends StatefulWidget {
     this.onDelete,
     this.onUseCharge,
     this.onRestoreCharges,
+    this.onRoll,
   });
 
   @override
@@ -106,9 +108,9 @@ class _PassiveCardState extends State<PassiveCard> {
               onToggle: widget.onToggle,
               onEdit: widget.onEdit,
               onDelete: widget.onDelete,
-
               onUseCharge: widget.onUseCharge,
               onRestoreCharges: widget.onRestoreCharges,
+              onRoll: widget.onRoll,
             ),
           ),
         ],
@@ -300,6 +302,7 @@ class _PassiveExpandedContent extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onUseCharge;
   final VoidCallback? onRestoreCharges;
+  final VoidCallback? onRoll;
 
   const _PassiveExpandedContent({
     required this.passive,
@@ -310,7 +313,42 @@ class _PassiveExpandedContent extends StatelessWidget {
     required this.onDelete,
     required this.onUseCharge,
     required this.onRestoreCharges,
+    required this.onRoll,
   });
+
+  static String _passiveRollLabel(CharacterPassive passive) {
+    final pieces = <String>[];
+
+    if (passive.rollDiceNotation.isNotEmpty) {
+      pieces.add(passive.rollDiceNotation);
+    }
+
+    for (final entry in passive.rollAbilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+
+      if (entry.value == 1) {
+        pieces.add(entry.key.shortLabel);
+      } else {
+        pieces.add('${entry.value}×${entry.key.shortLabel}');
+      }
+    }
+
+    if (passive.rollFlatBonus != 0) {
+      pieces.add(
+        passive.rollFlatBonus > 0
+            ? '+${passive.rollFlatBonus}'
+            : '${passive.rollFlatBonus}',
+      );
+    }
+
+    if (pieces.isEmpty) {
+      return 'Sin tirada';
+    }
+
+    return pieces.join(' + ').replaceAll('+ -', '- ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -364,6 +402,79 @@ class _PassiveExpandedContent extends StatelessWidget {
               ),
             ],
           ),
+
+          // ===================================================================
+          // TIRADA PROPIA
+          // ===================================================================
+          if (passive.hasRoll) ...[
+            const SizedBox(height: 18),
+
+            _SectionLabel(
+              icon: Icons.casino_rounded,
+              label: 'Tirada',
+              color: color,
+            ),
+
+            const SizedBox(height: 10),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: PassiveColors.softBackground(
+                  context,
+                  color,
+                  strength: 0.12,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.casino_rounded, color: color),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Tirada de pasiva',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+
+                        const SizedBox(height: 3),
+
+                        Text(
+                          _passiveRollLabel(passive),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  FilledButton.icon(
+                    onPressed: passive.enabled ? onRoll : null,
+                    icon: const Icon(Icons.casino_rounded),
+                    label: const Text('Tirar'),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // ===================================================================
           // CARGAS
@@ -466,7 +577,7 @@ class _PassiveExpandedContent extends StatelessWidget {
           // ===================================================================
           // SIN EFECTOS MECÁNICOS
           // ===================================================================
-          if (effects.isEmpty) ...[
+          if (effects.isEmpty && !passive.hasRoll) ...[
             const SizedBox(height: 18),
 
             Container(

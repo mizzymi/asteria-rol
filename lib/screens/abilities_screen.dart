@@ -434,6 +434,138 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
+  // TIRAR PASIVA
+  // ===========================================================================
+
+  Future<void> rollPassive(CharacterPassive passive) async {
+    if (!passive.enabled || !passive.hasRoll) {
+      return;
+    }
+
+    final result = character.rollPassive(passive);
+
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.casino_rounded),
+
+              const SizedBox(width: 10),
+
+              Expanded(child: Text(passive.name)),
+            ],
+          ),
+
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                character.passiveRollText(passive),
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+
+              const SizedBox(height: 18),
+
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'RESULTADO',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      '${result.total}',
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (result.groups.isNotEmpty) ...[
+                const SizedBox(height: 16),
+
+                ...result.groups.map((group) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(group.pool.notation)),
+
+                        Text(
+                          group.rolls.join(', '),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+
+              if (result.modifier != 0) ...[
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    const Expanded(child: Text('Modificador')),
+
+                    Text(
+                      result.modifier > 0
+                          ? '+${result.modifier}'
+                          : '${result.modifier}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+
+                rollPassive(passive);
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Volver a tirar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
   // RESOLVER EFECTOS
   // ===========================================================================
 
@@ -766,6 +898,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       sourceItem: sourceItem,
 
                       showPassiveBadge: true,
+
+                      onRoll: passive.hasRoll
+                          ? () {
+                              rollPassive(passive);
+                            }
+                          : null,
 
                       onUseCharge: passive.usesCharges
                           ? () {
