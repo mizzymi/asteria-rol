@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:rol/models/character_effect.dart';
+import 'package:rol/utils/number_format.dart';
+
+import '../../models/formulas/formula_bonus.dart';
 
 import '../../models/damage_bonus.dart';
 import '../../models/critical_damage_bonus.dart';
@@ -64,59 +67,59 @@ class _PassiveCardState extends State<PassiveCard> {
 
   @override
   Widget build(BuildContext context) {
-    final color = PassiveColors.sourceColor(passive);
+    final baseColor = PassiveColors.sourceColor(passive);
 
-    return AppCard(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: EdgeInsets.zero,
-      accentColor: color,
-      showAccentBar: true,
-      child: Column(
-        children: [
-          // ===================================================================
-          // HEADER
-          //
-          // CERRADO:
-          // - nombre
-          // - descripción
-          // - PASIVA
-          // ===================================================================
-          _PassiveHeader(
-            passive: passive,
-            color: color,
-            sourceItem: widget.sourceItem,
-            expanded: expanded,
-            showPassiveBadge: widget.showPassiveBadge,
-            onTap: () {
-              setState(() {
-                expanded = !expanded;
-              });
-            },
-          ),
+    final color = passive.enabled
+        ? baseColor
+        : Theme.of(
+            context,
+          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.55);
 
-          // ===================================================================
-          // CONTENIDO DESPLEGADO
-          // ===================================================================
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 220),
-            crossFadeState: expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: const SizedBox(width: double.infinity),
-            secondChild: _PassiveExpandedContent(
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: passive.enabled ? 1.0 : 0.72,
+      child: AppCard(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: EdgeInsets.zero,
+        accentColor: color,
+        showAccentBar: passive.enabled,
+        emphasized: passive.enabled,
+        child: Column(
+          children: [
+            _PassiveHeader(
               passive: passive,
               color: color,
-              isItemPassive: widget.isItemPassive,
-              onToggle: widget.onToggle,
-              onEdit: widget.onEdit,
-              onDelete: widget.onDelete,
-              onUseCharge: widget.onUseCharge,
-              onRestoreCharges: widget.onRestoreCharges,
-              onRoll: widget.onRoll,
-              onApplyLinkedEffects: widget.onApplyLinkedEffects,
+              sourceItem: widget.sourceItem,
+              expanded: expanded,
+              showPassiveBadge: widget.showPassiveBadge,
+              onTap: () {
+                setState(() {
+                  expanded = !expanded;
+                });
+              },
             ),
-          ),
-        ],
+
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 220),
+              crossFadeState: expanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: _PassiveExpandedContent(
+                passive: passive,
+                color: color,
+                isItemPassive: widget.isItemPassive,
+                onToggle: widget.onToggle,
+                onEdit: widget.onEdit,
+                onDelete: widget.onDelete,
+                onUseCharge: widget.onUseCharge,
+                onRestoreCharges: widget.onRestoreCharges,
+                onRoll: widget.onRoll,
+                onApplyLinkedEffects: widget.onApplyLinkedEffects,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -537,9 +540,9 @@ class _PassiveExpandedContent extends StatelessWidget {
             ),
           ],
 
-          // ===================================================================
+          // ===========================================================================
           // CARGAS
-          // ===================================================================
+          // ===========================================================================
           if (passive.usesCharges) ...[
             const SizedBox(height: 18),
 
@@ -567,18 +570,37 @@ class _PassiveExpandedContent extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.battery_charging_full_rounded, color: color),
+                      Icon(
+                        passive.hasUnlimitedCharges
+                            ? Icons.all_inclusive_rounded
+                            : Icons.battery_charging_full_rounded,
+                        color: color,
+                      ),
 
                       const SizedBox(width: 8),
 
                       Text(
-                        '${passive.currentCharges}/${passive.maxCharges}',
+                        passive.hasUnlimitedCharges
+                            ? formatThousands(passive.currentCharges)
+                            : '${formatThousands(passive.currentCharges)}/${formatThousands(passive.maxCharges)}',
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(
                               fontWeight: FontWeight.w900,
                               color: color,
                             ),
                       ),
+
+                      if (passive.hasUnlimitedCharges) ...[
+                        const SizedBox(width: 8),
+
+                        Text(
+                          'Sin máximo',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
 
@@ -594,7 +616,8 @@ class _PassiveExpandedContent extends StatelessWidget {
                     children: [
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: passive.currentCharges > 0
+                          onPressed:
+                              passive.enabled && passive.currentCharges > 0
                               ? onUseCharge
                               : null,
                           icon: const Icon(Icons.remove_rounded),
@@ -606,7 +629,13 @@ class _PassiveExpandedContent extends StatelessWidget {
 
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: onRestoreCharges,
+                          onPressed: !passive.enabled
+                              ? null
+                              : passive.hasUnlimitedCharges
+                              ? onRestoreCharges
+                              : passive.currentCharges < passive.maxCharges
+                              ? onRestoreCharges
+                              : null,
                           icon: const Icon(Icons.add_rounded),
                           label: const Text('Recuperar'),
                         ),
@@ -842,71 +871,56 @@ class _PassiveExpandedContent extends StatelessWidget {
   List<Widget> _buildEffects() {
     final effects = <Widget>[];
 
-    // -------------------------------------------------------------------------
     // CA
-    // -------------------------------------------------------------------------
-
-    if (passive.armorClassBonus != 0) {
+    if (passive.armorClassBonus.hasValue) {
       effects.add(
         PassiveEffectBadge(
           icon: Icons.shield_rounded,
-          label: '${_bonusText(passive.armorClassBonus)} CA',
+          label: '${_formulaBonusText(passive.armorClassBonus)} CA',
           color: PassiveColors.armorClass,
         ),
       );
     }
 
-    // -------------------------------------------------------------------------
     // INICIATIVA
-    // -------------------------------------------------------------------------
-
-    if (passive.initiativeBonus != 0) {
+    if (passive.initiativeBonus.hasValue) {
       effects.add(
         PassiveEffectBadge(
           icon: Icons.bolt_rounded,
-          label: '${_bonusText(passive.initiativeBonus)} iniciativa',
+          label: '${_formulaBonusText(passive.initiativeBonus)} iniciativa',
           color: PassiveColors.initiative,
         ),
       );
     }
 
-    // -------------------------------------------------------------------------
     // VELOCIDAD
-    // -------------------------------------------------------------------------
-
-    if (passive.speedBonus != 0) {
+    if (passive.speedBonus.hasValue) {
       effects.add(
         PassiveEffectBadge(
           icon: Icons.directions_run_rounded,
-          label: '${_bonusText(passive.speedBonus)} pies',
+          label: '${_formulaBonusText(passive.speedBonus)} pies',
           color: PassiveColors.speed,
         ),
       );
     }
 
-    // -------------------------------------------------------------------------
     // VIDA
-    // -------------------------------------------------------------------------
-
-    if (passive.maxHealthBonus != 0) {
+    if (passive.maxHealthBonus.hasValue) {
       effects.add(
         PassiveEffectBadge(
           icon: Icons.favorite_rounded,
-          label: '${_bonusText(passive.maxHealthBonus)} PG máx.',
+          label: '${_formulaBonusText(passive.maxHealthBonus)} PG máx.',
           color: PassiveColors.health,
         ),
       );
     }
 
-    // -------------------------------------------------------------------------
     // ATAQUE
-    // -------------------------------------------------------------------------
-
-    if (passive.attackBonus != 0) {
+    if (passive.attackBonus.hasValue) {
       effects.add(
         PassiveEffectBadge(
           icon: Icons.gps_fixed_rounded,
-          label: '${_bonusText(passive.attackBonus)} al golpe',
+          label: '${_formulaBonusText(passive.attackBonus)} al golpe',
           color: PassiveColors.attack,
         ),
       );
@@ -917,14 +931,16 @@ class _PassiveExpandedContent extends StatelessWidget {
     // -------------------------------------------------------------------------
 
     for (final entry in passive.abilityModifierBonuses.entries) {
-      if (entry.value == 0) {
+      final bonus = entry.value;
+
+      if (!bonus.hasValue) {
         continue;
       }
 
       effects.add(
         PassiveEffectBadge(
           icon: Icons.psychology_rounded,
-          label: '${_bonusText(entry.value)} ${entry.key.shortLabel}',
+          label: '${_formulaBonusText(bonus)} ${entry.key.shortLabel}',
           color: PassiveColors.skill,
         ),
       );
@@ -935,14 +951,16 @@ class _PassiveExpandedContent extends StatelessWidget {
     // -------------------------------------------------------------------------
 
     for (final entry in passive.skillBonuses.entries) {
-      if (entry.value == 0) {
+      final bonus = entry.value;
+
+      if (!bonus.hasValue) {
         continue;
       }
 
       effects.add(
         PassiveEffectBadge(
           icon: Icons.bar_chart_rounded,
-          label: '${_bonusText(entry.value)} ${entry.key.label}',
+          label: '${_formulaBonusText(bonus)} ${entry.key.label}',
           color: PassiveColors.skill,
         ),
       );
@@ -953,14 +971,16 @@ class _PassiveExpandedContent extends StatelessWidget {
     // -------------------------------------------------------------------------
 
     for (final entry in passive.savingThrowBonuses.entries) {
-      if (entry.value == 0) {
+      final bonus = entry.value;
+
+      if (!bonus.hasValue) {
         continue;
       }
 
       effects.add(
         PassiveEffectBadge(
           icon: Icons.security_rounded,
-          label: '${_bonusText(entry.value)} Salv. ${entry.key.shortLabel}',
+          label: '${_formulaBonusText(bonus)} Salv. ${entry.key.shortLabel}',
           color: PassiveColors.savingThrow,
         ),
       );
@@ -1128,6 +1148,24 @@ class _PassiveExpandedContent extends StatelessWidget {
 
   static String _bonusText(int value) {
     return value >= 0 ? '+$value' : '$value';
+  }
+
+  static String _formulaBonusText(FormulaBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.flatValue != 0) {
+      pieces.add(_bonusText(bonus.flatValue));
+    }
+
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
+    }
+
+    if (pieces.isEmpty) {
+      return '+0';
+    }
+
+    return pieces.join(' + ');
   }
 
   static IconData _sourceIcon(PassiveSourceType source) {

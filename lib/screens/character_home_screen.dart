@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/character.dart';
 import '../models/character_resource.dart';
 import '../models/character_effect.dart';
+import '../models/passive.dart';
 
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
@@ -19,6 +20,7 @@ import '../widgets/character_home/health_edit_dialog.dart';
 import '../widgets/character_home/health_resource_card.dart';
 import '../widgets/character_home/level_edit_dialog.dart';
 
+import 'character_counters_screen.dart';
 import 'abilities_screen.dart';
 import 'class_editor_screen.dart';
 import 'dice_screen.dart';
@@ -67,6 +69,12 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
   Future<void> openResources() async {
     await openScreen(ResourcesScreen(character: character));
+  }
+
+  Future<void> openCounters() async {
+    await openScreen(
+      CharacterCountersScreen(character: character, onSave: saveCharacter),
+    );
   }
 
   // ===========================================================================
@@ -247,6 +255,296 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
   }
 
   // ===========================================================================
+  // COMBATE / TRIGGERS
+  // ===========================================================================
+
+  Future<void> applyDamage() async {
+    final amount = await _askCombatAmount(
+      title: 'Recibir daño',
+      label: 'Daño',
+      icon: Icons.heart_broken_rounded,
+    );
+
+    if (amount == null || amount <= 0) {
+      return;
+    }
+
+    setState(() {
+      character.takeDamage(amount);
+    });
+
+    await saveCharacter();
+  }
+
+  Future<void> applyHealing() async {
+    final amount = await _askCombatAmount(
+      title: 'Recibir curación',
+      label: 'Curación',
+      icon: Icons.favorite_rounded,
+    );
+
+    if (amount == null || amount <= 0) {
+      return;
+    }
+
+    setState(() {
+      character.heal(amount);
+    });
+
+    await saveCharacter();
+  }
+
+  Future<int?> _askCombatAmount({
+    required String title,
+    required String label,
+    required IconData icon,
+  }) {
+    final controller = TextEditingController();
+
+    return showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+
+          content: TextFormField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: label,
+              prefixIcon: Icon(icon),
+            ),
+            onFieldSubmitted: (_) {
+              final value = int.tryParse(controller.text.trim());
+
+              if (value != null && value > 0) {
+                Navigator.pop(dialogContext, value);
+              }
+            },
+          ),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                final value = int.tryParse(controller.text.trim());
+
+                if (value == null || value <= 0) {
+                  return;
+                }
+
+                Navigator.pop(dialogContext, value);
+              },
+              child: const Text('Aplicar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> registerKill() async {
+    character.incrementCounter('kills', 1);
+
+    character.dispatchPassiveTrigger(
+      PassiveTriggerEvent.enemyKilled,
+      eventVariables: const {'kills_gained': 1},
+    );
+
+    await saveCharacter();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
+
+  Future<void> showCombatActions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          child: Icon(
+                            character.turnActive
+                                ? Icons.sports_martial_arts_rounded
+                                : Icons.shield_rounded,
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Combate',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                              Text(
+                                'Ronda $character.combatRound · '
+                                '${character.turnActive ? 'Turno activo' : 'Esperando turno'}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: character.turnActive
+                                ? null
+                                : () async {
+                                    Navigator.pop(sheetContext);
+
+                                    character.startTurn();
+
+                                    await saveCharacter();
+
+                                    if (!mounted) {
+                                      return;
+                                    }
+
+                                    setState(() {});
+                                  },
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: const Text('Empezar turno'),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: !character.turnActive
+                                ? null
+                                : () async {
+                                    Navigator.pop(sheetContext);
+
+                                    character.endTurn();
+
+                                    await saveCharacter();
+
+                                    if (!mounted) {
+                                      return;
+                                    }
+
+                                    setState(() {});
+                                  },
+                            icon: const Icon(Icons.stop_rounded),
+                            label: const Text('Terminar'),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    ListTile(
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.repeat_rounded),
+                      ),
+                      title: const Text('Siguiente ronda'),
+                      subtitle: Text(
+                        'Ronda $character.combatRound → ${character.combatRound + 1}',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () async {
+                        Navigator.pop(sheetContext);
+
+                        character.startNextRound();
+
+                        await saveCharacter();
+
+                        if (!mounted) {
+                          return;
+                        }
+
+                        setState(() {});
+                      },
+                    ),
+
+                    const Divider(),
+
+                    ListTile(
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.heart_broken_rounded),
+                      ),
+                      title: const Text('Recibir daño'),
+                      subtitle: Text(
+                        '${character.currentHealth} / ${character.maxHealth} PG',
+                      ),
+                      onTap: () async {
+                        Navigator.pop(sheetContext);
+                        await applyDamage();
+                      },
+                    ),
+
+                    ListTile(
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.favorite_rounded),
+                      ),
+                      title: const Text('Recibir curación'),
+                      subtitle: Text(
+                        '${character.currentHealth} / ${character.maxHealth} PG',
+                      ),
+                      onTap: () async {
+                        Navigator.pop(sheetContext);
+                        await applyHealing();
+                      },
+                    ),
+
+                    const Divider(),
+
+                    ListTile(
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.sports_mma_rounded),
+                      ),
+                      title: const Text('Registrar enemigo derrotado'),
+                      subtitle: const Text('Dispara el evento enemyKilled'),
+                      onTap: () async {
+                        Navigator.pop(sheetContext);
+                        await registerKill();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
   // HELPERS
   // ===========================================================================
 
@@ -339,6 +637,19 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
             ),
           ),
         ),
+
+        actions: [
+          IconButton(
+            tooltip: 'Combate',
+            onPressed: showCombatActions,
+            icon: Badge(
+              isLabelVisible: character.turnActive,
+              child: const Icon(Icons.sports_martial_arts_rounded),
+            ),
+          ),
+
+          const SizedBox(width: 6),
+        ],
       ),
 
       body: SafeArea(
@@ -383,6 +694,13 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: _QuickResourceCard(
                         resource: resource,
+
+                        effectiveCurrent: character.resourceEffectiveCurrent(
+                          resource,
+                        ),
+
+                        effectiveMax: character.resourceEffectiveMax(resource),
+
                         onTap: () {
                           editResourceQuick(resource);
                         },
@@ -564,6 +882,16 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
             ),
 
             CharacterMenuCard(
+              icon: Icons.tag_rounded,
+              title: 'Contadores',
+              subtitle: character.counters.isEmpty
+                  ? 'Kills, críticos, combos y otros contadores'
+                  : '${character.counters.length} contadores configurados',
+              color: const Color(0xFF6C8CD5),
+              onTap: openCounters,
+            ),
+
+            CharacterMenuCard(
               icon: Icons.casino_rounded,
               title: 'Dados',
               subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
@@ -581,15 +909,32 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
 class _QuickResourceCard extends StatelessWidget {
   final CharacterResource resource;
+
+  final int effectiveCurrent;
+  final int? effectiveMax;
+
   final VoidCallback onTap;
 
-  const _QuickResourceCard({required this.resource, required this.onTap});
+  const _QuickResourceCard({
+    required this.resource,
+    required this.effectiveCurrent,
+    required this.effectiveMax,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final shownMax = effectiveMax ?? resource.maxValue;
+
     final progress = resource.hasMaximum
-        ? resource.percentage.clamp(0.0, 1.0)
+        ? shownMax <= 0
+              ? 0.0
+              : (effectiveCurrent / shownMax).clamp(0.0, 1.0)
         : 0.0;
+
+    final displayText = resource.hasMaximum
+        ? '$effectiveCurrent/$shownMax'
+        : '$effectiveCurrent';
 
     return InkWell(
       onTap: onTap,
@@ -617,7 +962,7 @@ class _QuickResourceCard extends StatelessWidget {
                 ),
 
                 Text(
-                  resource.displayText,
+                  displayText,
                   style: TextStyle(
                     color: resource.color,
                     fontWeight: FontWeight.w900,
@@ -626,10 +971,8 @@ class _QuickResourceCard extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 8),
-
             if (resource.hasMaximum) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
               ClipRRect(
                 borderRadius: BorderRadius.circular(20),

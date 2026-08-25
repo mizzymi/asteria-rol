@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/passive.dart';
 import '../../models/skill.dart';
+import '../../models/formulas/formula_bonus.dart';
 
 import '../common/info_badge.dart';
 
@@ -16,55 +17,55 @@ class ItemPassivePreview extends StatelessWidget {
 
     final badges = <Widget>[];
 
-    if (passive.armorClassBonus != 0) {
+    if (passive.armorClassBonus.hasValue) {
       badges.add(
         InfoBadge(
           icon: Icons.shield_rounded,
-          text: '${_bonus(passive.armorClassBonus)} CA',
+          text: '${_formulaBonus(passive.armorClassBonus)} CA',
           color: const Color(0xFF4D8FE8),
           highlighted: true,
         ),
       );
     }
 
-    if (passive.initiativeBonus != 0) {
+    if (passive.initiativeBonus.hasValue) {
       badges.add(
         InfoBadge(
           icon: Icons.bolt_rounded,
-          text: '${_bonus(passive.initiativeBonus)} iniciativa',
+          text: '${_formulaBonus(passive.initiativeBonus)} iniciativa',
           color: const Color(0xFFF2C94C),
           highlighted: true,
         ),
       );
     }
 
-    if (passive.speedBonus != 0) {
+    if (passive.speedBonus.hasValue) {
       badges.add(
         InfoBadge(
           icon: Icons.directions_run_rounded,
-          text: '${_bonus(passive.speedBonus)} pies',
+          text: '${_formulaBonus(passive.speedBonus)} pies',
           color: const Color(0xFF55B96B),
           highlighted: true,
         ),
       );
     }
 
-    if (passive.maxHealthBonus != 0) {
+    if (passive.maxHealthBonus.hasValue) {
       badges.add(
         InfoBadge(
           icon: Icons.favorite_rounded,
-          text: '${_bonus(passive.maxHealthBonus)} PG máx.',
+          text: '${_formulaBonus(passive.maxHealthBonus)} PG máx.',
           color: const Color(0xFFE84A8A),
           highlighted: true,
         ),
       );
     }
 
-    if (passive.attackBonus != 0) {
+    if (passive.attackBonus.hasValue) {
       badges.add(
         InfoBadge(
           icon: Icons.gps_fixed_rounded,
-          text: '${_bonus(passive.attackBonus)} al golpe',
+          text: '${_formulaBonus(passive.attackBonus)} al golpe',
           color: const Color(0xFFE85D5D),
           highlighted: true,
         ),
@@ -72,28 +73,32 @@ class ItemPassivePreview extends StatelessWidget {
     }
 
     for (final entry in passive.skillBonuses.entries) {
-      if (entry.value == 0) {
+      final bonus = entry.value;
+
+      if (!bonus.hasValue) {
         continue;
       }
 
       badges.add(
         InfoBadge(
           icon: Icons.bar_chart_rounded,
-          text: '${_bonus(entry.value)} ${entry.key.label}',
+          text: '${_formulaBonus(bonus)} ${entry.key.label}',
           color: const Color(0xFF8B6FE8),
         ),
       );
     }
 
     for (final entry in passive.savingThrowBonuses.entries) {
-      if (entry.value == 0) {
+      final bonus = entry.value;
+
+      if (!bonus.hasValue) {
         continue;
       }
 
       badges.add(
         InfoBadge(
           icon: Icons.security_rounded,
-          text: '${_bonus(entry.value)} Salv. ${entry.key.shortLabel}',
+          text: '${_formulaBonus(bonus)} Salv. ${entry.key.shortLabel}',
           color: const Color(0xFF4D8FE8),
         ),
       );
@@ -157,6 +162,24 @@ class ItemPassivePreview extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _formulaBonus(FormulaBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.flatValue != 0) {
+      pieces.add(_bonus(bonus.flatValue));
+    }
+
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
+    }
+
+    if (pieces.isEmpty) {
+      return '+0';
+    }
+
+    return pieces.join(' + ');
   }
 
   static String _bonus(int value) {

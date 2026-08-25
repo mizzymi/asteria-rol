@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rol/utils/number_format.dart';
 
 import '../../models/character_resource.dart';
 import '../common/app_card.dart';
@@ -10,12 +11,17 @@ class ResourceCard extends StatelessWidget {
   final VoidCallback onIncrease;
   final VoidCallback onTap;
 
+  final int? effectiveCurrentValue;
+  final int? effectiveMaxValue;
+
   const ResourceCard({
     super.key,
     required this.resource,
     required this.onDecrease,
     required this.onIncrease,
     required this.onTap,
+    this.effectiveCurrentValue,
+    this.effectiveMaxValue,
   });
 
   @override
@@ -24,9 +30,15 @@ class ResourceCard extends StatelessWidget {
 
     final color = resource.color;
 
-    final progress = resource.hasMaximum
-        ? resource.percentage.clamp(0.0, 1.0)
-        : 0.0;
+    final shownCurrent = effectiveCurrentValue ?? resource.currentValue;
+
+    final shownMax = effectiveMaxValue ?? resource.maxValue;
+
+    final progress = resource.isUnlimited
+        ? 0.0
+        : shownMax <= 0
+        ? 0.0
+        : (shownCurrent / shownMax).clamp(0.0, 1.0);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 12),
@@ -61,7 +73,9 @@ class ResourceCard extends StatelessWidget {
               ),
 
               Text(
-                resource.displayText,
+                resource.hasMaximum
+                    ? '${formatThousands(shownCurrent)}/${formatThousands(shownMax)}'
+                    : formatThousands(shownCurrent),
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: color,
@@ -88,21 +102,21 @@ class ResourceCard extends StatelessWidget {
 
           Row(
             children: [
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: resource.currentValue > 0 ? onDecrease : null,
-                  icon: const Icon(Icons.remove_rounded),
-                  label: const Text('Gastar'),
+              if (resource.spendable)
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: resource.currentValue > 0 ? onDecrease : null,
+                    icon: const Icon(Icons.remove_rounded),
+                    label: const Text('Gastar'),
+                  ),
                 ),
-              ),
 
               const SizedBox(width: 10),
 
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed:
-                      !resource.hasMaximum ||
-                          resource.currentValue < resource.maxValue
+                      !resource.hasMaximum || resource.currentValue < shownMax
                       ? onIncrease
                       : null,
                   icon: const Icon(Icons.add_rounded),

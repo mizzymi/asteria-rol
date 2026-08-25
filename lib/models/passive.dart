@@ -1,12 +1,141 @@
 import 'package:rol/models/character_effect.dart';
 
+import 'formulas/formula_bonus.dart';
+import 'formulas/character_formula.dart';
+import 'passive_resource_modifier.dart';
 import 'healing_bonus.dart';
 import 'skill.dart';
 import 'damage_bonus.dart';
 import 'critical_damage_bonus.dart';
 import 'dice_pool.dart';
 
+enum PassiveTriggerMode { once, whileCondition }
+
 enum PassiveSourceType { race, classFeature, feat, item, background, custom }
+
+enum PassiveTriggerEvent {
+  healthChanged,
+  resourceChanged,
+  chargeChanged,
+  counterChanged,
+
+  damageReceived,
+  damageDealt,
+  healed,
+  criticalHit,
+
+  enemyKilled,
+
+  turnStarted,
+  turnEnded,
+  roundStarted,
+  roundEnded,
+
+  manual,
+  custom,
+}
+
+enum PassiveTriggerActionType {
+  addResource,
+  subtractResource,
+  setResource,
+  addCharge,
+  subtractCharge,
+  applyEffect,
+  removeEffect,
+  dealDamage,
+  heal,
+  incrementCounter,
+  setCounter,
+}
+
+class PassiveTrigger {
+  String id;
+
+  PassiveTriggerEvent event;
+
+  CharacterFormula? condition;
+
+  PassiveTriggerActionType actionType;
+
+  String? targetId;
+
+  CharacterFormula? valueFormula;
+
+  String? customEvent;
+
+  PassiveTriggerMode mode;
+
+  PassiveTrigger({
+    required this.id,
+    required this.event,
+    required this.actionType,
+
+    this.mode = PassiveTriggerMode.once,
+
+    this.condition,
+    this.targetId,
+    this.valueFormula,
+    this.customEvent,
+  });
+
+  bool get hasCondition {
+    return condition != null &&
+        condition!.expression.trim().isNotEmpty &&
+        condition!.expression.trim() != '0';
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'event': event.name,
+      'condition': condition?.toMap(),
+      'actionType': actionType.name,
+      'targetId': targetId,
+      'valueFormula': valueFormula?.toMap(),
+      'customEvent': customEvent,
+      'mode': mode.name,
+    };
+  }
+
+  factory PassiveTrigger.fromMap(Map<dynamic, dynamic> map) {
+    final rawCondition = map['condition'];
+    final rawValueFormula = map['valueFormula'];
+
+    return PassiveTrigger(
+      id: map['id']?.toString() ?? '',
+
+      event: PassiveTriggerEvent.values.firstWhere(
+        (value) => value.name == map['event']?.toString(),
+        orElse: () => PassiveTriggerEvent.custom,
+      ),
+
+      actionType: PassiveTriggerActionType.values.firstWhere(
+        (value) => value.name == map['actionType']?.toString(),
+        orElse: () => PassiveTriggerActionType.incrementCounter,
+      ),
+
+      mode: PassiveTriggerMode.values.firstWhere(
+        (value) => value.name == map['mode']?.toString(),
+        orElse: () => PassiveTriggerMode.once,
+      ),
+
+      condition: rawCondition is Map
+          ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawCondition))
+          : null,
+
+      targetId: map['targetId']?.toString(),
+
+      valueFormula: rawValueFormula is Map
+          ? CharacterFormula.fromMap(
+              Map<dynamic, dynamic>.from(rawValueFormula),
+            )
+          : null,
+
+      customEvent: map['customEvent']?.toString(),
+    );
+  }
+}
 
 extension PassiveSourceTypeData on PassiveSourceType {
   String get label {
@@ -41,23 +170,29 @@ class CharacterPassive {
 
   bool enabled;
 
-  int armorClassBonus;
-  int initiativeBonus;
-  int speedBonus;
-  int maxHealthBonus;
-  int attackBonus;
+  FormulaBonus armorClassBonus;
+  FormulaBonus initiativeBonus;
+  FormulaBonus speedBonus;
+  FormulaBonus maxHealthBonus;
+  FormulaBonus attackBonus;
 
-  Map<AbilityType, int> abilityModifierBonuses;
+  Map<AbilityType, FormulaBonus> abilityModifierBonuses;
 
-  Map<DndSkill, int> skillBonuses;
+  Map<AbilityType, FormulaBonus> abilityScoreBonuses;
 
-  Map<AbilityType, int> savingThrowBonuses;
+  Map<DndSkill, FormulaBonus> skillBonuses;
+
+  Map<AbilityType, FormulaBonus> savingThrowBonuses;
 
   List<DamageBonus> damageBonuses;
 
   List<CriticalDamageBonus> criticalDamageBonuses;
 
   List<HealingBonus> healingBonuses;
+
+  List<PassiveResourceModifier> resourceModifiers;
+
+  List<PassiveTrigger> triggers;
 
   // ===========================================================================
   // TIRADA PROPIA DE LA PASIVA
@@ -104,6 +239,8 @@ class CharacterPassive {
   /// Cargas disponibles actualmente.
   int currentCharges;
 
+  bool unlimitedCharges;
+
   /// Texto libre:
   /// "Descanso largo", "Descanso corto", "Al amanecer", etc.
   String rechargeDescription;
@@ -116,17 +253,20 @@ class CharacterPassive {
     this.description = '',
     this.sourceType = PassiveSourceType.custom,
     this.enabled = true,
-    this.armorClassBonus = 0,
-    this.initiativeBonus = 0,
-    this.speedBonus = 0,
-    this.maxHealthBonus = 0,
-    this.attackBonus = 0,
-    Map<AbilityType, int>? abilityModifierBonuses,
-    Map<DndSkill, int>? skillBonuses,
-    Map<AbilityType, int>? savingThrowBonuses,
+    FormulaBonus? armorClassBonus,
+    FormulaBonus? initiativeBonus,
+    FormulaBonus? speedBonus,
+    FormulaBonus? maxHealthBonus,
+    FormulaBonus? attackBonus,
+    Map<AbilityType, FormulaBonus>? abilityModifierBonuses,
+    Map<AbilityType, FormulaBonus>? abilityScoreBonuses,
+    Map<DndSkill, FormulaBonus>? skillBonuses,
+    Map<AbilityType, FormulaBonus>? savingThrowBonuses,
     List<DamageBonus>? damageBonuses,
     List<HealingBonus>? healingBonuses,
     List<CriticalDamageBonus>? criticalDamageBonuses,
+    List<PassiveResourceModifier>? resourceModifiers,
+    List<PassiveTrigger>? triggers,
     List<DicePool>? rollDicePools,
     List<CharacterEffect>? linkedEffects,
     Map<AbilityType, int>? rollAbilityModifierMultipliers,
@@ -138,14 +278,26 @@ class CharacterPassive {
     this.hasCharges = false,
     this.maxCharges = 0,
     this.currentCharges = 0,
+    this.unlimitedCharges = false,
     this.rechargeDescription = '',
 
     this.notes = '',
-  }) : skillBonuses = Map<DndSkill, int>.from(skillBonuses ?? {}),
-       abilityModifierBonuses = Map<AbilityType, int>.from(
+  }) : armorClassBonus = armorClassBonus ?? FormulaBonus(),
+       initiativeBonus = initiativeBonus ?? FormulaBonus(),
+       speedBonus = speedBonus ?? FormulaBonus(),
+       maxHealthBonus = maxHealthBonus ?? FormulaBonus(),
+       attackBonus = attackBonus ?? FormulaBonus(),
+       skillBonuses = Map<DndSkill, FormulaBonus>.from(skillBonuses ?? {}),
+
+       abilityModifierBonuses = Map<AbilityType, FormulaBonus>.from(
          abilityModifierBonuses ?? {},
        ),
-       savingThrowBonuses = Map<AbilityType, int>.from(
+
+       abilityScoreBonuses = Map<AbilityType, FormulaBonus>.from(
+         abilityScoreBonuses ?? {},
+       ),
+
+       savingThrowBonuses = Map<AbilityType, FormulaBonus>.from(
          savingThrowBonuses ?? {},
        ),
        damageBonuses = List<DamageBonus>.from(damageBonuses ?? []),
@@ -153,6 +305,10 @@ class CharacterPassive {
          criticalDamageBonuses ?? [],
        ),
        healingBonuses = List<HealingBonus>.from(healingBonuses ?? []),
+       resourceModifiers = List<PassiveResourceModifier>.from(
+         resourceModifiers ?? [],
+       ),
+       triggers = triggers ?? [],
        rollDicePools = List<DicePool>.from(rollDicePools ?? []),
        linkedEffects = List<CharacterEffect>.from(linkedEffects ?? []),
        rollAbilityModifierMultipliers = Map<AbilityType, int>.from(
@@ -173,22 +329,28 @@ class CharacterPassive {
     return linkedEffects.isNotEmpty;
   }
 
+  bool get hasUnlimitedCharges {
+    return hasCharges && unlimitedCharges;
+  }
+
   // ===========================================================================
   // EFECTOS MECÁNICOS
   // ===========================================================================
 
   bool get hasMechanicalEffects {
-    return armorClassBonus != 0 ||
-        initiativeBonus != 0 ||
-        speedBonus != 0 ||
-        maxHealthBonus != 0 ||
-        attackBonus != 0 ||
-        abilityModifierBonuses.values.any((value) => value != 0) ||
-        skillBonuses.values.any((value) => value != 0) ||
-        savingThrowBonuses.values.any((value) => value != 0) ||
+    return armorClassBonus.hasValue ||
+        initiativeBonus.hasValue ||
+        speedBonus.hasValue ||
+        maxHealthBonus.hasValue ||
+        attackBonus.hasValue ||
+        abilityModifierBonuses.values.any((bonus) => bonus.hasValue) ||
+        abilityScoreBonuses.values.any((bonus) => bonus.hasValue) ||
+        skillBonuses.values.any((bonus) => bonus.hasValue) ||
+        savingThrowBonuses.values.any((bonus) => bonus.hasValue) ||
         damageBonuses.any((damage) => damage.hasDamage) ||
         criticalDamageBonuses.any((damage) => damage.canTrigger) ||
         healingBonuses.any((bonus) => bonus.hasHealing) ||
+        resourceModifiers.isNotEmpty ||
         hasRoll;
   }
 
@@ -197,27 +359,39 @@ class CharacterPassive {
   // ===========================================================================
 
   bool get usesCharges {
-    return hasCharges && maxCharges > 0;
+    return hasCharges;
   }
 
   bool get hasAvailableCharges {
-    return !usesCharges || currentCharges > 0;
+    return !hasCharges || currentCharges > 0;
   }
 
   bool get chargesEmpty {
-    return usesCharges && currentCharges <= 0;
+    return hasCharges && currentCharges <= 0;
+  }
+
+  bool get chargesFull {
+    if (!hasCharges || unlimitedCharges) {
+      return false;
+    }
+
+    return currentCharges >= maxCharges;
   }
 
   String get chargesText {
-    if (!usesCharges) {
+    if (!hasCharges) {
       return '';
+    }
+
+    if (unlimitedCharges) {
+      return '$currentCharges';
     }
 
     return '$currentCharges/$maxCharges';
   }
 
   void useCharge() {
-    if (!usesCharges) {
+    if (!hasCharges) {
       return;
     }
 
@@ -229,7 +403,12 @@ class CharacterPassive {
   }
 
   void restoreCharge() {
-    if (!usesCharges) {
+    if (!hasCharges) {
+      return;
+    }
+
+    if (unlimitedCharges) {
+      currentCharges++;
       return;
     }
 
@@ -239,7 +418,15 @@ class CharacterPassive {
   }
 
   void restoreCharges() {
-    if (!usesCharges) {
+    if (!hasCharges) {
+      return;
+    }
+
+    /*
+   * Una pasiva sin máximo no tiene un valor
+   * concreto al que pueda "rellenarse".
+   */
+    if (unlimitedCharges) {
       return;
     }
 
@@ -250,16 +437,25 @@ class CharacterPassive {
     if (!hasCharges) {
       maxCharges = 0;
       currentCharges = 0;
+      unlimitedCharges = false;
 
+      return;
+    }
+
+    if (currentCharges < 0) {
+      currentCharges = 0;
+    }
+
+    /*
+   * Las cargas ilimitadas no utilizan máximo.
+   */
+    if (unlimitedCharges) {
+      maxCharges = 0;
       return;
     }
 
     if (maxCharges < 1) {
       maxCharges = 1;
-    }
-
-    if (currentCharges < 0) {
-      currentCharges = 0;
     }
 
     if (currentCharges > maxCharges) {
@@ -279,24 +475,30 @@ class CharacterPassive {
       'sourceType': sourceType.name,
       'enabled': enabled,
 
-      'armorClassBonus': armorClassBonus,
-      'initiativeBonus': initiativeBonus,
-      'speedBonus': speedBonus,
-      'maxHealthBonus': maxHealthBonus,
-      'attackBonus': attackBonus,
+      'armorClassBonus': armorClassBonus.toMap(),
+      'initiativeBonus': initiativeBonus.toMap(),
+      'speedBonus': speedBonus.toMap(),
+      'maxHealthBonus': maxHealthBonus.toMap(),
+      'attackBonus': attackBonus.toMap(),
 
       'abilityModifierBonuses': {
         for (final entry in abilityModifierBonuses.entries)
-          entry.key.name: entry.value,
+          entry.key.name: entry.value.toMap(),
+      },
+
+      'abilityScoreBonuses': {
+        for (final entry in abilityScoreBonuses.entries)
+          entry.key.name: entry.value.toMap(),
       },
 
       'skillBonuses': {
-        for (final entry in skillBonuses.entries) entry.key.name: entry.value,
+        for (final entry in skillBonuses.entries)
+          entry.key.name: entry.value.toMap(),
       },
 
       'savingThrowBonuses': {
         for (final entry in savingThrowBonuses.entries)
-          entry.key.name: entry.value,
+          entry.key.name: entry.value.toMap(),
       },
 
       'damageBonuses': damageBonuses.map((damage) => damage.toMap()).toList(),
@@ -306,6 +508,12 @@ class CharacterPassive {
           .toList(),
 
       'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
+
+      'resourceModifiers': resourceModifiers
+          .map((modifier) => modifier.toMap())
+          .toList(),
+
+      'triggers': triggers.map((trigger) => trigger.toMap()).toList(),
 
       'rollDicePools': rollDicePools.map((pool) => pool.toMap()).toList(),
 
@@ -317,10 +525,12 @@ class CharacterPassive {
       },
 
       'rollFlatBonus': rollFlatBonus,
+
       // =======================================================================
       // CARGAS
       // =======================================================================
       'hasCharges': hasCharges,
+      'unlimitedCharges': unlimitedCharges,
       'maxCharges': maxCharges,
       'currentCharges': currentCharges,
       'rechargeDescription': rechargeDescription,
@@ -334,11 +544,37 @@ class CharacterPassive {
   // ===========================================================================
 
   factory CharacterPassive.fromMap(Map<dynamic, dynamic> map) {
+    FormulaBonus readFormulaBonus(dynamic raw) {
+      if (raw is Map) {
+        return FormulaBonus.fromMap(Map<dynamic, dynamic>.from(raw));
+      }
+
+      if (raw is num) {
+        return FormulaBonus(flatValue: raw.toInt());
+      }
+
+      return FormulaBonus();
+    }
+
+    final triggers = <PassiveTrigger>[];
+
+    final rawTriggers = map['triggers'];
+
+    if (rawTriggers is List) {
+      for (final raw in rawTriggers) {
+        if (raw is! Map) {
+          continue;
+        }
+
+        triggers.add(PassiveTrigger.fromMap(Map<dynamic, dynamic>.from(raw)));
+      }
+    }
+
     // =========================================================================
     // SKILLS
     // =========================================================================
 
-    final skillBonuses = <DndSkill, int>{};
+    final skillBonuses = <DndSkill, FormulaBonus>{};
 
     final rawSkills = map['skillBonuses'];
 
@@ -346,10 +582,10 @@ class CharacterPassive {
       final skillMap = Map<dynamic, dynamic>.from(rawSkills);
 
       for (final skill in DndSkill.values) {
-        final value = (skillMap[skill.name] as num?)?.toInt() ?? 0;
+        final bonus = readFormulaBonus(skillMap[skill.name]);
 
-        if (value != 0) {
-          skillBonuses[skill] = value;
+        if (bonus.hasValue) {
+          skillBonuses[skill] = bonus;
         }
       }
     }
@@ -358,7 +594,7 @@ class CharacterPassive {
     // ATRIBUTOS
     // =========================================================================
 
-    final abilityModifierBonuses = <AbilityType, int>{};
+    final abilityModifierBonuses = <AbilityType, FormulaBonus>{};
 
     final rawAbilityBonuses = map['abilityModifierBonuses'];
 
@@ -366,10 +602,38 @@ class CharacterPassive {
       final bonusMap = Map<dynamic, dynamic>.from(rawAbilityBonuses);
 
       for (final ability in AbilityType.values) {
-        final value = (bonusMap[ability.name] as num?)?.toInt() ?? 0;
+        final bonus = readFormulaBonus(bonusMap[ability.name]);
 
-        if (value != 0) {
-          abilityModifierBonuses[ability] = value;
+        if (bonus.hasValue) {
+          abilityModifierBonuses[ability] = bonus;
+        }
+      }
+    }
+
+    final abilityScoreBonuses = <AbilityType, FormulaBonus>{};
+
+    final rawAbilityScoreBonuses = map['abilityScoreBonuses'];
+
+    if (rawAbilityScoreBonuses is Map) {
+      final bonusMap = Map<dynamic, dynamic>.from(rawAbilityScoreBonuses);
+
+      for (final ability in AbilityType.values) {
+        final rawBonus = bonusMap[ability.name];
+
+        if (rawBonus is! Map) {
+          continue;
+        }
+
+        try {
+          final bonus = FormulaBonus.fromMap(
+            Map<dynamic, dynamic>.from(rawBonus),
+          );
+
+          if (bonus.hasValue) {
+            abilityScoreBonuses[ability] = bonus;
+          }
+        } catch (_) {
+          continue;
         }
       }
     }
@@ -378,7 +642,7 @@ class CharacterPassive {
     // SALVACIONES
     // =========================================================================
 
-    final savingThrowBonuses = <AbilityType, int>{};
+    final savingThrowBonuses = <AbilityType, FormulaBonus>{};
 
     final rawSaves = map['savingThrowBonuses'];
 
@@ -386,10 +650,10 @@ class CharacterPassive {
       final saveMap = Map<dynamic, dynamic>.from(rawSaves);
 
       for (final ability in AbilityType.values) {
-        final value = (saveMap[ability.name] as num?)?.toInt() ?? 0;
+        final bonus = readFormulaBonus(saveMap[ability.name]);
 
-        if (value != 0) {
-          savingThrowBonuses[ability] = value;
+        if (bonus.hasValue) {
+          savingThrowBonuses[ability] = bonus;
         }
       }
     }
@@ -535,6 +799,8 @@ class CharacterPassive {
 
     final maxCharges = (map['maxCharges'] as num?)?.toInt() ?? 0;
 
+    final unlimitedCharges = map['unlimitedCharges'] as bool? ?? false;
+
     int currentCharges;
 
     if (map.containsKey('currentCharges')) {
@@ -548,6 +814,28 @@ class CharacterPassive {
        * currentCharges, empieza llena.
        */
       currentCharges = hasCharges ? maxCharges : 0;
+    }
+
+    final resourceModifiers = <PassiveResourceModifier>[];
+
+    final rawResourceModifiers = map['resourceModifiers'];
+
+    if (rawResourceModifiers is List) {
+      for (final rawModifier in rawResourceModifiers) {
+        if (rawModifier is! Map) {
+          continue;
+        }
+
+        try {
+          resourceModifiers.add(
+            PassiveResourceModifier.fromMap(
+              Map<dynamic, dynamic>.from(rawModifier),
+            ),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
     }
 
     // =========================================================================
@@ -568,15 +856,15 @@ class CharacterPassive {
 
       enabled: map['enabled'] as bool? ?? true,
 
-      armorClassBonus: (map['armorClassBonus'] as num?)?.toInt() ?? 0,
+      armorClassBonus: readFormulaBonus(map['armorClassBonus']),
 
-      initiativeBonus: (map['initiativeBonus'] as num?)?.toInt() ?? 0,
+      initiativeBonus: readFormulaBonus(map['initiativeBonus']),
 
-      speedBonus: (map['speedBonus'] as num?)?.toInt() ?? 0,
+      speedBonus: readFormulaBonus(map['speedBonus']),
 
-      maxHealthBonus: (map['maxHealthBonus'] as num?)?.toInt() ?? 0,
+      maxHealthBonus: readFormulaBonus(map['maxHealthBonus']),
 
-      attackBonus: (map['attackBonus'] as num?)?.toInt() ?? 0,
+      attackBonus: readFormulaBonus(map['attackBonus']),
 
       skillBonuses: skillBonuses,
 
@@ -584,11 +872,17 @@ class CharacterPassive {
 
       abilityModifierBonuses: abilityModifierBonuses,
 
+      abilityScoreBonuses: abilityScoreBonuses,
+
       damageBonuses: damageBonuses,
 
       criticalDamageBonuses: criticalDamageBonuses,
 
       healingBonuses: healingBonuses,
+
+      resourceModifiers: resourceModifiers,
+
+      triggers: triggers,
 
       rollDicePools: rollDicePools,
 
@@ -597,12 +891,15 @@ class CharacterPassive {
       rollAbilityModifierMultipliers: rollAbilityModifierMultipliers,
 
       rollFlatBonus: (map['rollFlatBonus'] as num?)?.toInt() ?? 0,
+
       // =======================================================================
       // CARGAS
       // =======================================================================
       hasCharges: hasCharges,
 
-      maxCharges: maxCharges,
+      unlimitedCharges: hasCharges && unlimitedCharges,
+
+      maxCharges: hasCharges && !unlimitedCharges ? maxCharges : 0,
 
       currentCharges: currentCharges,
 

@@ -229,7 +229,9 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   Future<void> createPassive() async {
     final passive = await Navigator.push<CharacterPassive>(
       context,
-      MaterialPageRoute(builder: (_) => const PassiveFormScreen()),
+      MaterialPageRoute(
+        builder: (_) => PassiveFormScreen(character: character),
+      ),
     );
 
     if (passive == null) {
@@ -252,7 +254,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   Future<void> editPassive(CharacterPassive passive) async {
     final result = await Navigator.push<CharacterPassive>(
       context,
-      MaterialPageRoute(builder: (_) => PassiveFormScreen(passive: passive)),
+      MaterialPageRoute(
+        builder: (_) =>
+            PassiveFormScreen(character: character, passive: passive),
+      ),
     );
 
     if (result == null) {

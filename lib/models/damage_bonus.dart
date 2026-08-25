@@ -1,5 +1,6 @@
 import 'dice_pool.dart';
 import 'skill.dart';
+import 'formulas/character_formula.dart';
 
 class DamageBonus {
   String id;
@@ -14,6 +15,8 @@ class DamageBonus {
 
   String damageType;
 
+  CharacterFormula? formula;
+
   DamageBonus({
     required this.id,
     this.name = '',
@@ -21,13 +24,22 @@ class DamageBonus {
     Map<AbilityType, int>? abilityModifierMultipliers,
     this.flatBonus = 0,
     this.damageType = '',
+    this.formula,
   }) : dicePools = dicePools ?? [],
        abilityModifierMultipliers = abilityModifierMultipliers ?? {};
 
   bool get hasDamage {
     return dicePools.isNotEmpty ||
-        abilityModifierMultipliers.values.any((value) => value != 0) ||
-        flatBonus != 0;
+        flatBonus != 0 ||
+        abilityModifierMultipliers.values.any(
+              (value) => value != 0,
+        );
+  }
+
+  bool get hasFormula {
+    return formula != null &&
+        formula!.expression.trim().isNotEmpty &&
+        formula!.expression.trim() != '0';
   }
 
   String get diceNotation {
@@ -49,6 +61,8 @@ class DamageBonus {
       'flatBonus': flatBonus,
 
       'damageType': damageType,
+
+      'formula': formula?.toMap(),
     };
   }
 
@@ -87,6 +101,14 @@ class DamageBonus {
       }
     }
 
+    final rawFormula = map['formula'];
+
+    final formula = rawFormula is Map
+        ? CharacterFormula.fromMap(
+      Map<dynamic, dynamic>.from(rawFormula),
+    )
+        : null;
+
     return DamageBonus(
       id: map['id']?.toString() ?? '',
 
@@ -99,6 +121,8 @@ class DamageBonus {
       flatBonus: (map['flatBonus'] as num?)?.toInt() ?? 0,
 
       damageType: map['damageType']?.toString() ?? '',
+
+      formula: formula,
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/character.dart';
 import '../models/character_resource.dart';
 
+import '../services/resource_modifier_resolver.dart';
 import '../services/character_storage_service.dart';
 
 import '../widgets/common/empty_state.dart';
@@ -145,6 +146,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   Widget build(BuildContext context) {
     final resources = character.resources;
 
+    final resolver = ResourceModifierResolver(character: character);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Recursos')),
 
@@ -162,6 +165,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
               itemCount: resources.length,
               itemBuilder: (context, index) {
                 final resource = resources[index];
+                final effectiveCurrent = resolver.resolveCurrent(resource);
+
+                final effectiveMax = resolver.resolveMax(resource);
 
                 return Dismissible(
                   key: ValueKey(resource.id),
@@ -185,6 +191,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                   ),
                   child: ResourceCard(
                     resource: resource,
+                    effectiveCurrentValue: effectiveCurrent,
+                    effectiveMaxValue: effectiveMax,
                     onDecrease: () {
                       decreaseResource(resource);
                     },

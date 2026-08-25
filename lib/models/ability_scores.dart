@@ -17,9 +17,9 @@ class AbilityScores {
     this.charisma = 10,
   });
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
   // CÁLCULO DE MODIFICADORES
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   static int modifierFor(int value) {
     return ((value - 10) / 2).floor();
@@ -37,35 +37,43 @@ class AbilityScores {
 
   int get charismaModifier => modifierFor(charisma);
 
-  // ---------------------------------------------------------------------------
-  // OBTENER MODIFICADOR SEGÚN ATRIBUTO
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
+  // OBTENER PUNTUACIÓN SEGÚN ATRIBUTO
+  // ===========================================================================
 
-  int modifierByType(AbilityType type) {
+  int valueByType(AbilityType type) {
     switch (type) {
       case AbilityType.strength:
-        return strengthModifier;
+        return strength;
 
       case AbilityType.dexterity:
-        return dexterityModifier;
+        return dexterity;
 
       case AbilityType.constitution:
-        return constitutionModifier;
+        return constitution;
 
       case AbilityType.intelligence:
-        return intelligenceModifier;
+        return intelligence;
 
       case AbilityType.wisdom:
-        return wisdomModifier;
+        return wisdom;
 
       case AbilityType.charisma:
-        return charismaModifier;
+        return charisma;
     }
   }
 
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
+  // OBTENER MODIFICADOR SEGÚN ATRIBUTO
+  // ===========================================================================
+
+  int modifierByType(AbilityType type) {
+    return modifierFor(valueByType(type));
+  }
+
+  // ===========================================================================
   // SERIALIZACIÓN
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
 
   Map<String, dynamic> toMap() {
     return {
@@ -84,12 +92,12 @@ class AbilityScores {
     }
 
     return AbilityScores(
-      strength: map['strength'] ?? 10,
-      dexterity: map['dexterity'] ?? 10,
-      constitution: map['constitution'] ?? 10,
-      intelligence: map['intelligence'] ?? 10,
-      wisdom: map['wisdom'] ?? 10,
-      charisma: map['charisma'] ?? 10,
+      strength: (map['strength'] as num?)?.toInt() ?? 10,
+      dexterity: (map['dexterity'] as num?)?.toInt() ?? 10,
+      constitution: (map['constitution'] as num?)?.toInt() ?? 10,
+      intelligence: (map['intelligence'] as num?)?.toInt() ?? 10,
+      wisdom: (map['wisdom'] as num?)?.toInt() ?? 10,
+      charisma: (map['charisma'] as num?)?.toInt() ?? 10,
     );
   }
 }

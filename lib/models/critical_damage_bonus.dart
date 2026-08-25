@@ -1,5 +1,6 @@
 import 'dice_pool.dart';
 import 'skill.dart';
+import 'formulas/character_formula.dart';
 
 class CriticalDamageBonus {
   String id;
@@ -11,6 +12,8 @@ class CriticalDamageBonus {
   Map<AbilityType, int> abilityModifierMultipliers;
 
   int flatBonus;
+
+  CharacterFormula? formula;
 
   /// 0 - 100
   int chancePercent;
@@ -25,11 +28,12 @@ class CriticalDamageBonus {
     List<DicePool>? dicePools,
     Map<AbilityType, int>? abilityModifierMultipliers,
     this.flatBonus = 0,
+    this.formula,
     this.chancePercent = 100,
     this.damageType = '',
     this.description = '',
   }) : dicePools = dicePools ?? [],
-       abilityModifierMultipliers = abilityModifierMultipliers ?? {} {
+        abilityModifierMultipliers = abilityModifierMultipliers ?? {} {
     normalize();
   }
 
@@ -41,10 +45,17 @@ class CriticalDamageBonus {
     return chancePercent >= 100;
   }
 
+  bool get hasFormula {
+    return formula != null &&
+        formula!.expression.trim().isNotEmpty &&
+        formula!.expression.trim() != '0';
+  }
+
   bool get hasDamage {
     return dicePools.isNotEmpty ||
         abilityModifierMultipliers.values.any((value) => value != 0) ||
-        flatBonus != 0;
+        flatBonus != 0 ||
+        hasFormula;
   }
 
   bool get canTrigger {
@@ -83,6 +94,8 @@ class CriticalDamageBonus {
 
       'flatBonus': flatBonus,
 
+      'formula': formula?.toMap(),
+
       'chancePercent': chancePercent,
 
       'damageType': damageType,
@@ -103,7 +116,11 @@ class CriticalDamageBonus {
         }
 
         try {
-          dicePools.add(DicePool.fromMap(Map<dynamic, dynamic>.from(rawPool)));
+          dicePools.add(
+            DicePool.fromMap(
+              Map<dynamic, dynamic>.from(rawPool),
+            ),
+          );
         } catch (_) {
           continue;
         }
@@ -115,16 +132,20 @@ class CriticalDamageBonus {
     final rawMultipliers = map['abilityModifierMultipliers'];
 
     if (rawMultipliers is Map) {
-      final multiplierMap = Map<dynamic, dynamic>.from(rawMultipliers);
+      final multiplierMap =
+      Map<dynamic, dynamic>.from(rawMultipliers);
 
       for (final ability in AbilityType.values) {
-        final value = (multiplierMap[ability.name] as num?)?.toInt() ?? 0;
+        final value =
+            (multiplierMap[ability.name] as num?)?.toInt() ?? 0;
 
         if (value != 0) {
           multipliers[ability] = value;
         }
       }
     }
+
+    final rawFormula = map['formula'];
 
     return CriticalDamageBonus(
       id: map['id']?.toString() ?? '',
@@ -135,13 +156,23 @@ class CriticalDamageBonus {
 
       abilityModifierMultipliers: multipliers,
 
-      flatBonus: (map['flatBonus'] as num?)?.toInt() ?? 0,
+      flatBonus:
+      (map['flatBonus'] as num?)?.toInt() ?? 0,
 
-      chancePercent: (map['chancePercent'] as num?)?.toInt() ?? 100,
+      formula: rawFormula is Map
+          ? CharacterFormula.fromMap(
+        Map<dynamic, dynamic>.from(rawFormula),
+      )
+          : null,
 
-      damageType: map['damageType']?.toString() ?? '',
+      chancePercent:
+      (map['chancePercent'] as num?)?.toInt() ?? 100,
 
-      description: map['description']?.toString() ?? '',
+      damageType:
+      map['damageType']?.toString() ?? '',
+
+      description:
+      map['description']?.toString() ?? '',
     );
   }
 }

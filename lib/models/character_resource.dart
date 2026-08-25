@@ -14,6 +14,7 @@ class CharacterResource {
   IconData icon;
   int colorValue;
   bool visible;
+  bool spendable;
 
   CharacterResource({
     required this.id,
@@ -24,6 +25,7 @@ class CharacterResource {
     this.icon = Icons.bolt_rounded,
     this.colorValue = 0xFF8B5CF6,
     this.visible = true,
+    this.spendable = true,
   });
 
   Color get color => Color(colorValue);
@@ -50,9 +52,7 @@ class CharacterResource {
 
   String get displayText {
     if (!hasMaximum) {
-      return formatThousands(
-        currentValue,
-      );
+      return formatThousands(currentValue);
     }
 
     return '${formatThousands(currentValue)}/${formatThousands(maxValue)}';
@@ -70,24 +70,20 @@ class CharacterResource {
     }
   }
 
-  void restore(int amount) {
+  void restore(int amount, {int? maximum}) {
     if (amount <= 0) {
       return;
     }
 
     currentValue += amount;
 
-    if (hasMaximum && currentValue > maxValue) {
-      currentValue = maxValue;
+    if (maximum != null && currentValue > maximum) {
+      currentValue = maximum;
     }
   }
 
-  void restoreFull() {
-    if (!hasMaximum) {
-      return;
-    }
-
-    currentValue = maxValue;
+  void restoreFull({required int maximum}) {
+    currentValue = maximum;
   }
 
   void empty() {
@@ -95,6 +91,7 @@ class CharacterResource {
   }
 
   void normalize() {
+    // Recurso sin máximo.
     if (!hasMaximum) {
       maxValue = 0;
 
@@ -105,6 +102,7 @@ class CharacterResource {
       return;
     }
 
+    // El máximo BASE mínimo es 1.
     if (maxValue < 1) {
       maxValue = 1;
     }
@@ -113,9 +111,14 @@ class CharacterResource {
       currentValue = 0;
     }
 
-    if (currentValue > maxValue) {
-      currentValue = maxValue;
-    }
+    // IMPORTANTE:
+    // No limitar currentValue contra maxValue aquí.
+    //
+    // maxValue es el máximo BASE.
+    // El máximo real puede ser superior debido a pasivas.
+    //
+    // El límite contra el máximo EFECTIVO
+    // se hará desde Character.normalizeResource().
   }
 
   Map<String, dynamic> toMap() {
@@ -128,6 +131,7 @@ class CharacterResource {
       'iconCodePoint': icon.codePoint,
       'colorValue': colorValue,
       'visible': visible,
+      'spendable': spendable,
     };
   }
 
@@ -153,6 +157,8 @@ class CharacterResource {
       colorValue: (map['colorValue'] as num?)?.toInt() ?? 0xFF8B5CF6,
 
       visible: map['visible'] as bool? ?? true,
+
+      spendable: map['spendable'] as bool? ?? true,
     );
 
     resource.normalize();

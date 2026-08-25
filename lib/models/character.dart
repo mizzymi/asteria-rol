@@ -1,7 +1,17 @@
 import 'dart:math';
 import 'package:rol/models/ability_effect_part.dart';
-
+import '../services/resource_modifier_resolver.dart';
+import '../services/formula_evaluator.dart';
+import '../services/passive_trigger_engine.dart';
+import 'formulas/formula_bonus.dart';
+import 'formulas/character_formula.dart';
+import 'formulas/character_formula_context.dart';
+import 'formulas/formula_modifier.dart';
+import 'character_counter.dart';
+import 'passive_resource_modifier.dart';
+import 'formulas/formula_context.dart';
 import 'character_resource.dart';
+import 'active_damage_bonus.dart';
 import 'ability.dart';
 import 'ability_scores.dart';
 import 'character_class_level.dart';
@@ -74,15 +84,23 @@ class Character {
 
   List<CharacterEffect> effects;
 
-  List<DamageBonus> get activeDamageBonuses {
-    final result = <DamageBonus>[];
+  int combatRound;
+
+  bool turnActive;
+
+  List<ActiveDamageBonus> get activeDamageBonuses {
+    final result = <ActiveDamageBonus>[];
 
     for (final passive in enabledPassives) {
-      result.addAll(passive.damageBonuses);
+      for (final bonus in passive.damageBonuses) {
+        result.add(ActiveDamageBonus(bonus: bonus, passive: passive));
+      }
     }
 
     for (final effect in enabledEffects) {
-      result.addAll(effect.damageBonuses);
+      for (final bonus in effect.damageBonuses) {
+        result.add(ActiveDamageBonus(bonus: bonus));
+      }
     }
 
     return result;
@@ -147,16 +165,22 @@ class Character {
   List<DamageBonusResult> rollActiveDamageBonuses({bool critical = false}) {
     final results = <DamageBonusResult>[];
 
-    for (final bonus in activeDamageBonuses) {
+    for (final active in activeDamageBonuses) {
+      final bonus = active.bonus;
+
       if (!bonus.hasDamage) {
         continue;
       }
 
-      results.add(rollDamageBonus(bonus, critical: critical));
+      results.add(
+        rollDamageBonus(bonus, passive: active.passive, critical: critical),
+      );
     }
 
     return results;
   }
+
+  List<CharacterCounter> counters;
 
   Character({
     required this.id,
@@ -193,6 +217,9 @@ class Character {
     List<CharacterItem>? items,
     List<CharacterResource>? resources,
     List<CharacterEffect>? effects,
+    this.combatRound = 1,
+    this.turnActive = false,
+    List<CharacterCounter>? counters,
   }) : classes = _resolveClasses(
          classes: classes,
          dndClass: dndClass,
@@ -211,6 +238,7 @@ class Character {
        items = items ?? [],
        resources = resources ?? [],
        effects = effects ?? [],
+       counters = List<CharacterCounter>.from(counters ?? []),
        currentHealth = currentHealth ?? -1 {
     /*
      * D&D:
@@ -236,6 +264,159 @@ class Character {
     }
 
     normalizeHealth();
+  }
+
+  void dispatchPassiveTrigger(
+    PassiveTriggerEvent event, {
+    Map<String, double> eventVariables = const {},
+  }) {
+    final engine = PassiveTriggerEngine(character: this);
+
+    engine.dispatch(event, eventVariables: eventVariables);
+
+    engine.refreshPersistentTriggers(eventVariables: eventVariables);
+  }
+
+  void refreshPassiveTriggers({Map<String, double> eventVariables = const {}}) {
+    final engine = PassiveTriggerEngine(character: this);
+
+    engine.refreshPersistentTriggers(eventVariables: eventVariables);
+  }
+
+  int evaluateFormulaBonus(FormulaBonus bonus, {CharacterPassive? passive}) {
+    var result = bonus.flatValue;
+
+    final formula = bonus.formula;
+
+    if (formula == null ||
+        formula.expression.trim().isEmpty ||
+        formula.expression.trim() == '0') {
+      return result;
+    }
+
+    final resolver = ResourceModifierResolver(character: this);
+
+    final formulaResult = const FormulaEvaluator().evaluate(
+      formula,
+      context: CharacterFormulaContext.fromCharacter(
+        this,
+        passive: passive,
+
+        resourceResolver: (resourceId) {
+          final resource = resourceById(resourceId);
+
+          if (resource == null) {
+            return null;
+          }
+
+          final snapshot = resolver.resolveSnapshot(resource);
+
+          return FormulaResourceValue(
+            baseCurrentValue: snapshot.baseCurrentValue,
+            baseMaxValue: snapshot.baseMaxValue,
+            currentValue: snapshot.currentValue,
+            maxValue: snapshot.maxValue,
+          );
+        },
+
+        baseResourceResolver: (resourceId) {
+          final resource = resourceById(resourceId);
+
+          if (resource == null) {
+            return null;
+          }
+
+          final baseMax = resource.hasMaximum
+              ? resource.maxValue.toDouble()
+              : null;
+
+          return FormulaResourceValue(
+            baseCurrentValue: resource.currentValue.toDouble(),
+            baseMaxValue: baseMax,
+            currentValue: resource.currentValue.toDouble(),
+            maxValue: baseMax,
+          );
+        },
+      ),
+    );
+
+    if (!formulaResult.valid) {
+      return result;
+    }
+
+    result += formulaResult.value.round();
+
+    return result;
+  }
+
+  // ===========================================================================
+  // COMBATE · RONDAS / TURNOS
+  // ===========================================================================
+
+  void startTurn() {
+    if (turnActive) {
+      return;
+    }
+
+    turnActive = true;
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.turnStarted,
+      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 1},
+    );
+  }
+
+  void endTurn() {
+    if (!turnActive) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.turnEnded,
+      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+    );
+
+    turnActive = false;
+  }
+
+  void startNextRound() {
+    // Si quedaba un turno abierto, lo cerramos.
+    if (turnActive) {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.turnEnded,
+        eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+      );
+
+      turnActive = false;
+    }
+
+    combatRound++;
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.roundStarted,
+      eventVariables: {'round': combatRound.toDouble()},
+    );
+  }
+
+  void resetCombat() {
+    if (turnActive) {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.turnEnded,
+        eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+      );
+    }
+
+    turnActive = false;
+    combatRound = 1;
+
+    refreshPassiveTriggers(
+      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+    );
+  }
+
+  String get combatStatusText {
+    return 'Ronda $combatRound · '
+        '${turnActive ? 'Turno activo' : 'Esperando turno'}';
   }
 
   // ===========================================================================
@@ -405,6 +586,26 @@ class Character {
     return null;
   }
 
+  int? effectiveResourceCurrentById(String resourceId) {
+    final resource = resourceById(resourceId);
+
+    if (resource == null) {
+      return null;
+    }
+
+    return resourceEffectiveCurrent(resource);
+  }
+
+  int? effectiveResourceMaxById(String resourceId) {
+    final resource = resourceById(resourceId);
+
+    if (resource == null || !resource.hasMaximum) {
+      return null;
+    }
+
+    return resourceEffectiveMax(resource);
+  }
+
   CharacterResource? resourceForAbility(CharacterAbility ability) {
     final resourceId = ability.resourceId;
 
@@ -460,15 +661,70 @@ class Character {
   }
 
   void consumeResource(CharacterResource resource, int amount) {
+    if (!resource.spendable) {
+      return;
+    }
+
+    if (amount <= 0) {
+      return;
+    }
+
     resource.consume(amount);
+
+    normalizeResource(resource);
   }
 
   void restoreResource(CharacterResource resource, int amount) {
-    resource.restore(amount);
+    if (amount <= 0) {
+      return;
+    }
+
+    if (!resource.hasMaximum) {
+      resource.restore(amount);
+      return;
+    }
+
+    final effectiveMax = resourceEffectiveMax(resource);
+
+    if (effectiveMax == null) {
+      return;
+    }
+
+    resource.restore(amount, maximum: effectiveMax);
   }
 
   void restoreResourceFull(CharacterResource resource) {
-    resource.restoreFull();
+    if (!resource.hasMaximum) {
+      return;
+    }
+
+    final effectiveMax = resourceEffectiveMax(resource);
+
+    if (effectiveMax == null) {
+      return;
+    }
+
+    resource.restoreFull(maximum: effectiveMax);
+  }
+
+  void normalizeResource(CharacterResource resource) {
+    if (resource.currentValue < 0) {
+      resource.currentValue = 0;
+    }
+
+    if (!resource.hasMaximum) {
+      return;
+    }
+
+    final effectiveMax = resourceEffectiveMax(resource);
+
+    if (effectiveMax == null) {
+      return;
+    }
+
+    if (resource.currentValue > effectiveMax) {
+      resource.currentValue = effectiveMax;
+    }
   }
 
   // ===========================================================================
@@ -508,33 +764,146 @@ class Character {
   }
 
   // ===========================================================================
-  // ATRIBUTOS / MODIFICADORES
+  // ATRIBUTOS / STATS / MODIFICADORES
   // ===========================================================================
 
-  /// Modificador natural del atributo, sin pasivas.
+  /// Valor BASE del atributo.
+  ///
+  /// Es el valor guardado directamente en [abilities].
   ///
   /// Ejemplo:
-  /// SAB 16 = +3
-  int baseAbilityModifier(AbilityType ability) {
-    return abilities.modifierByType(ability);
+  /// FUE base = 16
+  int baseAbilityScore(AbilityType ability) {
+    return abilities.valueByType(ability);
   }
 
-  /// Modificador efectivo del atributo.
-  ///
-  /// Incluye:
-  /// - modificador natural
-  /// - bonus de pasivas
-  /// - bonus de objetos equipados
+  /// Bonus al VALOR BASE del atributo procedente de pasivas.
   ///
   /// Ejemplo:
-  /// SAB 16 = +3
-  /// Pasiva = +1 SAB
-  /// Resultado = +4
+  /// FUE base = 16
+  /// Pasiva = +2 FUE
+  ///
+  /// abilityScore(FUE) = 18
+  int passiveAbilityScoreBonus(AbilityType ability) {
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      final bonus = passive.abilityScoreBonuses[ability];
+
+      if (bonus == null || !bonus.hasValue) {
+        continue;
+      }
+
+      total += evaluateFormulaBonus(bonus, passive: passive);
+    }
+
+    return total;
+  }
+
+  /// Valor EFECTIVO del atributo.
+  ///
+  /// Incluye:
+  /// - valor base
+  /// - modificaciones de pasivas
+  ///
+  /// Ejemplo:
+  /// FUE base = 16
+  /// Pasiva = +2 FUE
+  ///
+  /// Resultado = 18
+  int abilityScore(AbilityType ability) {
+    return baseAbilityScore(ability) + passiveAbilityScoreBonus(ability);
+  }
+
+  /// Modificador BASE.
+  ///
+  /// IMPORTANTE:
+  /// Se calcula usando únicamente el atributo BASE.
+  ///
+  /// Ejemplo:
+  /// FUE base = 16
+  /// Resultado = +3
+  int baseAbilityModifier(AbilityType ability) {
+    return AbilityScores.modifierFor(baseAbilityScore(ability));
+  }
+
+  /// Modificador procedente específicamente de pasivas.
+  ///
+  /// Este es el sistema de "Mod" de las pasivas.
+  ///
+  /// No modifica el valor del atributo.
+  /// Modifica directamente su modificador.
+  ///
+  /// Ejemplo:
+  /// FUE 16 = +3
+  /// Pasiva Mod FUE = +1
+  ///
+  /// Resultado final = +4
+  int passiveAbilityModifierBonus(AbilityType ability) {
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      final bonus = passive.abilityModifierBonuses[ability];
+
+      if (bonus == null || !bonus.hasValue) {
+        continue;
+      }
+
+      total += evaluateFormulaBonus(bonus, passive: passive);
+    }
+
+    return total;
+  }
+
+  /// Bonus al modificador procedente de efectos activos.
+  int effectAbilityModifierBonus(AbilityType ability) {
+    return enabledEffects.fold<int>(
+      0,
+      (sum, effect) => sum + (effect.abilityModifierBonuses[ability] ?? 0),
+    );
+  }
+
+  /// Modificador EFECTIVO del atributo.
+  ///
+  /// Orden:
+  ///
+  /// 1. Calcula el valor efectivo del stat.
+  /// 2. Convierte ese stat en modificador.
+  /// 3. Añade modificaciones directas al MOD.
+  /// 4. Añade modificaciones de efectos.
+  ///
+  /// Ejemplo:
+  ///
+  /// FUE base = 16
+  /// Base Stat pasiva = +2
+  ///
+  /// FUE efectiva = 18
+  /// Mod natural = +4
+  ///
+  /// Mod pasiva = +1
+  ///
+  /// Resultado final = +5
   int abilityModifier(AbilityType ability) {
-    return baseAbilityModifier(ability) +
+    final effectiveScore = abilityScore(ability);
+
+    final naturalModifier = AbilityScores.modifierFor(effectiveScore);
+
+    return naturalModifier +
         passiveAbilityModifierBonus(ability) +
         effectAbilityModifierBonus(ability);
   }
+
+  int get strengthScore => abilityScore(AbilityType.strength);
+
+  int get dexterityScore => abilityScore(AbilityType.dexterity);
+
+  int get constitutionScore => abilityScore(AbilityType.constitution);
+
+  int get intelligenceScore => abilityScore(AbilityType.intelligence);
+
+  int get wisdomScore => abilityScore(AbilityType.wisdom);
+
+  int get charismaScore => abilityScore(AbilityType.charisma);
 
   int get strengthModifier => abilityModifier(AbilityType.strength);
 
@@ -547,13 +916,6 @@ class Character {
   int get wisdomModifier => abilityModifier(AbilityType.wisdom);
 
   int get charismaModifier => abilityModifier(AbilityType.charisma);
-
-  int effectAbilityModifierBonus(AbilityType ability) {
-    return enabledEffects.fold<int>(
-      0,
-      (sum, effect) => sum + (effect.abilityModifierBonuses[ability] ?? 0),
-    );
-  }
 
   // ===========================================================================
   // COMPETENCIA
@@ -644,32 +1006,78 @@ class Character {
     return result;
   }
 
-  int damageBonusModifier(DamageBonus bonus) {
-    return bonus.flatBonus +
+  int damageBonusModifier(DamageBonus bonus, {CharacterPassive? passive}) {
+    var result =
+        bonus.flatBonus +
         calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+
+    final formula = bonus.formula;
+
+    if (formula != null) {
+      final formulaResult = const FormulaEvaluator().evaluate(
+        formula,
+        context: CharacterFormulaContext.fromCharacter(
+          this,
+          passive: passive,
+          resourceResolver: (resourceId) {
+            final resource = resourceById(resourceId);
+
+            if (resource == null) {
+              return null;
+            }
+
+            final resolver = ResourceModifierResolver(character: this);
+
+            final snapshot = resolver.resolveSnapshot(resource);
+
+            return FormulaResourceValue(
+              baseCurrentValue: snapshot.baseCurrentValue,
+              baseMaxValue: snapshot.baseMaxValue,
+              currentValue: snapshot.currentValue,
+              maxValue: snapshot.maxValue,
+            );
+          },
+          baseResourceResolver: (resourceId) {
+            final resource = resourceById(resourceId);
+
+            if (resource == null) {
+              return null;
+            }
+
+            final baseMax = resource.hasMaximum
+                ? resource.maxValue.toDouble()
+                : null;
+
+            return FormulaResourceValue(
+              baseCurrentValue: resource.currentValue.toDouble(),
+              baseMaxValue: baseMax,
+              currentValue: resource.currentValue.toDouble(),
+              maxValue: baseMax,
+            );
+          },
+        ),
+      );
+
+      if (formulaResult.valid) {
+        result += formulaResult.value.round();
+      }
+    }
+
+    return result;
   }
 
   DamageBonusResult rollDamageBonus(
     DamageBonus bonus, {
+    CharacterPassive? passive,
     bool critical = false,
   }) {
-    final baseModifier = damageBonusModifier(bonus);
+    final baseModifier = damageBonusModifier(bonus, passive: passive);
 
-    /*
-   * Crítico Asteria:
-   *
-   * máximo dados
-   * + tirada
-   * + modificador
-   * + modificador
-   */
     final modifier = critical ? baseModifier * 2 : baseModifier;
 
     final roll = DicePoolRoller.roll(
       pools: bonus.dicePools,
-
       modifier: modifier,
-
       critical: critical,
     );
 
@@ -680,28 +1088,16 @@ class Character {
   // PUNTOS DE VIDA
   // ===========================================================================
 
-  /// Vida máxima del personaje.
+  /// Vida máxima BASE del personaje.
   ///
-  /// Cada nivel aporta:
-  ///
-  /// dado de vida de la clase + modificador de Constitución
-  ///
-  /// Ejemplo:
-  ///
-  /// Guerrero d10
-  /// CON +3
-  /// Nivel 5
-  ///
-  /// (10 + 3) × 5 = 65 PG
-  ///
-  /// En multiclase cada nivel utiliza el dado de vida
-  /// correspondiente a esa clase.
-  int get maxHealth {
+  /// No incluye pasivas, efectos ni modificadores temporales.
+  /// Es el valor desde el que siempre se recalcula la vida efectiva.
+  int get baseMaxHealth {
     if (classes.isEmpty) {
-      return 1 + passiveMaxHealthBonus;
+      return 1;
     }
 
-    final conMod = constitutionModifier;
+    final conMod = baseAbilityModifier(AbilityType.constitution);
 
     int total = 0;
 
@@ -710,29 +1106,38 @@ class Character {
 
       final hitDie = classLevel.dndClass.hitDie;
 
-      /*
-     * Vida obtenida por cada nivel
-     * de esta clase.
-     */
       final healthPerLevel = hitDie + conMod;
 
-      /*
-     * Cada nivel debe proporcionar
-     * como mínimo 1 PG.
-     */
       final safeHealthPerLevel = healthPerLevel < 1 ? 1 : healthPerLevel;
 
       total += safeHealthPerLevel * levels;
     }
 
-    /*
-   * Las pasivas que aumentan la vida máxima
-   * se añaden al total final.
-   */
-    total += passiveMaxHealthBonus;
-    total += effectMaxHealthBonus;
+    return total < 1 ? 1 : total;
+  }
+
+  /// Vida máxima EFECTIVA.
+  ///
+  /// Siempre parte de [baseMaxHealth].
+  ///
+  /// En el futuro aquí se incorporarán también
+  /// los nuevos modificadores mediante fórmulas.
+  int get maxHealth {
+    final total = baseMaxHealth + passiveMaxHealthBonus + effectMaxHealthBonus;
 
     return total < 1 ? 1 : total;
+  }
+
+  double get healthPercentage {
+    if (maxHealth <= 0) {
+      return 0;
+    }
+
+    return (currentHealth / maxHealth).clamp(0.0, 1.0);
+  }
+
+  double get healthPercentage100 {
+    return healthPercentage * 100;
   }
 
   int get effectMaxHealthBonus {
@@ -752,24 +1157,98 @@ class Character {
     }
   }
 
-  void heal(int amount) {
+  void heal(int amount, {bool dispatchTriggers = true}) {
     if (amount <= 0) {
       return;
     }
+
+    final healthBefore = currentHealth;
 
     currentHealth += amount;
 
-    normalizeHealth();
+    if (currentHealth > maxHealth) {
+      currentHealth = maxHealth;
+    }
+
+    final actualHealing = currentHealth - healthBefore;
+
+    if (actualHealing <= 0) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.healed,
+      eventVariables: {
+        'healing': actualHealing.toDouble(),
+        'health_before': healthBefore.toDouble(),
+        'health_after': currentHealth.toDouble(),
+      },
+    );
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.healthChanged,
+      eventVariables: {
+        'amount': actualHealing.toDouble(),
+        'health_before': healthBefore.toDouble(),
+        'health_after': currentHealth.toDouble(),
+      },
+    );
+
+    if (dispatchTriggers) {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.healed,
+        eventVariables: {'healing': amount.toDouble()},
+      );
+
+      dispatchPassiveTrigger(PassiveTriggerEvent.healthChanged);
+    }
   }
 
-  void takeDamage(int amount) {
+  void takeDamage(int amount, {bool dispatchTriggers = true}) {
     if (amount <= 0) {
       return;
     }
 
+    final healthBefore = currentHealth;
+
     currentHealth -= amount;
 
-    normalizeHealth();
+    if (currentHealth < 0) {
+      currentHealth = 0;
+    }
+
+    final actualDamage = healthBefore - currentHealth;
+
+    if (actualDamage <= 0) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.damageReceived,
+      eventVariables: {
+        'damage': actualDamage.toDouble(),
+        'health_before': healthBefore.toDouble(),
+        'health_after': currentHealth.toDouble(),
+      },
+    );
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.healthChanged,
+      eventVariables: {
+        'amount': (-actualDamage).toDouble(),
+        'health_before': healthBefore.toDouble(),
+        'health_after': currentHealth.toDouble(),
+      },
+    );
+
+    if (dispatchTriggers) {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.damageReceived,
+        eventVariables: {'damage': amount.toDouble()},
+      );
+
+      dispatchPassiveTrigger(PassiveTriggerEvent.healthChanged);
+    }
   }
 
   void fullHeal() {
@@ -1252,20 +1731,107 @@ class Character {
   // TIRADA DE UN COMPONENTE
   // ===========================================================================
 
-  HealingBonusResult rollHealingBonus(HealingBonus bonus) {
-    final modifier =
-        bonus.flatBonus +
-        calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+  HealingBonusResult rollHealingBonus(
+    HealingBonus bonus, {
+    CharacterPassive? passive,
+  }) {
+    final modifier = healingBonusModifier(bonus, passive: passive);
 
     final roll = DicePoolRoller.roll(
       pools: bonus.dicePools,
-
       modifier: modifier,
-
       critical: false,
     );
 
     return HealingBonusResult(bonus: bonus, roll: roll);
+  }
+
+  int healingBonusModifier(HealingBonus bonus, {CharacterPassive? passive}) {
+    var result =
+        bonus.flatBonus +
+        calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+
+    final formula = bonus.formula;
+
+    if (formula == null) {
+      return result;
+    }
+
+    final formulaResult = const FormulaEvaluator().evaluate(
+      formula,
+      context: CharacterFormulaContext.fromCharacter(
+        this,
+        passive: passive,
+        resourceResolver: (resourceId) {
+          final resource = resourceById(resourceId);
+
+          if (resource == null) {
+            return null;
+          }
+
+          final resolver = ResourceModifierResolver(character: this);
+
+          final snapshot = resolver.resolveSnapshot(resource);
+
+          return FormulaResourceValue(
+            baseCurrentValue: snapshot.baseCurrentValue,
+            baseMaxValue: snapshot.baseMaxValue,
+            currentValue: snapshot.currentValue,
+            maxValue: snapshot.maxValue,
+          );
+        },
+        baseResourceResolver: (resourceId) {
+          final resource = resourceById(resourceId);
+
+          if (resource == null) {
+            return null;
+          }
+
+          final baseMax = resource.hasMaximum
+              ? resource.maxValue.toDouble()
+              : null;
+
+          return FormulaResourceValue(
+            baseCurrentValue: resource.currentValue.toDouble(),
+            baseMaxValue: baseMax,
+            currentValue: resource.currentValue.toDouble(),
+            maxValue: baseMax,
+          );
+        },
+      ),
+    );
+
+    if (formulaResult.valid) {
+      result += formulaResult.value.round();
+    }
+
+    return result;
+  }
+
+  int criticalDamageBonusModifier(
+    CriticalDamageBonus bonus, {
+    CharacterPassive? passive,
+  }) {
+    var result =
+        bonus.flatBonus +
+        calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+
+    final formula = bonus.formula;
+
+    if (formula == null) {
+      return result;
+    }
+
+    final formulaResult = const FormulaEvaluator().evaluate(
+      formula,
+      context: CharacterFormulaContext.fromCharacter(this, passive: passive),
+    );
+
+    if (formulaResult.valid) {
+      result += formulaResult.value.round();
+    }
+
+    return result;
   }
 
   CriticalDamageBonusResult rollCriticalDamageBonus(CriticalDamageBonus bonus) {
@@ -1297,9 +1863,7 @@ class Character {
       );
     }
 
-    final modifier =
-        bonus.flatBonus +
-        calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
+    final modifier = criticalDamageBonusModifier(bonus);
 
     final roll = DicePoolRoller.roll(
       pools: bonus.dicePools,
@@ -1740,13 +2304,6 @@ class Character {
   // PASIVAS
   // ===========================================================================
 
-  int passiveAbilityModifierBonus(AbilityType ability) {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + (passive.abilityModifierBonuses[ability] ?? 0),
-    );
-  }
-
   Iterable<CharacterPassive> get enabledPassives {
     final normalPassives = passives.where((passive) => passive.enabled);
 
@@ -1785,52 +2342,85 @@ class Character {
   }
 
   int get passiveArmorClassBonus {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + passive.armorClassBonus,
-    );
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      total += evaluateFormulaBonus(passive.armorClassBonus, passive: passive);
+    }
+
+    return total;
   }
 
   int get passiveInitiativeBonus {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + passive.initiativeBonus,
-    );
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      total += evaluateFormulaBonus(passive.initiativeBonus, passive: passive);
+    }
+
+    return total;
   }
 
   int get passiveSpeedBonus {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + passive.speedBonus,
-    );
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      total += evaluateFormulaBonus(passive.speedBonus, passive: passive);
+    }
+
+    return total;
   }
 
   int get passiveMaxHealthBonus {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + passive.maxHealthBonus,
-    );
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      total += evaluateFormulaBonus(passive.maxHealthBonus, passive: passive);
+    }
+
+    return total;
   }
 
   int get passiveAttackBonus {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + passive.attackBonus,
-    );
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      total += evaluateFormulaBonus(passive.attackBonus, passive: passive);
+    }
+
+    return total;
   }
 
   int passiveSkillBonus(DndSkill skill) {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + (passive.skillBonuses[skill] ?? 0),
-    );
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      final bonus = passive.skillBonuses[skill];
+
+      if (bonus == null || !bonus.hasValue) {
+        continue;
+      }
+
+      total += evaluateFormulaBonus(bonus, passive: passive);
+    }
+
+    return total;
   }
 
   int passiveSavingThrowBonus(AbilityType ability) {
-    return enabledPassives.fold<int>(
-      0,
-      (sum, passive) => sum + (passive.savingThrowBonuses[ability] ?? 0),
-    );
+    var total = 0;
+
+    for (final passive in enabledPassives) {
+      final bonus = passive.savingThrowBonuses[ability];
+
+      if (bonus == null || !bonus.hasValue) {
+        continue;
+      }
+
+      total += evaluateFormulaBonus(bonus, passive: passive);
+    }
+
+    return total;
   }
 
   void addPassive(CharacterPassive passive) {
@@ -1839,6 +2429,34 @@ class Character {
 
   void removePassive(String id) {
     passives.removeWhere((passive) => passive.id == id);
+  }
+
+  ResourceModifierResolver get resourceResolver {
+    return ResourceModifierResolver(character: this);
+  }
+
+  int resourceBaseMax(CharacterResource resource) {
+    return resource.maxValue;
+  }
+
+  int resourceBaseCurrent(CharacterResource resource) {
+    return resource.currentValue;
+  }
+
+  int resourceEffectiveCurrent(CharacterResource resource) {
+    final resolver = ResourceModifierResolver(character: this);
+
+    return resolver.resolveCurrent(resource);
+  }
+
+  int? resourceEffectiveMax(CharacterResource resource) {
+    if (!resource.hasMaximum) {
+      return null;
+    }
+
+    final resolver = ResourceModifierResolver(character: this);
+
+    return resolver.resolveMax(resource);
   }
 
   // ===========================================================================
@@ -1861,6 +2479,115 @@ class Character {
     }
 
     return null;
+  }
+
+  // ===========================================================================
+  // CONTADORES
+  // ===========================================================================
+
+  CharacterCounter? counterById(String counterId) {
+    for (final counter in counters) {
+      if (counter.id == counterId) {
+        return counter;
+      }
+    }
+
+    return null;
+  }
+
+  int counterValue(String counterId) {
+    return counterById(counterId)?.value ?? 0;
+  }
+
+  // ===========================================================================
+  // INCREMENTAR
+  // ===========================================================================
+
+  void incrementCounter(
+    String counterId,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    if (amount == 0) {
+      return;
+    }
+
+    final counter = counterById(counterId);
+
+    if (counter == null) {
+      return;
+    }
+
+    final previousValue = counter.value;
+
+    counter.increase(amount);
+
+    final currentValue = counter.value;
+
+    if (!dispatchTriggers || previousValue == currentValue) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.counterChanged,
+      eventVariables: {
+        'previous_counter': previousValue.toDouble(),
+        'current_counter': currentValue.toDouble(),
+        'counter_change': (currentValue - previousValue).toDouble(),
+      },
+    );
+  }
+
+  // ===========================================================================
+  // COMPATIBILIDAD CON EL MÉTODO ANTIGUO
+  // ===========================================================================
+
+  void increaseCounter(
+    String counterId, {
+    int amount = 1,
+    bool dispatchTriggers = true,
+  }) {
+    incrementCounter(counterId, amount, dispatchTriggers: dispatchTriggers);
+  }
+
+  // ===========================================================================
+  // ESTABLECER
+  // ===========================================================================
+
+  void setCounter(String counterId, int value, {bool dispatchTriggers = true}) {
+    final counter = counterById(counterId);
+
+    if (counter == null) {
+      return;
+    }
+
+    final previousValue = counter.value;
+
+    // Evitamos valores negativos.
+    final safeValue = value < 0 ? 0 : value;
+
+    counter.value = safeValue;
+
+    if (!dispatchTriggers || previousValue == counter.value) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.counterChanged,
+      eventVariables: {
+        'previous_counter': previousValue.toDouble(),
+        'current_counter': counter.value.toDouble(),
+        'counter_change': (counter.value - previousValue).toDouble(),
+      },
+    );
+  }
+
+  // ===========================================================================
+  // RESET
+  // ===========================================================================
+
+  void resetCounter(String counterId, {bool dispatchTriggers = true}) {
+    setCounter(counterId, 0, dispatchTriggers: dispatchTriggers);
   }
 
   // ===========================================================================
@@ -1948,6 +2675,12 @@ class Character {
       'resources': resources.map((resource) => resource.toMap()).toList(),
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
+
+      'combatRound': combatRound,
+
+      'turnActive': turnActive,
+
+      'counters': counters.map((counter) => counter.toMap()).toList(),
     };
   }
 
@@ -1964,6 +2697,26 @@ class Character {
 
         try {
           items.add(CharacterItem.fromMap(Map<dynamic, dynamic>.from(rawItem)));
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    final counters = <CharacterCounter>[];
+
+    final rawCounters = map['counters'];
+
+    if (rawCounters is List) {
+      for (final rawCounter in rawCounters) {
+        if (rawCounter is! Map) {
+          continue;
+        }
+
+        try {
+          counters.add(
+            CharacterCounter.fromMap(Map<dynamic, dynamic>.from(rawCounter)),
+          );
         } catch (_) {
           continue;
         }
@@ -2249,6 +3002,10 @@ class Character {
       }
     }
 
+    final combatRound = (map['combatRound'] as num?)?.toInt() ?? 1;
+
+    final turnActive = map['turnActive'] == true;
+
     // -------------------------------------------------------------------------
     // CREAR PERSONAJE
     // -------------------------------------------------------------------------
@@ -2307,6 +3064,12 @@ class Character {
       resources: resources,
 
       effects: effects,
+
+      combatRound: combatRound,
+
+      turnActive: turnActive,
+
+      counters: counters,
     );
 
     character.normalizeHealth();

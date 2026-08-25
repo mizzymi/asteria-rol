@@ -1,5 +1,6 @@
 import 'dice_pool.dart';
 import 'skill.dart';
+import 'formulas/character_formula.dart';
 
 class HealingBonus {
   String id;
@@ -12,19 +13,29 @@ class HealingBonus {
 
   int flatBonus;
 
+  CharacterFormula? formula;
+
   HealingBonus({
     required this.id,
     this.name = '',
     List<DicePool>? dicePools,
     Map<AbilityType, int>? abilityModifierMultipliers,
     this.flatBonus = 0,
+    this.formula,
   }) : dicePools = dicePools ?? [],
        abilityModifierMultipliers = abilityModifierMultipliers ?? {};
 
   bool get hasHealing {
     return dicePools.isNotEmpty ||
+        flatBonus != 0 ||
         abilityModifierMultipliers.values.any((value) => value != 0) ||
-        flatBonus != 0;
+        hasFormula;
+  }
+
+  bool get hasFormula {
+    return formula != null &&
+        formula!.expression.trim().isNotEmpty &&
+        formula!.expression.trim() != '0';
   }
 
   String get diceNotation {
@@ -44,6 +55,8 @@ class HealingBonus {
       },
 
       'flatBonus': flatBonus,
+
+      'formula': formula?.toMap(),
     };
   }
 
@@ -82,6 +95,8 @@ class HealingBonus {
       }
     }
 
+    final rawFormula = map['formula'];
+
     return HealingBonus(
       id: map['id']?.toString() ?? '',
 
@@ -92,6 +107,10 @@ class HealingBonus {
       abilityModifierMultipliers: multipliers,
 
       flatBonus: (map['flatBonus'] as num?)?.toInt() ?? 0,
+
+      formula: rawFormula is Map
+          ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawFormula))
+          : null,
     );
   }
 }
