@@ -96,6 +96,8 @@ class CharacterEffect {
 
   int attackBonus;
 
+  int criticalMinimumNaturalRoll;
+
   Map<AbilityType, int> abilityModifierBonuses;
 
   Map<DndSkill, int> skillBonuses;
@@ -126,7 +128,7 @@ class CharacterEffect {
     this.speedBonus = 0,
     this.maxHealthBonus = 0,
     this.attackBonus = 0,
-
+    this.criticalMinimumNaturalRoll = 20,
     Map<AbilityType, int>? abilityModifierBonuses,
     Map<DndSkill, int>? skillBonuses,
     Map<AbilityType, int>? savingThrowBonuses,
@@ -370,6 +372,8 @@ class CharacterEffect {
 
       'damageBonuses': damageBonuses.map((damage) => damage.toMap()).toList(),
 
+      'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
+
       'criticalDamageBonuses': criticalDamageBonuses
           .map((damage) => damage.toMap())
           .toList(),
@@ -523,6 +527,9 @@ class CharacterEffect {
       maxHealthBonus: (map['maxHealthBonus'] as num?)?.toInt() ?? 0,
 
       attackBonus: (map['attackBonus'] as num?)?.toInt() ?? 0,
+
+      criticalMinimumNaturalRoll:
+          (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
 
       abilityModifierBonuses: abilityModifierBonuses,
 

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:rol/models/character_resource.dart';
 
+import '../../../models/formulas/character_formula.dart';
+import '../../../models/action_cost.dart';
+import '../../../models/action_external_requirement.dart';
 import '../../../models/ability_effect_part.dart';
 import '../../../models/ability.dart';
 import '../../../models/dice_pool.dart';
@@ -1200,6 +1203,27 @@ class _EmptyEffects extends StatelessWidget {
 // =============================================================================
 // COMPONENTE DE EFECTO
 // =============================================================================
+enum _PartConditionPreset {
+  always,
+
+  wounded,
+  fullHealth,
+
+  belowHalf,
+  atOrBelowHalf,
+  aboveHalf,
+  atOrAboveHalf,
+
+  belowPercent,
+  atOrBelowPercent,
+  abovePercent,
+  atOrAbovePercent,
+
+  self,
+  external,
+
+  custom,
+}
 
 class _AbilityEffectPartCard extends StatefulWidget {
   final AbilityEffectPart part;
@@ -1234,6 +1258,12 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
 
   late final TextEditingController bonusController;
 
+  late _PartConditionPreset conditionPreset;
+
+  late final TextEditingController conditionPercentController;
+
+  late final TextEditingController customConditionController;
+
   @override
   void initState() {
     super.initState();
@@ -1245,6 +1275,16 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
     typeController = TextEditingController(text: part.typeName);
 
     bonusController = TextEditingController(text: '${part.flatBonus}');
+
+    conditionPreset = _detectConditionPreset(part);
+
+    conditionPercentController = TextEditingController(
+      text: _conditionThresholdText(part),
+    );
+
+    customConditionController = TextEditingController(
+      text: part.condition?.expression ?? '',
+    );
   }
 
   void notify() {
@@ -1267,8 +1307,376 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
         flatBonus: int.tryParse(bonusController.text.trim()) ?? 0,
 
         typeName: typeController.text.trim(),
+
+        costs: part.costs
+            .map((cost) => ActionCost.fromMap(cost.toMap()))
+            .toList(),
+
+        condition: part.condition?.copy(),
+
+        externalRequirements: part.externalRequirements
+            .map(
+              (requirement) =>
+                  ActionExternalRequirement.fromMap(requirement.toMap()),
+            )
+            .toList(),
+
+        optional: part.optional,
+
+        optionalGroupId: part.optionalGroupId,
+
+        optionalLabel: part.optionalLabel,
+
+        participatesInCritical: part.participatesInCritical,
       ),
     );
+  }
+
+  _PartConditionPreset _detectConditionPreset(AbilityEffectPart part) {
+    if (!part.hasCondition && part.externalRequirements.isEmpty) {
+      return _PartConditionPreset.always;
+    }
+
+    if (part.externalRequirements.length == 1) {
+      final requirement = part.externalRequirements.first;
+
+      if (requirement.type == ActionExternalRequirementType.boolean) {
+        switch (requirement.variableName) {
+          case 'target_wounded':
+            return _PartConditionPreset.wounded;
+
+          case 'target_full_health':
+            return _PartConditionPreset.fullHealth;
+
+          case 'target_below_half':
+            return _PartConditionPreset.belowHalf;
+
+          case 'target_at_or_below_half':
+            return _PartConditionPreset.atOrBelowHalf;
+
+          case 'target_above_half':
+            return _PartConditionPreset.aboveHalf;
+
+          case 'target_at_or_above_half':
+            return _PartConditionPreset.atOrAboveHalf;
+
+          case 'target_is_self':
+            return _PartConditionPreset.self;
+
+          case 'target_is_external':
+            return _PartConditionPreset.external;
+        }
+      }
+
+      switch (requirement.type) {
+        case ActionExternalRequirementType.percentageBelow:
+          return _PartConditionPreset.belowPercent;
+
+        case ActionExternalRequirementType.percentageAtOrBelow:
+          return _PartConditionPreset.atOrBelowPercent;
+
+        case ActionExternalRequirementType.percentageAbove:
+          return _PartConditionPreset.abovePercent;
+
+        case ActionExternalRequirementType.percentageAtOrAbove:
+          return _PartConditionPreset.atOrAbovePercent;
+
+        case ActionExternalRequirementType.boolean:
+          break;
+      }
+    }
+
+    return _PartConditionPreset.custom;
+  }
+
+  String _conditionThresholdText(AbilityEffectPart part) {
+    if (part.externalRequirements.length != 1) {
+      return '50';
+    }
+
+    final threshold = part.externalRequirements.first.threshold;
+
+    if (threshold == null) {
+      return '50';
+    }
+
+    if (threshold == threshold.roundToDouble()) {
+      return threshold.toInt().toString();
+    }
+
+    return threshold.toString();
+  }
+
+  String _conditionPresetLabel(_PartConditionPreset preset) {
+    switch (preset) {
+      case _PartConditionPreset.always:
+        return 'Siempre';
+
+      case _PartConditionPreset.wounded:
+        return 'Objetivo herido';
+
+      case _PartConditionPreset.fullHealth:
+        return 'Objetivo a vida completa';
+
+      case _PartConditionPreset.belowHalf:
+        return 'Vida por debajo del 50%';
+
+      case _PartConditionPreset.atOrBelowHalf:
+        return 'Vida al 50% o por debajo';
+
+      case _PartConditionPreset.aboveHalf:
+        return 'Vida por encima del 50%';
+
+      case _PartConditionPreset.atOrAboveHalf:
+        return 'Vida al 50% o por encima';
+
+      case _PartConditionPreset.belowPercent:
+        return 'Vida por debajo de X%';
+
+      case _PartConditionPreset.atOrBelowPercent:
+        return 'Vida a X% o por debajo';
+
+      case _PartConditionPreset.abovePercent:
+        return 'Vida por encima de X%';
+
+      case _PartConditionPreset.atOrAbovePercent:
+        return 'Vida a X% o por encima';
+
+      case _PartConditionPreset.self:
+        return 'Objetivo propio';
+
+      case _PartConditionPreset.external:
+        return 'Objetivo externo';
+
+      case _PartConditionPreset.custom:
+        return 'Fórmula personalizada';
+    }
+  }
+
+  bool get _conditionUsesPercentage {
+    switch (conditionPreset) {
+      case _PartConditionPreset.belowPercent:
+      case _PartConditionPreset.atOrBelowPercent:
+      case _PartConditionPreset.abovePercent:
+      case _PartConditionPreset.atOrAbovePercent:
+        return true;
+
+      default:
+        return false;
+    }
+  }
+
+  void _setBooleanCondition({
+    required String variableName,
+    required String label,
+  }) {
+    part.condition = CharacterFormula(expression: '$variableName == 1');
+
+    part.externalRequirements = [
+      ActionExternalRequirement.boolean(
+        variableName: variableName,
+        label: label,
+      ),
+    ];
+
+    customConditionController.text = part.condition!.expression;
+  }
+
+  void _setPercentageCondition({required ActionExternalRequirementType type}) {
+    final raw = double.tryParse(conditionPercentController.text.trim());
+
+    final threshold = (raw ?? 50.0).clamp(0.0, 100.0).toDouble();
+
+    final thresholdText = threshold == threshold.roundToDouble()
+        ? threshold.toInt().toString()
+        : threshold.toString();
+
+    late final ActionExternalRequirement requirement;
+
+    switch (type) {
+      case ActionExternalRequirementType.percentageBelow:
+        requirement = ActionExternalRequirement.percentageBelow(
+          variableName: 'target_health_percent',
+          threshold: threshold,
+          label:
+              '¿El objetivo está por debajo del '
+              '$thresholdText% de vida?',
+        );
+
+        break;
+
+      case ActionExternalRequirementType.percentageAtOrBelow:
+        requirement = ActionExternalRequirement.percentageAtOrBelow(
+          variableName: 'target_health_percent',
+          threshold: threshold,
+          label:
+              '¿El objetivo está al $thresholdText% '
+              'de vida o por debajo?',
+        );
+
+        break;
+
+      case ActionExternalRequirementType.percentageAbove:
+        requirement = ActionExternalRequirement.percentageAbove(
+          variableName: 'target_health_percent',
+          threshold: threshold,
+          label:
+              '¿El objetivo está por encima del '
+              '$thresholdText% de vida?',
+        );
+
+        break;
+
+      case ActionExternalRequirementType.percentageAtOrAbove:
+        requirement = ActionExternalRequirement.percentageAtOrAbove(
+          variableName: 'target_health_percent',
+          threshold: threshold,
+          label:
+              '¿El objetivo está al $thresholdText% '
+              'de vida o por encima?',
+        );
+
+        break;
+
+      case ActionExternalRequirementType.boolean:
+        return;
+    }
+
+    // IMPORTANTE:
+    // usamos la respuesta normalizada del requirement.
+    //
+    // target_health_percent_lt_50
+    // target_health_percent_gte_75
+    // etc.
+    part.condition = CharacterFormula(
+      expression: '${requirement.normalizedVariableName} == 1',
+    );
+
+    part.externalRequirements = [requirement];
+
+    customConditionController.text = part.condition!.expression;
+  }
+
+  void _applyConditionPreset() {
+    switch (conditionPreset) {
+      case _PartConditionPreset.always:
+        part.condition = null;
+        part.externalRequirements = [];
+        customConditionController.clear();
+        break;
+
+      case _PartConditionPreset.wounded:
+        _setBooleanCondition(
+          variableName: 'target_wounded',
+          label: '¿El objetivo está herido?',
+        );
+        break;
+
+      case _PartConditionPreset.fullHealth:
+        _setBooleanCondition(
+          variableName: 'target_full_health',
+          label: '¿El objetivo está a vida completa?',
+        );
+        break;
+
+      case _PartConditionPreset.belowHalf:
+        _setBooleanCondition(
+          variableName: 'target_below_half',
+          label: '¿El objetivo está por debajo del 50% de vida?',
+        );
+        break;
+
+      case _PartConditionPreset.atOrBelowHalf:
+        _setBooleanCondition(
+          variableName: 'target_at_or_below_half',
+          label: '¿El objetivo está al 50% de vida o por debajo?',
+        );
+        break;
+
+      case _PartConditionPreset.aboveHalf:
+        _setBooleanCondition(
+          variableName: 'target_above_half',
+          label: '¿El objetivo está por encima del 50% de vida?',
+        );
+        break;
+
+      case _PartConditionPreset.atOrAboveHalf:
+        _setBooleanCondition(
+          variableName: 'target_at_or_above_half',
+          label: '¿El objetivo está al 50% de vida o por encima?',
+        );
+        break;
+
+      case _PartConditionPreset.self:
+        // Self/external los conoce el contexto,
+        // por lo que no necesitan preguntar.
+        part.condition = CharacterFormula(expression: 'target_is_self == 1');
+
+        part.externalRequirements = [];
+
+        customConditionController.text = part.condition!.expression;
+        break;
+
+      case _PartConditionPreset.external:
+        part.condition = CharacterFormula(
+          expression: 'target_is_external == 1',
+        );
+
+        part.externalRequirements = [];
+
+        customConditionController.text = part.condition!.expression;
+        break;
+
+      case _PartConditionPreset.belowPercent:
+        _setPercentageCondition(
+          type: ActionExternalRequirementType.percentageBelow,
+        );
+        break;
+
+      case _PartConditionPreset.atOrBelowPercent:
+        _setPercentageCondition(
+          type: ActionExternalRequirementType.percentageAtOrBelow,
+        );
+        break;
+
+      case _PartConditionPreset.abovePercent:
+        _setPercentageCondition(
+          type: ActionExternalRequirementType.percentageAbove,
+        );
+        break;
+
+      case _PartConditionPreset.atOrAbovePercent:
+        _setPercentageCondition(
+          type: ActionExternalRequirementType.percentageAtOrAbove,
+        );
+        break;
+
+      case _PartConditionPreset.custom:
+        _applyCustomCondition();
+        break;
+    }
+
+    setState(() {});
+
+    notify();
+  }
+
+  void _applyCustomCondition() {
+    final expression = customConditionController.text.trim();
+
+    if (expression.isEmpty) {
+      part.condition = null;
+      part.externalRequirements = [];
+
+      return;
+    }
+
+    part.condition = CharacterFormula(expression: expression);
+
+    // En personalizado no destruimos automáticamente
+    // requirements existentes.
+    //
+    // Los presets sí los sincronizan automáticamente.
   }
 
   @override
@@ -1278,6 +1686,10 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
     typeController.dispose();
 
     bonusController.dispose();
+
+    conditionPercentController.dispose();
+
+    customConditionController.dispose();
 
     super.dispose();
   }
@@ -1423,6 +1835,140 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
               notify();
             },
           ),
+
+          const SizedBox(height: 16),
+
+          _buildConditionEditor(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConditionEditor() {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.rule_rounded, color: theme.colorScheme.primary),
+
+              const SizedBox(width: 8),
+
+              const Expanded(
+                child: Text(
+                  'Condición de aplicación',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 4),
+
+          Text(
+            'Decide cuándo participa este componente.',
+            style: theme.textTheme.bodySmall,
+          ),
+
+          const SizedBox(height: 12),
+
+          DropdownButtonFormField<_PartConditionPreset>(
+            initialValue: conditionPreset,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Condición',
+              prefixIcon: Icon(Icons.filter_alt_rounded),
+            ),
+            items: _PartConditionPreset.values.map((preset) {
+              return DropdownMenuItem(
+                value: preset,
+                child: Text(
+                  _conditionPresetLabel(preset),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+
+              conditionPreset = value;
+
+              _applyConditionPreset();
+            },
+          ),
+
+          if (_conditionUsesPercentage) ...[
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: conditionPercentController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Porcentaje de vida',
+                suffixText: '%',
+                prefixIcon: Icon(Icons.percent_rounded),
+              ),
+              onChanged: (_) {
+                _applyConditionPreset();
+              },
+            ),
+          ],
+
+          if (conditionPreset == _PartConditionPreset.custom) ...[
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: customConditionController,
+              minLines: 1,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Fórmula de condición',
+                hintText: 'Ej: target_wounded == 1',
+                prefixIcon: Icon(Icons.functions_rounded),
+              ),
+              onChanged: (_) {
+                _applyCustomCondition();
+                notify();
+              },
+            ),
+          ],
+
+          if (part.hasCondition) ...[
+            const SizedBox(height: 10),
+
+            Text(
+              'Condición: '
+              '${part.condition!.expression}',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+
+          if (part.externalRequirements.isNotEmpty) ...[
+            const SizedBox(height: 4),
+
+            Text(
+              part.externalRequirements.length == 1
+                  ? 'Puede requerir una pregunta al resolver la habilidad.'
+                  : 'Puede requerir varias preguntas al resolver la habilidad.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
       ),
     );

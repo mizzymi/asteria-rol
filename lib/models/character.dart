@@ -182,6 +182,11 @@ class Character {
 
   List<CharacterCounter> counters;
 
+  /// Rango crítico base/personal del personaje.
+  ///
+  /// 20 = crítico únicamente con 20 natural.
+  int criticalMinimumNaturalRoll;
+
   Character({
     required this.id,
     required this.name,
@@ -220,6 +225,7 @@ class Character {
     this.combatRound = 1,
     this.turnActive = false,
     List<CharacterCounter>? counters,
+    this.criticalMinimumNaturalRoll = 20,
   }) : classes = _resolveClasses(
          classes: classes,
          dndClass: dndClass,
@@ -417,6 +423,121 @@ class Character {
   String get combatStatusText {
     return 'Ronda $combatRound · '
         '${turnActive ? 'Turno activo' : 'Esperando turno'}';
+  }
+
+  // ===========================================================================
+  // RECURSOS · MODIFICACIÓN CENTRALIZADA
+  // ===========================================================================
+
+  void addResourceValue(
+    String resourceId,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    if (amount == 0) {
+      return;
+    }
+
+    final resource = resourceById(resourceId);
+
+    if (resource == null) {
+      return;
+    }
+
+    final previousValue = resource.currentValue;
+
+    resource.currentValue += amount;
+    resource.normalize();
+
+    final currentValue = resource.currentValue;
+
+    if (!dispatchTriggers || previousValue == currentValue) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.resourceChanged,
+      eventVariables: {
+        'previous_resource': previousValue.toDouble(),
+        'current_resource': currentValue.toDouble(),
+        'resource_change': (currentValue - previousValue).toDouble(),
+      },
+    );
+  }
+
+  void subtractResourceValue(
+    String resourceId,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    if (amount <= 0) {
+      return;
+    }
+
+    addResourceValue(resourceId, -amount, dispatchTriggers: dispatchTriggers);
+  }
+
+  void setResourceValue(
+    String resourceId,
+    int value, {
+    bool dispatchTriggers = true,
+  }) {
+    final resource = resourceById(resourceId);
+
+    if (resource == null) {
+      return;
+    }
+
+    final previousValue = resource.currentValue;
+
+    resource.currentValue = value;
+    resource.normalize();
+
+    final currentValue = resource.currentValue;
+
+    if (!dispatchTriggers || previousValue == currentValue) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.resourceChanged,
+      eventVariables: {
+        'previous_resource': previousValue.toDouble(),
+        'current_resource': currentValue.toDouble(),
+        'resource_change': (currentValue - previousValue).toDouble(),
+      },
+    );
+  }
+
+  void restoreResourceFull(String resourceId, {bool dispatchTriggers = true}) {
+    final resource = resourceById(resourceId);
+
+    if (resource == null || !resource.hasMaximum) {
+      return;
+    }
+
+    setResourceValue(
+      resourceId,
+      resource.maxValue,
+      dispatchTriggers: dispatchTriggers,
+    );
+  }
+
+  List<int> criticalMinimumRollSourcesForAbility(CharacterAbility ability) {
+    final sources = <int>[
+      criticalMinimumNaturalRoll,
+      ability.criticalMinimumNaturalRoll,
+    ];
+
+    for (final passive in enabledPassives) {
+      sources.add(passive.criticalMinimumNaturalRoll);
+    }
+
+    for (final effect in enabledEffects) {
+      sources.add(effect.criticalMinimumNaturalRoll);
+    }
+
+    return sources;
   }
 
   // ===========================================================================
@@ -693,20 +814,6 @@ class Character {
     resource.restore(amount, maximum: effectiveMax);
   }
 
-  void restoreResourceFull(CharacterResource resource) {
-    if (!resource.hasMaximum) {
-      return;
-    }
-
-    final effectiveMax = resourceEffectiveMax(resource);
-
-    if (effectiveMax == null) {
-      return;
-    }
-
-    resource.restoreFull(maximum: effectiveMax);
-  }
-
   void normalizeResource(CharacterResource resource) {
     if (resource.currentValue < 0) {
       resource.currentValue = 0;
@@ -725,6 +832,110 @@ class Character {
     if (resource.currentValue > effectiveMax) {
       resource.currentValue = effectiveMax;
     }
+  }
+
+  // ===========================================================================
+  // CARGAS DE PASIVAS
+  // ===========================================================================
+
+  void addPassiveCharges(
+    String passiveId,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    if (amount == 0) {
+      return;
+    }
+
+    final passive = passiveById(passiveId);
+
+    if (passive == null || !passive.hasCharges) {
+      return;
+    }
+
+    final previousValue = passive.currentCharges;
+
+    passive.currentCharges += amount;
+    passive.normalizeCharges();
+
+    final currentValue = passive.currentCharges;
+
+    if (!dispatchTriggers || previousValue == currentValue) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.chargeChanged,
+      eventVariables: {
+        'previous_charges': previousValue.toDouble(),
+        'current_charges': currentValue.toDouble(),
+        'charges_change': (currentValue - previousValue).toDouble(),
+      },
+    );
+  }
+
+  void subtractPassiveCharges(
+    String passiveId,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    if (amount <= 0) {
+      return;
+    }
+
+    addPassiveCharges(passiveId, -amount, dispatchTriggers: dispatchTriggers);
+  }
+
+  void setPassiveCharges(
+    String passiveId,
+    int value, {
+    bool dispatchTriggers = true,
+  }) {
+    final passive = passiveById(passiveId);
+
+    if (passive == null || !passive.hasCharges) {
+      return;
+    }
+
+    final previousValue = passive.currentCharges;
+
+    passive.currentCharges = value;
+    passive.normalizeCharges();
+
+    final currentValue = passive.currentCharges;
+
+    if (!dispatchTriggers || previousValue == currentValue) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.chargeChanged,
+      eventVariables: {
+        'previous_charges': previousValue.toDouble(),
+        'current_charges': currentValue.toDouble(),
+        'charges_change': (currentValue - previousValue).toDouble(),
+      },
+    );
+  }
+
+  CharacterPassive? passiveById(String passiveId) {
+    for (final passive in passives) {
+      if (passive.id == passiveId) {
+        return passive;
+      }
+    }
+
+    for (final item in items) {
+      if (item.equipped) {
+        for (final passive in item.passives) {
+          if (passive.id == passiveId) {
+            return passive;
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   // ===========================================================================
@@ -1006,7 +1217,11 @@ class Character {
     return result;
   }
 
-  int damageBonusModifier(DamageBonus bonus, {CharacterPassive? passive}) {
+  int damageBonusModifier(
+    DamageBonus bonus, {
+    CharacterPassive? passive,
+    FormulaContext? formulaContext,
+  }) {
     var result =
         bonus.flatBonus +
         calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
@@ -1014,48 +1229,52 @@ class Character {
     final formula = bonus.formula;
 
     if (formula != null) {
+      final context =
+          formulaContext ??
+          CharacterFormulaContext.fromCharacter(
+            this,
+            passive: passive,
+            resourceResolver: (resourceId) {
+              final resource = resourceById(resourceId);
+
+              if (resource == null) {
+                return null;
+              }
+
+              final resolver = ResourceModifierResolver(character: this);
+
+              final snapshot = resolver.resolveSnapshot(resource);
+
+              return FormulaResourceValue(
+                baseCurrentValue: snapshot.baseCurrentValue,
+                baseMaxValue: snapshot.baseMaxValue,
+                currentValue: snapshot.currentValue,
+                maxValue: snapshot.maxValue,
+              );
+            },
+            baseResourceResolver: (resourceId) {
+              final resource = resourceById(resourceId);
+
+              if (resource == null) {
+                return null;
+              }
+
+              final baseMax = resource.hasMaximum
+                  ? resource.maxValue.toDouble()
+                  : null;
+
+              return FormulaResourceValue(
+                baseCurrentValue: resource.currentValue.toDouble(),
+                baseMaxValue: baseMax,
+                currentValue: resource.currentValue.toDouble(),
+                maxValue: baseMax,
+              );
+            },
+          );
+
       final formulaResult = const FormulaEvaluator().evaluate(
         formula,
-        context: CharacterFormulaContext.fromCharacter(
-          this,
-          passive: passive,
-          resourceResolver: (resourceId) {
-            final resource = resourceById(resourceId);
-
-            if (resource == null) {
-              return null;
-            }
-
-            final resolver = ResourceModifierResolver(character: this);
-
-            final snapshot = resolver.resolveSnapshot(resource);
-
-            return FormulaResourceValue(
-              baseCurrentValue: snapshot.baseCurrentValue,
-              baseMaxValue: snapshot.baseMaxValue,
-              currentValue: snapshot.currentValue,
-              maxValue: snapshot.maxValue,
-            );
-          },
-          baseResourceResolver: (resourceId) {
-            final resource = resourceById(resourceId);
-
-            if (resource == null) {
-              return null;
-            }
-
-            final baseMax = resource.hasMaximum
-                ? resource.maxValue.toDouble()
-                : null;
-
-            return FormulaResourceValue(
-              baseCurrentValue: resource.currentValue.toDouble(),
-              baseMaxValue: baseMax,
-              currentValue: resource.currentValue.toDouble(),
-              maxValue: baseMax,
-            );
-          },
-        ),
+        context: context,
       );
 
       if (formulaResult.valid) {
@@ -1176,14 +1395,26 @@ class Character {
       return;
     }
 
+    if (!dispatchTriggers) {
+      return;
+    }
+
+    // =========================================================================
+    // CURACIÓN RECIBIDA
+    // =========================================================================
+
     dispatchPassiveTrigger(
-      PassiveTriggerEvent.healed,
+      PassiveTriggerEvent.healingReceived,
       eventVariables: {
         'healing': actualHealing.toDouble(),
         'health_before': healthBefore.toDouble(),
         'health_after': currentHealth.toDouble(),
       },
     );
+
+    // =========================================================================
+    // CAMBIO DE VIDA
+    // =========================================================================
 
     dispatchPassiveTrigger(
       PassiveTriggerEvent.healthChanged,
@@ -1193,15 +1424,6 @@ class Character {
         'health_after': currentHealth.toDouble(),
       },
     );
-
-    if (dispatchTriggers) {
-      dispatchPassiveTrigger(
-        PassiveTriggerEvent.healed,
-        eventVariables: {'healing': amount.toDouble()},
-      );
-
-      dispatchPassiveTrigger(PassiveTriggerEvent.healthChanged);
-    }
   }
 
   void takeDamage(int amount, {bool dispatchTriggers = true}) {
@@ -1223,6 +1445,14 @@ class Character {
       return;
     }
 
+    if (!dispatchTriggers) {
+      return;
+    }
+
+    // =========================================================================
+    // DAÑO RECIBIDO
+    // =========================================================================
+
     dispatchPassiveTrigger(
       PassiveTriggerEvent.damageReceived,
       eventVariables: {
@@ -1232,6 +1462,10 @@ class Character {
       },
     );
 
+    // =========================================================================
+    // CAMBIO DE VIDA
+    // =========================================================================
+
     dispatchPassiveTrigger(
       PassiveTriggerEvent.healthChanged,
       eventVariables: {
@@ -1240,15 +1474,6 @@ class Character {
         'health_after': currentHealth.toDouble(),
       },
     );
-
-    if (dispatchTriggers) {
-      dispatchPassiveTrigger(
-        PassiveTriggerEvent.damageReceived,
-        eventVariables: {'damage': amount.toDouble()},
-      );
-
-      dispatchPassiveTrigger(PassiveTriggerEvent.healthChanged);
-    }
   }
 
   void fullHeal() {
@@ -1746,7 +1971,11 @@ class Character {
     return HealingBonusResult(bonus: bonus, roll: roll);
   }
 
-  int healingBonusModifier(HealingBonus bonus, {CharacterPassive? passive}) {
+  int healingBonusModifier(
+    HealingBonus bonus, {
+    CharacterPassive? passive,
+    FormulaContext? formulaContext,
+  }) {
     var result =
         bonus.flatBonus +
         calculateAbilityMultipliers(bonus.abilityModifierMultipliers);
@@ -1757,48 +1986,52 @@ class Character {
       return result;
     }
 
+    final context =
+        formulaContext ??
+        CharacterFormulaContext.fromCharacter(
+          this,
+          passive: passive,
+          resourceResolver: (resourceId) {
+            final resource = resourceById(resourceId);
+
+            if (resource == null) {
+              return null;
+            }
+
+            final resolver = ResourceModifierResolver(character: this);
+
+            final snapshot = resolver.resolveSnapshot(resource);
+
+            return FormulaResourceValue(
+              baseCurrentValue: snapshot.baseCurrentValue,
+              baseMaxValue: snapshot.baseMaxValue,
+              currentValue: snapshot.currentValue,
+              maxValue: snapshot.maxValue,
+            );
+          },
+          baseResourceResolver: (resourceId) {
+            final resource = resourceById(resourceId);
+
+            if (resource == null) {
+              return null;
+            }
+
+            final baseMax = resource.hasMaximum
+                ? resource.maxValue.toDouble()
+                : null;
+
+            return FormulaResourceValue(
+              baseCurrentValue: resource.currentValue.toDouble(),
+              baseMaxValue: baseMax,
+              currentValue: resource.currentValue.toDouble(),
+              maxValue: baseMax,
+            );
+          },
+        );
+
     final formulaResult = const FormulaEvaluator().evaluate(
       formula,
-      context: CharacterFormulaContext.fromCharacter(
-        this,
-        passive: passive,
-        resourceResolver: (resourceId) {
-          final resource = resourceById(resourceId);
-
-          if (resource == null) {
-            return null;
-          }
-
-          final resolver = ResourceModifierResolver(character: this);
-
-          final snapshot = resolver.resolveSnapshot(resource);
-
-          return FormulaResourceValue(
-            baseCurrentValue: snapshot.baseCurrentValue,
-            baseMaxValue: snapshot.baseMaxValue,
-            currentValue: snapshot.currentValue,
-            maxValue: snapshot.maxValue,
-          );
-        },
-        baseResourceResolver: (resourceId) {
-          final resource = resourceById(resourceId);
-
-          if (resource == null) {
-            return null;
-          }
-
-          final baseMax = resource.hasMaximum
-              ? resource.maxValue.toDouble()
-              : null;
-
-          return FormulaResourceValue(
-            baseCurrentValue: resource.currentValue.toDouble(),
-            baseMaxValue: baseMax,
-            currentValue: resource.currentValue.toDouble(),
-            maxValue: baseMax,
-          );
-        },
-      ),
+      context: context,
     );
 
     if (formulaResult.valid) {
@@ -1811,6 +2044,7 @@ class Character {
   int criticalDamageBonusModifier(
     CriticalDamageBonus bonus, {
     CharacterPassive? passive,
+    FormulaContext? formulaContext,
   }) {
     var result =
         bonus.flatBonus +
@@ -1824,7 +2058,9 @@ class Character {
 
     final formulaResult = const FormulaEvaluator().evaluate(
       formula,
-      context: CharacterFormulaContext.fromCharacter(this, passive: passive),
+      context:
+          formulaContext ??
+          CharacterFormulaContext.fromCharacter(this, passive: passive),
     );
 
     if (formulaResult.valid) {
@@ -1943,10 +2179,7 @@ class Character {
     );
   }
 
-  DiceCalculationResult rollAbilityEffectPart(
-    AbilityEffectPart part, {
-    bool critical = false,
-  }) {
+  int abilityEffectPartModifier(AbilityEffectPart part) {
     final abilityModifier = calculateAbilityMultipliers(
       part.abilityModifierMultipliers,
     );
@@ -1955,7 +2188,14 @@ class Character {
       part.resourceValueMultipliers,
     );
 
-    final baseModifier = part.flatBonus + abilityModifier + resourceModifier;
+    return part.flatBonus + abilityModifier + resourceModifier;
+  }
+
+  DiceCalculationResult rollAbilityEffectPart(
+    AbilityEffectPart part, {
+    bool critical = false,
+  }) {
+    final baseModifier = abilityEffectPartModifier(part);
 
     final finalModifier = critical ? baseModifier * 2 : baseModifier;
 
@@ -2681,6 +2921,8 @@ class Character {
       'turnActive': turnActive,
 
       'counters': counters.map((counter) => counter.toMap()).toList(),
+
+      'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
     };
   }
 
@@ -3070,6 +3312,9 @@ class Character {
       turnActive: turnActive,
 
       counters: counters,
+
+      criticalMinimumNaturalRoll:
+          (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
     );
 
     character.normalizeHealth();

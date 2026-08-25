@@ -10,7 +10,7 @@ import '../models/healing_bonus.dart';
 import '../models/dice_pool.dart';
 import '../models/character.dart';
 import '../models/passive_resource_modifier.dart';
-
+import '../models/action_external_requirement.dart';
 import '../models/formulas/formula_bonus.dart';
 import '../models/formulas/formula_result.dart';
 import '../models/formulas/character_formula.dart';
@@ -39,6 +39,21 @@ enum _PassiveFormSection {
   linkedEffects,
   ownRoll,
   notes,
+}
+
+enum _TriggerTargetConditionPreset {
+  none,
+
+  wounded,
+  fullHealth,
+
+  belowPercent,
+  atOrBelowPercent,
+  abovePercent,
+  atOrAbovePercent,
+
+  self,
+  external,
 }
 
 class PassiveFormScreen extends StatefulWidget {
@@ -337,14 +352,17 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       case PassiveTriggerEvent.enemyKilled:
         return 'Al matar un enemigo';
 
-      case PassiveTriggerEvent.damageDealt:
-        return 'Al causar daño';
-
       case PassiveTriggerEvent.damageReceived:
         return 'Al recibir daño';
 
-      case PassiveTriggerEvent.healed:
-        return 'Al curar';
+      case PassiveTriggerEvent.damageDealt:
+        return 'Al causar daño';
+
+      case PassiveTriggerEvent.healingReceived:
+        return 'Al recibir curación';
+
+      case PassiveTriggerEvent.healingDealt:
+        return 'Al realizar una curación';
 
       case PassiveTriggerEvent.criticalHit:
         return 'Al realizar un crítico';
@@ -2353,7 +2371,10 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2751,7 +2772,7 @@ class _EffectBonusSection extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         child: Column(
           children: [
             Row(
@@ -4701,6 +4722,10 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
 
   bool showConditionTools = false;
   bool showValueTools = false;
+  _TriggerTargetConditionPreset targetConditionPreset =
+      _TriggerTargetConditionPreset.none;
+
+  late final TextEditingController targetPercentController;
 
   @override
   void initState() {
@@ -4721,6 +4746,10 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
     customEventController = TextEditingController(
       text: trigger.customEvent ?? '',
     );
+
+    targetPercentController = TextEditingController(text: '50');
+
+    _restoreTargetConditionPreset();
   }
 
   @override
@@ -4729,8 +4758,201 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
     valueController.dispose();
     targetController.dispose();
     customEventController.dispose();
+    targetPercentController.dispose();
 
     super.dispose();
+  }
+
+  void _restoreTargetConditionPreset() {
+    final expression = conditionController.text.trim();
+
+    if (expression == 'target_wounded == 1') {
+      targetConditionPreset = _TriggerTargetConditionPreset.wounded;
+      return;
+    }
+
+    if (expression == 'target_full_health == 1') {
+      targetConditionPreset = _TriggerTargetConditionPreset.fullHealth;
+      return;
+    }
+
+    if (expression == 'target_is_self == 1') {
+      targetConditionPreset = _TriggerTargetConditionPreset.self;
+      return;
+    }
+
+    if (expression == 'target_is_external == 1') {
+      targetConditionPreset = _TriggerTargetConditionPreset.external;
+      return;
+    }
+
+    final match = RegExp(
+      r'^target_health_percent_(lt|lte|gt|gte)_'
+      r'(\d+(?:\.\d+)?)\s*==\s*1$',
+      caseSensitive: false,
+    ).firstMatch(expression);
+
+    if (match == null) {
+      return;
+    }
+
+    targetPercentController.text = match.group(2) ?? '50';
+
+    switch (match.group(1)?.toLowerCase()) {
+      case 'lt':
+        targetConditionPreset = _TriggerTargetConditionPreset.belowPercent;
+        break;
+
+      case 'lte':
+        targetConditionPreset = _TriggerTargetConditionPreset.atOrBelowPercent;
+        break;
+
+      case 'gt':
+        targetConditionPreset = _TriggerTargetConditionPreset.abovePercent;
+        break;
+
+      case 'gte':
+        targetConditionPreset = _TriggerTargetConditionPreset.atOrAbovePercent;
+        break;
+    }
+  }
+
+  String _targetConditionPresetLabel(_TriggerTargetConditionPreset preset) {
+    switch (preset) {
+      case _TriggerTargetConditionPreset.none:
+        return 'Sin condición rápida';
+
+      case _TriggerTargetConditionPreset.wounded:
+        return 'Objetivo herido';
+
+      case _TriggerTargetConditionPreset.fullHealth:
+        return 'Objetivo a vida completa';
+
+      case _TriggerTargetConditionPreset.belowPercent:
+        return 'Vida por debajo de X%';
+
+      case _TriggerTargetConditionPreset.atOrBelowPercent:
+        return 'Vida a X% o por debajo';
+
+      case _TriggerTargetConditionPreset.abovePercent:
+        return 'Vida por encima de X%';
+
+      case _TriggerTargetConditionPreset.atOrAbovePercent:
+        return 'Vida a X% o por encima';
+
+      case _TriggerTargetConditionPreset.self:
+        return 'El objetivo soy yo';
+
+      case _TriggerTargetConditionPreset.external:
+        return 'El objetivo es externo';
+    }
+  }
+
+  bool get _targetConditionNeedsPercent {
+    switch (targetConditionPreset) {
+      case _TriggerTargetConditionPreset.belowPercent:
+      case _TriggerTargetConditionPreset.atOrBelowPercent:
+      case _TriggerTargetConditionPreset.abovePercent:
+      case _TriggerTargetConditionPreset.atOrAbovePercent:
+        return true;
+
+      default:
+        return false;
+    }
+  }
+
+  String? _buildTargetConditionExpression() {
+    switch (targetConditionPreset) {
+      case _TriggerTargetConditionPreset.none:
+        return null;
+
+      case _TriggerTargetConditionPreset.wounded:
+        return 'target_wounded == 1';
+
+      case _TriggerTargetConditionPreset.fullHealth:
+        return 'target_full_health == 1';
+
+      case _TriggerTargetConditionPreset.self:
+        return 'target_is_self == 1';
+
+      case _TriggerTargetConditionPreset.external:
+        return 'target_is_external == 1';
+
+      case _TriggerTargetConditionPreset.belowPercent:
+      case _TriggerTargetConditionPreset.atOrBelowPercent:
+      case _TriggerTargetConditionPreset.abovePercent:
+      case _TriggerTargetConditionPreset.atOrAbovePercent:
+        final raw = double.tryParse(targetPercentController.text.trim());
+
+        if (raw == null) {
+          return null;
+        }
+
+        final percent = raw.clamp(0.0, 100.0).toDouble();
+
+        late final ActionExternalRequirement requirement;
+
+        switch (targetConditionPreset) {
+          case _TriggerTargetConditionPreset.belowPercent:
+            requirement = ActionExternalRequirement.percentageBelow(
+              variableName: 'target_health_percent',
+              label: '',
+              threshold: percent,
+            );
+            break;
+
+          case _TriggerTargetConditionPreset.atOrBelowPercent:
+            requirement = ActionExternalRequirement.percentageAtOrBelow(
+              variableName: 'target_health_percent',
+              label: '',
+              threshold: percent,
+            );
+            break;
+
+          case _TriggerTargetConditionPreset.abovePercent:
+            requirement = ActionExternalRequirement.percentageAbove(
+              variableName: 'target_health_percent',
+              label: '',
+              threshold: percent,
+            );
+            break;
+
+          case _TriggerTargetConditionPreset.atOrAbovePercent:
+            requirement = ActionExternalRequirement.percentageAtOrAbove(
+              variableName: 'target_health_percent',
+              label: '',
+              threshold: percent,
+            );
+            break;
+
+          default:
+            return null;
+        }
+
+        return '${requirement.normalizedVariableName} == 1';
+    }
+  }
+
+  void _applyTargetConditionPreset() {
+    final expression = _buildTargetConditionExpression();
+
+    if (expression == null) {
+      return;
+    }
+
+    final current = conditionController.text.trim();
+
+    if (current.isEmpty) {
+      conditionController.text = expression;
+    } else {
+      conditionController.text = '($current) && ($expression)';
+    }
+
+    conditionController.selection = TextSelection.collapsed(
+      offset: conditionController.text.length,
+    );
+
+    setState(() {});
   }
 
   void _insert(TextEditingController controller, String text) {
@@ -4824,14 +5046,17 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
       case PassiveTriggerEvent.enemyKilled:
         return 'Al matar un enemigo';
 
-      case PassiveTriggerEvent.damageDealt:
-        return 'Al causar daño';
-
       case PassiveTriggerEvent.damageReceived:
         return 'Al recibir daño';
 
-      case PassiveTriggerEvent.healed:
-        return 'Al curar';
+      case PassiveTriggerEvent.damageDealt:
+        return 'Al causar daño';
+
+      case PassiveTriggerEvent.healingReceived:
+        return 'Al recibir curación';
+
+      case PassiveTriggerEvent.healingDealt:
+        return 'Al realizar una curación';
 
       case PassiveTriggerEvent.criticalHit:
         return 'Al realizar un crítico';
@@ -4922,6 +5147,7 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
             // ================================================================
             DropdownButtonFormField<PassiveTriggerEvent>(
               initialValue: trigger.event,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Evento',
                 prefixIcon: Icon(Icons.bolt_rounded),
@@ -4929,7 +5155,11 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
               items: PassiveTriggerEvent.values.map((event) {
                 return DropdownMenuItem(
                   value: event,
-                  child: Text(_eventLabel(event)),
+                  child: Text(
+                    _eventLabel(event),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 );
               }).toList(),
               onChanged: (value) {
@@ -4950,10 +5180,50 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
                 controller: customEventController,
                 decoration: const InputDecoration(
                   labelText: 'Nombre del evento',
-                  hintText: 'enemy_boss_killed',
+                  prefixIcon: Icon(Icons.label_outline_rounded),
                 ),
               ),
             ],
+
+            const SizedBox(height: 12),
+
+            DropdownButtonFormField<PassiveTriggerMode>(
+              initialValue: trigger.mode,
+              decoration: const InputDecoration(
+                labelText: 'Modo del trigger',
+                prefixIcon: Icon(Icons.autorenew_rounded),
+              ),
+              items: PassiveTriggerMode.values.map((mode) {
+                return DropdownMenuItem(
+                  value: mode,
+                  child: Text(switch (mode) {
+                    PassiveTriggerMode.once => 'Ejecutar una vez',
+
+                    PassiveTriggerMode.whileCondition => 'Mientras se cumpla',
+                  }),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+
+                setState(() {
+                  trigger.mode = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              trigger.mode == PassiveTriggerMode.once
+                  ? 'La acción se ejecuta cuando ocurre el evento y se cumple la condición.'
+                  : 'La condición se reevalúa para mantener activo el resultado persistente.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
 
             const SizedBox(height: 18),
 
@@ -4975,6 +5245,124 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
             ),
 
             const SizedBox(height: 10),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.45,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.track_changes_rounded),
+
+                      const SizedBox(width: 8),
+
+                      Expanded(
+                        child: Text(
+                          'Condición del objetivo',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    'Añade una condición sobre el objetivo.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  DropdownButtonFormField<_TriggerTargetConditionPreset>(
+                    initialValue: targetConditionPreset,
+
+                    isExpanded: true,
+
+                    decoration: const InputDecoration(
+                      labelText: 'Estado del objetivo',
+                      prefixIcon: Icon(Icons.favorite_rounded),
+                    ),
+
+                    selectedItemBuilder: (context) {
+                      return _TriggerTargetConditionPreset.values.map((preset) {
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _targetConditionPresetLabel(preset),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList();
+                    },
+
+                    items: _TriggerTargetConditionPreset.values.map((preset) {
+                      return DropdownMenuItem(
+                        value: preset,
+                        child: Text(
+                          _targetConditionPresetLabel(preset),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+
+                      setState(() {
+                        targetConditionPreset = value;
+                      });
+                    },
+                  ),
+
+                  if (_targetConditionNeedsPercent) ...[
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: targetPercentController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Porcentaje de vida',
+                        suffixText: '%',
+                        hintText: '50',
+                        prefixIcon: Icon(Icons.percent_rounded),
+                      ),
+                    ),
+                  ],
+
+                  if (targetConditionPreset !=
+                      _TriggerTargetConditionPreset.none) ...[
+                    const SizedBox(height: 12),
+
+                    FilledButton.tonalIcon(
+                      onPressed: _applyTargetConditionPreset,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Añadir a la condición'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
 
             TextFormField(
               controller: conditionController,
@@ -5019,6 +5407,108 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
                 },
               ),
 
+            if (showConditionTools) ...[
+              const SizedBox(height: 10),
+
+              Text(
+                'Objetivo',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ActionChip(
+                    label: const Text('Vida %'),
+                    onPressed: () {
+                      _insert(conditionController, 'target_health_percent');
+                    },
+                  ),
+
+                  ActionChip(
+                    label: const Text('Herido'),
+                    onPressed: () {
+                      _insert(conditionController, 'target_wounded');
+                    },
+                  ),
+
+                  ActionChip(
+                    label: const Text('Vida completa'),
+                    onPressed: () {
+                      _insert(conditionController, 'target_full_health');
+                    },
+                  ),
+
+                  ActionChip(
+                    label: const Text('Bajo 50%'),
+                    onPressed: () {
+                      _insert(conditionController, 'target_below_half');
+                    },
+                  ),
+
+                  ActionChip(
+                    label: const Text('Sobre 50%'),
+                    onPressed: () {
+                      _insert(conditionController, 'target_above_half');
+                    },
+                  ),
+
+                  ActionChip(
+                    label: const Text('Self'),
+                    onPressed: () {
+                      _insert(conditionController, 'target_is_self');
+                    },
+                  ),
+
+                  ActionChip(
+                    label: const Text('Externo'),
+                    onPressed: () {
+                      _insert(conditionController, 'target_is_external');
+                    },
+                  ),
+                ],
+              ),
+            ],
+
+            if (trigger.mode == PassiveTriggerMode.whileCondition &&
+                trigger.actionType != PassiveTriggerActionType.applyEffect) ...[
+              const SizedBox(height: 10),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.tertiaryContainer.withValues(
+                    alpha: 0.55,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded),
+
+                    SizedBox(width: 10),
+
+                    Expanded(
+                      child: Text(
+                        'En modo "Mientras se cumpla", '
+                        'las acciones instantáneas se ejecutan '
+                        'solo al producirse el evento. '
+                        'Para mantener un estado activo, usa '
+                        '"Aplicar efecto".',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             if (conditionController.text.trim().isNotEmpty) ...[
               const SizedBox(height: 6),
 
@@ -5037,6 +5527,7 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
             // ================================================================
             DropdownButtonFormField<PassiveTriggerActionType>(
               initialValue: trigger.actionType,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Acción',
                 prefixIcon: Icon(Icons.play_arrow_rounded),
@@ -5044,7 +5535,11 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
               items: PassiveTriggerActionType.values.map((action) {
                 return DropdownMenuItem(
                   value: action,
-                  child: Text(_actionLabel(action)),
+                  child: Text(
+                    _actionLabel(action),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 );
               }).toList(),
               onChanged: (value) {
@@ -5056,6 +5551,10 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
                   trigger.actionType = value;
 
                   targetController.clear();
+
+                  if (!_usesValue) {
+                    valueController.clear();
+                  }
                 });
               },
             ),
@@ -5131,7 +5630,10 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
               else
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
@@ -5192,7 +5694,10 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
               else
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
@@ -5299,20 +5804,62 @@ class _TriggerEditorDialogState extends State<_TriggerEditorDialog> {
 
             final value = valueController.text.trim();
 
+            final target = targetController.text.trim();
+
+            final customEvent = customEventController.text.trim();
+
+            // =======================================================================
+            // VALIDACIÓN
+            // =======================================================================
+
+            if (trigger.event == PassiveTriggerEvent.custom &&
+                customEvent.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Escribe el nombre del evento personalizado.'),
+                ),
+              );
+
+              return;
+            }
+
+            if ((_usesResource || _usesCounter || _usesEffect) &&
+                target.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Selecciona el objetivo de la acción.'),
+                ),
+              );
+
+              return;
+            }
+
+            if (_usesValue && value.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Introduce el valor de la acción.'),
+                ),
+              );
+
+              return;
+            }
+
+            // =======================================================================
+            // GUARDADO
+            // =======================================================================
+
             trigger.condition = condition.isEmpty
                 ? null
                 : CharacterFormula(expression: condition);
 
             trigger.valueFormula = _usesValue
-                ? CharacterFormula(expression: value.isEmpty ? '0' : value)
+                ? CharacterFormula(expression: value)
                 : null;
 
-            trigger.targetId = targetController.text.trim().isEmpty
-                ? null
-                : targetController.text.trim();
+            trigger.targetId = target.isEmpty ? null : target;
 
             trigger.customEvent = trigger.event == PassiveTriggerEvent.custom
-                ? customEventController.text.trim()
+                ? customEvent
                 : null;
 
             Navigator.pop(context, trigger);

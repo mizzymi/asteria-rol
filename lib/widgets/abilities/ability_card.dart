@@ -24,8 +24,7 @@ class AbilityCard extends StatefulWidget {
   final VoidCallback? onRestore;
 
   final VoidCallback onUse;
-  final VoidCallback onAttack;
-  final VoidCallback onResolveEffects;
+  final VoidCallback onCombatActions;
 
   const AbilityCard({
     super.key,
@@ -36,8 +35,7 @@ class AbilityCard extends StatefulWidget {
     required this.onDelete,
     required this.onRestore,
     required this.onUse,
-    required this.onAttack,
-    required this.onResolveEffects,
+    required this.onCombatActions,
   });
 
   @override
@@ -84,8 +82,7 @@ class _AbilityCardState extends State<AbilityCard> {
               ability: widget.ability,
               character: widget.character,
               onUse: widget.onUse,
-              onAttack: widget.onAttack,
-              onResolveEffects: widget.onResolveEffects,
+              onCombatActions: widget.onCombatActions,
             ),
           ),
         ],
@@ -282,15 +279,13 @@ class _ExpandedAbilityContent extends StatelessWidget {
   final Character character;
 
   final VoidCallback onUse;
-  final VoidCallback onAttack;
-  final VoidCallback onResolveEffects;
+  final VoidCallback onCombatActions;
 
   const _ExpandedAbilityContent({
     required this.ability,
     required this.character,
     required this.onUse,
-    required this.onAttack,
-    required this.onResolveEffects,
+    required this.onCombatActions,
   });
 
   @override
@@ -359,8 +354,7 @@ class _ExpandedAbilityContent extends StatelessWidget {
           _AbilityActions(
             ability: ability,
             character: character,
-            onAttack: onAttack,
-            onResolveEffects: onResolveEffects,
+            onCombatActions: onCombatActions,
           ),
 
           if (ability.hasLimitedUses) ...[
@@ -469,14 +463,12 @@ class _AbilityActions extends StatelessWidget {
   final CharacterAbility ability;
   final Character character;
 
-  final VoidCallback onAttack;
-  final VoidCallback onResolveEffects;
+  final VoidCallback onCombatActions;
 
   const _AbilityActions({
     required this.ability,
     required this.character,
-    required this.onAttack,
-    required this.onResolveEffects,
+    required this.onCombatActions,
   });
 
   @override
@@ -485,43 +477,29 @@ class _AbilityActions extends StatelessWidget {
 
     final hasLinkedEffects = ability.linkedEffects.isNotEmpty;
 
-    final canPay = character.canPayAbilityResource(ability);
+    final hasCombatActions =
+        ability.requiresAttackRoll ||
+        hasEffects ||
+        hasLinkedEffects ||
+        ability.dealsDamage ||
+        ability.heals;
 
-    // =========================================================================
-    // ATAQUE
-    // =========================================================================
-
-    if (ability.requiresAttackRoll) {
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: canPay ? onAttack : null,
-
-          icon: const Icon(Icons.casino_rounded),
-
-          label: Text(canPay ? 'Atacar' : 'Recurso insuficiente'),
-        ),
-      );
+    if (!hasCombatActions) {
+      return const SizedBox.shrink();
     }
 
-    // =========================================================================
-    // EFECTO DIRECTO
-    // =========================================================================
+    final canPay =
+        character.canPayAbilityResource(ability) &&
+        (!ability.hasLimitedUses || ability.currentUses > 0);
 
-    if (hasEffects || hasLinkedEffects) {
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: canPay ? onResolveEffects : null,
-
-          icon: const Icon(Icons.auto_awesome_rounded),
-
-          label: Text(canPay ? 'Resolver efectos' : 'Recurso insuficiente'),
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: canPay ? onCombatActions : null,
+        icon: const Icon(Icons.casino_rounded),
+        label: Text(canPay ? 'Acciones' : 'No disponible'),
+      ),
+    );
   }
 }
 

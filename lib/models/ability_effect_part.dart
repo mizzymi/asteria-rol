@@ -1,5 +1,8 @@
 import 'dice_pool.dart';
 import 'skill.dart';
+import 'action_external_requirement.dart';
+import 'formulas/character_formula.dart';
+import 'action_cost.dart';
 
 class AbilityEffectPart {
   String id;
@@ -26,6 +29,48 @@ class AbilityEffectPart {
 
   String typeName;
 
+  // ===========================================================================
+  // COSTES
+  // ===========================================================================
+
+  /// Costes adicionales de esta parte.
+  ///
+  /// Normalmente se utilizan con componentes opcionales.
+  /// Solo se pagan si la parte acaba participando realmente.
+  List<ActionCost>? _costs;
+
+  List<ActionCost> get costs {
+    return _costs ??= <ActionCost>[];
+  }
+
+  set costs(List<ActionCost> value) {
+    _costs = value;
+  }
+
+  // ===========================================================================
+  // CONDICIÓN
+  // ===========================================================================
+
+  CharacterFormula? condition;
+
+  List<ActionExternalRequirement> externalRequirements;
+
+  // ===========================================================================
+  // OPCIONALIDAD
+  // ===========================================================================
+
+  bool optional;
+
+  /// Permite que varias partes dependan de una misma elección.
+  ///
+  /// Si está vacío, la propia `id` de la parte actúa como grupo.
+  String optionalGroupId;
+
+  /// Texto que podrá mostrar la UI cuando pregunte si se utiliza.
+  String optionalLabel;
+
+  bool participatesInCritical;
+
   AbilityEffectPart({
     required this.id,
     List<DicePool>? dicePools,
@@ -33,9 +78,20 @@ class AbilityEffectPart {
     Map<String, int>? resourceValueMultipliers,
     this.flatBonus = 0,
     this.typeName = '',
+    List<ActionCost>? costs,
+    this.condition,
+    List<ActionExternalRequirement>? externalRequirements,
+    this.optional = false,
+    this.optionalGroupId = '',
+    this.optionalLabel = '',
+    this.participatesInCritical = true,
   }) : dicePools = dicePools ?? [],
        abilityModifierMultipliers = abilityModifierMultipliers ?? {},
-       resourceValueMultipliers = resourceValueMultipliers ?? {};
+       resourceValueMultipliers = resourceValueMultipliers ?? {},
+       externalRequirements = List<ActionExternalRequirement>.from(
+         externalRequirements ?? const [],
+       ),
+       _costs = List<ActionCost>.from(costs ?? const []);
 
   // ===========================================================================
   // HELPERS
@@ -51,6 +107,44 @@ class AbilityEffectPart {
   String get diceNotation {
     return dicePools.map((pool) => pool.notation).join(' + ');
   }
+
+  bool get hasCondition {
+    return condition != null &&
+        condition!.expression.trim().isNotEmpty &&
+        condition!.expression.trim() != '0';
+  }
+
+  bool get hasExternalRequirements {
+    return externalRequirements.isNotEmpty;
+  }
+
+  String get effectiveOptionalGroupId {
+    final explicitId = optionalGroupId.trim();
+
+    if (explicitId.isNotEmpty) {
+      return explicitId;
+    }
+
+    return id;
+  }
+
+  String get effectiveOptionalLabel {
+    final explicitLabel = optionalLabel.trim();
+
+    if (explicitLabel.isNotEmpty) {
+      return explicitLabel;
+    }
+
+    final explicitType = typeName.trim();
+
+    if (explicitType.isNotEmpty) {
+      return explicitType;
+    }
+
+    return 'Componente opcional';
+  }
+
+  bool get hasCosts => costs.isNotEmpty;
 
   // ===========================================================================
   // SERIALIZACIÓN
@@ -75,6 +169,22 @@ class AbilityEffectPart {
       'flatBonus': flatBonus,
 
       'typeName': typeName,
+
+      'costs': costs.map((cost) => cost.toMap()).toList(),
+
+      'condition': condition?.toMap(),
+
+      'externalRequirements': externalRequirements
+          .map((requirement) => requirement.toMap())
+          .toList(),
+
+      'optional': optional,
+
+      'optionalGroupId': optionalGroupId,
+
+      'optionalLabel': optionalLabel,
+
+      'participatesInCritical': participatesInCritical,
     };
   }
 
@@ -143,6 +253,56 @@ class AbilityEffectPart {
       }
     }
 
+    final externalRequirements = <ActionExternalRequirement>[];
+
+    final rawExternalRequirements = map['externalRequirements'];
+
+    if (rawExternalRequirements is List) {
+      for (final rawRequirement in rawExternalRequirements) {
+        if (rawRequirement is! Map) {
+          continue;
+        }
+
+        try {
+          externalRequirements.add(
+            ActionExternalRequirement.fromMap(
+              Map<dynamic, dynamic>.from(rawRequirement),
+            ),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    final costs = <ActionCost>[];
+
+    final rawCosts = map['costs'];
+
+    if (rawCosts is List) {
+      for (final rawCost in rawCosts) {
+        if (rawCost is! Map) {
+          continue;
+        }
+
+        try {
+          final cost = ActionCost.fromMap(Map<dynamic, dynamic>.from(rawCost));
+
+          if (cost.isValid) {
+            costs.add(cost);
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    final rawCondition = map['condition'];
+
+    final condition = rawCondition is Map
+        ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawCondition))
+        : null;
+
     // =========================================================================
     // RESULTADO
     // =========================================================================
@@ -159,6 +319,20 @@ class AbilityEffectPart {
       flatBonus: (map['flatBonus'] as num?)?.toInt() ?? 0,
 
       typeName: map['typeName']?.toString() ?? '',
+
+      costs: costs,
+
+      condition: condition,
+
+      externalRequirements: externalRequirements,
+
+      optional: map['optional'] as bool? ?? false,
+
+      optionalGroupId: map['optionalGroupId']?.toString() ?? '',
+
+      optionalLabel: map['optionalLabel']?.toString() ?? '',
+
+      participatesInCritical: map['participatesInCritical'] as bool? ?? true,
     );
   }
 }

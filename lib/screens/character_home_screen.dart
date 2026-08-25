@@ -473,7 +473,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                       ),
                       title: const Text('Siguiente ronda'),
                       subtitle: Text(
-                        'Ronda $character.combatRound → ${character.combatRound + 1}',
+                        'Ronda → ${character.combatRound + 1}',
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () async {

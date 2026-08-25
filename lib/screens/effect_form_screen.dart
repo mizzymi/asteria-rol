@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/character.dart';
+import '../models/formulas/character_formula.dart';
 import '../models/character_effect.dart';
 import '../models/critical_damage_bonus.dart';
 import '../models/damage_bonus.dart';
@@ -7,10 +9,13 @@ import '../models/dice_pool.dart';
 import '../models/healing_bonus.dart';
 import '../models/skill.dart';
 
+import '../widgets/formulas/formula_insert_bar.dart';
+
 class EffectFormScreen extends StatefulWidget {
   final CharacterEffect? effect;
+  final Character? character;
 
-  const EffectFormScreen({super.key, this.effect});
+  const EffectFormScreen({super.key, this.effect, this.character});
 
   @override
   State<EffectFormScreen> createState() => _EffectFormScreenState();
@@ -159,7 +164,7 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
     final result = await showDialog<DamageBonus>(
       context: context,
       builder: (context) {
-        return _DamageBonusDialog(bonus: bonus);
+        return _DamageBonusDialog(bonus: bonus, character: widget.character);
       },
     );
 
@@ -205,7 +210,7 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
     final result = await showDialog<HealingBonus>(
       context: context,
       builder: (context) {
-        return _HealingBonusDialog(bonus: bonus);
+        return _HealingBonusDialog(bonus: bonus, character: widget.character);
       },
     );
 
@@ -251,7 +256,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
     final result = await showDialog<CriticalDamageBonus>(
       context: context,
       builder: (context) {
-        return _CriticalDamageBonusDialog(bonus: bonus);
+        return _CriticalDamageBonusDialog(
+          bonus: bonus,
+          character: widget.character,
+        );
       },
     );
 
@@ -270,7 +278,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
     final result = await showDialog<CriticalDamageBonus>(
       context: context,
       builder: (context) {
-        return _CriticalDamageBonusDialog(bonus: copy);
+        return _CriticalDamageBonusDialog(
+          bonus: copy,
+          character: widget.character,
+        );
       },
     );
 
@@ -318,6 +329,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       result += ' · ${bonus.damageType.trim()}';
     }
 
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
+    }
+
     return result;
   }
 
@@ -340,6 +355,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       pieces.add(
         bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
       );
+    }
+
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
     }
 
     return pieces.isEmpty
@@ -378,6 +397,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
 
     if (!bonus.alwaysTriggers) {
       result += ' · ${bonus.chancePercent}%';
+    }
+
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
     }
 
     return result;
@@ -887,8 +910,6 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
 
               const SizedBox(height: 28),
 
-              const SizedBox(height: 28),
-
               // ===============================================================
               // ATRIBUTOS
               // ===============================================================
@@ -1259,8 +1280,9 @@ class _BonusListItem extends StatelessWidget {
 
 class _DamageBonusDialog extends StatefulWidget {
   final DamageBonus bonus;
+  final Character? character;
 
-  const _DamageBonusDialog({required this.bonus});
+  const _DamageBonusDialog({required this.bonus, this.character});
 
   @override
   State<_DamageBonusDialog> createState() => _DamageBonusDialogState();
@@ -1273,6 +1295,9 @@ class _DamageBonusDialogState extends State<_DamageBonusDialog> {
   late final TextEditingController diceController;
   late final TextEditingController flatBonusController;
   late final TextEditingController damageTypeController;
+  late final TextEditingController formulaController;
+
+  bool showFormulaTools = false;
 
   @override
   void initState() {
@@ -1287,6 +1312,10 @@ class _DamageBonusDialogState extends State<_DamageBonusDialog> {
     flatBonusController = TextEditingController(text: '${bonus.flatBonus}');
 
     damageTypeController = TextEditingController(text: bonus.damageType);
+
+    formulaController = TextEditingController(
+      text: bonus.formula?.expression ?? '',
+    );
   }
 
   @override
@@ -1295,8 +1324,27 @@ class _DamageBonusDialogState extends State<_DamageBonusDialog> {
     diceController.dispose();
     flatBonusController.dispose();
     damageTypeController.dispose();
+    formulaController.dispose();
 
     super.dispose();
+  }
+
+  void _insertFormula(String text) {
+    final selection = formulaController.selection;
+    final current = formulaController.text;
+
+    final start = selection.isValid ? selection.start : current.length;
+
+    final end = selection.isValid ? selection.end : current.length;
+
+    final updated = current.replaceRange(start, end, text);
+
+    formulaController.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+
+    setState(() {});
   }
 
   void _save() {
@@ -1321,6 +1369,12 @@ class _DamageBonusDialogState extends State<_DamageBonusDialog> {
     bonus.flatBonus = int.tryParse(flatBonusController.text.trim()) ?? 0;
 
     bonus.damageType = damageTypeController.text.trim();
+
+    final expression = formulaController.text.trim();
+
+    bonus.formula = expression.isEmpty
+        ? null
+        : CharacterFormula(expression: expression);
 
     Navigator.pop(context, bonus);
   }
@@ -1398,6 +1452,65 @@ class _DamageBonusDialogState extends State<_DamageBonusDialog> {
 
                     const SizedBox(height: 18),
 
+                    Text(
+                      'Fórmula adicional',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'Se suma al daño mientras el efecto esté activo.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    TextFormField(
+                      controller: formulaController,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Fórmula',
+                        hintText: 'rounddown(level / 5)',
+                        prefixIcon: Icon(Icons.functions_rounded),
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                      },
+                    ),
+
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            showFormulaTools = !showFormulaTools;
+                          });
+                        },
+                        icon: Icon(
+                          showFormulaTools
+                              ? Icons.expand_less_rounded
+                              : Icons.functions_rounded,
+                        ),
+                        label: Text(
+                          showFormulaTools
+                              ? 'Ocultar herramientas'
+                              : 'Insertar en fórmula',
+                        ),
+                      ),
+                    ),
+
+                    if (showFormulaTools)
+                      FormulaInsertBar(
+                        character: widget.character,
+                        onInsert: _insertFormula,
+                      ),
+
+                    const SizedBox(height: 18),
+
                     TextFormField(
                       controller: damageTypeController,
                       decoration: const InputDecoration(
@@ -1432,8 +1545,9 @@ class _DamageBonusDialogState extends State<_DamageBonusDialog> {
 
 class _HealingBonusDialog extends StatefulWidget {
   final HealingBonus bonus;
+  final Character? character;
 
-  const _HealingBonusDialog({required this.bonus});
+  const _HealingBonusDialog({required this.bonus, this.character});
 
   @override
   State<_HealingBonusDialog> createState() => _HealingBonusDialogState();
@@ -1445,6 +1559,9 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
   late final TextEditingController nameController;
   late final TextEditingController diceController;
   late final TextEditingController flatBonusController;
+  late final TextEditingController formulaController;
+
+  bool showFormulaTools = false;
 
   @override
   void initState() {
@@ -1457,6 +1574,10 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
     diceController = TextEditingController(text: bonus.diceNotation);
 
     flatBonusController = TextEditingController(text: '${bonus.flatBonus}');
+
+    formulaController = TextEditingController(
+      text: bonus.formula?.expression ?? '',
+    );
   }
 
   @override
@@ -1464,8 +1585,27 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
     nameController.dispose();
     diceController.dispose();
     flatBonusController.dispose();
+    formulaController.dispose();
 
     super.dispose();
+  }
+
+  void _insertFormula(String text) {
+    final selection = formulaController.selection;
+    final current = formulaController.text;
+
+    final start = selection.isValid ? selection.start : current.length;
+
+    final end = selection.isValid ? selection.end : current.length;
+
+    final updated = current.replaceRange(start, end, text);
+
+    formulaController.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+
+    setState(() {});
   }
 
   void _save() {
@@ -1488,6 +1628,12 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
     bonus.dicePools = parsedDice;
 
     bonus.flatBonus = int.tryParse(flatBonusController.text.trim()) ?? 0;
+
+    final expression = formulaController.text.trim();
+
+    bonus.formula = expression.isEmpty
+        ? null
+        : CharacterFormula(expression: expression);
 
     Navigator.pop(context, bonus);
   }
@@ -1562,6 +1708,49 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
                         });
                       },
                     ),
+
+                    const SizedBox(height: 18),
+
+                    TextFormField(
+                      controller: formulaController,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Fórmula adicional',
+                        hintText: 'SAB_MOD + rounddown(level / 5)',
+                        prefixIcon: Icon(Icons.functions_rounded),
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                      },
+                    ),
+
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            showFormulaTools = !showFormulaTools;
+                          });
+                        },
+                        icon: Icon(
+                          showFormulaTools
+                              ? Icons.expand_less_rounded
+                              : Icons.functions_rounded,
+                        ),
+                        label: Text(
+                          showFormulaTools
+                              ? 'Ocultar herramientas'
+                              : 'Insertar en fórmula',
+                        ),
+                      ),
+                    ),
+
+                    if (showFormulaTools)
+                      FormulaInsertBar(
+                        character: widget.character,
+                        onInsert: _insertFormula,
+                      ),
                   ],
                 ),
               ),
@@ -1588,8 +1777,9 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
 
 class _CriticalDamageBonusDialog extends StatefulWidget {
   final CriticalDamageBonus bonus;
+  final Character? character;
 
-  const _CriticalDamageBonusDialog({required this.bonus});
+  const _CriticalDamageBonusDialog({required this.bonus, this.character});
 
   @override
   State<_CriticalDamageBonusDialog> createState() =>
@@ -1605,7 +1795,9 @@ class _CriticalDamageBonusDialogState
   late final TextEditingController flatBonusController;
   late final TextEditingController damageTypeController;
   late final TextEditingController chanceController;
+  late final TextEditingController formulaController;
 
+  bool showFormulaTools = false;
   @override
   void initState() {
     super.initState();
@@ -1621,6 +1813,10 @@ class _CriticalDamageBonusDialogState
     damageTypeController = TextEditingController(text: bonus.damageType);
 
     chanceController = TextEditingController(text: '${bonus.chancePercent}');
+
+    formulaController = TextEditingController(
+      text: bonus.formula?.expression ?? '',
+    );
   }
 
   @override
@@ -1630,6 +1826,7 @@ class _CriticalDamageBonusDialogState
     flatBonusController.dispose();
     damageTypeController.dispose();
     chanceController.dispose();
+    formulaController.dispose();
 
     super.dispose();
   }
@@ -1663,7 +1860,31 @@ class _CriticalDamageBonusDialogState
 
     bonus.normalize();
 
+    final expression = formulaController.text.trim();
+
+    bonus.formula = expression.isEmpty
+        ? null
+        : CharacterFormula(expression: expression);
+
     Navigator.pop(context, bonus);
+  }
+
+  void _insertFormula(String text) {
+    final selection = formulaController.selection;
+    final current = formulaController.text;
+
+    final start = selection.isValid ? selection.start : current.length;
+
+    final end = selection.isValid ? selection.end : current.length;
+
+    final updated = current.replaceRange(start, end, text);
+
+    formulaController.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+
+    setState(() {});
   }
 
   @override
@@ -1755,6 +1976,49 @@ class _CriticalDamageBonusDialogState
                         });
                       },
                     ),
+
+                    const SizedBox(height: 18),
+
+                    TextFormField(
+                      controller: formulaController,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Fórmula adicional',
+                        hintText: 'FUE_MOD + rounddown(level / 4)',
+                        prefixIcon: Icon(Icons.functions_rounded),
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                      },
+                    ),
+
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            showFormulaTools = !showFormulaTools;
+                          });
+                        },
+                        icon: Icon(
+                          showFormulaTools
+                              ? Icons.expand_less_rounded
+                              : Icons.functions_rounded,
+                        ),
+                        label: Text(
+                          showFormulaTools
+                              ? 'Ocultar herramientas'
+                              : 'Insertar en fórmula',
+                        ),
+                      ),
+                    ),
+
+                    if (showFormulaTools)
+                      FormulaInsertBar(
+                        character: widget.character,
+                        onInsert: _insertFormula,
+                      ),
 
                     const SizedBox(height: 18),
 

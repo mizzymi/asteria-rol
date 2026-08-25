@@ -9,6 +9,8 @@ import '../models/ability.dart';
 import '../models/dice_pool.dart';
 import '../models/skill.dart';
 import '../models/character_resource.dart';
+import '../models/action_external_requirement.dart';
+import '../models/action_cost.dart';
 
 import '../widgets/abilities/ability_form/ability_general_section.dart';
 import '../widgets/abilities/ability_form/ability_attack_section.dart';
@@ -36,6 +38,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
   late AbilityActionType actionType;
   late AbilityType abilityType;
+
+  late AbilityTargetType targetType;
+
+  late AbilityTargetResolutionMode targetResolutionMode;
 
   bool requiresAttackRoll = false;
   bool proficient = true;
@@ -71,6 +77,11 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     notesController = TextEditingController(text: ability?.notes ?? '');
 
     actionType = ability?.actionType ?? AbilityActionType.action;
+
+    targetType = ability?.targetType ?? AbilityTargetType.external;
+
+    targetResolutionMode =
+        ability?.targetResolutionMode ?? AbilityTargetResolutionMode.shared;
 
     abilityType = ability?.abilityType ?? AbilityType.strength;
 
@@ -128,6 +139,27 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
               flatBonus: part.flatBonus,
 
               typeName: part.typeName,
+
+              costs: part.costs
+                  .map((cost) => ActionCost.fromMap(cost.toMap()))
+                  .toList(),
+
+              condition: part.condition?.copy(),
+
+              externalRequirements: part.externalRequirements
+                  .map(
+                    (requirement) =>
+                        ActionExternalRequirement.fromMap(requirement.toMap()),
+                  )
+                  .toList(),
+
+              optional: part.optional,
+
+              optionalGroupId: part.optionalGroupId,
+
+              optionalLabel: part.optionalLabel,
+
+              participatesInCritical: part.participatesInCritical,
             ),
           )
           .toList(),
@@ -344,6 +376,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
       actionType: actionType,
 
+      targetType: targetType,
+
+      targetResolutionMode: targetResolutionMode,
+
       requiresAttackRoll: requiresAttackRoll,
 
       abilityType: abilityType,
@@ -453,6 +489,91 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                     abilityType = value;
                   });
                 },
+              ),
+
+              const SizedBox(height: 28),
+
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Objetivos',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      DropdownButtonFormField<AbilityTargetType>(
+                        initialValue: targetType,
+
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo de objetivo',
+                          border: OutlineInputBorder(),
+                        ),
+
+                        items: AbilityTargetType.values
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value.label),
+                              ),
+                            )
+                            .toList(),
+
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            targetType = value;
+
+                            if (!targetType.supportsMultipleTargets) {
+                              targetResolutionMode =
+                                  AbilityTargetResolutionMode.shared;
+                            }
+                          });
+                        },
+                      ),
+
+                      if (targetType.supportsMultipleTargets) ...[
+                        const SizedBox(height: 16),
+
+                        DropdownButtonFormField<AbilityTargetResolutionMode>(
+                          initialValue: targetResolutionMode,
+
+                          decoration: const InputDecoration(
+                            labelText: 'Resolución',
+                            border: OutlineInputBorder(),
+                          ),
+
+                          items: AbilityTargetResolutionMode.values
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(value.label),
+                                ),
+                              )
+                              .toList(),
+
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+
+                            setState(() {
+                              targetResolutionMode = value;
+                            });
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
 
               const SizedBox(height: 28),

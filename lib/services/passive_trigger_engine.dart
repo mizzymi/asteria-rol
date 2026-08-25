@@ -54,6 +54,10 @@ class PassiveTriggerEngine {
         trigger,
         conditionMet: conditionMet,
         eventVariables: eventVariables,
+
+        // Estamos procesando el evento real.
+        // Una acción no persistente puede ejecutarse una vez.
+        allowOneShotAction: true,
       );
 
       return;
@@ -90,6 +94,10 @@ class PassiveTriggerEngine {
           trigger,
           conditionMet: conditionMet,
           eventVariables: eventVariables,
+
+          // Esto es solo una reevaluación del estado.
+          // No repetimos heal/resource/damage/etc.
+          allowOneShotAction: false,
         );
       }
     }
@@ -166,21 +174,42 @@ class PassiveTriggerEngine {
     PassiveTrigger trigger, {
     required bool conditionMet,
     Map<String, double> eventVariables = const {},
+    bool allowOneShotAction = false,
   }) {
     switch (trigger.actionType) {
+      // =========================================================================
+      // EFECTO REALMENTE PERSISTENTE
+      //
+      // Mientras la condición sea true:
+      // existe exactamente una instancia.
+      //
+      // Cuando pasa a false:
+      // se elimina exactamente esa instancia.
+      // =========================================================================
+
       case PassiveTriggerActionType.applyEffect:
         _setTriggerEffectActive(passive, trigger, active: conditionMet);
-        break;
+
+        return;
+
+      // =========================================================================
+      // RESTO DE ACCIONES
+      //
+      // addResource / heal / damage / charges / counters...
+      // no deben ejecutarse continuamente cada vez que hacemos
+      // refreshPersistentTriggers().
+      //
+      // Solo se ejecutan una vez cuando estamos evaluando el evento original.
+      // =========================================================================
 
       default:
-        if (conditionMet) {
-          _executeTriggerAction(
-            passive,
-            trigger,
-            eventVariables: eventVariables,
-          );
+        if (!conditionMet || !allowOneShotAction) {
+          return;
         }
-        break;
+
+        _executeTriggerAction(passive, trigger, eventVariables: eventVariables);
+
+        return;
     }
   }
 
@@ -217,8 +246,20 @@ class PassiveTriggerEngine {
           return;
         }
 
-        resource.currentValue += value.round();
-        resource.normalize();
+        character.addResourceValue(
+          resourceId,
+          value.round(),
+          dispatchTriggers: false,
+        );
+
+        character.refreshPassiveTriggers(
+          eventVariables: {
+            'current_resource':
+                character.resourceById(resourceId)?.currentValue.toDouble() ??
+                0,
+          },
+        );
+
         break;
 
       case PassiveTriggerActionType.subtractResource:
@@ -234,8 +275,20 @@ class PassiveTriggerEngine {
           return;
         }
 
-        resource.currentValue -= value.round();
-        resource.normalize();
+        character.subtractResourceValue(
+          resourceId,
+          value.round(),
+          dispatchTriggers: false,
+        );
+
+        character.refreshPassiveTriggers(
+          eventVariables: {
+            'current_resource':
+                character.resourceById(resourceId)?.currentValue.toDouble() ??
+                0,
+          },
+        );
+
         break;
 
       case PassiveTriggerActionType.setResource:
@@ -251,8 +304,20 @@ class PassiveTriggerEngine {
           return;
         }
 
-        resource.currentValue = value.round();
-        resource.normalize();
+        character.setResourceValue(
+          resourceId,
+          value.round(),
+          dispatchTriggers: false,
+        );
+
+        character.refreshPassiveTriggers(
+          eventVariables: {
+            'current_resource':
+                character.resourceById(resourceId)?.currentValue.toDouble() ??
+                0,
+          },
+        );
+
         break;
 
       // -----------------------------------------------------------------------
@@ -260,13 +325,33 @@ class PassiveTriggerEngine {
       // -----------------------------------------------------------------------
 
       case PassiveTriggerActionType.addCharge:
-        passive.currentCharges += value.round();
-        passive.normalizeCharges();
+        character.addPassiveCharges(
+          passive.id,
+          value.round(),
+          dispatchTriggers: false,
+        );
+
+        character.refreshPassiveTriggers(
+          eventVariables: {
+            'current_charges': passive.currentCharges.toDouble(),
+          },
+        );
+
         break;
 
       case PassiveTriggerActionType.subtractCharge:
-        passive.currentCharges -= value.round();
-        passive.normalizeCharges();
+        character.subtractPassiveCharges(
+          passive.id,
+          value.round(),
+          dispatchTriggers: false,
+        );
+
+        character.refreshPassiveTriggers(
+          eventVariables: {
+            'current_charges': passive.currentCharges.toDouble(),
+          },
+        );
+
         break;
 
       // -----------------------------------------------------------------------

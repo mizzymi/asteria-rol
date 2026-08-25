@@ -21,9 +21,11 @@ enum PassiveTriggerEvent {
 
   damageReceived,
   damageDealt,
-  healed,
-  criticalHit,
 
+  healingReceived,
+  healingDealt,
+
+  criticalHit,
   enemyKilled,
 
   turnStarted,
@@ -247,6 +249,11 @@ class CharacterPassive {
 
   String notes;
 
+  /// Rango crítico proporcionado por esta pasiva.
+  ///
+  /// 20 significa que no amplía el rango.
+  int criticalMinimumNaturalRoll;
+
   CharacterPassive({
     required this.id,
     required this.name,
@@ -282,6 +289,7 @@ class CharacterPassive {
     this.rechargeDescription = '',
 
     this.notes = '',
+    this.criticalMinimumNaturalRoll = 20,
   }) : armorClassBonus = armorClassBonus ?? FormulaBonus(),
        initiativeBonus = initiativeBonus ?? FormulaBonus(),
        speedBonus = speedBonus ?? FormulaBonus(),
@@ -536,6 +544,8 @@ class CharacterPassive {
       'rechargeDescription': rechargeDescription,
 
       'notes': notes,
+
+      'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
     };
   }
 
@@ -906,6 +916,9 @@ class CharacterPassive {
       rechargeDescription: map['rechargeDescription']?.toString() ?? '',
 
       notes: map['notes']?.toString() ?? '',
+
+      criticalMinimumNaturalRoll:
+          (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
     );
 
     /*

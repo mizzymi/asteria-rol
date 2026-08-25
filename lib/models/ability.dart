@@ -6,6 +6,95 @@ import 'ability_effect_part.dart';
 
 enum AbilityActionType { action, bonusAction, reaction, passive }
 
+enum AbilityTargetType {
+  self,
+  external,
+  selfOrExternal,
+  multipleExternal,
+  areaIncludingSelf,
+  areaExcludingSelf,
+}
+
+extension AbilityTargetTypeData on AbilityTargetType {
+  String get label {
+    switch (this) {
+      case AbilityTargetType.self:
+        return 'Uno mismo';
+
+      case AbilityTargetType.external:
+        return 'Objetivo externo';
+
+      case AbilityTargetType.selfOrExternal:
+        return 'Uno mismo u otro';
+
+      case AbilityTargetType.multipleExternal:
+        return 'Varios objetivos externos';
+
+      case AbilityTargetType.areaIncludingSelf:
+        return 'Área incluyendo al personaje';
+
+      case AbilityTargetType.areaExcludingSelf:
+        return 'Área excluyendo al personaje';
+    }
+  }
+
+  bool get canIncludeSelf {
+    switch (this) {
+      case AbilityTargetType.self:
+      case AbilityTargetType.selfOrExternal:
+      case AbilityTargetType.areaIncludingSelf:
+        return true;
+
+      case AbilityTargetType.external:
+      case AbilityTargetType.multipleExternal:
+      case AbilityTargetType.areaExcludingSelf:
+        return false;
+    }
+  }
+
+  bool get canIncludeExternalTargets {
+    switch (this) {
+      case AbilityTargetType.self:
+        return false;
+
+      case AbilityTargetType.external:
+      case AbilityTargetType.selfOrExternal:
+      case AbilityTargetType.multipleExternal:
+      case AbilityTargetType.areaIncludingSelf:
+      case AbilityTargetType.areaExcludingSelf:
+        return true;
+    }
+  }
+
+  bool get supportsMultipleTargets {
+    switch (this) {
+      case AbilityTargetType.multipleExternal:
+      case AbilityTargetType.areaIncludingSelf:
+      case AbilityTargetType.areaExcludingSelf:
+        return true;
+
+      case AbilityTargetType.self:
+      case AbilityTargetType.external:
+      case AbilityTargetType.selfOrExternal:
+        return false;
+    }
+  }
+}
+
+enum AbilityTargetResolutionMode { shared, independent }
+
+extension AbilityTargetResolutionModeData on AbilityTargetResolutionMode {
+  String get label {
+    switch (this) {
+      case AbilityTargetResolutionMode.shared:
+        return 'Resolución compartida';
+
+      case AbilityTargetResolutionMode.independent:
+        return 'Resolución independiente';
+    }
+  }
+}
+
 extension AbilityActionTypeData on AbilityActionType {
   String get label {
     switch (this) {
@@ -386,6 +475,13 @@ class CharacterAbility {
   /// Bonus plano adicional a la tirada de ataque.
   int attackBonus;
 
+  /// Tirada natural mínima que produce crítico.
+  ///
+  /// 20 = 20
+  /// 19 = 19-20
+  /// 18 = 18-20
+  int criticalMinimumNaturalRoll;
+
   // ==========================================================================
   // CAMPOS LEGACY DE EFECTO
   //
@@ -446,15 +542,26 @@ class CharacterAbility {
 
   String notes;
 
+  // ==========================================================================
+  // OBJETIVOS
+  // ==========================================================================
+
+  AbilityTargetType targetType;
+
+  AbilityTargetResolutionMode targetResolutionMode;
+
   CharacterAbility({
     required this.id,
     required this.name,
     this.description = '',
     this.actionType = AbilityActionType.action,
+    this.targetType = AbilityTargetType.external,
+    this.targetResolutionMode = AbilityTargetResolutionMode.shared,
     this.requiresAttackRoll = false,
     this.abilityType = AbilityType.strength,
     this.proficient = true,
     this.attackBonus = 0,
+    this.criticalMinimumNaturalRoll = 20,
     this.effectType = AbilityEffectType.none,
     List<DicePool>? dicePools,
     this.addAbilityModifierToEffect = true,
@@ -583,9 +690,15 @@ class CharacterAbility {
 
       'abilityType': abilityType.name,
 
+      'targetType': targetType.name,
+
+      'targetResolutionMode': targetResolutionMode.name,
+
       'proficient': proficient,
 
       'attackBonus': attackBonus,
+
+      'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
 
       // Legacy.
       'effectType': effectType.name,
@@ -908,6 +1021,19 @@ class CharacterAbility {
         (item) => item.name == map['actionType'],
         orElse: () => AbilityActionType.action,
       ),
+
+      targetType: AbilityTargetType.values.firstWhere(
+        (item) => item.name == map['targetType'],
+        orElse: () => AbilityTargetType.external,
+      ),
+
+      targetResolutionMode: AbilityTargetResolutionMode.values.firstWhere(
+        (item) => item.name == map['targetResolutionMode'],
+        orElse: () => AbilityTargetResolutionMode.shared,
+      ),
+
+      criticalMinimumNaturalRoll:
+          (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
 
       requiresAttackRoll: map['requiresAttackRoll'] as bool? ?? false,
 
