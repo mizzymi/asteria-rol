@@ -102,11 +102,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
 
     final safeMax = hasMaximum ? (parsedMax < 1 ? 1 : parsedMax) : 0;
 
-    final safeCurrent = hasMaximum
-        ? currentValue.clamp(0, safeMax)
-        : currentValue < 0
-        ? 0
-        : currentValue;
+    final safeCurrent = currentValue < 0 ? 0 : currentValue;
 
     final resource = CharacterResource(
       id:
@@ -148,10 +144,6 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
 
     setState(() {
       maxController.text = '$newValue';
-
-      if (currentValue > newValue) {
-        currentValue = newValue;
-      }
     });
   }
 
@@ -163,17 +155,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
     setState(() {
       final next = currentValue + delta;
 
-      if (!hasMaximum) {
-        currentValue = next < 0 ? 0 : next;
-
-        return;
-      }
-
-      final max = int.tryParse(maxController.text) ?? 1;
-
-      final safeMax = max < 1 ? 1 : max;
-
-      currentValue = next.clamp(0, safeMax);
+      currentValue = next < 0 ? 0 : next;
     });
   }
 
@@ -330,10 +312,6 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                         max = 1;
                         maxController.text = '1';
                       }
-
-                      if (currentValue > max) {
-                        currentValue = max;
-                      }
                     }
                   });
                 },
@@ -372,18 +350,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                         ),
                         decoration: const InputDecoration(labelText: 'Máximo'),
                         onChanged: (_) {
-                          setState(() {
-                            var currentMax =
-                                int.tryParse(maxController.text) ?? 1;
-
-                            if (currentMax < 1) {
-                              currentMax = 1;
-                            }
-
-                            if (currentValue > currentMax) {
-                              currentValue = currentMax;
-                            }
-                          });
+                          setState(() {});
                         },
                       ),
                     ),
@@ -437,11 +404,9 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                   ),
 
                   IconButton.filledTonal(
-                    onPressed: !hasMaximum || currentValue < max
-                        ? () {
-                            changeCurrent(1);
-                          }
-                        : null,
+                    onPressed: () {
+                      changeCurrent(1);
+                    },
                     icon: const Icon(Icons.add_rounded),
                   ),
                 ],

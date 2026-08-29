@@ -62,6 +62,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
 
   late List<CriticalDamageBonus> criticalDamageBonuses;
 
+  late int criticalMinimumNaturalRoll;
+
+  late bool empoweredCritical;
+
   bool get editing => widget.effect != null;
 
   @override
@@ -134,6 +138,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
             .map((bonus) => CriticalDamageBonus.fromMap(bonus.toMap()))
             .toList() ??
         [];
+
+    criticalMinimumNaturalRoll = effect?.criticalMinimumNaturalRoll ?? 20;
+
+    empoweredCritical = effect?.empoweredCritical ?? false;
   }
 
   @override
@@ -411,31 +419,31 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       return;
     }
 
-    final hasDuration = durationType != CharacterEffectDurationType.permanent;
+    final hasMechanicalDuration =
+        durationType == CharacterEffectDurationType.turns ||
+        durationType == CharacterEffectDurationType.rounds ||
+        durationType == CharacterEffectDurationType.minutes;
 
-    final parsedDuration = hasDuration
+    final parsedDuration = hasMechanicalDuration
         ? (int.tryParse(durationController.text) ?? 1)
         : 0;
 
-    final safeDuration = parsedDuration < 1 && hasDuration ? 1 : parsedDuration;
+    final safeDuration = hasMechanicalDuration && parsedDuration < 1
+        ? 1
+        : parsedDuration;
 
     int currentDuration;
 
-    if (!hasDuration) {
+    if (!hasMechanicalDuration) {
       currentDuration = 0;
     } else if (widget.effect == null ||
         widget.effect!.durationType != durationType) {
-      /*
-       * Nuevo efecto o hemos cambiado
-       * el tipo de duración:
-       * empieza completo.
-       */
+      // Nuevo efecto o cambio de tipo:
+      // comienza con toda su duración.
       currentDuration = safeDuration;
     } else {
-      /*
-       * Al editar conservamos
-       * el tiempo restante.
-       */
+      // Al editar un efecto del mismo tipo conservamos
+      // el tiempo restante.
       currentDuration = widget.effect!.currentDuration;
 
       if (currentDuration > safeDuration) {
@@ -484,7 +492,9 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
 
       currentDuration: currentDuration,
 
-      durationNote: durationNoteController.text.trim(),
+      durationNote: durationType == CharacterEffectDurationType.custom
+          ? durationNoteController.text.trim()
+          : '',
 
       armorClassBonus: _parse(armorClassController),
 
@@ -495,6 +505,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       maxHealthBonus: _parse(maxHealthController),
 
       attackBonus: _parse(attackController),
+
+      criticalMinimumNaturalRoll: criticalMinimumNaturalRoll,
+
+      empoweredCritical: empoweredCritical,
 
       abilityModifierBonuses: cleanedAbilities,
 
@@ -675,7 +689,9 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                 },
               ),
 
-              if (durationType != CharacterEffectDurationType.permanent) ...[
+              if (durationType == CharacterEffectDurationType.turns ||
+                  durationType == CharacterEffectDurationType.rounds ||
+                  durationType == CharacterEffectDurationType.minutes) ...[
                 const SizedBox(height: 12),
 
                 Row(
@@ -733,17 +749,26 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                     ),
                   ],
                 ),
+              ],
 
+              if (durationType == CharacterEffectDurationType.custom) ...[
                 const SizedBox(height: 12),
 
                 TextFormField(
                   controller: durationNoteController,
                   decoration: const InputDecoration(
-                    labelText: 'Nota de duración',
+                    labelText: 'Duración personalizada',
                     hintText:
                         'Hasta recibir daño, hasta terminar el combate...',
                     prefixIcon: Icon(Icons.schedule_rounded),
                   ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Describe cuándo termina el efecto';
+                    }
+
+                    return null;
+                  },
                 ),
               ],
 
@@ -798,6 +823,57 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                 controller: attackController,
                 icon: Icons.gps_fixed_rounded,
                 label: 'Ataque',
+              ),
+
+              const SizedBox(height: 12),
+
+              DropdownButtonFormField<int>(
+                initialValue: criticalMinimumNaturalRoll,
+                decoration: const InputDecoration(
+                  labelText: 'Rango crítico',
+                  helperText:
+                  'Valor natural mínimo del d20 que produce crítico.',
+                  prefixIcon: Icon(Icons.auto_awesome_rounded),
+                ),
+                items: List.generate(
+                  20,
+                      (index) {
+                    final value = 20 - index;
+
+                    return DropdownMenuItem<int>(
+                      value: value,
+                      child: Text(
+                        value == 20 ? '20' : '$value–20',
+                      ),
+                    );
+                  },
+                ),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+
+                  setState(() {
+                    criticalMinimumNaturalRoll = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 8),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: empoweredCritical,
+                title: const Text('Crítico potenciado'),
+                subtitle: const Text(
+                  'Mientras este efecto esté activo, '
+                      'los críticos usan la regla potenciada.',
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    empoweredCritical = value;
+                  });
+                },
               ),
 
               const SizedBox(height: 28),
@@ -1008,9 +1084,6 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
 
   String _durationLabel(CharacterEffectDurationType type) {
     switch (type) {
-      case CharacterEffectDurationType.permanent:
-        return 'Duración';
-
       case CharacterEffectDurationType.turns:
         return 'Turnos';
 
@@ -1020,6 +1093,7 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       case CharacterEffectDurationType.minutes:
         return 'Minutos';
 
+      case CharacterEffectDurationType.permanent:
       case CharacterEffectDurationType.custom:
         return 'Duración';
     }

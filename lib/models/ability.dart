@@ -1,5 +1,6 @@
-import 'package:rol/models/character_effect.dart';
-
+import 'character_effect.dart';
+import 'action_resolution_context.dart';
+import 'action_linked_effect.dart';
 import 'dice_pool.dart';
 import 'skill.dart';
 import 'ability_effect_part.dart';
@@ -184,6 +185,15 @@ class AbilityEffect {
 
   List<AbilityEffectPart> parts;
 
+  /// Define si el bloque de daño extra del efecto
+  /// participa en la transformación crítica.
+  ///
+  /// Solo tiene efecto cuando:
+  /// - el efecto causa daño,
+  /// - la habilidad usa tirada de ataque,
+  /// - el efecto no utiliza salvación.
+  bool extraParticipatesInCritical;
+
   // ==========================================================================
   // TIRADA DE SALVACIÓN
   // ==========================================================================
@@ -205,6 +215,7 @@ class AbilityEffect {
     this.legacyAddAbilityModifier = false,
     this.effectBonus = 0,
     this.effectTypeName = '',
+    this.extraParticipatesInCritical = true,
     this.usesSavingThrow = false,
     this.savingThrowAbility = AbilityType.dexterity,
     this.saveDcBonus = 0,
@@ -289,6 +300,8 @@ class AbilityEffect {
       'effectBonus': effectBonus,
 
       'effectTypeName': effectTypeName,
+
+      'extraParticipatesInCritical': extraParticipatesInCritical,
 
       // Moderno.
       'parts': parts.map((part) => part.toMap()).toList(),
@@ -430,6 +443,9 @@ class AbilityEffect {
 
       effectTypeName: effectTypeName,
 
+      extraParticipatesInCritical:
+          map['extraParticipatesInCritical'] as bool? ?? true,
+
       usesSavingThrow: map['usesSavingThrow'] as bool? ?? false,
 
       savingThrowAbility: AbilityType.values.firstWhere(
@@ -482,6 +498,10 @@ class CharacterAbility {
   /// 18 = 18-20
   int criticalMinimumNaturalRoll;
 
+  /// Si true, los críticos producidos por esta habilidad
+  /// utilizan la regla de crítico potenciado.
+  bool empoweredCritical;
+
   // ==========================================================================
   // CAMPOS LEGACY DE EFECTO
   //
@@ -512,7 +532,7 @@ class CharacterAbility {
 
   int saveDcBonus;
 
-  List<CharacterEffect> linkedEffects;
+  List<ActionLinkedEffect> linkedEffects;
   // ==========================================================================
   // SISTEMA MODERNO
   // ==========================================================================
@@ -562,6 +582,7 @@ class CharacterAbility {
     this.proficient = true,
     this.attackBonus = 0,
     this.criticalMinimumNaturalRoll = 20,
+    this.empoweredCritical = false,
     this.effectType = AbilityEffectType.none,
     List<DicePool>? dicePools,
     this.addAbilityModifierToEffect = true,
@@ -575,11 +596,11 @@ class CharacterAbility {
     this.resourceId,
     this.resourceCost = 0,
     List<AbilityEffect>? effects,
-    List<CharacterEffect>? linkedEffects,
+    List<ActionLinkedEffect>? linkedEffects,
     this.notes = '',
   }) : dicePools = List<DicePool>.from(dicePools ?? []),
        effects = List<AbilityEffect>.from(effects ?? []),
-       linkedEffects = List<CharacterEffect>.from(linkedEffects ?? []);
+       linkedEffects = List<ActionLinkedEffect>.from(linkedEffects ?? const []);
 
   // ==========================================================================
   // HELPERS
@@ -700,6 +721,8 @@ class CharacterAbility {
 
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
 
+      'empoweredCritical': empoweredCritical,
+
       // Legacy.
       'effectType': effectType.name,
 
@@ -732,8 +755,26 @@ class CharacterAbility {
 
       'notes': notes,
 
-      'linkedEffects': linkedEffects.map((effect) => effect.toMap()).toList(),
+      'linkedEffects': linkedEffects
+          .map((linkedEffect) => linkedEffect.toMap())
+          .toList(),
     };
+  }
+
+  bool _linkedEffectAppliesToTarget({
+    required ActionLinkedEffect linkedEffect,
+    required ActionTarget target,
+  }) {
+    switch (linkedEffect.target) {
+      case ActionLinkedEffectTarget.actionTarget:
+        return true;
+
+      case ActionLinkedEffectTarget.self:
+        return target.isSelf;
+
+      case ActionLinkedEffectTarget.externalTargets:
+        return target.isExternal;
+    }
   }
 
   factory CharacterAbility.fromMap(Map<dynamic, dynamic> map) {
@@ -984,21 +1025,66 @@ class CharacterAbility {
 
     // ========================================================================
     // EFECTOS VINCULADOS
+    //
+    // Formato nuevo:
+    //
+    // {
+    //   "effect": {...},
+    //   "target": "self"
+    // }
+    //
+    // Formato legacy:
+    //
+    // {
+    //   "id": "...",
+    //   "name": "...",
+    //   ...
+    // }
+    //
+    // Todo formato antiguo se migra automáticamente a:
+    //
+    // target = actionTarget
+    //
+    // para conservar exactamente el comportamiento histórico.
     // ========================================================================
 
-    final linkedEffects = <CharacterEffect>[];
+    final linkedEffects = <ActionLinkedEffect>[];
 
     final rawLinkedEffects = map['linkedEffects'];
 
     if (rawLinkedEffects is List) {
-      for (final rawEffect in rawLinkedEffects) {
-        if (rawEffect is! Map) {
+      for (final rawLinkedEffect in rawLinkedEffects) {
+        if (rawLinkedEffect is! Map) {
           continue;
         }
 
+        final linkedMap = Map<dynamic, dynamic>.from(rawLinkedEffect);
+
         try {
+          // ------------------------------------------------------------------
+          // FORMATO NUEVO
+          // ------------------------------------------------------------------
+
+          if (linkedMap['effect'] is Map) {
+            linkedEffects.add(ActionLinkedEffect.fromMap(linkedMap));
+
+            continue;
+          }
+
+          // ------------------------------------------------------------------
+          // FORMATO ANTIGUO
+          //
+          // El objeto es directamente CharacterEffect.
+          // ------------------------------------------------------------------
+
+          final legacyEffect = CharacterEffect.fromMap(linkedMap);
+
           linkedEffects.add(
-            CharacterEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
+            ActionLinkedEffect(
+              effect: legacyEffect,
+
+              target: ActionLinkedEffectTarget.actionTarget,
+            ),
           );
         } catch (_) {
           continue;
@@ -1034,6 +1120,8 @@ class CharacterAbility {
 
       criticalMinimumNaturalRoll:
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
+
+      empoweredCritical: map['empoweredCritical'] as bool? ?? false,
 
       requiresAttackRoll: map['requiresAttackRoll'] as bool? ?? false,
 

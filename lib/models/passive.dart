@@ -1,5 +1,4 @@
-import 'package:rol/models/character_effect.dart';
-
+import 'character_effect.dart';
 import 'formulas/formula_bonus.dart';
 import 'formulas/character_formula.dart';
 import 'passive_resource_modifier.dart';
@@ -21,11 +20,24 @@ enum PassiveTriggerEvent {
 
   damageReceived,
   damageDealt,
-
-  healingReceived,
   healingDealt,
+  healingReceived,
 
+  effectApplied,
+  effectReceived,
+
+  attackHit,
+  attackMiss,
   criticalHit,
+
+  // ===========================================================================
+  // MUERTE
+  // ===========================================================================
+
+  /// El propio personaje acaba de pasar de > 0 PG a 0 PG.
+  characterDied,
+
+  /// El personaje ha provocado la muerte de un objetivo externo.
   enemyKilled,
 
   turnStarted,
@@ -60,6 +72,13 @@ class PassiveTrigger {
 
   PassiveTriggerActionType actionType;
 
+  /// ID genérico del destino.
+  ///
+  /// Su significado depende de [actionType]:
+  ///
+  /// resource actions -> CharacterResource.id
+  /// counter actions  -> CharacterCounter.id
+  /// effect actions   -> CharacterEffect.id de linkedEffects
   String? targetId;
 
   CharacterFormula? valueFormula;
@@ -72,9 +91,7 @@ class PassiveTrigger {
     required this.id,
     required this.event,
     required this.actionType,
-
     this.mode = PassiveTriggerMode.once,
-
     this.condition,
     this.targetId,
     this.valueFormula,
@@ -85,6 +102,98 @@ class PassiveTrigger {
     return condition != null &&
         condition!.expression.trim().isNotEmpty &&
         condition!.expression.trim() != '0';
+  }
+
+  // ===========================================================================
+  // TARGET
+  // ===========================================================================
+
+  bool get requiresTarget {
+    switch (actionType) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return true;
+
+      case PassiveTriggerActionType.addCharge:
+      case PassiveTriggerActionType.subtractCharge:
+      case PassiveTriggerActionType.dealDamage:
+      case PassiveTriggerActionType.heal:
+        return false;
+    }
+  }
+
+  bool get hasValidTarget {
+    if (!requiresTarget) {
+      return true;
+    }
+
+    return targetId?.trim().isNotEmpty == true;
+  }
+
+  String? get resourceId {
+    switch (actionType) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+        return targetId;
+
+      default:
+        return null;
+    }
+  }
+
+  String? get counterId {
+    switch (actionType) {
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return targetId;
+
+      default:
+        return null;
+    }
+  }
+
+  String? get effectId {
+    switch (actionType) {
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
+        return targetId;
+
+      default:
+        return null;
+    }
+  }
+
+  bool get requiresValue {
+    switch (actionType) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+      case PassiveTriggerActionType.addCharge:
+      case PassiveTriggerActionType.subtractCharge:
+      case PassiveTriggerActionType.dealDamage:
+      case PassiveTriggerActionType.heal:
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return true;
+
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
+        return false;
+    }
+  }
+
+  bool get isCustomEvent {
+    return event == PassiveTriggerEvent.custom;
+  }
+
+  bool get hasValidCustomEvent {
+    return !isCustomEvent || customEvent?.trim().isNotEmpty == true;
   }
 
   Map<String, dynamic> toMap() {
@@ -254,6 +363,10 @@ class CharacterPassive {
   /// 20 significa que no amplía el rango.
   int criticalMinimumNaturalRoll;
 
+  /// Si true, los críticos realizados mientras esta pasiva
+  /// esté activa se consideran críticos potenciados.
+  bool empoweredCritical;
+
   CharacterPassive({
     required this.id,
     required this.name,
@@ -290,6 +403,7 @@ class CharacterPassive {
 
     this.notes = '',
     this.criticalMinimumNaturalRoll = 20,
+    this.empoweredCritical = false,
   }) : armorClassBonus = armorClassBonus ?? FormulaBonus(),
        initiativeBonus = initiativeBonus ?? FormulaBonus(),
        speedBonus = speedBonus ?? FormulaBonus(),
@@ -322,6 +436,14 @@ class CharacterPassive {
        rollAbilityModifierMultipliers = Map<AbilityType, int>.from(
          rollAbilityModifierMultipliers ?? {},
        );
+
+  bool get hasAutomaticLinkedEffectTriggers {
+    return triggers.any(
+      (trigger) =>
+          trigger.actionType == PassiveTriggerActionType.applyEffect ||
+          trigger.actionType == PassiveTriggerActionType.removeEffect,
+    );
+  }
 
   bool get hasRoll {
     return rollDicePools.isNotEmpty ||
@@ -359,6 +481,10 @@ class CharacterPassive {
         criticalDamageBonuses.any((damage) => damage.canTrigger) ||
         healingBonuses.any((bonus) => bonus.hasHealing) ||
         resourceModifiers.isNotEmpty ||
+        triggers.isNotEmpty ||
+        linkedEffects.isNotEmpty ||
+        criticalMinimumNaturalRoll < 20 ||
+        empoweredCritical ||
         hasRoll;
   }
 
@@ -396,49 +522,6 @@ class CharacterPassive {
     }
 
     return '$currentCharges/$maxCharges';
-  }
-
-  void useCharge() {
-    if (!hasCharges) {
-      return;
-    }
-
-    if (currentCharges <= 0) {
-      return;
-    }
-
-    currentCharges--;
-  }
-
-  void restoreCharge() {
-    if (!hasCharges) {
-      return;
-    }
-
-    if (unlimitedCharges) {
-      currentCharges++;
-      return;
-    }
-
-    if (currentCharges < maxCharges) {
-      currentCharges++;
-    }
-  }
-
-  void restoreCharges() {
-    if (!hasCharges) {
-      return;
-    }
-
-    /*
-   * Una pasiva sin máximo no tiene un valor
-   * concreto al que pueda "rellenarse".
-   */
-    if (unlimitedCharges) {
-      return;
-    }
-
-    currentCharges = maxCharges;
   }
 
   void normalizeCharges() {
@@ -546,6 +629,7 @@ class CharacterPassive {
       'notes': notes,
 
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
+      'empoweredCritical': empoweredCritical,
     };
   }
 
@@ -919,6 +1003,8 @@ class CharacterPassive {
 
       criticalMinimumNaturalRoll:
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
+
+      empoweredCritical: map['empoweredCritical'] as bool? ?? false,
     );
 
     /*

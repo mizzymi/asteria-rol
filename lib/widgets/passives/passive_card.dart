@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/character_effect.dart';
 import 'package:rol/utils/number_format.dart';
 
 import '../../models/formulas/formula_bonus.dart';
-
+import '../../models/character_effect.dart';
 import '../../models/damage_bonus.dart';
 import '../../models/critical_damage_bonus.dart';
 import '../../models/healing_bonus.dart';
@@ -38,7 +37,6 @@ class PassiveCard extends StatefulWidget {
   final VoidCallback? onApplyLinkedEffects;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
-  final VoidCallback? onUseCharge;
   final VoidCallback? onRestoreCharges;
   final VoidCallback? onRoll;
 
@@ -51,7 +49,6 @@ class PassiveCard extends StatefulWidget {
     this.onApplyLinkedEffects,
     this.onEdit,
     this.onDelete,
-    this.onUseCharge,
     this.onRestoreCharges,
     this.onRoll,
   });
@@ -112,7 +109,6 @@ class _PassiveCardState extends State<PassiveCard> {
                 onToggle: widget.onToggle,
                 onEdit: widget.onEdit,
                 onDelete: widget.onDelete,
-                onUseCharge: widget.onUseCharge,
                 onRestoreCharges: widget.onRestoreCharges,
                 onRoll: widget.onRoll,
                 onApplyLinkedEffects: widget.onApplyLinkedEffects,
@@ -306,7 +302,6 @@ class _PassiveExpandedContent extends StatelessWidget {
   final VoidCallback? onApplyLinkedEffects;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
-  final VoidCallback? onUseCharge;
   final VoidCallback? onRestoreCharges;
   final VoidCallback? onRoll;
 
@@ -317,7 +312,6 @@ class _PassiveExpandedContent extends StatelessWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
-    required this.onUseCharge,
     required this.onRestoreCharges,
     required this.onApplyLinkedEffects,
     required this.onRoll,
@@ -521,7 +515,7 @@ class _PassiveExpandedContent extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
 
-                      subtitle: Text(_linkedEffectDuration(effect)),
+                      subtitle: Text(effect.durationText),
                     );
                   }),
 
@@ -612,35 +606,19 @@ class _PassiveExpandedContent extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed:
-                              passive.enabled && passive.currentCharges > 0
-                              ? onUseCharge
-                              : null,
-                          icon: const Icon(Icons.remove_rounded),
-                          label: const Text('Gastar'),
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: !passive.enabled
-                              ? null
-                              : passive.hasUnlimitedCharges
-                              ? onRestoreCharges
-                              : passive.currentCharges < passive.maxCharges
-                              ? onRestoreCharges
-                              : null,
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Recuperar'),
-                        ),
-                      ),
-                    ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: !passive.enabled
+                          ? null
+                          : passive.hasUnlimitedCharges
+                          ? onRestoreCharges
+                          : passive.currentCharges < passive.maxCharges
+                          ? onRestoreCharges
+                          : null,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Recuperar carga'),
+                    ),
                   ),
                 ],
               ),
@@ -838,29 +816,6 @@ class _PassiveExpandedContent extends StatelessWidget {
 
       case CharacterEffectType.neutral:
         return Icons.auto_awesome_rounded;
-    }
-  }
-
-  static String _linkedEffectDuration(CharacterEffect effect) {
-    switch (effect.durationType) {
-      case CharacterEffectDurationType.permanent:
-        return 'Permanente';
-
-      case CharacterEffectDurationType.turns:
-        return '${effect.maxDuration} '
-            '${effect.maxDuration == 1 ? 'turno' : 'turnos'}';
-
-      case CharacterEffectDurationType.rounds:
-        return '${effect.maxDuration} '
-            '${effect.maxDuration == 1 ? 'ronda' : 'rondas'}';
-
-      case CharacterEffectDurationType.minutes:
-        return '${effect.maxDuration} min';
-
-      case CharacterEffectDurationType.custom:
-        return effect.durationNote.trim().isNotEmpty
-            ? effect.durationNote.trim()
-            : 'Duración personalizada';
     }
   }
 

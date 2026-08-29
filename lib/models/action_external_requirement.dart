@@ -146,6 +146,66 @@ class ActionExternalRequirement {
     }
   }
 
+  static ActionExternalRequirement? tryParsePercentageVariable(
+      String variableName,
+      ) {
+    final normalized =
+    variableName.trim().toLowerCase();
+
+    final match = RegExp(
+      r'^(.*)_(lt|lte|gt|gte)_(-?\d+(?:\.\d+)?)$',
+    ).firstMatch(normalized);
+
+    if (match == null) {
+      return null;
+    }
+
+    final baseVariable = match.group(1);
+    final operatorName = match.group(2);
+    final rawThreshold = match.group(3);
+
+    if (baseVariable == null ||
+        baseVariable.isEmpty ||
+        operatorName == null ||
+        rawThreshold == null) {
+      return null;
+    }
+
+    final threshold =
+    double.tryParse(rawThreshold);
+
+    if (threshold == null) {
+      return null;
+    }
+
+    final type = switch (operatorName) {
+      'lt' =>
+      ActionExternalRequirementType.percentageBelow,
+
+      'lte' =>
+      ActionExternalRequirementType.percentageAtOrBelow,
+
+      'gt' =>
+      ActionExternalRequirementType.percentageAbove,
+
+      'gte' =>
+      ActionExternalRequirementType.percentageAtOrAbove,
+
+      _ => null,
+    };
+
+    if (type == null) {
+      return null;
+    }
+
+    return ActionExternalRequirement(
+      variableName: baseVariable,
+      type: type,
+      label: '',
+      threshold: threshold,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'variableName': variableName,

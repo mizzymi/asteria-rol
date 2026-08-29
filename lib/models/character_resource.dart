@@ -58,38 +58,6 @@ class CharacterResource {
     return '${formatThousands(currentValue)}/${formatThousands(maxValue)}';
   }
 
-  void consume(int amount) {
-    if (amount <= 0) {
-      return;
-    }
-
-    currentValue -= amount;
-
-    if (currentValue < 0) {
-      currentValue = 0;
-    }
-  }
-
-  void restore(int amount, {int? maximum}) {
-    if (amount <= 0) {
-      return;
-    }
-
-    currentValue += amount;
-
-    if (maximum != null && currentValue > maximum) {
-      currentValue = maximum;
-    }
-  }
-
-  void restoreFull({required int maximum}) {
-    currentValue = maximum;
-  }
-
-  void empty() {
-    currentValue = 0;
-  }
-
   void normalize() {
     // Recurso sin máximo.
     if (!hasMaximum) {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+enum CombatActionChoice { attack, damage, critical, heal, use }
+
 class CombatActionSheet {
   const CombatActionSheet._();
 
@@ -19,8 +21,8 @@ class CombatActionSheet {
     VoidCallback? onCritical,
     VoidCallback? onHeal,
     VoidCallback? onUse,
-  }) {
-    return showModalBottomSheet<void>(
+  }) async {
+    final choice = await showModalBottomSheet<CombatActionChoice>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -81,8 +83,10 @@ class CombatActionSheet {
                     onTap: onAttack == null
                         ? null
                         : () {
-                            Navigator.pop(sheetContext);
-                            onAttack();
+                            Navigator.pop(
+                              sheetContext,
+                              CombatActionChoice.attack,
+                            );
                           },
                   ),
 
@@ -97,8 +101,10 @@ class CombatActionSheet {
                     onTap: onDamage == null
                         ? null
                         : () {
-                            Navigator.pop(sheetContext);
-                            onDamage();
+                            Navigator.pop(
+                              sheetContext,
+                              CombatActionChoice.damage,
+                            );
                           },
                   ),
 
@@ -113,8 +119,10 @@ class CombatActionSheet {
                     onTap: onCritical == null
                         ? null
                         : () {
-                            Navigator.pop(sheetContext);
-                            onCritical();
+                            Navigator.pop(
+                              sheetContext,
+                              CombatActionChoice.critical,
+                            );
                           },
                   ),
 
@@ -129,8 +137,10 @@ class CombatActionSheet {
                     onTap: onHeal == null
                         ? null
                         : () {
-                            Navigator.pop(sheetContext);
-                            onHeal();
+                            Navigator.pop(
+                              sheetContext,
+                              CombatActionChoice.heal,
+                            );
                           },
                   ),
 
@@ -145,8 +155,7 @@ class CombatActionSheet {
                     onTap: onUse == null
                         ? null
                         : () {
-                            Navigator.pop(sheetContext);
-                            onUse();
+                            Navigator.pop(sheetContext, CombatActionChoice.use);
                           },
                   ),
               ],
@@ -155,13 +164,49 @@ class CombatActionSheet {
         );
       },
     );
+
+    // =========================================================================
+    // IMPORTANTE
+    //
+    // Llegamos aquí únicamente cuando el bottom sheet YA se ha cerrado.
+    //
+    // Solo entonces abrimos cualquier diálogo perteneciente a la acción.
+    // =========================================================================
+
+    switch (choice) {
+      case CombatActionChoice.attack:
+        onAttack?.call();
+        break;
+
+      case CombatActionChoice.damage:
+        onDamage?.call();
+        break;
+
+      case CombatActionChoice.critical:
+        onCritical?.call();
+        break;
+
+      case CombatActionChoice.heal:
+        onHeal?.call();
+        break;
+
+      case CombatActionChoice.use:
+        onUse?.call();
+        break;
+
+      case null:
+        break;
+    }
   }
 }
 
 class _CombatActionTile extends StatelessWidget {
   final IconData icon;
+
   final String title;
+
   final String subtitle;
+
   final VoidCallback? onTap;
 
   const _CombatActionTile({

@@ -3,93 +3,78 @@ import 'action_dice_result.dart';
 import 'action_resolution_context.dart';
 import 'action_saving_throw.dart';
 import 'action_effect_result.dart';
+import 'action_target_attack_result.dart';
+import 'action_dice_request.dart';
 
 class ActionTargetResult {
   final ActionTarget target;
 
   final ActionDiceResult diceResult;
 
+  final ActionTargetAttackResult? attackResult;
+
   final List<ActionSavingThrowResult> savingThrows;
 
   final List<ActionEffectResult> effects;
 
+  final int resolvedDamage;
+
+  final int resolvedHealing;
+
   const ActionTargetResult({
     required this.target,
     required this.diceResult,
+    this.attackResult,
     this.savingThrows = const [],
     this.effects = const [],
-  });
+    this.resolvedDamage = 0,
+    this.resolvedHealing = 0,
+  }) : assert(resolvedDamage >= 0),
+       assert(resolvedHealing >= 0);
+
+  // ===========================================================================
+  // ESTADO
+  // ===========================================================================
 
   bool get hasEffects => effects.isNotEmpty;
 
-  int _totalForEffectType(AbilityEffectType effectType) {
-    final relevantParts = diceResult.parts.where(
-      (part) => part.request.effectType == effectType,
-    );
+  bool get hasAttackResult => attackResult != null;
 
-    final grouped = <String, int>{};
+  bool get hit => attackResult?.hit ?? true;
 
-    var independentBonuses = 0;
+  bool get missed => !hit;
 
-    for (final part in relevantParts) {
-      final effectId = part.request.effectId;
-
-      final belongsToAbilityEffect =
-          effectId != 'damage_bonus' &&
-          effectId != 'healing_bonus' &&
-          effectId != 'critical_extra';
-
-      if (!belongsToAbilityEffect) {
-        independentBonuses += part.total;
-        continue;
-      }
-
-      grouped[effectId] = (grouped[effectId] ?? 0) + part.total;
-    }
-
-    var total = independentBonuses;
-
-    for (final entry in grouped.entries) {
-      total += _applySavingThrow(effectId: entry.key, total: entry.value);
-    }
-
-    return total;
+  int get rawDamage {
+    return damageParts.fold<int>(0, (sum, part) => sum + part.total);
   }
 
-  int _applySavingThrow({required String effectId, required int total}) {
-    ActionSavingThrowResult? save;
-
-    for (final result in savingThrows) {
-      if (result.request.effectId == effectId &&
-          result.request.targetId == target.id) {
-        save = result;
-        break;
-      }
-    }
-
-    if (save == null || !save.saved) {
-      return total;
-    }
-
-    switch (save.request.successEffect) {
-      case SaveSuccessEffect.full:
-        return total;
-
-      case SaveSuccessEffect.half:
-        return total ~/ 2;
-
-      case SaveSuccessEffect.none:
-        return 0;
-    }
+  int get rawHealing {
+    return healingParts.fold<int>(0, (sum, part) => sum + part.total);
   }
 
-  int get damage {
-    return _totalForEffectType(AbilityEffectType.damage);
+  // ===========================================================================
+  // PARTES DEL RESULTADO
+  // ===========================================================================
+
+  List<ActionDicePartResult> get damageParts {
+    return diceResult.parts
+        .where((part) => part.request.effectType == AbilityEffectType.damage)
+        .toList(growable: false);
   }
 
-  int get healing {
-    return _totalForEffectType(AbilityEffectType.healing);
+  List<ActionDicePartResult> get healingParts {
+    return diceResult.parts
+        .where((part) => part.request.effectType == AbilityEffectType.healing)
+        .toList(growable: false);
   }
+
+  // ===========================================================================
+  // RESULTADOS
+  // ===========================================================================
+
+  int get damage => resolvedDamage;
+
+  int get healing => resolvedHealing;
 
   bool get dealtDamage => damage > 0;
 

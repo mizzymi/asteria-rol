@@ -28,16 +28,16 @@ class ResourceModifierResolver {
     FormulaEvaluator? evaluator,
   }) : evaluator = evaluator ?? const FormulaEvaluator();
 
-  FormulaResourceSnapshot _buildBaseSnapshot(CharacterResource resource) {
-    final baseCurrent = resource.currentValue.toDouble();
+  FormulaResourceSnapshot _baseSnapshot(CharacterResource resource) {
+    final current = resource.currentValue.toDouble();
 
-    final baseMax = resource.hasMaximum ? resource.maxValue.toDouble() : null;
+    final max = resource.hasMaximum ? resource.maxValue.toDouble() : null;
 
     return FormulaResourceSnapshot(
-      baseCurrentValue: baseCurrent,
-      baseMaxValue: baseMax,
-      currentValue: baseCurrent,
-      maxValue: baseMax,
+      baseCurrentValue: current,
+      baseMaxValue: max,
+      currentValue: current,
+      maxValue: max,
     );
   }
 
@@ -48,15 +48,16 @@ class ResourceModifierResolver {
       return cached;
     }
 
-    final current = resolveCurrent(resource);
-
-    final max = resolveMax(resource);
+    final base = _baseSnapshot(resource);
 
     final snapshot = FormulaResourceSnapshot(
-      baseCurrentValue: resource.currentValue.toDouble(),
-      baseMaxValue: resource.hasMaximum ? resource.maxValue.toDouble() : null,
-      currentValue: current.toDouble(),
-      maxValue: max?.toDouble(),
+      baseCurrentValue: base.baseCurrentValue,
+
+      baseMaxValue: base.baseMaxValue,
+
+      currentValue: resolveCurrent(resource).toDouble(),
+
+      maxValue: resolveMax(resource)?.toDouble(),
     );
 
     _resolvedSnapshots[resource.id] = snapshot;
@@ -77,7 +78,7 @@ class ResourceModifierResolver {
           FormulaIssue(passiveId: '', modifierId: '', message: error.message),
         );
 
-        result[resource.id] = _buildBaseSnapshot(resource);
+        result[resource.id] = _baseSnapshot(resource);
       }
     }
 

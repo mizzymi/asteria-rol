@@ -82,6 +82,8 @@ class CharacterEffect {
   /// "Hasta descansar"
   String durationNote;
 
+  int minuteRoundProgress;
+
   // ===========================================================================
   // BONIFICACIONES
   // ===========================================================================
@@ -97,6 +99,10 @@ class CharacterEffect {
   int attackBonus;
 
   int criticalMinimumNaturalRoll;
+
+  /// Si true, mientras este efecto esté activo
+  /// los críticos utilizan la regla potenciada.
+  bool empoweredCritical;
 
   Map<AbilityType, int> abilityModifierBonuses;
 
@@ -122,13 +128,14 @@ class CharacterEffect {
     this.maxDuration = 0,
     this.currentDuration = 0,
     this.durationNote = '',
-
+    this.minuteRoundProgress = 0,
     this.armorClassBonus = 0,
     this.initiativeBonus = 0,
     this.speedBonus = 0,
     this.maxHealthBonus = 0,
     this.attackBonus = 0,
     this.criticalMinimumNaturalRoll = 20,
+    this.empoweredCritical = false,
     Map<AbilityType, int>? abilityModifierBonuses,
     Map<DndSkill, int>? skillBonuses,
     Map<AbilityType, int>? savingThrowBonuses,
@@ -147,6 +154,134 @@ class CharacterEffect {
        healingBonuses = healingBonuses ?? [],
        criticalDamageBonuses = criticalDamageBonuses ?? [];
 
+  bool get advancesWithTurn {
+    return durationType == CharacterEffectDurationType.turns;
+  }
+
+  bool get advancesWithRound {
+    return durationType == CharacterEffectDurationType.rounds ||
+        durationType == CharacterEffectDurationType.minutes;
+  }
+
+  bool get expiresWithTurn {
+    return durationType == CharacterEffectDurationType.turns;
+  }
+
+  bool get expiresWithRound {
+    return durationType == CharacterEffectDurationType.rounds ||
+        durationType == CharacterEffectDurationType.minutes;
+  }
+
+  bool get isExpired {
+    if (!hasDuration) {
+      return false;
+    }
+
+    return currentDuration <= 0;
+  }
+
+  bool get expired {
+    return isExpired;
+  }
+
+  void advanceTurn() {
+    if (!enabled) {
+      return;
+    }
+
+    if (durationType != CharacterEffectDurationType.turns) {
+      return;
+    }
+
+    if (currentDuration <= 0) {
+      enabled = false;
+      currentDuration = 0;
+
+      return;
+    }
+
+    currentDuration--;
+
+    if (currentDuration <= 0) {
+      currentDuration = 0;
+      enabled = false;
+    }
+  }
+
+  void advanceRound() {
+    if (!enabled) {
+      return;
+    }
+
+    switch (durationType) {
+      // =========================================================================
+      // RONDAS
+      // =========================================================================
+
+      case CharacterEffectDurationType.rounds:
+        if (currentDuration <= 0) {
+          enabled = false;
+          currentDuration = 0;
+
+          return;
+        }
+
+        currentDuration--;
+
+        if (currentDuration <= 0) {
+          currentDuration = 0;
+          enabled = false;
+        }
+
+        return;
+
+      // =========================================================================
+      // MINUTOS
+      //
+      // D&D:
+      // 1 ronda = 6 segundos
+      // 10 rondas = 1 minuto
+      // =========================================================================
+
+      case CharacterEffectDurationType.minutes:
+        if (currentDuration <= 0) {
+          enabled = false;
+          currentDuration = 0;
+          minuteRoundProgress = 0;
+
+          return;
+        }
+
+        minuteRoundProgress++;
+
+        // Todavía no ha transcurrido un minuto completo.
+        if (minuteRoundProgress < 10) {
+          return;
+        }
+
+        // Han transcurrido 10 rondas = 1 minuto.
+        minuteRoundProgress = 0;
+
+        currentDuration--;
+
+        if (currentDuration <= 0) {
+          currentDuration = 0;
+          enabled = false;
+        }
+
+        return;
+
+      // =========================================================================
+      // NO AVANZAN CON RONDA
+      // =========================================================================
+
+      case CharacterEffectDurationType.permanent:
+      case CharacterEffectDurationType.turns:
+      case CharacterEffectDurationType.custom:
+        return;
+    }
+  }
+
   // ===========================================================================
   // GETTERS
   // ===========================================================================
@@ -157,6 +292,8 @@ class CharacterEffect {
         speedBonus != 0 ||
         maxHealthBonus != 0 ||
         attackBonus != 0 ||
+        criticalMinimumNaturalRoll < 20 ||
+        empoweredCritical ||
         abilityModifierBonuses.values.any((value) => value != 0) ||
         skillBonuses.values.any((value) => value != 0) ||
         savingThrowBonuses.values.any((value) => value != 0) ||
@@ -166,35 +303,44 @@ class CharacterEffect {
   }
 
   bool get hasDuration {
-    return durationType != CharacterEffectDurationType.permanent;
-  }
+    switch (durationType) {
+      case CharacterEffectDurationType.turns:
+      case CharacterEffectDurationType.rounds:
+      case CharacterEffectDurationType.minutes:
+        return true;
 
-  bool get expired {
-    return hasDuration && currentDuration <= 0;
+      case CharacterEffectDurationType.permanent:
+      case CharacterEffectDurationType.custom:
+        return false;
+    }
   }
 
   String get durationText {
-    if (!hasDuration) {
-      return 'Permanente';
-    }
-
     switch (durationType) {
       case CharacterEffectDurationType.permanent:
         return 'Permanente';
 
       case CharacterEffectDurationType.turns:
-        return '$currentDuration turnos';
+        return currentDuration == 1 ? '1 turno' : '$currentDuration turnos';
 
       case CharacterEffectDurationType.rounds:
-        return '$currentDuration rondas';
+        return currentDuration == 1 ? '1 ronda' : '$currentDuration rondas';
 
       case CharacterEffectDurationType.minutes:
-        return '$currentDuration min';
+        if (minuteRoundProgress <= 0) {
+          return currentDuration == 1 ? '1 minuto' : '$currentDuration minutos';
+        }
+
+        final roundsUntilNextMinute = 10 - minuteRoundProgress;
+
+        return '${currentDuration == 1 ? '1 minuto' : '$currentDuration minutos'}'
+            ' · $roundsUntilNextMinute '
+            '${roundsUntilNextMinute == 1 ? 'ronda' : 'rondas'}';
 
       case CharacterEffectDurationType.custom:
-        return durationNote.isNotEmpty
-            ? durationNote
-            : 'Duración personalizada';
+        final note = durationNote.trim();
+
+        return note.isNotEmpty ? note : 'Duración personalizada';
     }
   }
 
@@ -210,6 +356,8 @@ class CharacterEffect {
     if (currentDuration > 0) {
       currentDuration--;
     }
+
+    minuteRoundProgress = 0;
   }
 
   void increaseDuration() {
@@ -222,6 +370,8 @@ class CharacterEffect {
     if (maxDuration > 0 && currentDuration > maxDuration) {
       currentDuration = maxDuration;
     }
+
+    minuteRoundProgress = 0;
   }
 
   void resetDuration() {
@@ -230,15 +380,26 @@ class CharacterEffect {
     }
 
     currentDuration = maxDuration;
+    minuteRoundProgress = 0;
   }
 
   void normalizeDuration() {
-    if (!hasDuration) {
+    // ===========================================================================
+    // SIN CONTADOR MECÁNICO
+    // ===========================================================================
+
+    if (durationType == CharacterEffectDurationType.permanent ||
+        durationType == CharacterEffectDurationType.custom) {
       maxDuration = 0;
       currentDuration = 0;
+      minuteRoundProgress = 0;
 
       return;
     }
+
+    // ===========================================================================
+    // VALORES NEGATIVOS
+    // ===========================================================================
 
     if (maxDuration < 0) {
       maxDuration = 0;
@@ -248,8 +409,28 @@ class CharacterEffect {
       currentDuration = 0;
     }
 
+    // ===========================================================================
+    // MÁXIMO
+    // ===========================================================================
+
     if (maxDuration > 0 && currentDuration > maxDuration) {
       currentDuration = maxDuration;
+    }
+
+    // ===========================================================================
+    // MINUTOS
+    // ===========================================================================
+
+    if (durationType == CharacterEffectDurationType.minutes) {
+      if (minuteRoundProgress < 0) {
+        minuteRoundProgress = 0;
+      }
+
+      if (minuteRoundProgress > 9) {
+        minuteRoundProgress %= 10;
+      }
+    } else {
+      minuteRoundProgress = 0;
     }
   }
 
@@ -262,12 +443,15 @@ class CharacterEffect {
     CharacterEffectDurationType? durationType,
     int? maxDuration,
     int? currentDuration,
+    int? minuteRoundProgress,
     String? durationNote,
     int? armorClassBonus,
     int? initiativeBonus,
     int? speedBonus,
     int? maxHealthBonus,
     int? attackBonus,
+    int? criticalMinimumNaturalRoll,
+    bool? empoweredCritical,
     Map<AbilityType, int>? abilityModifierBonuses,
     Map<DndSkill, int>? skillBonuses,
     Map<AbilityType, int>? savingThrowBonuses,
@@ -287,12 +471,17 @@ class CharacterEffect {
       maxDuration: maxDuration ?? this.maxDuration,
       currentDuration: currentDuration ?? this.currentDuration,
       durationNote: durationNote ?? this.durationNote,
-
+      minuteRoundProgress: minuteRoundProgress ?? this.minuteRoundProgress,
       armorClassBonus: armorClassBonus ?? this.armorClassBonus,
       initiativeBonus: initiativeBonus ?? this.initiativeBonus,
       speedBonus: speedBonus ?? this.speedBonus,
       maxHealthBonus: maxHealthBonus ?? this.maxHealthBonus,
       attackBonus: attackBonus ?? this.attackBonus,
+
+      criticalMinimumNaturalRoll:
+          criticalMinimumNaturalRoll ?? this.criticalMinimumNaturalRoll,
+
+      empoweredCritical: empoweredCritical ?? this.empoweredCritical,
 
       abilityModifierBonuses:
           abilityModifierBonuses ??
@@ -346,6 +535,8 @@ class CharacterEffect {
 
       'durationNote': durationNote,
 
+      'minuteRoundProgress': minuteRoundProgress,
+
       'armorClassBonus': armorClassBonus,
 
       'initiativeBonus': initiativeBonus,
@@ -373,6 +564,8 @@ class CharacterEffect {
       'damageBonuses': damageBonuses.map((damage) => damage.toMap()).toList(),
 
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
+
+      'empoweredCritical': empoweredCritical,
 
       'criticalDamageBonuses': criticalDamageBonuses
           .map((damage) => damage.toMap())
@@ -518,6 +711,8 @@ class CharacterEffect {
 
       durationNote: map['durationNote']?.toString() ?? '',
 
+      minuteRoundProgress: (map['minuteRoundProgress'] as num?)?.toInt() ?? 0,
+
       armorClassBonus: (map['armorClassBonus'] as num?)?.toInt() ?? 0,
 
       initiativeBonus: (map['initiativeBonus'] as num?)?.toInt() ?? 0,
@@ -530,6 +725,8 @@ class CharacterEffect {
 
       criticalMinimumNaturalRoll:
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
+
+      empoweredCritical: map['empoweredCritical'] as bool? ?? false,
 
       abilityModifierBonuses: abilityModifierBonuses,
 

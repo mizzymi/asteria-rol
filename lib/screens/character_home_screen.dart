@@ -248,7 +248,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     }
 
     setState(() {
-      character.currentHealth = result;
+      character.setHealth(result);
     });
 
     await saveCharacter();
@@ -472,9 +472,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                         child: Icon(Icons.repeat_rounded),
                       ),
                       title: const Text('Siguiente ronda'),
-                      subtitle: Text(
-                        'Ronda → ${character.combatRound + 1}',
-                      ),
+                      subtitle: Text('Ronda → ${character.combatRound + 1}'),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () async {
                         Navigator.pop(sheetContext);
@@ -560,9 +558,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     }
 
     setState(() {
-      resource.currentValue = result;
-
-      resource.normalize();
+      character.setResourceValue(resource.id, result);
     });
 
     await saveCharacter();

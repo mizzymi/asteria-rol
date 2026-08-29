@@ -64,6 +64,38 @@ class AbilityScores {
   }
 
   // ===========================================================================
+  // ESTABLECER PUNTUACIÓN SEGÚN ATRIBUTO
+  // ===========================================================================
+
+  void setValueByType(AbilityType type, int value) {
+    switch (type) {
+      case AbilityType.strength:
+        strength = value;
+        break;
+
+      case AbilityType.dexterity:
+        dexterity = value;
+        break;
+
+      case AbilityType.constitution:
+        constitution = value;
+        break;
+
+      case AbilityType.intelligence:
+        intelligence = value;
+        break;
+
+      case AbilityType.wisdom:
+        wisdom = value;
+        break;
+
+      case AbilityType.charisma:
+        charisma = value;
+        break;
+    }
+  }
+
+  // ===========================================================================
   // OBTENER MODIFICADOR SEGÚN ATRIBUTO
   // ===========================================================================
 

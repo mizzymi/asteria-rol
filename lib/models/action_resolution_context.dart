@@ -85,6 +85,15 @@ class ExternalPercentageAnswerResolver {
     }
 
     for (final answeredRequirement in requirements) {
+      if (answeredRequirement.variableName
+          .trim()
+          .toLowerCase() !=
+          requirement.variableName
+              .trim()
+              .toLowerCase()) {
+        continue;
+      }
+
       final answeredThreshold = answeredRequirement.threshold;
 
       if (answeredThreshold == null) {
@@ -272,6 +281,20 @@ class ActionResolutionContext {
        _targetSelectedOptionalGroupIds = _copyTargetOptionalGroups(
          targetSelectedOptionalGroupIds,
        );
+
+  void registerTargetHealthThresholdAnswer(
+    ActionTarget target, {
+    required String operator,
+    required double threshold,
+    required bool answer,
+  }) {
+    setTargetHealthThresholdAnswer(
+      target,
+      operator: operator,
+      threshold: threshold,
+      answer: answer,
+    );
+  }
 
   void populateKnownTargetVariables() {
     for (final target in targets) {
@@ -807,8 +830,10 @@ class ActionResolutionContext {
     required String operator,
     required double threshold,
   }) {
-    // Primero: ¿conocemos exactamente
-    // el porcentaje?
+    // ===========================================================================
+    // 1. PORCENTAJE EXACTO CONOCIDO
+    // ===========================================================================
+
     final exact = targetExternalValue(target.id, 'target_health_percent');
 
     if (exact != null) {
@@ -827,16 +852,82 @@ class ActionResolutionContext {
 
         case '==':
           return exact == threshold;
+
+        default:
+          return null;
       }
     }
 
-    // Si no conocemos el porcentaje,
-    // quizá ya respondimos esta pregunta.
-    return targetHealthThresholdAnswer(
+    // ===========================================================================
+    // 2. RESPUESTA DIRECTA YA CONOCIDA
+    // ===========================================================================
+
+    final direct = targetHealthThresholdAnswer(
       target,
       operator: operator,
       threshold: threshold,
     );
+
+    if (direct != null) {
+      return direct;
+    }
+
+    // ===========================================================================
+    // 3. RECONSTRUIR REQUIREMENTS YA CONOCIDOS
+    // ===========================================================================
+
+    final knownVariables = targetExternalVariables(target.id);
+
+    final requirements = <ActionExternalRequirement>[];
+
+    final answers = <String, bool>{};
+
+    for (final entry in knownVariables.entries) {
+      final requirement = ActionExternalRequirement.tryParsePercentageVariable(
+        entry.key,
+      );
+
+      if (requirement == null) {
+        continue;
+      }
+
+      requirements.add(requirement);
+
+      answers[requirement.normalizedVariableName] = entry.value != 0;
+    }
+
+    // ===========================================================================
+    // 4. REQUIREMENT SOLICITADO
+    // ===========================================================================
+
+    final requestedVariable = targetHealthThresholdVariable(
+      operator: operator,
+      threshold: threshold,
+    );
+
+    final requestedRequirement =
+        ActionExternalRequirement.tryParsePercentageVariable(requestedVariable);
+
+    if (requestedRequirement == null) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 5. INFERENCIA
+    // ===========================================================================
+
+    final resolved = const ExternalPercentageAnswerResolver().resolve(
+      requirements: [...requirements, requestedRequirement],
+      answers: answers,
+    );
+
+    final inferred = resolved[requestedRequirement.normalizedVariableName];
+
+    if (inferred == null) {
+      return null;
+    }
+
+    return inferred != 0;
   }
 
   // ===========================================================================

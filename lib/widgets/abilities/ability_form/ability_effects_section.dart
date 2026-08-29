@@ -214,6 +214,8 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
       effectTypeName: source.effectTypeName,
 
+      extraParticipatesInCritical: source.extraParticipatesInCritical,
+
       usesSavingThrow: source.usesSavingThrow,
 
       savingThrowAbility: source.savingThrowAbility,
@@ -616,6 +618,8 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
                 effectType: effect.effectType,
 
+                usesSavingThrow: effect.usesSavingThrow,
+
                 resources: widget.resources,
 
                 onChanged: (part) {
@@ -779,6 +783,36 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
               notifyParent();
             },
           ),
+
+          if (!effect.heals && !effect.usesSavingThrow) ...[
+            const SizedBox(height: 14),
+
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+
+              value: effect.extraParticipatesInCritical,
+
+              title: const Text(
+                'Participa en crítico',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+
+              subtitle: const Text(
+                'Este daño extra recibe la transformación '
+                'crítica cuando el ataque es crítico.',
+              ),
+
+              secondary: const Icon(Icons.whatshot_rounded),
+
+              onChanged: (value) {
+                setState(() {
+                  effect.extraParticipatesInCritical = value;
+                });
+
+                notifyParent();
+              },
+            ),
+          ],
 
           if (_hasExtraEffectBonus) ...[
             const SizedBox(height: 14),
@@ -1236,6 +1270,8 @@ class _AbilityEffectPartCard extends StatefulWidget {
 
   final VoidCallback onDelete;
 
+  final bool usesSavingThrow;
+
   const _AbilityEffectPartCard({
     super.key,
     required this.part,
@@ -1243,6 +1279,7 @@ class _AbilityEffectPartCard extends StatefulWidget {
     required this.resources,
     required this.onChanged,
     required this.onDelete,
+    required this.usesSavingThrow,
   });
 
   @override
@@ -1326,6 +1363,8 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
         optionalGroupId: part.optionalGroupId,
 
         optionalLabel: part.optionalLabel,
+
+        hitBehavior: part.hitBehavior,
 
         participatesInCritical: part.participatesInCritical,
       ),
@@ -1835,6 +1874,37 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
               notify();
             },
           ),
+
+          if (widget.effectType == AbilityEffectType.damage &&
+              !widget.usesSavingThrow) ...[
+            const SizedBox(height: 16),
+
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+
+              value: part.participatesInCritical,
+
+              title: const Text(
+                'Participa en crítico',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+
+              subtitle: const Text(
+                'Si esta habilidad hace un ataque crítico, '
+                'este componente también recibe la transformación crítica.',
+              ),
+
+              secondary: const Icon(Icons.whatshot_rounded),
+
+              onChanged: (value) {
+                setState(() {
+                  part.participatesInCritical = value;
+                });
+
+                notify();
+              },
+            ),
+          ],
 
           const SizedBox(height: 16),
 

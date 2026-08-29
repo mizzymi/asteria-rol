@@ -69,92 +69,20 @@ class DiceGroupRoll {
 class DiceCalculationResult {
   final List<DiceGroupRoll> groups;
 
-  /// Modificador FINAL que debe aplicarse.
-  ///
-  /// En una tirada normal:
-  ///
-  /// +4
-  ///
-  /// En un crítico de Asteria:
-  ///
-  /// +8
-  ///
-  /// porque el atributo/modificador se aplica dos veces.
   final int modifier;
 
-  final bool critical;
-
-  const DiceCalculationResult({
-    required this.groups,
-    required this.modifier,
-    this.critical = false,
-  });
-
-  // ===========================================================================
-  // TOTAL TIRADO
-  // ===========================================================================
+  const DiceCalculationResult({required this.groups, required this.modifier});
 
   int get rolledTotal {
     return groups.fold<int>(0, (sum, group) => sum + group.total);
   }
 
-  // ===========================================================================
-  // MÁXIMO DE LOS DADOS
-  // ===========================================================================
-
   int get maximumDiceTotal {
     return groups.fold<int>(0, (sum, group) => sum + group.maximum);
   }
 
-  // ===========================================================================
-  // TOTAL
-  // ===========================================================================
-
   int get total {
-    /*
-     * TIRADA NORMAL
-     *
-     * dados + modificador
-     *
-     * Ej:
-     *
-     * 1d8 → 6
-     * FUE +4
-     *
-     * 6 + 4 = 10
-     */
-    if (!critical) {
-      return rolledTotal + modifier;
-    }
-
-    /*
-     * CRÍTICO ASTERIA
-     *
-     * máximo de dados
-     * + tirada normal
-     * + modificadores
-     *
-     * IMPORTANTE:
-     *
-     * El modificador que recibimos aquí
-     * YA debe venir duplicado.
-     *
-     * Ej:
-     *
-     * 1d8 + FUE
-     * FUE = +4
-     *
-     * modifier = +8
-     *
-     * Si sale 6:
-     *
-     * 8 máximo
-     * + 6 tirada
-     * + 8 modificador
-     *
-     * = 22
-     */
-    return maximumDiceTotal + rolledTotal + modifier;
+    return rolledTotal + modifier;
   }
 }
 
@@ -168,7 +96,6 @@ class DicePoolRoller {
   static DiceCalculationResult roll({
     required List<DicePool> pools,
     int modifier = 0,
-    bool critical = false,
   }) {
     final groups = pools.map((pool) {
       final rolls = List<int>.generate(
@@ -179,10 +106,6 @@ class DicePoolRoller {
       return DiceGroupRoll(pool: pool, rolls: rolls);
     }).toList();
 
-    return DiceCalculationResult(
-      groups: groups,
-      modifier: modifier,
-      critical: critical,
-    );
+    return DiceCalculationResult(groups: groups, modifier: modifier);
   }
 }

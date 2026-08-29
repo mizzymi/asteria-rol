@@ -10,6 +10,14 @@ class AbilityAttackSection extends StatelessWidget {
 
   final ValueChanged<bool> onProficientChanged;
 
+  final int criticalMinimumNaturalRoll;
+
+  final bool empoweredCritical;
+
+  final ValueChanged<int> onCriticalMinimumNaturalRollChanged;
+
+  final ValueChanged<bool> onEmpoweredCriticalChanged;
+
   const AbilityAttackSection({
     super.key,
     required this.requiresAttackRoll,
@@ -17,6 +25,10 @@ class AbilityAttackSection extends StatelessWidget {
     required this.attackBonusController,
     required this.onRequiresAttackChanged,
     required this.onProficientChanged,
+    required this.criticalMinimumNaturalRoll,
+    required this.empoweredCritical,
+    required this.onCriticalMinimumNaturalRollChanged,
+    required this.onEmpoweredCriticalChanged,
   });
 
   @override
@@ -53,6 +65,43 @@ class AbilityAttackSection extends StatelessWidget {
         ),
 
         if (requiresAttackRoll) ...[
+          const SizedBox(height: 16),
+
+          DropdownButtonFormField<int>(
+            initialValue: criticalMinimumNaturalRoll,
+            decoration: const InputDecoration(
+              labelText: 'Rango crítico',
+              helperText: 'Valor natural mínimo del d20 que produce crítico',
+              prefixIcon: Icon(Icons.auto_awesome_rounded),
+            ),
+            items: List.generate(20, (index) {
+              final value = 20 - index;
+
+              final label = value == 20 ? '20' : '$value–20';
+
+              return DropdownMenuItem(value: value, child: Text(label));
+            }),
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+
+              onCriticalMinimumNaturalRollChanged(value);
+            },
+          ),
+
+          const SizedBox(height: 8),
+
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: empoweredCritical,
+            title: const Text('Crítico potenciado'),
+            subtitle: const Text(
+              'Los críticos de esta habilidad usan la regla potenciada',
+            ),
+            onChanged: onEmpoweredCriticalChanged,
+          ),
+
           const SizedBox(height: 8),
 
           SwitchListTile(

@@ -1,9 +1,17 @@
 import '../models/action_cost.dart';
 import '../models/character.dart';
 import '../models/ability.dart';
+import '../models/passive.dart';
+import '../models/character_resource.dart';
 
 class ActionCostResolver {
   final Character character;
+
+  const ActionCostResolver({required this.character});
+
+  // ===========================================================================
+  // COSTES DE HABILIDAD
+  // ===========================================================================
 
   List<ActionCost> costsForAbility(
     String abilityId, {
@@ -18,6 +26,10 @@ class ActionCostResolver {
 
     final costs = <ActionCost>[];
 
+    // -------------------------------------------------------------------------
+    // RECURSO
+    // -------------------------------------------------------------------------
+
     if (includeResource && ability.usesResource) {
       final resourceId = ability.resourceId?.trim();
 
@@ -31,6 +43,10 @@ class ActionCostResolver {
       }
     }
 
+    // -------------------------------------------------------------------------
+    // USO
+    // -------------------------------------------------------------------------
+
     if (includeUse && ability.hasLimitedUses) {
       costs.add(
         ActionCost.abilityUse(
@@ -41,10 +57,12 @@ class ActionCostResolver {
       );
     }
 
-    return costs;
+    return List<ActionCost>.unmodifiable(costs);
   }
 
-  const ActionCostResolver({required this.character});
+  // ===========================================================================
+  // LOOKUPS
+  // ===========================================================================
 
   CharacterAbility? _abilityById(String id) {
     for (final ability in character.availableAbilities) {
@@ -57,11 +75,45 @@ class ActionCostResolver {
   }
 
   // ===========================================================================
-  // VALIDACIÓN
+  // VALIDACIÓN COMPLETA
   // ===========================================================================
 
   ActionCostValidationResult validate(Iterable<ActionCost> costs) {
-    final normalizedCosts = combineCosts(costs);
+    final rawCosts = List<ActionCost>.from(costs);
+
+    // -------------------------------------------------------------------------
+    // 1. VALIDAR ESTRUCTURA ORIGINAL
+    //
+    // IMPORTANTE:
+    // no combinamos antes de esto porque combineCosts no debe ocultar
+    // accidentalmente un coste mal formado.
+    // -------------------------------------------------------------------------
+
+    for (final cost in rawCosts) {
+      if (!cost.isValid) {
+        return const ActionCostValidationResult.failure(
+          'Uno de los costes de la acción no es válido.',
+        );
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. COMBINAR COSTES IGUALES
+    //
+    // Ejemplo:
+    //
+    // parte A → 2 maná
+    // parte B → 3 maná
+    //
+    // Resultado:
+    // 5 maná
+    // -------------------------------------------------------------------------
+
+    final normalizedCosts = combineCosts(rawCosts);
+
+    // -------------------------------------------------------------------------
+    // 3. VALIDAR DISPONIBILIDAD
+    // -------------------------------------------------------------------------
 
     for (final cost in normalizedCosts) {
       final result = _validateCost(cost);
@@ -79,16 +131,204 @@ class ActionCostResolver {
   // ===========================================================================
 
   ActionCostValidationResult pay(Iterable<ActionCost> costs) {
-    final normalizedCosts = combineCosts(costs);
+    final rawCosts = List<ActionCost>.from(costs);
 
-    final validation = validate(normalizedCosts);
+    // ===========================================================================
+    // 1. VALIDAR TODO
+    // ===========================================================================
+
+    final validation = validate(rawCosts);
 
     if (!validation.valid) {
       return validation;
     }
 
+    final normalizedCosts = combineCosts(rawCosts);
+
+    // ===========================================================================
+    // 2. PRE-RESOLVER TODAS LAS FUENTES
+    //
+    // Todavía NO mutamos nada.
+    //
+    // De esta manera no existe ningún return de error una vez iniciado
+    // el pago real.
+    // ===========================================================================
+
+    final resourceCosts = <_ResolvedResourceCost>[];
+
+    final passiveChargeCosts = <_ResolvedPassiveChargeCost>[];
+
+    final abilityUseCosts = <_ResolvedAbilityUseCost>[];
+
     for (final cost in normalizedCosts) {
-      _applyCost(cost);
+      switch (cost.type) {
+        case ActionCostType.resource:
+          final resource = character.resourceById(cost.sourceId);
+
+          if (resource == null) {
+            return const ActionCostValidationResult.failure(
+              'El recurso requerido ha desaparecido durante el pago.',
+            );
+          }
+
+          resourceCosts.add(
+            _ResolvedResourceCost(cost: cost, resource: resource),
+          );
+
+          break;
+
+        case ActionCostType.passiveCharge:
+          final passive = character.passiveById(cost.sourceId);
+
+          if (passive == null) {
+            return const ActionCostValidationResult.failure(
+              'La pasiva requerida ha desaparecido durante el pago.',
+            );
+          }
+
+          passiveChargeCosts.add(
+            _ResolvedPassiveChargeCost(cost: cost, passive: passive),
+          );
+
+          break;
+
+        case ActionCostType.abilityUse:
+          final ability = _abilityById(cost.sourceId);
+
+          if (ability == null) {
+            return const ActionCostValidationResult.failure(
+              'La habilidad requerida ha desaparecido durante el pago.',
+            );
+          }
+
+          abilityUseCosts.add(
+            _ResolvedAbilityUseCost(cost: cost, ability: ability),
+          );
+
+          break;
+      }
+    }
+
+    // ===========================================================================
+    // 3. REGISTRAR CAMBIOS PARA TRIGGERS
+    // ===========================================================================
+
+    final resourceChanges = <_ResourceCostChange>[];
+
+    final chargeChanges = <_PassiveChargeCostChange>[];
+
+    // ===========================================================================
+    // 4. PAGAR RECURSOS EN SILENCIO
+    // ===========================================================================
+
+    for (final resolved in resourceCosts) {
+      final resource = resolved.resource;
+      final cost = resolved.cost;
+
+      final before = resource.currentValue;
+
+      character.spendResource(
+        resource.id,
+        cost.amount,
+        dispatchTriggers: false,
+      );
+
+      final after = resource.currentValue;
+
+      resourceChanges.add(
+        _ResourceCostChange(
+          resourceId: resource.id,
+          before: before,
+          after: after,
+        ),
+      );
+    }
+
+    // ===========================================================================
+    // 5. PAGAR CARGAS EN SILENCIO
+    // ===========================================================================
+
+    for (final resolved in passiveChargeCosts) {
+      final passive = resolved.passive;
+      final cost = resolved.cost;
+
+      final before = passive.currentCharges;
+
+      character.spendPassiveCharges(
+        passive.id,
+        cost.amount,
+        dispatchTriggers: false,
+      );
+
+      final after = passive.currentCharges;
+
+      chargeChanges.add(
+        _PassiveChargeCostChange(
+          passiveId: passive.id,
+          before: before,
+          after: after,
+        ),
+      );
+    }
+
+    // ===========================================================================
+    // 6. PAGAR USOS DE HABILIDAD
+    // ===========================================================================
+
+    for (final resolved in abilityUseCosts) {
+      character.spendAbilityUses(resolved.ability, resolved.cost.amount);
+    }
+
+    // ===========================================================================
+    // 7. TODOS LOS COSTES YA ESTÁN PAGADOS
+    //
+    // Solo ahora permitimos que los triggers reaccionen.
+    // ===========================================================================
+
+    for (final change in resourceChanges) {
+      if (change.before == change.after) {
+        continue;
+      }
+
+      character.dispatchPassiveTrigger(
+        PassiveTriggerEvent.resourceChanged,
+        eventVariables: {
+          'previous_resource': change.before.toDouble(),
+
+          'current_resource': change.after.toDouble(),
+
+          'resource_change': (change.after - change.before).toDouble(),
+
+          'resource_${change.resourceId}': 1,
+
+          'resource_spent': change.after < change.before ? 1 : 0,
+
+          'resource_gained': change.after > change.before ? 1 : 0,
+        },
+      );
+    }
+
+    for (final change in chargeChanges) {
+      if (change.before == change.after) {
+        continue;
+      }
+
+      character.dispatchPassiveTrigger(
+        PassiveTriggerEvent.chargeChanged,
+        eventVariables: {
+          'previous_charges': change.before.toDouble(),
+
+          'current_charges': change.after.toDouble(),
+
+          'charges_change': (change.after - change.before).toDouble(),
+
+          'passive_${change.passiveId}': 1,
+
+          'charge_spent': change.after < change.before ? 1 : 0,
+
+          'charge_gained': change.after > change.before ? 1 : 0,
+        },
+      );
     }
 
     return const ActionCostValidationResult.success();
@@ -115,6 +355,10 @@ class ActionCostResolver {
     }
   }
 
+  // ===========================================================================
+  // RESOURCE
+  // ===========================================================================
+
   ActionCostValidationResult _validateResourceCost(ActionCost cost) {
     final resource = character.resourceById(cost.sourceId);
 
@@ -132,15 +376,18 @@ class ActionCostResolver {
       );
     }
 
-    if (resource.currentValue < cost.amount) {
+    if (!character.canSpendResource(resource.id, cost.amount)) {
       return ActionCostValidationResult.failure(
-        'No tienes suficiente ${resource.name}. '
-        'Necesitas ${cost.amount}.',
+        '${cost.label ?? resource.name}: recurso insuficiente.',
       );
     }
 
     return const ActionCostValidationResult.success();
   }
+
+  // ===========================================================================
+  // PASSIVE CHARGE
+  // ===========================================================================
 
   ActionCostValidationResult _validatePassiveChargeCost(ActionCost cost) {
     final passive = character.passiveById(cost.sourceId);
@@ -159,7 +406,7 @@ class ActionCostResolver {
       );
     }
 
-    if (passive.currentCharges < cost.amount) {
+    if (!character.canSpendPassiveCharges(passive.id, cost.amount)) {
       return ActionCostValidationResult.failure(
         'No hay suficientes cargas de ${passive.name}. '
         'Necesitas ${cost.amount}.',
@@ -169,8 +416,12 @@ class ActionCostResolver {
     return const ActionCostValidationResult.success();
   }
 
+  // ===========================================================================
+  // ABILITY USE
+  // ===========================================================================
+
   ActionCostValidationResult _validateAbilityUseCost(ActionCost cost) {
-    final ability = _abilityById(cost.sourceId);
+    final ability = character.characterAbilityById(cost.sourceId);
 
     if (ability == null) {
       return ActionCostValidationResult.failure(
@@ -184,9 +435,10 @@ class ActionCostResolver {
       return const ActionCostValidationResult.success();
     }
 
-    if (ability.currentUses < cost.amount) {
+    if (!character.canSpendAbilityUses(ability, cost.amount)) {
       return ActionCostValidationResult.failure(
-        'No quedan suficientes usos de ${ability.name}.',
+        'No quedan suficientes usos de ${ability.name}. '
+        'Necesitas ${cost.amount}.',
       );
     }
 
@@ -194,51 +446,21 @@ class ActionCostResolver {
   }
 
   // ===========================================================================
-  // APLICACIÓN
-  // ===========================================================================
-
-  void _applyCost(ActionCost cost) {
-    switch (cost.type) {
-      case ActionCostType.resource:
-        final resource = character.resourceById(cost.sourceId);
-
-        if (resource == null) {
-          return;
-        }
-
-        character.consumeResource(resource, cost.amount);
-
-        return;
-
-      case ActionCostType.passiveCharge:
-        character.subtractPassiveCharges(cost.sourceId, cost.amount);
-
-        return;
-
-      case ActionCostType.abilityUse:
-        final ability = _abilityById(cost.sourceId);
-
-        if (ability == null || !ability.hasLimitedUses) {
-          return;
-        }
-
-        for (var i = 0; i < cost.amount; i++) {
-          character.useCharacterAbility(ability);
-        }
-
-        return;
-    }
-  }
-
-  // ===========================================================================
-  // DEDUPLICACIÓN / AGRUPACIÓN
+  // AGRUPACIÓN
   // ===========================================================================
 
   List<ActionCost> combineCosts(Iterable<ActionCost> costs) {
     final totals = <String, int>{};
+
     final originals = <String, ActionCost>{};
 
     for (final cost in costs) {
+      // -----------------------------------------------------------------------
+      // Aquí asumimos costes estructuralmente válidos.
+      //
+      // validate() es quien se responsabiliza de rechazarlos.
+      // -----------------------------------------------------------------------
+
       if (!cost.isValid) {
         continue;
       }
@@ -262,13 +484,67 @@ class ActionCostResolver {
       result.add(
         ActionCost(
           type: original.type,
+
           sourceId: original.sourceId,
+
           amount: entry.value,
+
           label: original.label,
         ),
       );
     }
 
-    return result;
+    return List<ActionCost>.unmodifiable(result);
   }
+}
+
+// =============================================================================
+// INTERNAL TRANSACTION RECORDS
+// =============================================================================
+
+class _ResourceCostChange {
+  final String resourceId;
+
+  final int before;
+  final int after;
+
+  const _ResourceCostChange({
+    required this.resourceId,
+    required this.before,
+    required this.after,
+  });
+}
+
+class _PassiveChargeCostChange {
+  final String passiveId;
+
+  final int before;
+  final int after;
+
+  const _PassiveChargeCostChange({
+    required this.passiveId,
+    required this.before,
+    required this.after,
+  });
+}
+
+class _ResolvedResourceCost {
+  final ActionCost cost;
+  final CharacterResource resource;
+
+  const _ResolvedResourceCost({required this.cost, required this.resource});
+}
+
+class _ResolvedPassiveChargeCost {
+  final ActionCost cost;
+  final CharacterPassive passive;
+
+  const _ResolvedPassiveChargeCost({required this.cost, required this.passive});
+}
+
+class _ResolvedAbilityUseCost {
+  final ActionCost cost;
+  final CharacterAbility ability;
+
+  const _ResolvedAbilityUseCost({required this.cost, required this.ability});
 }

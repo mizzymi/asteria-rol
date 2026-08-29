@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-enum AttackRollMode { normal, advantage, disadvantage }
+import '../../models/action_attack_roll_mode.dart';
 
 extension AttackRollModeData on AttackRollMode {
   String get label {

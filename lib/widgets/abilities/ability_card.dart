@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/character_effect.dart';
 import 'package:rol/widgets/abilities/ability_effect_card.dart';
 
-import 'ability_attribute_colors.dart';
 import '../../models/ability.dart';
 import '../../models/character.dart';
 import '../../models/item.dart';
 import '../../models/skill.dart';
+import '../../models/action_linked_effect.dart';
+import '../../models/character_effect.dart';
 
+import '../../services/action_cost_resolver.dart';
+
+import 'ability_attribute_colors.dart';
 import 'ability_action_badge.dart';
 
 import '../common/app_card.dart';
@@ -22,8 +25,6 @@ class AbilityCard extends StatefulWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onRestore;
-
-  final VoidCallback onUse;
   final VoidCallback onCombatActions;
 
   const AbilityCard({
@@ -34,7 +35,6 @@ class AbilityCard extends StatefulWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onRestore,
-    required this.onUse,
     required this.onCombatActions,
   });
 
@@ -81,7 +81,6 @@ class _AbilityCardState extends State<AbilityCard> {
             secondChild: _ExpandedAbilityContent(
               ability: widget.ability,
               character: widget.character,
-              onUse: widget.onUse,
               onCombatActions: widget.onCombatActions,
             ),
           ),
@@ -278,13 +277,11 @@ class _ExpandedAbilityContent extends StatelessWidget {
   final CharacterAbility ability;
   final Character character;
 
-  final VoidCallback onUse;
   final VoidCallback onCombatActions;
 
   const _ExpandedAbilityContent({
     required this.ability,
     required this.character,
-    required this.onUse,
     required this.onCombatActions,
   });
 
@@ -342,9 +339,12 @@ class _ExpandedAbilityContent extends StatelessWidget {
             const SizedBox(height: 10),
 
             ...ability.linkedEffects.map(
-              (effect) => Padding(
+              (linkedEffect) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: _LinkedEffectPreview(effect: effect),
+                child: _LinkedEffectPreview(
+                  effect: linkedEffect.effect,
+                  target: linkedEffect.target,
+                ),
               ),
             ),
           ],
@@ -360,7 +360,7 @@ class _ExpandedAbilityContent extends StatelessWidget {
           if (ability.hasLimitedUses) ...[
             const SizedBox(height: 18),
 
-            _AbilityUses(ability: ability, onUse: onUse),
+            _AbilityUses(ability: ability),
           ],
 
           if (ability.notes.isNotEmpty) ...[
@@ -488,9 +488,13 @@ class _AbilityActions extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final canPay =
-        character.canPayAbilityResource(ability) &&
-        (!ability.hasLimitedUses || ability.currentUses > 0);
+    final costResolver = ActionCostResolver(character: character);
+
+    final costs = costResolver.costsForAbility(ability.id);
+
+    final costValidation = costResolver.validate(costs);
+
+    final canPay = costValidation.valid;
 
     return SizedBox(
       width: double.infinity,
@@ -509,17 +513,18 @@ class _AbilityActions extends StatelessWidget {
 
 class _AbilityUses extends StatelessWidget {
   final CharacterAbility ability;
-  final VoidCallback onUse;
 
-  const _AbilityUses({required this.ability, required this.onUse});
+  const _AbilityUses({required this.ability});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final progress = ability.maxUses == 0
+    final progress = ability.maxUses <= 0
         ? 0.0
         : (ability.currentUses / ability.maxUses).clamp(0.0, 1.0);
+
+    final exhausted = ability.currentUses <= 0;
 
     return Container(
       padding: const EdgeInsets.all(13),
@@ -534,23 +539,28 @@ class _AbilityUses extends StatelessWidget {
           Row(
             children: [
               Icon(
-                Icons.repeat_rounded,
+                exhausted ? Icons.block_rounded : Icons.repeat_rounded,
                 size: 18,
-                color: theme.colorScheme.primary,
+                color: exhausted
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary,
               ),
 
               const SizedBox(width: 7),
 
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Usos disponibles',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                  exhausted ? 'Sin usos disponibles' : 'Usos disponibles',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
 
               Text(
                 '${ability.currentUses}/${ability.maxUses}',
-                style: const TextStyle(fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: exhausted ? theme.colorScheme.error : null,
+                ),
               ),
             ],
           ),
@@ -560,17 +570,6 @@ class _AbilityUses extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: LinearProgressIndicator(minHeight: 7, value: progress),
-          ),
-
-          const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonalIcon(
-              onPressed: ability.currentUses > 0 ? onUse : null,
-              icon: const Icon(Icons.remove_circle_outline_rounded),
-              label: const Text('Gastar 1 uso'),
-            ),
           ),
         ],
       ),
@@ -626,7 +625,9 @@ class _NotesSection extends StatelessWidget {
 class _LinkedEffectPreview extends StatelessWidget {
   final CharacterEffect effect;
 
-  const _LinkedEffectPreview({required this.effect});
+  final ActionLinkedEffectTarget? target;
+
+  const _LinkedEffectPreview({required this.effect, this.target});
 
   @override
   Widget build(BuildContext context) {
@@ -660,6 +661,43 @@ class _LinkedEffectPreview extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
 
+                if (target != null) ...[
+                  const SizedBox(height: 5),
+
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withValues(
+                        alpha: 0.55,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _targetIcon(target!),
+                          size: 14,
+                          color: theme.colorScheme.primary,
+                        ),
+
+                        const SizedBox(width: 5),
+
+                        Text(
+                          target!.label,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 if (effect.description.trim().isNotEmpty) ...[
                   const SizedBox(height: 3),
 
@@ -672,7 +710,7 @@ class _LinkedEffectPreview extends StatelessWidget {
                 const SizedBox(height: 4),
 
                 Text(
-                  _durationText(effect),
+                  effect.durationText,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w700,
@@ -702,26 +740,16 @@ class _LinkedEffectPreview extends StatelessWidget {
     }
   }
 
-  static String _durationText(CharacterEffect effect) {
-    switch (effect.durationType) {
-      case CharacterEffectDurationType.permanent:
-        return 'Permanente';
+  static IconData _targetIcon(ActionLinkedEffectTarget target) {
+    switch (target) {
+      case ActionLinkedEffectTarget.actionTarget:
+        return Icons.gps_fixed_rounded;
 
-      case CharacterEffectDurationType.turns:
-        return '${effect.maxDuration} '
-            '${effect.maxDuration == 1 ? 'turno' : 'turnos'}';
+      case ActionLinkedEffectTarget.self:
+        return Icons.person_rounded;
 
-      case CharacterEffectDurationType.rounds:
-        return '${effect.maxDuration} '
-            '${effect.maxDuration == 1 ? 'ronda' : 'rondas'}';
-
-      case CharacterEffectDurationType.minutes:
-        return '${effect.maxDuration} min';
-
-      case CharacterEffectDurationType.custom:
-        return effect.durationNote.trim().isNotEmpty
-            ? effect.durationNote.trim()
-            : 'Duración personalizada';
+      case ActionLinkedEffectTarget.externalTargets:
+        return Icons.groups_rounded;
     }
   }
 }

@@ -22,6 +22,14 @@ class CriticalDamageBonus {
 
   String description;
 
+  CharacterFormula? condition;
+
+  bool optional;
+
+  String optionalGroupId;
+
+  String optionalLabel;
+
   CriticalDamageBonus({
     required this.id,
     this.name = '',
@@ -32,14 +40,48 @@ class CriticalDamageBonus {
     this.chancePercent = 100,
     this.damageType = '',
     this.description = '',
+    this.condition,
+    this.optional = false,
+    this.optionalGroupId = '',
+    this.optionalLabel = '',
   }) : dicePools = dicePools ?? [],
-        abilityModifierMultipliers = abilityModifierMultipliers ?? {} {
+       abilityModifierMultipliers = abilityModifierMultipliers ?? {} {
     normalize();
   }
 
   // ===========================================================================
   // HELPERS
   // ===========================================================================
+
+  bool get hasCondition {
+    return condition != null &&
+        condition!.expression.trim().isNotEmpty &&
+        condition!.expression.trim() != '0';
+  }
+
+  String get effectiveOptionalGroupId {
+    final explicit = optionalGroupId.trim();
+
+    if (explicit.isNotEmpty) {
+      return explicit;
+    }
+
+    return id;
+  }
+
+  String get effectiveOptionalLabel {
+    final explicit = optionalLabel.trim();
+
+    if (explicit.isNotEmpty) {
+      return explicit;
+    }
+
+    if (name.trim().isNotEmpty) {
+      return name.trim();
+    }
+
+    return 'Daño crítico adicional';
+  }
 
   bool get alwaysTriggers {
     return chancePercent >= 100;
@@ -101,6 +143,14 @@ class CriticalDamageBonus {
       'damageType': damageType,
 
       'description': description,
+
+      'condition': condition?.toMap(),
+
+      'optional': optional,
+
+      'optionalGroupId': optionalGroupId,
+
+      'optionalLabel': optionalLabel,
     };
   }
 
@@ -116,11 +166,7 @@ class CriticalDamageBonus {
         }
 
         try {
-          dicePools.add(
-            DicePool.fromMap(
-              Map<dynamic, dynamic>.from(rawPool),
-            ),
-          );
+          dicePools.add(DicePool.fromMap(Map<dynamic, dynamic>.from(rawPool)));
         } catch (_) {
           continue;
         }
@@ -132,12 +178,10 @@ class CriticalDamageBonus {
     final rawMultipliers = map['abilityModifierMultipliers'];
 
     if (rawMultipliers is Map) {
-      final multiplierMap =
-      Map<dynamic, dynamic>.from(rawMultipliers);
+      final multiplierMap = Map<dynamic, dynamic>.from(rawMultipliers);
 
       for (final ability in AbilityType.values) {
-        final value =
-            (multiplierMap[ability.name] as num?)?.toInt() ?? 0;
+        final value = (multiplierMap[ability.name] as num?)?.toInt() ?? 0;
 
         if (value != 0) {
           multipliers[ability] = value;
@@ -146,6 +190,8 @@ class CriticalDamageBonus {
     }
 
     final rawFormula = map['formula'];
+
+    final rawCondition = map['condition'];
 
     return CriticalDamageBonus(
       id: map['id']?.toString() ?? '',
@@ -156,23 +202,27 @@ class CriticalDamageBonus {
 
       abilityModifierMultipliers: multipliers,
 
-      flatBonus:
-      (map['flatBonus'] as num?)?.toInt() ?? 0,
+      flatBonus: (map['flatBonus'] as num?)?.toInt() ?? 0,
 
       formula: rawFormula is Map
-          ? CharacterFormula.fromMap(
-        Map<dynamic, dynamic>.from(rawFormula),
-      )
+          ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawFormula))
           : null,
 
-      chancePercent:
-      (map['chancePercent'] as num?)?.toInt() ?? 100,
+      chancePercent: (map['chancePercent'] as num?)?.toInt() ?? 100,
 
-      damageType:
-      map['damageType']?.toString() ?? '',
+      damageType: map['damageType']?.toString() ?? '',
 
-      description:
-      map['description']?.toString() ?? '',
+      description: map['description']?.toString() ?? '',
+
+      condition: rawCondition is Map
+          ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawCondition))
+          : null,
+
+      optional: map['optional'] as bool? ?? false,
+
+      optionalGroupId: map['optionalGroupId']?.toString() ?? '',
+
+      optionalLabel: map['optionalLabel']?.toString() ?? '',
     );
   }
 }

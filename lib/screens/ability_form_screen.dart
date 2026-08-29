@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/character_effect.dart';
 
 import 'effect_form_screen.dart';
 
+import '../models/action_linked_effect.dart';
 import '../models/ability_effect_part.dart';
 import '../models/character.dart';
 import '../models/ability.dart';
@@ -11,6 +11,7 @@ import '../models/skill.dart';
 import '../models/character_resource.dart';
 import '../models/action_external_requirement.dart';
 import '../models/action_cost.dart';
+import '../models/character_effect.dart';
 
 import '../widgets/abilities/ability_form/ability_general_section.dart';
 import '../widgets/abilities/ability_form/ability_attack_section.dart';
@@ -45,10 +46,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
   bool requiresAttackRoll = false;
   bool proficient = true;
+  late int criticalMinimumNaturalRoll;
+  late bool empoweredCritical;
 
   late List<AbilityEffect> effects;
 
-  late List<CharacterEffect> linkedEffects;
+  late List<ActionLinkedEffect> linkedEffects;
 
   bool get editing => widget.ability != null;
 
@@ -89,6 +92,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
     proficient = ability?.proficient ?? true;
 
+    criticalMinimumNaturalRoll = ability?.criticalMinimumNaturalRoll ?? 20;
+
+    empoweredCritical = ability?.empoweredCritical ?? false;
+
     /*
      * Copia profunda.
      *
@@ -98,8 +105,16 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     effects = ability?.effects.map(_cloneEffect).toList() ?? [];
 
     linkedEffects =
-        ability?.linkedEffects
-            .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+        widget.ability?.linkedEffects
+            .map(
+              (linkedEffect) => ActionLinkedEffect(
+                effect: CharacterEffect.fromMap(linkedEffect.effect.toMap()),
+                target: linkedEffect.target,
+                hitBehavior: linkedEffect.hitBehavior,
+                sourceEffectId: linkedEffect.sourceEffectId,
+                saveBehavior: linkedEffect.saveBehavior,
+              ),
+            )
             .toList() ??
         [];
 
@@ -159,6 +174,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
               optionalLabel: part.optionalLabel,
 
+              hitBehavior: part.hitBehavior,
+
               participatesInCritical: part.participatesInCritical,
             ),
           )
@@ -180,6 +197,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       effectBonus: effect.effectBonus,
 
       effectTypeName: effect.effectTypeName,
+
+      extraParticipatesInCritical: effect.extraParticipatesInCritical,
 
       usesSavingThrow: effect.usesSavingThrow,
 
@@ -227,8 +246,35 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       return;
     }
 
+    final previousEffect = effects[index];
+
     setState(() {
       effects[index] = effect;
+
+      // =========================================================================
+      // ID CAMBIADO
+      //
+      // Normalmente el ID debería conservarse durante una edición.
+      // Si por algún motivo cambia, actualizamos las referencias vinculadas.
+      // =========================================================================
+
+      if (previousEffect.id != effect.id) {
+        for (var i = 0; i < linkedEffects.length; i++) {
+          final linkedEffect = linkedEffects[i];
+
+          if (linkedEffect.normalizedSourceEffectId != previousEffect.id) {
+            continue;
+          }
+
+          linkedEffects[i] = ActionLinkedEffect(
+            effect: linkedEffect.effect,
+            target: linkedEffect.target,
+            sourceEffectId: effect.id,
+            hitBehavior: linkedEffect.hitBehavior,
+            saveBehavior: linkedEffect.saveBehavior,
+          );
+        }
+      }
     });
   }
 
@@ -237,8 +283,35 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       return;
     }
 
+    final removedEffectId = effects[index].id;
+
     setState(() {
       effects.removeAt(index);
+
+      // =========================================================================
+      // LIMPIAR VÍNCULOS HUÉRFANOS
+      //
+      // Un ActionLinkedEffect puede depender de un AbilityEffect concreto.
+      //
+      // Si ese AbilityEffect desaparece, el vínculo deja de tener un origen
+      // válido. No eliminamos el linked effect: simplemente lo dejamos sin origen.
+      // =========================================================================
+
+      for (var i = 0; i < linkedEffects.length; i++) {
+        final linkedEffect = linkedEffects[i];
+
+        if (linkedEffect.normalizedSourceEffectId != removedEffectId) {
+          continue;
+        }
+
+        linkedEffects[i] = ActionLinkedEffect(
+          effect: linkedEffect.effect,
+          target: linkedEffect.target,
+          sourceEffectId: null,
+          hitBehavior: linkedEffect.hitBehavior,
+          saveBehavior: linkedEffect.saveBehavior,
+        );
+      }
     });
   }
 
@@ -266,6 +339,18 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     });
   }
 
+  String? _validatedLinkedEffectSourceId(ActionLinkedEffect linkedEffect) {
+    final sourceId = linkedEffect.normalizedSourceEffectId;
+
+    if (sourceId == null) {
+      return null;
+    }
+
+    final exists = effects.any((effect) => effect.id == sourceId);
+
+    return exists ? sourceId : null;
+  }
+
   // ===========================================================================
   // EFECTOS VINCULADOS
   // ===========================================================================
@@ -281,7 +366,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     }
 
     setState(() {
-      linkedEffects.add(CharacterEffect.fromMap(result.toMap()));
+      linkedEffects.add(
+        ActionLinkedEffect(
+          effect: CharacterEffect.fromMap(result.toMap()),
+          target: ActionLinkedEffectTarget.actionTarget,
+        ),
+      );
     });
   }
 
@@ -290,7 +380,9 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       return;
     }
 
-    final copy = CharacterEffect.fromMap(linkedEffects[index].toMap());
+    final linkedEffect = linkedEffects[index];
+
+    final copy = CharacterEffect.fromMap(linkedEffect.effect.toMap());
 
     final result = await Navigator.push<CharacterEffect>(
       context,
@@ -302,7 +394,76 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     }
 
     setState(() {
-      linkedEffects[index] = CharacterEffect.fromMap(result.toMap());
+      linkedEffects[index] = ActionLinkedEffect(
+        effect: CharacterEffect.fromMap(result.toMap()),
+        target: linkedEffect.target,
+        sourceEffectId: linkedEffect.sourceEffectId,
+        hitBehavior: linkedEffect.hitBehavior,
+        saveBehavior: linkedEffect.saveBehavior,
+      );
+    });
+  }
+
+  void updateLinkedEffectTarget(int index, ActionLinkedEffectTarget target) {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    final linkedEffect = linkedEffects[index];
+
+    setState(() {
+      linkedEffects[index] = ActionLinkedEffect(
+        effect: linkedEffect.effect,
+        target: target,
+        sourceEffectId: linkedEffect.sourceEffectId,
+        hitBehavior: linkedEffect.hitBehavior,
+        saveBehavior: linkedEffect.saveBehavior,
+      );
+    });
+  }
+
+  void updateLinkedEffectSource(int index, String? sourceEffectId) {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    final linkedEffect = linkedEffects[index];
+
+    final normalizedSourceId = sourceEffectId?.trim().isNotEmpty == true
+        ? sourceEffectId!.trim()
+        : null;
+
+    setState(() {
+      linkedEffects[index] = ActionLinkedEffect(
+        effect: linkedEffect.effect,
+        target: linkedEffect.target,
+        sourceEffectId: normalizedSourceId,
+        hitBehavior: linkedEffect.hitBehavior,
+        saveBehavior: normalizedSourceId == null
+            ? ActionLinkedEffectSaveBehavior.ignore
+            : linkedEffect.saveBehavior,
+      );
+    });
+  }
+
+  void updateLinkedEffectSaveBehavior(
+    int index,
+    ActionLinkedEffectSaveBehavior saveBehavior,
+  ) {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    final linkedEffect = linkedEffects[index];
+
+    setState(() {
+      linkedEffects[index] = ActionLinkedEffect(
+        effect: linkedEffect.effect,
+        target: linkedEffect.target,
+        sourceEffectId: linkedEffect.sourceEffectId,
+        hitBehavior: linkedEffect.hitBehavior,
+        saveBehavior: saveBehavior,
+      );
     });
   }
 
@@ -314,6 +475,18 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     setState(() {
       linkedEffects.removeAt(index);
     });
+  }
+
+  ActionLinkedEffectSaveBehavior _validatedLinkedEffectSaveBehavior(
+    ActionLinkedEffect linkedEffect,
+  ) {
+    final sourceId = _validatedLinkedEffectSourceId(linkedEffect);
+
+    if (sourceId == null) {
+      return ActionLinkedEffectSaveBehavior.ignore;
+    }
+
+    return linkedEffect.saveBehavior;
   }
 
   void saveAbility() {
@@ -388,13 +561,25 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
       attackBonus: int.tryParse(attackBonusController.text) ?? 0,
 
+      criticalMinimumNaturalRoll: criticalMinimumNaturalRoll,
+
+      empoweredCritical: empoweredCritical,
+
       // ============================================================
       // NUEVO SISTEMA
       // ============================================================
       effects: effects.map(_cloneEffect).toList(),
 
       linkedEffects: linkedEffects
-          .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+          .map(
+            (linkedEffect) => ActionLinkedEffect(
+              effect: CharacterEffect.fromMap(linkedEffect.effect.toMap()),
+              target: linkedEffect.target,
+              hitBehavior: linkedEffect.hitBehavior,
+              sourceEffectId: linkedEffect.sourceEffectId,
+              saveBehavior: linkedEffect.saveBehavior,
+            ),
+          )
           .toList(),
 
       // ============================================================
@@ -583,9 +768,25 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                 proficient: proficient,
                 attackBonusController: attackBonusController,
 
+                criticalMinimumNaturalRoll: criticalMinimumNaturalRoll,
+
+                empoweredCritical: empoweredCritical,
+
                 onRequiresAttackChanged: (value) {
                   setState(() {
                     requiresAttackRoll = value;
+                  });
+                },
+
+                onCriticalMinimumNaturalRollChanged: (value) {
+                  setState(() {
+                    criticalMinimumNaturalRoll = value;
+                  });
+                },
+
+                onEmpoweredCriticalChanged: (value) {
+                  setState(() {
+                    empoweredCritical = value;
                   });
                 },
 
@@ -633,8 +834,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
               const SizedBox(height: 6),
 
               Text(
-                'Estados y efectos que esta habilidad puede aplicar al personaje.',
-                style: Theme.of(context).textTheme.bodyMedium,
+                'Estados y efectos adicionales que puede aplicar esta habilidad.',
               ),
 
               const SizedBox(height: 12),
@@ -673,7 +873,20 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                     children: [
                       for (var i = 0; i < linkedEffects.length; i++) ...[
                         _LinkedEffectTile(
-                          effect: linkedEffects[i],
+                          linkedEffect: linkedEffects[i],
+                          abilityEffects: effects,
+
+                          onTargetChanged: (target) {
+                            updateLinkedEffectTarget(i, target);
+                          },
+
+                          onSourceEffectChanged: (effectId) {
+                            updateLinkedEffectSource(i, effectId);
+                          },
+
+                          onSaveBehaviorChanged: (behavior) {
+                            updateLinkedEffectSaveBehavior(i, behavior);
+                          },
 
                           onEdit: () {
                             editLinkedEffect(i);
@@ -808,13 +1021,25 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 }
 
 class _LinkedEffectTile extends StatelessWidget {
-  final CharacterEffect effect;
+  final ActionLinkedEffect linkedEffect;
+
+  final List<AbilityEffect> abilityEffects;
+
+  final ValueChanged<ActionLinkedEffectTarget> onTargetChanged;
+
+  final ValueChanged<String?> onSourceEffectChanged;
+
+  final ValueChanged<ActionLinkedEffectSaveBehavior> onSaveBehaviorChanged;
 
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _LinkedEffectTile({
-    required this.effect,
+    required this.linkedEffect,
+    required this.abilityEffects,
+    required this.onTargetChanged,
+    required this.onSourceEffectChanged,
+    required this.onSaveBehaviorChanged,
     required this.onEdit,
     required this.onDelete,
   });
@@ -823,35 +1048,210 @@ class _LinkedEffectTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return ListTile(
-      onTap: onEdit,
+    final effect = linkedEffect.effect;
 
-      leading: CircleAvatar(child: Icon(_iconForType(effect.type))),
-
-      title: Text(
-        effect.name.trim().isNotEmpty ? effect.name : 'Efecto sin nombre',
-        style: const TextStyle(fontWeight: FontWeight.w800),
-      ),
-
-      subtitle: Text(_subtitle(effect)),
-
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconButton(
-            tooltip: 'Editar',
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit_rounded),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(child: Icon(_iconForType(effect.type))),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      effect.name.trim().isNotEmpty
+                          ? effect.name
+                          : 'Efecto sin nombre',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+
+                    finalSubtitle(context, effect),
+                  ],
+                ),
+              ),
+
+              IconButton(
+                tooltip: 'Editar efecto',
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_rounded),
+              ),
+
+              IconButton(
+                tooltip: 'Eliminar',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
           ),
 
-          IconButton(
-            tooltip: 'Eliminar',
-            onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline_rounded),
+          const SizedBox(height: 14),
+
+          DropdownButtonFormField<ActionLinkedEffectTarget>(
+            initialValue: linkedEffect.target,
+            decoration: InputDecoration(
+              labelText: 'Aplicar efecto a',
+              prefixIcon: Icon(_targetIcon(linkedEffect.target)),
+              border: const OutlineInputBorder(),
+            ),
+            items: ActionLinkedEffectTarget.values.map((target) {
+              return DropdownMenuItem(
+                value: target,
+                child: Row(
+                  children: [
+                    Icon(_targetIcon(target), size: 19),
+
+                    const SizedBox(width: 9),
+
+                    Text(target.label),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (target) {
+              if (target == null) {
+                return;
+              }
+
+              onTargetChanged(target);
+            },
+          ),
+
+          const SizedBox(height: 7),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              linkedEffect.target.description,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          DropdownButtonFormField<String?>(
+            value: linkedEffect.normalizedSourceEffectId,
+            decoration: const InputDecoration(
+              labelText: 'Efecto de origen',
+              prefixIcon: Icon(Icons.account_tree_rounded),
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Ninguno'),
+              ),
+
+              ...abilityEffects.map(
+                (effect) => DropdownMenuItem<String?>(
+                  value: effect.id,
+                  child: Text(
+                    effect.name.trim().isNotEmpty
+                        ? effect.name
+                        : 'Efecto sin nombre',
+                  ),
+                ),
+              ),
+            ],
+            onChanged: onSourceEffectChanged,
+          ),
+
+          const SizedBox(height: 7),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              linkedEffect.normalizedSourceEffectId == null
+                  ? 'Este efecto vinculado no depende de un efecto concreto de la habilidad.'
+                  : 'Las salvaciones de este efecto de origen pueden afectar al efecto vinculado.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          DropdownButtonFormField<ActionLinkedEffectSaveBehavior>(
+            initialValue: linkedEffect.normalizedSourceEffectId == null
+                ? ActionLinkedEffectSaveBehavior.ignore
+                : linkedEffect.saveBehavior,
+            decoration: const InputDecoration(
+              labelText: 'Si hay salvación',
+              prefixIcon: Icon(Icons.shield_outlined),
+              border: OutlineInputBorder(),
+            ),
+            items: ActionLinkedEffectSaveBehavior.values.map((behavior) {
+              return DropdownMenuItem(
+                value: behavior,
+                child: Text(behavior.label),
+              );
+            }).toList(),
+            onChanged: linkedEffect.normalizedSourceEffectId == null
+                ? null
+                : (behavior) {
+                    if (behavior == null) {
+                      return;
+                    }
+
+                    onSaveBehaviorChanged(behavior);
+                  },
+          ),
+
+          const SizedBox(height: 7),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              linkedEffect.saveBehavior.description,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget finalSubtitle(BuildContext context, CharacterEffect effect) {
+    final subtitle = _subtitle(effect);
+
+    if (subtitle.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        subtitle,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  static IconData _targetIcon(ActionLinkedEffectTarget target) {
+    switch (target) {
+      case ActionLinkedEffectTarget.actionTarget:
+        return Icons.gps_fixed_rounded;
+
+      case ActionLinkedEffectTarget.self:
+        return Icons.person_rounded;
+
+      case ActionLinkedEffectTarget.externalTargets:
+        return Icons.groups_rounded;
+    }
   }
 
   static IconData _iconForType(CharacterEffectType type) {
@@ -873,41 +1273,13 @@ class _LinkedEffectTile extends StatelessWidget {
   static String _subtitle(CharacterEffect effect) {
     final pieces = <String>[];
 
-    if (effect.description.trim().isNotEmpty) {
-      pieces.add(effect.description.trim());
+    final description = effect.description.trim();
+
+    if (description.isNotEmpty) {
+      pieces.add(description);
     }
 
-    switch (effect.durationType) {
-      case CharacterEffectDurationType.permanent:
-        pieces.add('Permanente');
-        break;
-
-      case CharacterEffectDurationType.turns:
-        pieces.add(
-          '${effect.maxDuration} '
-          '${effect.maxDuration == 1 ? 'turno' : 'turnos'}',
-        );
-        break;
-
-      case CharacterEffectDurationType.rounds:
-        pieces.add(
-          '${effect.maxDuration} '
-          '${effect.maxDuration == 1 ? 'ronda' : 'rondas'}',
-        );
-        break;
-
-      case CharacterEffectDurationType.minutes:
-        pieces.add('${effect.maxDuration} min');
-        break;
-
-      case CharacterEffectDurationType.custom:
-        if (effect.durationNote.trim().isNotEmpty) {
-          pieces.add(effect.durationNote.trim());
-        } else {
-          pieces.add('Duración personalizada');
-        }
-        break;
-    }
+    pieces.add(effect.durationText);
 
     return pieces.join(' · ');
   }

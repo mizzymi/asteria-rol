@@ -130,17 +130,26 @@ class CharacterFormulaContext {
     // =========================================================================
     // VARIABLES DEL EVENTO
     //
-    // Más adelante aquí entraremos con cosas como:
+    // Contexto dinámico del evento actual.
+    // Puede incluir:
     //
-    // damage_received
-    // raw_damage
-    // previous_health
-    // current_health
-    // previous_resource
-    // current_resource
-    // turn
+    // damage
+    // healing
+    // hit
+    // miss
+    // critical
+    // attack_roll
+    // attack_total
+    // target_is_self
+    // target_is_external
+    // target_wounded
+    // target_full_health
+    // target_health_percent_lt_50
+    // target_health_percent_lte_50
+    // target_health_percent_gt_50
+    // target_health_percent_gte_50
     //
-    // No las hardcodeamos todavía.
+    // Estas variables tienen prioridad sobre las variables base del personaje.
     // =========================================================================
 
     for (final entry in eventVariables.entries) {

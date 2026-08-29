@@ -30,8 +30,26 @@ class ActionSavingThrowRequest {
 class ActionSavingThrowResult {
   final ActionSavingThrowRequest request;
 
+  /// Resultado natural del d20.
+  ///
+  /// Puede ser null en personajes/importaciones antiguas
+  /// donde solo se conocía si superó o no.
+  final int? naturalRoll;
+
+  /// Modificador utilizado.
+  final int? modifier;
+
+  /// Total final de la salvación.
+  final int? total;
+
   /// true = el objetivo superó la salvación.
   final bool saved;
 
-  const ActionSavingThrowResult({required this.request, required this.saved});
+  const ActionSavingThrowResult({
+    required this.request,
+    required this.saved,
+    this.naturalRoll,
+    this.modifier,
+    this.total,
+  });
 }

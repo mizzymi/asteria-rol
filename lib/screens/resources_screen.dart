@@ -79,7 +79,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   Future<void> decreaseResource(CharacterResource resource) async {
     setState(() {
-      resource.consume(1);
+      character.subtractResourceValue(resource.id, 1);
     });
 
     await save();
@@ -91,7 +91,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   Future<void> increaseResource(CharacterResource resource) async {
     setState(() {
-      resource.restore(1);
+      character.addResourceValue(resource.id, 1);
     });
 
     await save();

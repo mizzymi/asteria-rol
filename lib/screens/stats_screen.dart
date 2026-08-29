@@ -57,41 +57,15 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> editAbility(AbilityType ability) async {
-    int currentValue;
+    final currentValue = character.abilities.valueByType(ability);
 
-    switch (ability) {
-      case AbilityType.strength:
-        currentValue = character.abilities.strength;
-        break;
-
-      case AbilityType.dexterity:
-        currentValue = character.abilities.dexterity;
-        break;
-
-      case AbilityType.constitution:
-        currentValue = character.abilities.constitution;
-        break;
-
-      case AbilityType.intelligence:
-        currentValue = character.abilities.intelligence;
-        break;
-
-      case AbilityType.wisdom:
-        currentValue = character.abilities.wisdom;
-        break;
-
-      case AbilityType.charisma:
-        currentValue = character.abilities.charisma;
-        break;
-    }
-
-    int newValue = currentValue;
+    var newValue = currentValue;
 
     final result = await showDialog<int>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(_abilityName(ability)),
+          title: Text(ability.label),
           content: TextFormField(
             initialValue: currentValue.toString(),
             autofocus: true,
@@ -120,7 +94,7 @@ class _StatsScreenState extends State<StatsScreen> {
             FilledButton(
               onPressed: () {
                 if (newValue < 1 || newValue > 30) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(
                       content: Text('El atributo debe estar entre 1 y 30'),
                     ),
@@ -143,58 +117,10 @@ class _StatsScreenState extends State<StatsScreen> {
     }
 
     setState(() {
-      switch (ability) {
-        case AbilityType.strength:
-          character.abilities.strength = result;
-          break;
-
-        case AbilityType.dexterity:
-          character.abilities.dexterity = result;
-          break;
-
-        case AbilityType.constitution:
-          character.abilities.constitution = result;
-          break;
-
-        case AbilityType.intelligence:
-          character.abilities.intelligence = result;
-          break;
-
-        case AbilityType.wisdom:
-          character.abilities.wisdom = result;
-          break;
-
-        case AbilityType.charisma:
-          character.abilities.charisma = result;
-          break;
-      }
-
-      character.normalizeHealth();
+      character.setAbilityScore(ability, result);
     });
 
     await save();
-  }
-
-  String _abilityName(AbilityType ability) {
-    switch (ability) {
-      case AbilityType.strength:
-        return 'Fuerza';
-
-      case AbilityType.dexterity:
-        return 'Destreza';
-
-      case AbilityType.constitution:
-        return 'Constitución';
-
-      case AbilityType.intelligence:
-        return 'Inteligencia';
-
-      case AbilityType.wisdom:
-        return 'Sabiduría';
-
-      case AbilityType.charisma:
-        return 'Carisma';
-    }
   }
 
   Future<void> changeSkillProficiency(DndSkill skill) async {

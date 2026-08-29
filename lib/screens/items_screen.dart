@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
-import 'package:rol/models/ability_effect_part.dart';
 import 'package:rol/utils/number_format.dart';
 
 import 'dart:convert';
@@ -12,12 +11,12 @@ import '../models/character.dart';
 import '../models/item.dart';
 import '../models/ability.dart';
 import '../models/dice_pool.dart';
-import '../models/healing_bonus_result.dart';
-import '../models/damage_bonus_result.dart';
 
 import '../services/character_storage_service.dart';
 import '../services/item_library_service.dart';
+import '../services/action_resolution_flow.dart';
 
+import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
 import '../widgets/weapons/weapon_damage_result_dialog.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/section_header.dart';
@@ -146,7 +145,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     setState(() {
-      character.items[index] = result;
+      character.updateItem(result);
 
       /*
        * Si sigue equipado, volvemos a aplicar
@@ -669,398 +668,45 @@ class _ItemsScreenState extends State<ItemsScreen> {
     // ===========================================================================
     // HABILIDAD TEMPORAL
     //
-    // Los consumibles reutilizan el mismo sistema de efectos
-    // que las habilidades.
+    // El consumible reutiliza exactamente el mismo motor de resolución
+    // que una habilidad normal.
     // ===========================================================================
 
     final consumableAbility = CharacterAbility(
       id: '${item.id}_consumable',
       name: item.name,
+
       abilityType: AbilityType.strength,
+
+      targetType: AbilityTargetType.self,
+
+      requiresAttackRoll: false,
+
+      effects: consumable.effects
+          .map((effect) => AbilityEffect.fromMap(effect.toMap()))
+          .toList(),
     );
 
-    // ===========================================================================
-    // TIRAR EFECTOS Y SUS COMPONENTES
-    // ===========================================================================
+    final flow = ActionResolutionFlow(character: character);
 
-    final rolledEffects = <_ConsumableRolledEffect>[];
-
-    for (final effect in consumable.effects) {
-      if (!effect.hasEffect) {
-        continue;
-      }
-
-      final rolledParts = <_ConsumableRolledPart>[];
-
-      for (final part in effect.parts) {
-        if (!part.hasValue) {
-          continue;
-        }
-
-        final result = character.rollAbilityEffectPart(part, critical: false);
-
-        rolledParts.add(_ConsumableRolledPart(part: part, result: result));
-      }
-
-      if (rolledParts.isEmpty) {
-        continue;
-      }
-
-      rolledEffects.add(
-        _ConsumableRolledEffect(effect: effect, parts: rolledParts),
-      );
-    }
-
-    if (rolledEffects.isEmpty) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Este consumible no tiene efectos utilizables.'),
-        ),
-      );
-
-      return;
-    }
-
-    // ===========================================================================
-    // TOTALES BASE
-    // ===========================================================================
-
-    int totalHealing = 0;
-    int totalDamage = 0;
-
-    for (final rolled in rolledEffects) {
-      final effectTotal = rolled.total;
-
-      if (rolled.effect.heals) {
-        totalHealing += effectTotal;
-      }
-
-      if (rolled.effect.dealsDamage) {
-        totalDamage += effectTotal;
-      }
-    }
-
-    // ===========================================================================
-    // BONOS GLOBALES DE CURACIÓN
-    // ===========================================================================
-
-    final healingBonuses = <HealingBonusResult>[];
-
-    if (totalHealing > 0) {
-      healingBonuses.addAll(character.rollActiveHealingBonuses());
-
-      totalHealing += healingBonuses.fold<int>(
-        0,
-        (sum, result) => sum + result.total,
-      );
-    }
-
-    // ===========================================================================
-    // BONOS GLOBALES DE DAÑO
-    // ===========================================================================
-
-    final damageBonuses = <DamageBonusResult>[];
-
-    if (totalDamage > 0) {
-      damageBonuses.addAll(character.rollActiveDamageBonuses());
-
-      totalDamage += damageBonuses.fold<int>(
-        0,
-        (sum, result) => sum + result.total,
-      );
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    // ===========================================================================
-    // DIÁLOGO
-    // ===========================================================================
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.science_rounded),
-
-              const SizedBox(width: 10),
-
-              Expanded(child: Text(item.name)),
-            ],
-          ),
-
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ===============================================================
-                // EFECTOS
-                // ===============================================================
-                ...rolledEffects.map((rolled) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ===================================================
-                          // NOMBRE DEL EFECTO
-                          // ===================================================
-                          Row(
-                            children: [
-                              Icon(
-                                rolled.effect.heals
-                                    ? Icons.favorite_rounded
-                                    : rolled.effect.dealsDamage
-                                    ? Icons.flash_on_rounded
-                                    : Icons.auto_awesome_rounded,
-                              ),
-
-                              const SizedBox(width: 8),
-
-                              Expanded(
-                                child: Text(
-                                  rolled.effect.name.trim().isNotEmpty
-                                      ? rolled.effect.name
-                                      : rolled.effect.effectType.label,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-
-                              if (rolled.parts.length > 1)
-                                Text(
-                                  '${rolled.total}',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // ===================================================
-                          // COMPONENTES
-                          // ===================================================
-                          ...rolled.parts.map((rolledPart) {
-                            final part = rolledPart.part;
-
-                            return Container(
-                              width: double.infinity,
-                              margin: const EdgeInsets.only(bottom: 7),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surface,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          part.typeName.trim().isNotEmpty
-                                              ? part.typeName
-                                              : rolled.effect.effectType.label,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-
-                                        if (part.diceNotation.isNotEmpty)
-                                          Text(
-                                            part.diceNotation,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 8),
-
-                                  Text(
-                                    '${rolledPart.result.total}',
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-
-                // ===============================================================
-                // BONOS DE CURACIÓN
-                // ===============================================================
-                if (healingBonuses.isNotEmpty) ...[
-                  const Divider(),
-
-                  const Text(
-                    'Bonos de curación',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  ...healingBonuses.map(
-                    (result) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.favorite_border_rounded),
-                      title: Text(
-                        result.bonus.name.trim().isNotEmpty
-                            ? result.bonus.name
-                            : 'Bonus de curación',
-                      ),
-                      trailing: Text(
-                        '+${result.total}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                  ),
-                ],
-
-                // ===============================================================
-                // BONOS DE DAÑO
-                // ===============================================================
-                if (damageBonuses.isNotEmpty) ...[
-                  const Divider(),
-
-                  const Text(
-                    'Bonos de daño',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  ...damageBonuses.map(
-                    (result) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.bolt_rounded),
-                      title: Text(
-                        result.bonus.name.trim().isNotEmpty
-                            ? result.bonus.name
-                            : 'Bonus de daño',
-                      ),
-                      trailing: Text(
-                        '+${result.total}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                  ),
-                ],
-
-                // ===============================================================
-                // TOTALES
-                // ===============================================================
-                const Divider(),
-
-                if (totalHealing > 0)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.favorite_rounded),
-                    title: const Text('Curación total'),
-                    trailing: Text(
-                      '$totalHealing',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-
-                if (totalDamage > 0)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.flash_on_rounded),
-                    title: const Text('Daño total'),
-                    trailing: Text(
-                      '$totalDamage',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 8),
-
-                Text('Cantidad restante después de usar: ${item.quantity - 1}'),
-              ],
-            ),
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('Cancelar'),
-            ),
-
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              icon: const Icon(Icons.check_rounded),
-              label: Text(
-                consumable.useText.trim().isEmpty ? 'Usar' : consumable.useText,
-              ),
-            ),
-          ],
-        );
-      },
+    final execution = await flow.resolveAbility(
+      context,
+      ability: consumableAbility,
     );
 
-    if (confirmed != true || !mounted) {
+    if (execution == null || !mounted) {
       return;
     }
 
     // ===========================================================================
-    // APLICAR CONSUMIBLE
+    // CONSUMIR UNIDAD
+    //
+    // ActionResolutionFlow ya hizo commit de daño/curación/efectos.
+    // Aquí solamente consumimos físicamente el objeto.
     // ===========================================================================
 
     setState(() {
-      if (totalHealing > 0) {
-        character.heal(totalHealing);
-      }
-
       item.quantity -= 1;
-
-      // =========================================================================
-      // CONSUMIBLE AGOTADO
-      // =========================================================================
 
       if (item.quantity <= 0) {
         character.removeItem(item.id);
@@ -1070,6 +716,16 @@ class _ItemsScreenState extends State<ItemsScreen> {
     });
 
     await save();
+
+    if (!mounted) {
+      return;
+    }
+
+    await showActionResolutionResultDialog(
+      context,
+      character: character,
+      execution: execution,
+    );
   }
 
   // ===========================================================================
@@ -1773,26 +1429,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
 }
 
 enum _WeaponAttackMode { normal, advantage, disadvantage }
-
-class _ConsumableRolledPart {
-  final AbilityEffectPart part;
-
-  final DiceCalculationResult result;
-
-  const _ConsumableRolledPart({required this.part, required this.result});
-}
-
-class _ConsumableRolledEffect {
-  final AbilityEffect effect;
-
-  final List<_ConsumableRolledPart> parts;
-
-  const _ConsumableRolledEffect({required this.effect, required this.parts});
-
-  int get total {
-    return parts.fold<int>(0, (sum, part) => sum + part.result.total);
-  }
-}
 
 class _ItemQuantityCalculatorDialog extends StatefulWidget {
   final String itemName;

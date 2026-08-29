@@ -4,11 +4,8 @@ import '../services/resource_modifier_resolver.dart';
 import '../services/formula_evaluator.dart';
 import '../services/passive_trigger_engine.dart';
 import 'formulas/formula_bonus.dart';
-import 'formulas/character_formula.dart';
 import 'formulas/character_formula_context.dart';
-import 'formulas/formula_modifier.dart';
 import 'character_counter.dart';
-import 'passive_resource_modifier.dart';
 import 'formulas/formula_context.dart';
 import 'character_resource.dart';
 import 'active_damage_bonus.dart';
@@ -141,27 +138,6 @@ class Character {
     return result;
   }
 
-  List<HealingBonusResult> rollActiveHealingBonuses() {
-    final results = <HealingBonusResult>[];
-
-    for (final bonus in activeHealingBonuses) {
-      if (!bonus.hasHealing) {
-        continue;
-      }
-
-      results.add(rollHealingBonus(bonus));
-    }
-
-    return results;
-  }
-
-  int activeHealingBonusTotal() {
-    return rollActiveHealingBonuses().fold<int>(
-      0,
-      (sum, result) => sum + result.total,
-    );
-  }
-
   List<DamageBonusResult> rollActiveDamageBonuses({bool critical = false}) {
     final results = <DamageBonusResult>[];
 
@@ -272,21 +248,31 @@ class Character {
     normalizeHealth();
   }
 
+  Map<String, double> _passiveTriggerContext(
+    Map<String, double> eventVariables,
+  ) {
+    return <String, double>{
+      'round': combatRound.toDouble(),
+      'turn_active': turnActive ? 1 : 0,
+      ...eventVariables,
+    };
+  }
+
   void dispatchPassiveTrigger(
     PassiveTriggerEvent event, {
     Map<String, double> eventVariables = const {},
   }) {
     final engine = PassiveTriggerEngine(character: this);
 
-    engine.dispatch(event, eventVariables: eventVariables);
+    final variables = _passiveTriggerContext(eventVariables);
 
-    engine.refreshPersistentTriggers(eventVariables: eventVariables);
+    engine.dispatch(event, eventVariables: variables);
+
+    engine.refreshPersistentTriggers();
   }
 
-  void refreshPassiveTriggers({Map<String, double> eventVariables = const {}}) {
-    final engine = PassiveTriggerEngine(character: this);
-
-    engine.refreshPersistentTriggers(eventVariables: eventVariables);
+  void refreshPassiveTriggers() {
+    PassiveTriggerEngine(character: this).refreshPersistentTriggers();
   }
 
   int evaluateFormulaBonus(FormulaBonus bonus, {CharacterPassive? passive}) {
@@ -377,52 +363,177 @@ class Character {
       return;
     }
 
+    // ===========================================================================
+    // 1. EVENTO DE FIN DE TURNO
+    //
+    // Los efectos siguen activos durante turnEnded.
+    // ===========================================================================
+
     dispatchPassiveTrigger(
       PassiveTriggerEvent.turnEnded,
-      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 1},
     );
 
+    // ===========================================================================
+    // 2. CERRAR TURNO
+    // ===========================================================================
+
     turnActive = false;
+
+    // ===========================================================================
+    // 3. AVANZAR EFECTOS POR TURNOS
+    //
+    // advanceTurnEffects() ya:
+    // - avanza duración
+    // - limpia expirados
+    // - normaliza vida
+    // - refresca whileCondition
+    // ===========================================================================
+
+    advanceTurnEffects();
   }
 
   void startNextRound() {
-    // Si quedaba un turno abierto, lo cerramos.
+    // ===========================================================================
+    // 1. CERRAR TURNO ACTIVO
+    // ===========================================================================
+
     if (turnActive) {
       dispatchPassiveTrigger(
         PassiveTriggerEvent.turnEnded,
-        eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+        eventVariables: {'round': combatRound.toDouble(), 'turn_active': 1},
+      );
+
+      turnActive = false;
+
+      advanceTurnEffects();
+    }
+
+    // ===========================================================================
+    // 2. EVENTO DE FIN DE RONDA
+    //
+    // Los efectos de ronda todavía existen durante roundEnded.
+    // ===========================================================================
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.roundEnded,
+      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+    );
+
+    // ===========================================================================
+    // 3. EXPIRAR EFECTOS DE RONDA
+    // ===========================================================================
+
+    advanceRoundEffects();
+
+    // ===========================================================================
+    // 4. NUEVA RONDA
+    // ===========================================================================
+
+    combatRound++;
+
+    // ===========================================================================
+    // 5. INICIO DE NUEVA RONDA
+    //
+    // Los efectos que expiraron ya no participan aquí.
+    // ===========================================================================
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.roundStarted,
+      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+    );
+  }
+
+  void resetCombat() {
+    // ===========================================================================
+    // CERRAR TURNO
+    // ===========================================================================
+
+    if (turnActive) {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.turnEnded,
+        eventVariables: {'round': combatRound.toDouble(), 'turn_active': 1},
       );
 
       turnActive = false;
     }
 
-    combatRound++;
+    // ===========================================================================
+    // CERRAR RONDA
+    //
+    // Resetear combate no avanza duraciones automáticamente.
+    // Solo cerramos el estado lógico del combate.
+    // ===========================================================================
 
     dispatchPassiveTrigger(
-      PassiveTriggerEvent.roundStarted,
-      eventVariables: {'round': combatRound.toDouble()},
-    );
-  }
-
-  void resetCombat() {
-    if (turnActive) {
-      dispatchPassiveTrigger(
-        PassiveTriggerEvent.turnEnded,
-        eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
-      );
-    }
-
-    turnActive = false;
-    combatRound = 1;
-
-    refreshPassiveTriggers(
+      PassiveTriggerEvent.roundEnded,
       eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
     );
+
+    combatRound = 1;
+
+    refreshPassiveTriggers();
   }
 
   String get combatStatusText {
     return 'Ronda $combatRound · '
         '${turnActive ? 'Turno activo' : 'Esperando turno'}';
+  }
+
+  void setHealth(int value, {bool dispatchTriggers = true}) {
+    final before = currentHealth;
+
+    currentHealth = value;
+
+    normalizeHealth();
+
+    final after = currentHealth;
+
+    if (!dispatchTriggers || before == after) {
+      return;
+    }
+
+    _dispatchHealthChange(before, after);
+  }
+
+  void setPassiveEnabled(CharacterPassive passive, bool enabled) {
+    if (passive.enabled == enabled) {
+      return;
+    }
+
+    passive.enabled = enabled;
+
+    final engine = PassiveTriggerEngine(character: this);
+
+    // ===========================================================================
+    // DESACTIVAR
+    //
+    // Todo efecto runtime creado por triggers de esta pasiva deja de existir.
+    // ===========================================================================
+
+    if (!enabled) {
+      engine.removeRuntimeEffectsForPassive(passive.id, refreshTriggers: false);
+    }
+
+    // ===========================================================================
+    // NORMALIZAR
+    //
+    // Quitar o activar una pasiva puede cambiar vida máxima efectiva.
+    // ===========================================================================
+
+    normalizeHealth();
+
+    // ===========================================================================
+    // RECONSTRUIR ESTADO PERSISTENTE
+    //
+    // Al activar:
+    //   crea inmediatamente los whileCondition cuya condición ya sea verdadera.
+    //
+    // Al desactivar:
+    //   reevaluamos los whileCondition restantes.
+    // ===========================================================================
+
+    refreshPassiveTriggers();
   }
 
   // ===========================================================================
@@ -444,24 +555,10 @@ class Character {
       return;
     }
 
-    final previousValue = resource.currentValue;
-
-    resource.currentValue += amount;
-    resource.normalize();
-
-    final currentValue = resource.currentValue;
-
-    if (!dispatchTriggers || previousValue == currentValue) {
-      return;
-    }
-
-    dispatchPassiveTrigger(
-      PassiveTriggerEvent.resourceChanged,
-      eventVariables: {
-        'previous_resource': previousValue.toDouble(),
-        'current_resource': currentValue.toDouble(),
-        'resource_change': (currentValue - previousValue).toDouble(),
-      },
+    setResourceValue(
+      resourceId,
+      resource.currentValue + amount,
+      dispatchTriggers: dispatchTriggers,
     );
   }
 
@@ -474,7 +571,17 @@ class Character {
       return;
     }
 
-    addResourceValue(resourceId, -amount, dispatchTriggers: dispatchTriggers);
+    final resource = resourceById(resourceId);
+
+    if (resource == null) {
+      return;
+    }
+
+    setResourceValue(
+      resourceId,
+      resource.currentValue - amount,
+      dispatchTriggers: dispatchTriggers,
+    );
   }
 
   void setResourceValue(
@@ -491,7 +598,8 @@ class Character {
     final previousValue = resource.currentValue;
 
     resource.currentValue = value;
-    resource.normalize();
+
+    normalizeResource(resource);
 
     final currentValue = resource.currentValue;
 
@@ -503,8 +611,16 @@ class Character {
       PassiveTriggerEvent.resourceChanged,
       eventVariables: {
         'previous_resource': previousValue.toDouble(),
+
         'current_resource': currentValue.toDouble(),
+
         'resource_change': (currentValue - previousValue).toDouble(),
+
+        'resource_${resource.id}': 1,
+
+        'resource_spent': currentValue < previousValue ? 1 : 0,
+
+        'resource_gained': currentValue > previousValue ? 1 : 0,
       },
     );
   }
@@ -516,9 +632,15 @@ class Character {
       return;
     }
 
+    final effectiveMax = resourceEffectiveMax(resource);
+
+    if (effectiveMax == null) {
+      return;
+    }
+
     setResourceValue(
       resourceId,
-      resource.maxValue,
+      effectiveMax,
       dispatchTriggers: dispatchTriggers,
     );
   }
@@ -592,11 +714,19 @@ class Character {
         CharacterClassLevel(dndClass: DndClass.fighter, level: safeValue),
       );
 
+      _refreshAfterCharacterStructureChange();
+
       return;
     }
 
     if (classes.length == 1) {
+      if (classes.first.level == safeValue) {
+        return;
+      }
+
       classes.first.level = safeValue;
+
+      _refreshAfterCharacterStructureChange();
 
       return;
     }
@@ -607,7 +737,15 @@ class Character {
 
     final primaryLevel = safeValue - secondaryLevels;
 
-    classes.first.level = primaryLevel < 1 ? 1 : primaryLevel;
+    final finalLevel = primaryLevel < 1 ? 1 : primaryLevel;
+
+    if (classes.first.level == finalLevel) {
+      return;
+    }
+
+    classes.first.level = finalLevel;
+
+    _refreshAfterCharacterStructureChange();
   }
 
   DndClass get primaryClass {
@@ -645,22 +783,32 @@ class Character {
         .join(' / ');
   }
 
+  void _refreshAfterCharacterStructureChange() {
+    normalizeHealthWithTriggers();
+
+    for (final resource in resources) {
+      normalizeResourceWithTriggers(resource, dispatchTriggers: true);
+    }
+
+    refreshPassiveTriggers();
+  }
+
   void addClass(DndClass dndClass, {int level = 1}) {
+    final safeLevel = level < 1 ? 1 : level;
+
     final existing = classes.indexWhere((item) => item.dndClass == dndClass);
 
     if (existing >= 0) {
-      classes[existing].level += level < 1 ? 1 : level;
+      classes[existing].level += safeLevel;
 
-      normalizeHealth();
+      _refreshAfterCharacterStructureChange();
 
       return;
     }
 
-    classes.add(
-      CharacterClassLevel(dndClass: dndClass, level: level < 1 ? 1 : level),
-    );
+    classes.add(CharacterClassLevel(dndClass: dndClass, level: safeLevel));
 
-    normalizeHealth();
+    _refreshAfterCharacterStructureChange();
   }
 
   void removeClass(DndClass dndClass) {
@@ -668,9 +816,15 @@ class Character {
       return;
     }
 
+    final previousLength = classes.length;
+
     classes.removeWhere((item) => item.dndClass == dndClass);
 
-    normalizeHealth();
+    if (classes.length == previousLength) {
+      return;
+    }
+
+    _refreshAfterCharacterStructureChange();
   }
 
   void setClassLevel(DndClass dndClass, int newLevel) {
@@ -680,21 +834,74 @@ class Character {
       return;
     }
 
-    classes[index].level = newLevel < 1 ? 1 : newLevel;
+    final safeLevel = newLevel < 1 ? 1 : newLevel;
 
-    normalizeHealth();
+    if (classes[index].level == safeLevel) {
+      return;
+    }
+
+    classes[index].level = safeLevel;
+
+    _refreshAfterCharacterStructureChange();
   }
 
   // ===========================================================================
   // RECURSOS PERSONALIZADOS
   // ===========================================================================
 
-  void addResource(CharacterResource resource) {
-    resources.add(resource);
+  void normalizeResourceWithTriggers(
+    CharacterResource resource, {
+    bool dispatchTriggers = true,
+  }) {
+    final before = resource.currentValue;
+
+    normalizeResource(resource);
+
+    final after = resource.currentValue;
+
+    if (!dispatchTriggers || before == after) {
+      return;
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.resourceChanged,
+      eventVariables: {
+        'previous_resource': before.toDouble(),
+        'current_resource': after.toDouble(),
+        'resource_change': (after - before).toDouble(),
+
+        'resource_${resource.id}': 1,
+
+        'resource_spent': after < before ? 1 : 0,
+        'resource_gained': after > before ? 1 : 0,
+      },
+    );
   }
 
-  void removeResource(String resourceId) {
+  void addResource(CharacterResource resource, {bool refreshTriggers = true}) {
+    resource.normalize();
+
+    resources.add(resource);
+
+    normalizeResource(resource);
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
+  }
+
+  void removeResource(String resourceId, {bool refreshTriggers = true}) {
+    final previousLength = resources.length;
+
     resources.removeWhere((resource) => resource.id == resourceId);
+
+    if (resources.length == previousLength) {
+      return;
+    }
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
   }
 
   CharacterResource? resourceById(String id) {
@@ -737,81 +944,120 @@ class Character {
     return resourceById(resourceId);
   }
 
+  bool canSpendResource(String resourceId, int amount) {
+    if (amount <= 0) {
+      return true;
+    }
+
+    final resource = resourceById(resourceId);
+
+    if (resource == null) {
+      return false;
+    }
+
+    if (!resource.spendable) {
+      return false;
+    }
+
+    return resource.currentValue >= amount;
+  }
+
+  bool spendResource(
+    String resourceId,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    if (!canSpendResource(resourceId, amount)) {
+      return false;
+    }
+
+    if (amount <= 0) {
+      return true;
+    }
+
+    subtractResourceValue(
+      resourceId,
+      amount,
+      dispatchTriggers: dispatchTriggers,
+    );
+
+    return true;
+  }
+
   bool canPayAbilityResource(CharacterAbility ability) {
     if (!ability.usesResource) {
       return true;
     }
 
-    final resource = resourceForAbility(ability);
+    final resourceId = ability.resourceId;
 
-    if (resource == null) {
+    if (resourceId == null || resourceId.isEmpty) {
       return false;
     }
 
-    return resource.currentValue >= ability.resourceCost;
+    return canSpendResource(resourceId, ability.resourceCost);
   }
 
-  bool payAbilityResource(CharacterAbility ability) {
+  bool payAbilityResource(
+    CharacterAbility ability, {
+    bool dispatchTriggers = true,
+  }) {
     if (!ability.usesResource) {
       return true;
     }
 
-    final resource = resourceForAbility(ability);
+    final resourceId = ability.resourceId;
 
-    if (resource == null) {
+    if (resourceId == null || resourceId.isEmpty) {
       return false;
     }
 
-    if (resource.currentValue < ability.resourceCost) {
-      return false;
-    }
-
-    resource.consume(ability.resourceCost);
-
-    return true;
+    return spendResource(
+      resourceId,
+      ability.resourceCost,
+      dispatchTriggers: dispatchTriggers,
+    );
   }
 
-  void updateResource(CharacterResource resource) {
+  void updateResource(
+    CharacterResource resource, {
+    bool refreshTriggers = true,
+  }) {
     final index = resources.indexWhere((item) => item.id == resource.id);
 
     if (index < 0) {
       return;
     }
 
+    resource.normalize();
+
     resources[index] = resource;
-  }
-
-  void consumeResource(CharacterResource resource, int amount) {
-    if (!resource.spendable) {
-      return;
-    }
-
-    if (amount <= 0) {
-      return;
-    }
-
-    resource.consume(amount);
 
     normalizeResource(resource);
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
   }
 
-  void restoreResource(CharacterResource resource, int amount) {
+  void consumeResource(
+    CharacterResource resource,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    spendResource(resource.id, amount, dispatchTriggers: dispatchTriggers);
+  }
+
+  void restoreResource(
+    CharacterResource resource,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
     if (amount <= 0) {
       return;
     }
 
-    if (!resource.hasMaximum) {
-      resource.restore(amount);
-      return;
-    }
-
-    final effectiveMax = resourceEffectiveMax(resource);
-
-    if (effectiveMax == null) {
-      return;
-    }
-
-    resource.restore(amount, maximum: effectiveMax);
+    addResourceValue(resource.id, amount, dispatchTriggers: dispatchTriggers);
   }
 
   void normalizeResource(CharacterResource resource) {
@@ -853,24 +1099,10 @@ class Character {
       return;
     }
 
-    final previousValue = passive.currentCharges;
-
-    passive.currentCharges += amount;
-    passive.normalizeCharges();
-
-    final currentValue = passive.currentCharges;
-
-    if (!dispatchTriggers || previousValue == currentValue) {
-      return;
-    }
-
-    dispatchPassiveTrigger(
-      PassiveTriggerEvent.chargeChanged,
-      eventVariables: {
-        'previous_charges': previousValue.toDouble(),
-        'current_charges': currentValue.toDouble(),
-        'charges_change': (currentValue - previousValue).toDouble(),
-      },
+    setPassiveCharges(
+      passiveId,
+      passive.currentCharges + amount,
+      dispatchTriggers: dispatchTriggers,
     );
   }
 
@@ -883,7 +1115,53 @@ class Character {
       return;
     }
 
-    addPassiveCharges(passiveId, -amount, dispatchTriggers: dispatchTriggers);
+    final passive = passiveById(passiveId);
+
+    if (passive == null || !passive.hasCharges) {
+      return;
+    }
+
+    setPassiveCharges(
+      passiveId,
+      passive.currentCharges - amount,
+      dispatchTriggers: dispatchTriggers,
+    );
+  }
+
+  bool canSpendPassiveCharges(String passiveId, int amount) {
+    if (amount <= 0) {
+      return true;
+    }
+
+    final passive = passiveById(passiveId);
+
+    if (passive == null || !passive.hasCharges) {
+      return false;
+    }
+
+    return passive.currentCharges >= amount;
+  }
+
+  bool spendPassiveCharges(
+    String passiveId,
+    int amount, {
+    bool dispatchTriggers = true,
+  }) {
+    if (!canSpendPassiveCharges(passiveId, amount)) {
+      return false;
+    }
+
+    if (amount <= 0) {
+      return true;
+    }
+
+    subtractPassiveCharges(
+      passiveId,
+      amount,
+      dispatchTriggers: dispatchTriggers,
+    );
+
+    return true;
   }
 
   void setPassiveCharges(
@@ -900,6 +1178,7 @@ class Character {
     final previousValue = passive.currentCharges;
 
     passive.currentCharges = value;
+
     passive.normalizeCharges();
 
     final currentValue = passive.currentCharges;
@@ -914,6 +1193,12 @@ class Character {
         'previous_charges': previousValue.toDouble(),
         'current_charges': currentValue.toDouble(),
         'charges_change': (currentValue - previousValue).toDouble(),
+
+        'passive_${passive.id}': 1,
+
+        'charge_spent': currentValue < previousValue ? 1 : 0,
+
+        'charge_gained': currentValue > previousValue ? 1 : 0,
       },
     );
   }
@@ -946,12 +1231,74 @@ class Character {
     return effects.where((effect) => effect.enabled && !effect.expired);
   }
 
-  void addEffect(CharacterEffect effect) {
+  void addEffect(
+    CharacterEffect effect, {
+    bool refreshTriggers = true,
+    bool dispatchHealthTriggers = true,
+  }) {
+    effect.normalizeDuration();
+
     effects.add(effect);
+
+    if (dispatchHealthTriggers) {
+      normalizeHealthWithTriggers();
+    } else {
+      normalizeHealth();
+    }
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
   }
 
-  void removeEffect(String effectId) {
+  void removeEffect(
+    String effectId, {
+    bool refreshTriggers = true,
+    bool dispatchHealthTriggers = true,
+  }) {
+    final previousLength = effects.length;
+
     effects.removeWhere((effect) => effect.id == effectId);
+
+    if (effects.length == previousLength) {
+      return;
+    }
+
+    if (dispatchHealthTriggers) {
+      normalizeHealthWithTriggers();
+    } else {
+      normalizeHealth();
+    }
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
+  }
+
+  void updateEffect(
+    CharacterEffect effect, {
+    bool refreshTriggers = true,
+    bool dispatchHealthTriggers = true,
+  }) {
+    final index = effects.indexWhere((item) => item.id == effect.id);
+
+    if (index < 0) {
+      return;
+    }
+
+    effect.normalizeDuration();
+
+    effects[index] = effect;
+
+    if (dispatchHealthTriggers) {
+      normalizeHealthWithTriggers();
+    } else {
+      normalizeHealth();
+    }
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
   }
 
   CharacterEffect? effectById(String id) {
@@ -964,19 +1311,51 @@ class Character {
     return null;
   }
 
-  void updateEffect(CharacterEffect effect) {
-    final index = effects.indexWhere((item) => item.id == effect.id);
-
-    if (index < 0) {
-      return;
+  void advanceTurnEffects() {
+    for (final effect in effects) {
+      effect.advanceTurn();
     }
 
-    effects[index] = effect;
+    _cleanupExpiredEffects();
+
+    normalizeHealth();
+
+    refreshPassiveTriggers();
+  }
+
+  void advanceRoundEffects() {
+    for (final effect in effects) {
+      effect.advanceRound();
+    }
+
+    _cleanupExpiredEffects();
+
+    normalizeHealth();
+
+    refreshPassiveTriggers();
+  }
+
+  void _cleanupExpiredEffects() {
+    effects.removeWhere((effect) => effect.hasDuration && effect.isExpired);
   }
 
   // ===========================================================================
   // ATRIBUTOS / STATS / MODIFICADORES
   // ===========================================================================
+
+  void setAbilityScore(AbilityType ability, int value) {
+    final safeValue = value < 1 ? 1 : value;
+
+    final previous = abilities.valueByType(ability);
+
+    if (previous == safeValue) {
+      return;
+    }
+
+    abilities.setValueByType(ability, safeValue);
+
+    _refreshAfterCharacterStructureChange();
+  }
 
   /// Valor BASE del atributo.
   ///
@@ -1297,10 +1676,29 @@ class Character {
     final roll = DicePoolRoller.roll(
       pools: bonus.dicePools,
       modifier: modifier,
-      critical: critical,
     );
 
     return DamageBonusResult(bonus: bonus, roll: roll);
+  }
+
+  bool empoweredCriticalForAbility(CharacterAbility ability) {
+    if (ability.empoweredCritical) {
+      return true;
+    }
+
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical) {
+        return true;
+      }
+    }
+
+    for (final effect in enabledEffects) {
+      if (effect.empoweredCritical) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ===========================================================================
@@ -1376,54 +1774,68 @@ class Character {
     }
   }
 
+  void normalizeHealthWithTriggers({bool dispatchTriggers = true}) {
+    final before = currentHealth;
+
+    normalizeHealth();
+
+    final after = currentHealth;
+
+    if (!dispatchTriggers || before == after) {
+      return;
+    }
+
+    _dispatchHealthChange(before, after);
+  }
+
+  void _dispatchHealthChange(int before, int after) {
+    if (before == after) {
+      return;
+    }
+
+    final change = after - before;
+
+    final variables = <String, double>{
+      'health_before': before.toDouble(),
+      'health_after': after.toDouble(),
+      'health_change': change.toDouble(),
+    };
+
+    if (change < 0) {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.damageReceived,
+        eventVariables: {...variables, 'damage': (-change).toDouble()},
+      );
+    } else {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.healingReceived,
+        eventVariables: {...variables, 'healing': change.toDouble()},
+      );
+    }
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.healthChanged,
+      eventVariables: variables,
+    );
+
+    if (before > 0 && after <= 0) {
+      dispatchPassiveTrigger(
+        PassiveTriggerEvent.characterDied,
+        eventVariables: {
+          ...variables,
+          'damage': change < 0 ? (-change).toDouble() : 0,
+          'death': 1,
+        },
+      );
+    }
+  }
+
   void heal(int amount, {bool dispatchTriggers = true}) {
     if (amount <= 0) {
       return;
     }
 
-    final healthBefore = currentHealth;
-
-    currentHealth += amount;
-
-    if (currentHealth > maxHealth) {
-      currentHealth = maxHealth;
-    }
-
-    final actualHealing = currentHealth - healthBefore;
-
-    if (actualHealing <= 0) {
-      return;
-    }
-
-    if (!dispatchTriggers) {
-      return;
-    }
-
-    // =========================================================================
-    // CURACIÓN RECIBIDA
-    // =========================================================================
-
-    dispatchPassiveTrigger(
-      PassiveTriggerEvent.healingReceived,
-      eventVariables: {
-        'healing': actualHealing.toDouble(),
-        'health_before': healthBefore.toDouble(),
-        'health_after': currentHealth.toDouble(),
-      },
-    );
-
-    // =========================================================================
-    // CAMBIO DE VIDA
-    // =========================================================================
-
-    dispatchPassiveTrigger(
-      PassiveTriggerEvent.healthChanged,
-      eventVariables: {
-        'amount': actualHealing.toDouble(),
-        'health_before': healthBefore.toDouble(),
-        'health_after': currentHealth.toDouble(),
-      },
-    );
+    setHealth(currentHealth + amount, dispatchTriggers: dispatchTriggers);
   }
 
   void takeDamage(int amount, {bool dispatchTriggers = true}) {
@@ -1431,61 +1843,77 @@ class Character {
       return;
     }
 
-    final healthBefore = currentHealth;
-
-    currentHealth -= amount;
-
-    if (currentHealth < 0) {
-      currentHealth = 0;
-    }
-
-    final actualDamage = healthBefore - currentHealth;
-
-    if (actualDamage <= 0) {
-      return;
-    }
-
-    if (!dispatchTriggers) {
-      return;
-    }
-
-    // =========================================================================
-    // DAÑO RECIBIDO
-    // =========================================================================
-
-    dispatchPassiveTrigger(
-      PassiveTriggerEvent.damageReceived,
-      eventVariables: {
-        'damage': actualDamage.toDouble(),
-        'health_before': healthBefore.toDouble(),
-        'health_after': currentHealth.toDouble(),
-      },
-    );
-
-    // =========================================================================
-    // CAMBIO DE VIDA
-    // =========================================================================
-
-    dispatchPassiveTrigger(
-      PassiveTriggerEvent.healthChanged,
-      eventVariables: {
-        'amount': (-actualDamage).toDouble(),
-        'health_before': healthBefore.toDouble(),
-        'health_after': currentHealth.toDouble(),
-      },
-    );
+    setHealth(currentHealth - amount, dispatchTriggers: dispatchTriggers);
   }
 
-  void fullHeal() {
-    currentHealth = maxHealth;
+  void fullHeal({bool dispatchTriggers = true}) {
+    final missingHealth = maxHealth - currentHealth;
+
+    if (missingHealth <= 0) {
+      return;
+    }
+
+    heal(missingHealth, dispatchTriggers: dispatchTriggers);
   }
 
   void addItem(CharacterItem item) {
     items.add(item);
+
+    if (item.equipped) {
+      _refreshAfterEquipmentChange();
+    }
+  }
+
+  void updateItem(CharacterItem item) {
+    final index = items.indexWhere((current) => current.id == item.id);
+
+    if (index < 0) {
+      return;
+    }
+
+    final previous = items[index];
+
+    final wasEquipped = previous.equipped;
+    final isEquipped = item.equipped;
+
+    // Antes de sustituir el objeto limpiamos runtimes
+    // pertenecientes a sus pasivas antiguas.
+    if (wasEquipped) {
+      final engine = PassiveTriggerEngine(character: this);
+
+      for (final passive in previous.passives) {
+        engine.removeRuntimeEffectsForPassive(
+          passive.id,
+          refreshTriggers: false,
+        );
+      }
+    }
+
+    items[index] = item;
+
+    if (wasEquipped || isEquipped) {
+      _refreshAfterEquipmentChange();
+    }
   }
 
   void removeItem(String id) {
-    items.removeWhere((item) => item.id == id);
+    final index = items.indexWhere((item) => item.id == id);
+
+    if (index < 0) {
+      return;
+    }
+
+    final item = items[index];
+
+    // Si estaba equipado, sus pasivas podían tener
+    // efectos runtime persistentes activos.
+    final wasEquipped = item.equipped;
+
+    items.removeAt(index);
+
+    if (wasEquipped) {
+      _refreshAfterEquipmentChange();
+    }
   }
 
   CharacterItem? itemById(String id) {
@@ -1623,6 +2051,10 @@ class Character {
       return;
     }
 
+    if (item.equipped && !item.type.exclusiveSlot) {
+      return;
+    }
+
     if (item.type.exclusiveSlot) {
       for (final other in items) {
         if (other.id == item.id) {
@@ -1636,10 +2068,18 @@ class Character {
     }
 
     item.equipped = true;
+
+    _refreshAfterEquipmentChange();
   }
 
   void unequipItem(CharacterItem item) {
+    if (!item.equipped) {
+      return;
+    }
+
     item.equipped = false;
+
+    _refreshAfterEquipmentChange();
   }
 
   CharacterItem? itemForPassive(CharacterPassive passive) {
@@ -1653,6 +2093,37 @@ class Character {
 
     return null;
   }
+
+  void _refreshAfterEquipmentChange() {
+    final activePassiveIds = enabledPassives
+        .map((passive) => passive.id)
+        .toSet();
+
+    effects.removeWhere((effect) {
+      if (!effect.id.startsWith('trigger:')) {
+        return false;
+      }
+
+      final parts = effect.id.split(':');
+
+      if (parts.length < 2) {
+        return false;
+      }
+
+      final passiveId = parts[1];
+
+      return !activePassiveIds.contains(passiveId);
+    });
+
+    normalizeHealthWithTriggers();
+
+    for (final resource in resources) {
+      normalizeResourceWithTriggers(resource, dispatchTriggers: true);
+    }
+
+    refreshPassiveTriggers();
+  }
+
   // ===========================================================================
   // HABILIDADES D&D
   // ===========================================================================
@@ -1678,31 +2149,6 @@ class Character {
     }
 
     return result;
-  }
-
-  DiceCalculationResult rollAbilityEffectExtra(
-    CharacterAbility ability,
-    AbilityEffect effect, {
-    bool critical = false,
-  }) {
-    final baseModifier = abilityEffectModifier(ability, effect);
-
-    /*
-   * Crítico Asteria:
-   *
-   * Dados:
-   * máximo + tirada
-   *
-   * Modificadores:
-   * ×2
-   */
-    final modifier = critical ? baseModifier * 2 : baseModifier;
-
-    return DicePoolRoller.roll(
-      pools: effect.dicePools,
-      modifier: modifier,
-      critical: critical,
-    );
   }
 
   int abilityEffectSaveDc(CharacterAbility ability, AbilityEffect effect) {
@@ -1956,21 +2402,6 @@ class Character {
   // TIRADA DE UN COMPONENTE
   // ===========================================================================
 
-  HealingBonusResult rollHealingBonus(
-    HealingBonus bonus, {
-    CharacterPassive? passive,
-  }) {
-    final modifier = healingBonusModifier(bonus, passive: passive);
-
-    final roll = DicePoolRoller.roll(
-      pools: bonus.dicePools,
-      modifier: modifier,
-      critical: false,
-    );
-
-    return HealingBonusResult(bonus: bonus, roll: roll);
-  }
-
   int healingBonusModifier(
     HealingBonus bonus, {
     CharacterPassive? passive,
@@ -2105,8 +2536,6 @@ class Character {
       pools: bonus.dicePools,
 
       modifier: modifier,
-
-      critical: false,
     );
 
     return CriticalDamageBonusResult(
@@ -2158,13 +2587,7 @@ class Character {
 
     final modifier = critical ? baseModifier * 2 : baseModifier;
 
-    return DicePoolRoller.roll(
-      pools: damage.dicePools,
-
-      modifier: modifier,
-
-      critical: critical,
-    );
+    return DicePoolRoller.roll(pools: damage.dicePools, modifier: modifier);
   }
 
   DiceCalculationResult? rollWeaponCriticalDamagePart(WeaponDamage damage) {
@@ -2172,11 +2595,7 @@ class Character {
       return null;
     }
 
-    return DicePoolRoller.roll(
-      pools: damage.criticalDicePools,
-      modifier: 0,
-      critical: false,
-    );
+    return DicePoolRoller.roll(pools: damage.criticalDicePools, modifier: 0);
   }
 
   int abilityEffectPartModifier(AbilityEffectPart part) {
@@ -2189,21 +2608,6 @@ class Character {
     );
 
     return part.flatBonus + abilityModifier + resourceModifier;
-  }
-
-  DiceCalculationResult rollAbilityEffectPart(
-    AbilityEffectPart part, {
-    bool critical = false,
-  }) {
-    final baseModifier = abilityEffectPartModifier(part);
-
-    final finalModifier = critical ? baseModifier * 2 : baseModifier;
-
-    return DicePoolRoller.roll(
-      pools: part.dicePools,
-      modifier: finalModifier,
-      critical: critical,
-    );
   }
 
   // ===========================================================================
@@ -2387,24 +2791,6 @@ class Character {
     return result;
   }
 
-  DiceCalculationResult rollAbilityEffect(
-    CharacterAbility ability, {
-    bool critical = false,
-  }) {
-    final isCritical =
-        critical && ability.effectType == AbilityEffectType.damage;
-
-    final baseModifier = characterAbilityEffectModifier(ability);
-
-    final modifier = isCritical ? baseModifier * 2 : baseModifier;
-
-    return DicePoolRoller.roll(
-      pools: ability.dicePools,
-      modifier: modifier,
-      critical: isCritical,
-    );
-  }
-
   String characterAbilityEffectText(CharacterAbility ability) {
     if (!ability.hasEffect) {
       return '';
@@ -2463,28 +2849,76 @@ class Character {
     return null;
   }
 
-  void useCharacterAbility(CharacterAbility ability) {
-    if (!ability.hasLimitedUses) {
-      return;
-    }
-
-    if (ability.currentUses > 0) {
-      ability.currentUses--;
-    }
-  }
-
   void restoreCharacterAbility(CharacterAbility ability) {
     if (!ability.hasLimitedUses) {
       return;
     }
 
-    ability.currentUses = ability.maxUses;
+    setAbilityUses(ability, ability.maxUses);
   }
 
   void restoreAllAbilities() {
-    for (final ability in characterAbilities) {
+    for (final ability in availableAbilities) {
       restoreCharacterAbility(ability);
     }
+  }
+
+  void setAbilityUses(CharacterAbility ability, int value) {
+    if (!ability.hasLimitedUses) {
+      return;
+    }
+
+    ability.currentUses = value.clamp(0, ability.maxUses);
+  }
+
+  bool canSpendAbilityUses(CharacterAbility ability, int amount) {
+    if (amount <= 0) {
+      return true;
+    }
+
+    if (!ability.hasLimitedUses) {
+      return true;
+    }
+
+    return ability.currentUses >= amount;
+  }
+
+  bool spendAbilityUses(CharacterAbility ability, int amount) {
+    if (!canSpendAbilityUses(ability, amount)) {
+      return false;
+    }
+
+    if (amount <= 0 || !ability.hasLimitedUses) {
+      return true;
+    }
+
+    setAbilityUses(ability, ability.currentUses - amount);
+
+    return true;
+  }
+
+  bool canCommitAbilityCosts({required CharacterAbility ability}) {
+    if (ability.hasLimitedUses && ability.currentUses <= 0) {
+      return false;
+    }
+
+    if (ability.usesResource && !canPayAbilityResource(ability)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  void updateCharacterAbility(CharacterAbility ability) {
+    final index = characterAbilities.indexWhere(
+      (item) => item.id == ability.id,
+    );
+
+    if (index < 0) {
+      return;
+    }
+
+    characterAbilities[index] = ability;
   }
 
   // ===========================================================================
@@ -2502,7 +2936,6 @@ class Character {
     return DicePoolRoller.roll(
       pools: passive.rollDicePools,
       modifier: modifier,
-      critical: false,
     );
   }
 
@@ -2663,12 +3096,79 @@ class Character {
     return total;
   }
 
-  void addPassive(CharacterPassive passive) {
+  void addPassive(CharacterPassive passive, {bool refreshTriggers = true}) {
+    passive.normalizeCharges();
+
     passives.add(passive);
+
+    normalizeHealth();
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
   }
 
-  void removePassive(String id) {
-    passives.removeWhere((passive) => passive.id == id);
+  void removePassive(String passiveId, {bool refreshTriggers = true}) {
+    final exists = passives.any((passive) => passive.id == passiveId);
+
+    if (!exists) {
+      return;
+    }
+
+    // Primero eliminamos cualquier efecto runtime creado
+    // por triggers de esta pasiva.
+    PassiveTriggerEngine(
+      character: this,
+    ).removeRuntimeEffectsForPassive(passiveId, refreshTriggers: false);
+
+    passives.removeWhere((passive) => passive.id == passiveId);
+
+    normalizeHealth();
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
+  }
+
+  void updatePassive(CharacterPassive passive, {bool refreshTriggers = true}) {
+    final index = passives.indexWhere((item) => item.id == passive.id);
+
+    if (index < 0) {
+      return;
+    }
+
+    final engine = PassiveTriggerEngine(character: this);
+
+    // ===========================================================================
+    // LIMPIAR RUNTIME ANTERIOR
+    //
+    // La edición puede haber eliminado triggers, cambiado targetId,
+    // cambiado whileCondition por once, etc.
+    //
+    // Por eso eliminamos todas las instancias runtime pertenecientes
+    // a la versión anterior de esta pasiva.
+    // ===========================================================================
+
+    engine.removeRuntimeEffectsForPassive(passive.id, refreshTriggers: false);
+
+    // ===========================================================================
+    // REEMPLAZAR PASIVA
+    // ===========================================================================
+
+    passive.normalizeCharges();
+
+    passives[index] = passive;
+
+    // Los efectos retirados pueden haber cambiado vida máxima.
+    normalizeHealth();
+
+    // ===========================================================================
+    // RECONSTRUIR ESTADO PERSISTENTE
+    // ===========================================================================
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
   }
 
   ResourceModifierResolver get resourceResolver {
@@ -2758,23 +3258,10 @@ class Character {
       return;
     }
 
-    final previousValue = counter.value;
-
-    counter.increase(amount);
-
-    final currentValue = counter.value;
-
-    if (!dispatchTriggers || previousValue == currentValue) {
-      return;
-    }
-
-    dispatchPassiveTrigger(
-      PassiveTriggerEvent.counterChanged,
-      eventVariables: {
-        'previous_counter': previousValue.toDouble(),
-        'current_counter': currentValue.toDouble(),
-        'counter_change': (currentValue - previousValue).toDouble(),
-      },
+    setCounter(
+      counterId,
+      counter.value + amount,
+      dispatchTriggers: dispatchTriggers,
     );
   }
 
@@ -2803,12 +3290,11 @@ class Character {
 
     final previousValue = counter.value;
 
-    // Evitamos valores negativos.
-    final safeValue = value < 0 ? 0 : value;
+    counter.value = value;
 
-    counter.value = safeValue;
+    final currentValue = counter.value;
 
-    if (!dispatchTriggers || previousValue == counter.value) {
+    if (!dispatchTriggers || previousValue == currentValue) {
       return;
     }
 
@@ -2816,8 +3302,16 @@ class Character {
       PassiveTriggerEvent.counterChanged,
       eventVariables: {
         'previous_counter': previousValue.toDouble(),
-        'current_counter': counter.value.toDouble(),
-        'counter_change': (counter.value - previousValue).toDouble(),
+
+        'current_counter': currentValue.toDouble(),
+
+        'counter_change': (currentValue - previousValue).toDouble(),
+
+        'counter_${counter.id}': 1,
+
+        'counter_increased': currentValue > previousValue ? 1 : 0,
+
+        'counter_decreased': currentValue < previousValue ? 1 : 0,
       },
     );
   }

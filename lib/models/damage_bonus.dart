@@ -1,6 +1,7 @@
 import 'dice_pool.dart';
 import 'skill.dart';
 import 'formulas/character_formula.dart';
+import 'action_hit_behavior.dart';
 
 class DamageBonus {
   String id;
@@ -17,6 +18,22 @@ class DamageBonus {
 
   CharacterFormula? formula;
 
+  CharacterFormula? condition;
+
+  bool optional;
+
+  String optionalGroupId;
+
+  String optionalLabel;
+
+  ActionHitBehavior hitBehavior;
+
+  /// Si true, este daño adicional participa en la transformación crítica.
+  ///
+  /// false permite representar daño que se aplica con el ataque
+  /// pero no se duplica/maximiza por crítico.
+  bool participatesInCritical;
+
   DamageBonus({
     required this.id,
     this.name = '',
@@ -25,15 +42,50 @@ class DamageBonus {
     this.flatBonus = 0,
     this.damageType = '',
     this.formula,
+    this.condition,
+    this.optional = false,
+    this.optionalGroupId = '',
+    this.optionalLabel = '',
+    this.hitBehavior = ActionHitBehavior.requireHit,
+    this.participatesInCritical = true,
   }) : dicePools = dicePools ?? [],
        abilityModifierMultipliers = abilityModifierMultipliers ?? {};
+
+  bool get hasCondition {
+    return condition != null &&
+        condition!.expression.trim().isNotEmpty &&
+        condition!.expression.trim() != '0';
+  }
+
+  String get effectiveOptionalGroupId {
+    final explicit = optionalGroupId.trim();
+
+    if (explicit.isNotEmpty) {
+      return explicit;
+    }
+
+    return id;
+  }
+
+  String get effectiveOptionalLabel {
+    final explicit = optionalLabel.trim();
+
+    if (explicit.isNotEmpty) {
+      return explicit;
+    }
+
+    if (name.trim().isNotEmpty) {
+      return name.trim();
+    }
+
+    return 'Daño adicional';
+  }
 
   bool get hasDamage {
     return dicePools.isNotEmpty ||
         flatBonus != 0 ||
-        abilityModifierMultipliers.values.any(
-              (value) => value != 0,
-        );
+        abilityModifierMultipliers.values.any((value) => value != 0) ||
+        hasFormula;
   }
 
   bool get hasFormula {
@@ -63,6 +115,18 @@ class DamageBonus {
       'damageType': damageType,
 
       'formula': formula?.toMap(),
+
+      'condition': condition?.toMap(),
+
+      'optional': optional,
+
+      'optionalGroupId': optionalGroupId,
+
+      'optionalLabel': optionalLabel,
+
+      'hitBehavior': hitBehavior.name,
+
+      'participatesInCritical': participatesInCritical,
     };
   }
 
@@ -104,9 +168,13 @@ class DamageBonus {
     final rawFormula = map['formula'];
 
     final formula = rawFormula is Map
-        ? CharacterFormula.fromMap(
-      Map<dynamic, dynamic>.from(rawFormula),
-    )
+        ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawFormula))
+        : null;
+
+    final rawCondition = map['condition'];
+
+    final condition = rawCondition is Map
+        ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawCondition))
         : null;
 
     return DamageBonus(
@@ -123,6 +191,21 @@ class DamageBonus {
       damageType: map['damageType']?.toString() ?? '',
 
       formula: formula,
+
+      condition: condition,
+
+      optional: map['optional'] as bool? ?? false,
+
+      optionalGroupId: map['optionalGroupId']?.toString() ?? '',
+
+      optionalLabel: map['optionalLabel']?.toString() ?? '',
+
+      hitBehavior: ActionHitBehavior.values.firstWhere(
+        (value) => value.name == map['hitBehavior']?.toString(),
+        orElse: () => ActionHitBehavior.requireHit,
+      ),
+
+      participatesInCritical: map['participatesInCritical'] as bool? ?? true,
     );
   }
 }

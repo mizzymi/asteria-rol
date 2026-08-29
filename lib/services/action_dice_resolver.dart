@@ -5,6 +5,10 @@ import '../models/dice_pool.dart';
 class ActionDiceResolver {
   const ActionDiceResolver();
 
+  // ===========================================================================
+  // FÍSICO
+  // ===========================================================================
+
   ActionDiceResult resolvePhysical({
     required ActionDiceRequest request,
     required List<ActionPhysicalDiceInput> inputs,
@@ -12,6 +16,28 @@ class ActionDiceResolver {
     final results = <ActionDicePartResult>[];
 
     for (final part in request.parts) {
+      // -----------------------------------------------------------------------
+      // SIN TIRADA
+      // -----------------------------------------------------------------------
+
+      if (!part.requiresRoll) {
+        results.add(
+          ActionDicePartResult(
+            request: part,
+            result: DiceCalculationResult(
+              groups: const [],
+              modifier: part.modifier,
+            ),
+          ),
+        );
+
+        continue;
+      }
+
+      // -----------------------------------------------------------------------
+      // BUSCAR INPUT
+      // -----------------------------------------------------------------------
+
       ActionPhysicalDiceInput? input;
 
       for (final candidate in inputs) {
@@ -21,20 +47,13 @@ class ActionDiceResolver {
         }
       }
 
-      if (!part.requiresRoll) {
-        results.add(
-          ActionDicePartResult(
-            request: part,
-            result: const DiceCalculationResult(groups: [], modifier: 0),
-          ),
-        );
-
-        continue;
-      }
-
       if (input == null) {
         throw StateError('Faltan dados físicos para ${part.id}.');
       }
+
+      // -----------------------------------------------------------------------
+      // VALIDAR GRUPOS
+      // -----------------------------------------------------------------------
 
       if (input.rolls.length != part.dicePools.length) {
         throw StateError(
@@ -46,13 +65,22 @@ class ActionDiceResolver {
 
       for (var i = 0; i < part.dicePools.length; i++) {
         final pool = part.dicePools[i];
+
         final rolls = input.rolls[i];
+
+        // ---------------------------------------------------------------------
+        // CANTIDAD
+        // ---------------------------------------------------------------------
 
         if (rolls.length != pool.count) {
           throw StateError(
             'La cantidad de resultados no coincide con ${pool.notation}.',
           );
         }
+
+        // ---------------------------------------------------------------------
+        // RANGO
+        // ---------------------------------------------------------------------
 
         for (final value in rolls) {
           if (value < 1 || value > pool.sides) {
@@ -65,34 +93,68 @@ class ActionDiceResolver {
         );
       }
 
+      // -----------------------------------------------------------------------
+      // RESULTADO
+      // -----------------------------------------------------------------------
+
       results.add(
         ActionDicePartResult(
           request: part,
           result: DiceCalculationResult(
-            groups: groups,
+            groups: List<DiceGroupRoll>.unmodifiable(groups),
             modifier: part.modifier,
-            critical: false,
           ),
         ),
       );
     }
 
-    return ActionDiceResult(parts: results);
+    return ActionDiceResult(
+      parts: List<ActionDicePartResult>.unmodifiable(results),
+    );
   }
+
+  // ===========================================================================
+  // DIGITAL
+  // ===========================================================================
 
   ActionDiceResult rollDigital(ActionDiceRequest request) {
     final results = <ActionDicePartResult>[];
 
     for (final part in request.parts) {
+      // -----------------------------------------------------------------------
+      // SIN TIRADA
+      //
+      // Exactamente la misma semántica que físico.
+      // -----------------------------------------------------------------------
+
+      if (!part.requiresRoll) {
+        results.add(
+          ActionDicePartResult(
+            request: part,
+            result: DiceCalculationResult(
+              groups: const [],
+              modifier: part.modifier,
+            ),
+          ),
+        );
+
+        continue;
+      }
+
+      // -----------------------------------------------------------------------
+      // TIRADA DIGITAL
+      // -----------------------------------------------------------------------
+
       final roll = DicePoolRoller.roll(
         pools: part.dicePools,
         modifier: part.modifier,
-        critical: false,
       );
 
       results.add(ActionDicePartResult(request: part, result: roll));
     }
 
-    return ActionDiceResult(parts: results);
+    return ActionDiceResult(
+      parts: List<ActionDicePartResult>.unmodifiable(results),
+    );
   }
 }

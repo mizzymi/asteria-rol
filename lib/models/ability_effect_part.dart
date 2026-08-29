@@ -3,6 +3,7 @@ import 'skill.dart';
 import 'action_external_requirement.dart';
 import 'formulas/character_formula.dart';
 import 'action_cost.dart';
+import 'action_hit_behavior.dart';
 
 class AbilityEffectPart {
   String id;
@@ -69,6 +70,19 @@ class AbilityEffectPart {
   /// Texto que podrá mostrar la UI cuando pregunte si se utiliza.
   String optionalLabel;
 
+  // ===========================================================================
+  // HIT / MISS
+  // ===========================================================================
+
+  /// Define si esta parte depende del impacto de la acción.
+  ///
+  /// En una acción sin tirada de ataque, `requireHit` no bloquea nada.
+  ///
+  /// Se utiliza `requireHit` por defecto para conservar el comportamiento
+  /// histórico de las habilidades ofensivas: hasta ahora el Flow eliminaba
+  /// todas las partes cuando el ataque fallaba.
+  ActionHitBehavior hitBehavior;
+
   bool participatesInCritical;
 
   AbilityEffectPart({
@@ -84,6 +98,7 @@ class AbilityEffectPart {
     this.optional = false,
     this.optionalGroupId = '',
     this.optionalLabel = '',
+    this.hitBehavior = ActionHitBehavior.requireHit,
     this.participatesInCritical = true,
   }) : dicePools = dicePools ?? [],
        abilityModifierMultipliers = abilityModifierMultipliers ?? {},
@@ -331,6 +346,11 @@ class AbilityEffectPart {
       optionalGroupId: map['optionalGroupId']?.toString() ?? '',
 
       optionalLabel: map['optionalLabel']?.toString() ?? '',
+
+      hitBehavior: ActionHitBehavior.values.firstWhere(
+        (value) => value.name == map['hitBehavior']?.toString(),
+        orElse: () => ActionHitBehavior.requireHit,
+      ),
 
       participatesInCritical: map['participatesInCritical'] as bool? ?? true,
     );
