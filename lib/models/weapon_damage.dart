@@ -23,6 +23,8 @@ class WeaponDamage {
 
   String damageType;
 
+  bool participatesInCritical;
+
   WeaponDamage({
     required this.id,
     this.name = '',
@@ -32,6 +34,7 @@ class WeaponDamage {
     this.abilityType = AbilityType.strength,
     this.bonus = 0,
     this.damageType = '',
+    this.participatesInCritical = true,
   }) : dicePools = dicePools ?? [DicePool(count: 1, sides: 6)],
        criticalDicePools = criticalDicePools ?? [];
 
@@ -89,6 +92,7 @@ class WeaponDamage {
       'abilityType': abilityType.name,
       'bonus': bonus,
       'damageType': damageType,
+      'participatesInCritical': participatesInCritical,
     };
   }
 
@@ -154,6 +158,7 @@ class WeaponDamage {
       ),
       bonus: (map['bonus'] as num?)?.toInt() ?? 0,
       damageType: map['damageType']?.toString() ?? '',
+      participatesInCritical: map['participatesInCritical'] as bool? ?? true,
     );
   }
 }

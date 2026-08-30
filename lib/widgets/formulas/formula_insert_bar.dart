@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../models/character.dart';
-import '../../models/skill.dart';
 
 class FormulaInsertBar extends StatelessWidget {
   final Character? character;

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:rol/widgets/common/section_header.dart';
-import 'package:rol/widgets/stats/attributes_grid.dart';
-import 'package:rol/widgets/stats/roll_result_dialog.dart';
-import 'package:rol/widgets/stats/saving_throw_tile.dart';
-import 'package:rol/widgets/stats/skill_tile.dart';
 
-import '../models/dice_roll.dart';
+import '../widgets/common/section_header.dart';
+import '../widgets/stats/attributes_grid.dart';
+import '../widgets/stats/roll_result_dialog.dart';
+import '../widgets/stats/saving_throw_tile.dart';
+import '../widgets/stats/skill_tile.dart';
+
 import '../models/character.dart';
 import '../models/proficiency.dart';
 import '../models/skill.dart';
+
 import '../services/character_storage_service.dart';
+import '../services/action_dice_resolver.dart';
 
 class StatsScreen extends StatefulWidget {
   final Character character;
@@ -32,16 +34,22 @@ class _StatsScreenState extends State<StatsScreen> {
     required AbilityType ability,
     required int bonus,
   }) {
-    final roll = DiceRoller.d20(modifier: bonus);
+    const diceResolver = ActionDiceResolver();
 
-    showDialog(
+    final naturalRoll = diceResolver.rollDigitalD20();
+
+    final total = naturalRoll + bonus;
+
+    showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return RollResultDialog(
           label: label,
           ability: ability,
-          roll: roll,
+          naturalRoll: naturalRoll,
+          total: total,
           bonus: bonus,
+
           onRepeat: () {
             Navigator.pop(dialogContext);
 

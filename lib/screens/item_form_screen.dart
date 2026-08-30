@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:rol/widgets/items/item_form/item_calculation_section.dart';
 
 import '../models/ability.dart';
 import '../models/item.dart';
@@ -19,6 +18,7 @@ import '../widgets/items/item_form/item_armor_section.dart';
 import '../widgets/items/item_form/item_passives_section.dart';
 import '../widgets/items/item_form/item_abilities_section.dart';
 import '../widgets/items/item_form/item_notes_section.dart';
+import '../widgets/items/item_form/item_calculation_section.dart';
 
 import 'ability_form_screen.dart';
 import 'passive_form_screen.dart';
@@ -79,6 +79,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   late AbilityType weaponAttackAbility;
 
+  late int weaponCriticalMinimumNaturalRoll;
+
+  late bool weaponEmpoweredCritical;
+
   bool weaponProficient = true;
 
   late List<WeaponDamage> weaponDamages;
@@ -138,6 +142,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     );
 
     weaponAttackAbility = weapon?.attackAbility ?? AbilityType.strength;
+
+    weaponCriticalMinimumNaturalRoll = weapon?.criticalMinimumNaturalRoll ?? 20;
+
+    weaponEmpoweredCritical = weapon?.empoweredCritical ?? false;
 
     weaponProficient = weapon?.proficient ?? true;
 
@@ -497,6 +505,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         proficient: weaponProficient,
 
         magicBonus: int.tryParse(magicBonusController.text) ?? 0,
+
+        criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
+
+        empoweredCritical: weaponEmpoweredCritical,
 
         // =========================================================
         // LEGACY
@@ -1166,6 +1178,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
                   magicBonusController: magicBonusController,
 
+                  criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
+
+                  empoweredCritical: weaponEmpoweredCritical,
+
                   damages: weaponDamages,
 
                   onAttackAbilityChanged: (value) {
@@ -1180,6 +1196,18 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                     });
                   },
 
+                  onCriticalMinimumNaturalRollChanged: (value) {
+                    setState(() {
+                      weaponCriticalMinimumNaturalRoll = value;
+                    });
+                  },
+
+                  onEmpoweredCriticalChanged: (value) {
+                    setState(() {
+                      weaponEmpoweredCritical = value;
+                    });
+                  },
+
                   onAddDamage: addWeaponDamage,
 
                   onEditDamage: editWeaponDamage,
@@ -1187,6 +1215,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   onDeleteDamage: deleteWeaponDamage,
 
                   onEditCriticalDamage: editWeaponCriticalDamage,
+
+                  onDamageChanged: (_) {
+                    setState(() {});
+                  },
                 ),
               ],
 

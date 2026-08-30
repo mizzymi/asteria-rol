@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/dnd_class.dart';
+
+import '../models/dnd_class.dart';
 import '../models/character.dart';
 
 class CharacterCard extends StatelessWidget {

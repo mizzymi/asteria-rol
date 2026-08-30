@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/character_resource.dart';
 
+import '../../../models/character_resource.dart';
 import '../../../models/formulas/character_formula.dart';
 import '../../../models/action_cost.dart';
 import '../../../models/action_external_requirement.dart';

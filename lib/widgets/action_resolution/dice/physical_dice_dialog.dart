@@ -275,8 +275,8 @@ class _PhysicalDicePartCard extends StatelessWidget {
     return ActionSectionCard(
       title: part.effectName,
 
-      subtitle: part.damageType?.trim().isNotEmpty == true
-          ? part.damageType!.trim()
+      subtitle: part.damageType.trim().isNotEmpty == true
+          ? part.damageType.trim()
           : null,
 
       icon: Icons.casino_rounded,

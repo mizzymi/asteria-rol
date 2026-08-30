@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'package:rol/models/ability_effect_part.dart';
 import '../services/resource_modifier_resolver.dart';
 import '../services/formula_evaluator.dart';
 import '../services/passive_trigger_engine.dart';
@@ -13,7 +12,7 @@ import 'ability.dart';
 import 'ability_scores.dart';
 import 'character_class_level.dart';
 import 'dice_history_entry.dart';
-import 'dice_pool.dart';
+import 'ability_effect_part.dart';
 import 'dnd_class.dart';
 import 'journal_entry.dart';
 import 'passive.dart';
@@ -23,13 +22,9 @@ import 'weapon.dart';
 import 'item.dart';
 import 'character_effect.dart';
 import 'weapon_damage.dart';
-import 'weapon_damage_result.dart';
 import 'damage_bonus.dart';
-import 'damage_bonus_result.dart';
 import 'critical_damage_bonus.dart';
-import 'critical_damage_bonus_result.dart';
 import 'healing_bonus.dart';
-import 'healing_bonus_result.dart';
 
 class Character {
   final String id;
@@ -136,24 +131,6 @@ class Character {
     }
 
     return result;
-  }
-
-  List<DamageBonusResult> rollActiveDamageBonuses({bool critical = false}) {
-    final results = <DamageBonusResult>[];
-
-    for (final active in activeDamageBonuses) {
-      final bonus = active.bonus;
-
-      if (!bonus.hasDamage) {
-        continue;
-      }
-
-      results.add(
-        rollDamageBonus(bonus, passive: active.passive, critical: critical),
-      );
-    }
-
-    return results;
   }
 
   List<CharacterCounter> counters;
@@ -660,6 +637,43 @@ class Character {
     }
 
     return sources;
+  }
+
+  List<int> criticalMinimumRollSourcesForWeapon(Weapon weapon) {
+    final sources = <int>[
+      criticalMinimumNaturalRoll,
+      weapon.criticalMinimumNaturalRoll,
+    ];
+
+    for (final passive in enabledPassives) {
+      sources.add(passive.criticalMinimumNaturalRoll);
+    }
+
+    for (final effect in enabledEffects) {
+      sources.add(effect.criticalMinimumNaturalRoll);
+    }
+
+    return sources;
+  }
+
+  bool empoweredCriticalForWeapon(Weapon weapon) {
+    if (weapon.empoweredCritical) {
+      return true;
+    }
+
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical) {
+        return true;
+      }
+    }
+
+    for (final effect in enabledEffects) {
+      if (effect.empoweredCritical) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ===========================================================================
@@ -1664,23 +1678,6 @@ class Character {
     return result;
   }
 
-  DamageBonusResult rollDamageBonus(
-    DamageBonus bonus, {
-    CharacterPassive? passive,
-    bool critical = false,
-  }) {
-    final baseModifier = damageBonusModifier(bonus, passive: passive);
-
-    final modifier = critical ? baseModifier * 2 : baseModifier;
-
-    final roll = DicePoolRoller.roll(
-      pools: bonus.dicePools,
-      modifier: modifier,
-    );
-
-    return DamageBonusResult(bonus: bonus, roll: roll);
-  }
-
   bool empoweredCriticalForAbility(CharacterAbility ability) {
     if (ability.empoweredCritical) {
       return true;
@@ -2225,8 +2222,6 @@ class Character {
   // ARMAS
   // ===========================================================================
 
-  static final Random _criticalDamageRandom = Random();
-
   int attackBonus(Weapon weapon) {
     final modifier = abilityModifier(weapon.attackAbility);
 
@@ -2501,103 +2496,6 @@ class Character {
     return result;
   }
 
-  CriticalDamageBonusResult rollCriticalDamageBonus(CriticalDamageBonus bonus) {
-    final chance = bonus.chancePercent.clamp(0, 100);
-
-    int chanceRoll;
-
-    bool triggered;
-
-    if (chance >= 100) {
-      chanceRoll = 100;
-
-      triggered = true;
-    } else if (chance <= 0) {
-      chanceRoll = 1;
-
-      triggered = false;
-    } else {
-      chanceRoll = _criticalDamageRandom.nextInt(100) + 1;
-
-      triggered = chanceRoll <= chance;
-    }
-
-    if (!triggered) {
-      return CriticalDamageBonusResult(
-        bonus: bonus,
-        chanceRoll: chanceRoll,
-        triggered: false,
-      );
-    }
-
-    final modifier = criticalDamageBonusModifier(bonus);
-
-    final roll = DicePoolRoller.roll(
-      pools: bonus.dicePools,
-
-      modifier: modifier,
-    );
-
-    return CriticalDamageBonusResult(
-      bonus: bonus,
-      chanceRoll: chanceRoll,
-      triggered: true,
-      roll: roll,
-    );
-  }
-
-  List<CriticalDamageBonusResult> rollActiveCriticalDamageBonuses({
-    Weapon? weapon,
-  }) {
-    final results = <CriticalDamageBonusResult>[];
-
-    final bonuses = activeCriticalDamageBonuses(weapon);
-
-    for (final bonus in bonuses) {
-      if (!bonus.canTrigger) {
-        continue;
-      }
-
-      results.add(rollCriticalDamageBonus(bonus));
-    }
-
-    return results;
-  }
-
-  /*
-   * En Asteria un crítico duplica:
-   *
-   * - todos los dados de daño
-   * - todos los modificadores de daño
-   *
-   * Ejemplo:
-   *
-   * 1d8 + 4
-   *
-   * pasa a:
-   *
-   * 2d8 + 8
-   */
-  DiceCalculationResult rollWeaponDamagePart(
-    Weapon weapon,
-    WeaponDamage damage, {
-    bool critical = false,
-  }) {
-    final baseModifier = weaponDamageModifier(weapon, damage);
-
-    final modifier = critical ? baseModifier * 2 : baseModifier;
-
-    return DicePoolRoller.roll(pools: damage.dicePools, modifier: modifier);
-  }
-
-  DiceCalculationResult? rollWeaponCriticalDamagePart(WeaponDamage damage) {
-    if (damage.criticalDicePools.isEmpty) {
-      return null;
-    }
-
-    return DicePoolRoller.roll(pools: damage.criticalDicePools, modifier: 0);
-  }
-
   int abilityEffectPartModifier(AbilityEffectPart part) {
     final abilityModifier = calculateAbilityMultipliers(
       part.abilityModifierMultipliers,
@@ -2608,122 +2506,6 @@ class Character {
     );
 
     return part.flatBonus + abilityModifier + resourceModifier;
-  }
-
-  // ===========================================================================
-  // TIRADA COMPLETA DEL ARMA
-  // ===========================================================================
-
-  WeaponDamageResult rollWeaponDamage(Weapon weapon, {bool critical = false}) {
-    final parts = <WeaponDamagePartResult>[];
-
-    final bonusDamageParts = <DamageBonusResult>[];
-
-    final criticalBonusParts = <CriticalDamageBonusResult>[];
-
-    // =========================================================================
-    // DAÑO PROPIO DEL ARMA
-    // =========================================================================
-
-    if (weapon.damages.isNotEmpty) {
-      for (final damage in weapon.damages) {
-        final roll = rollWeaponDamagePart(weapon, damage, critical: critical);
-
-        final criticalExtraRoll = critical
-            ? rollWeaponCriticalDamagePart(damage)
-            : null;
-
-        parts.add(
-          WeaponDamagePartResult(
-            damage: damage,
-            roll: roll,
-            criticalExtraRoll: criticalExtraRoll,
-          ),
-        );
-      }
-    } else {
-      /*
-     * Fallback legacy.
-     */
-      final legacyDamage = _legacyWeaponDamage(weapon);
-
-      if (legacyDamage != null) {
-        final roll = rollWeaponDamagePart(
-          weapon,
-          legacyDamage,
-          critical: critical,
-        );
-
-        parts.add(WeaponDamagePartResult(damage: legacyDamage, roll: roll));
-      }
-    }
-
-    // =========================================================================
-    // DAÑOS DE PASIVAS Y ESTADOS
-    //
-    // SE APLICAN SIEMPRE
-    // =========================================================================
-
-    bonusDamageParts.addAll(rollActiveDamageBonuses(critical: critical));
-
-    // =========================================================================
-    // DADOS EXTRA GENERADOS POR CRÍTICO
-    //
-    // SOLO EN CRÍTICO
-    // =========================================================================
-
-    if (critical) {
-      criticalBonusParts.addAll(
-        rollActiveCriticalDamageBonuses(weapon: weapon),
-      );
-    }
-
-    return WeaponDamageResult(
-      parts: parts,
-
-      bonusDamageParts: bonusDamageParts,
-
-      criticalBonusParts: criticalBonusParts,
-
-      critical: critical,
-    );
-  }
-
-  // ===========================================================================
-  // LEGACY → WEAPON DAMAGE
-  // ===========================================================================
-
-  WeaponDamage? _legacyWeaponDamage(Weapon weapon) {
-    final match = RegExp(
-      r'^(\d+)d(\d+)$',
-      caseSensitive: false,
-    ).firstMatch(weapon.damageDice.trim());
-
-    if (match == null) {
-      return null;
-    }
-
-    final count = int.tryParse(match.group(1) ?? '');
-
-    final sides = int.tryParse(match.group(2) ?? '');
-
-    if (count == null || sides == null || count <= 0 || sides <= 0) {
-      return null;
-    }
-
-    return WeaponDamage(
-      id: '${weapon.id}_legacy_damage',
-
-      name: 'Daño',
-
-      dicePools: [DicePool(count: count, sides: sides)],
-
-      addAbilityModifier: true,
-
-      abilityType: weapon.attackAbility,
-
-      damageType: weapon.damageType,
-    );
   }
 
   // ===========================================================================
@@ -2928,49 +2710,6 @@ class Character {
   int passiveRollModifier(CharacterPassive passive) {
     return passive.rollFlatBonus +
         calculateAbilityMultipliers(passive.rollAbilityModifierMultipliers);
-  }
-
-  DiceCalculationResult rollPassive(CharacterPassive passive) {
-    final modifier = passiveRollModifier(passive);
-
-    return DicePoolRoller.roll(
-      pools: passive.rollDicePools,
-      modifier: modifier,
-    );
-  }
-
-  String passiveRollText(CharacterPassive passive) {
-    if (!passive.hasRoll) {
-      return '';
-    }
-
-    final pieces = <String>[];
-
-    if (passive.rollDiceNotation.isNotEmpty) {
-      pieces.add(passive.rollDiceNotation);
-    }
-
-    for (final entry in passive.rollAbilityModifierMultipliers.entries) {
-      if (entry.value == 0) {
-        continue;
-      }
-
-      if (entry.value == 1) {
-        pieces.add(entry.key.shortLabel);
-      } else {
-        pieces.add('${entry.value}×${entry.key.shortLabel}');
-      }
-    }
-
-    if (passive.rollFlatBonus != 0) {
-      pieces.add(
-        passive.rollFlatBonus > 0
-            ? '+${passive.rollFlatBonus}'
-            : '${passive.rollFlatBonus}',
-      );
-    }
-
-    return pieces.join(' + ').replaceAll('+ -', '- ');
   }
 
   // ===========================================================================

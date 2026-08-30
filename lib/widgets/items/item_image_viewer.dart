@@ -19,7 +19,7 @@ class ItemImageViewer extends StatelessWidget {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black.withValues(alpha: 0.92),
-        pageBuilder: (_, __, ___) {
+        pageBuilder: (_, _, _) {
           return ItemImageViewer(item: item);
         },
       ),

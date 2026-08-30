@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/ability.dart';
-import 'package:rol/models/skill.dart';
 
+import '../../models/ability.dart';
+import '../../models/skill.dart';
 import '../../models/character.dart';
 import '../../models/item.dart';
 

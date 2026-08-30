@@ -76,7 +76,7 @@ class _FormulaParser {
     _skipWhitespace();
 
     if (!_isAtEnd) {
-      throw FormulaException('Símbolo inesperado "${_currentCharacter}"');
+      throw FormulaException('Símbolo inesperado "$_currentCharacter"');
     }
 
     return result;
@@ -397,7 +397,7 @@ class _FormulaParser {
       return _parseVariable(identifier);
     }
 
-    throw FormulaException('No se esperaba "${_currentCharacter}"');
+    throw FormulaException('No se esperaba "$_currentCharacter"');
   }
 
   // ===========================================================================

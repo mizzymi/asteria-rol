@@ -591,6 +591,9 @@ class _InfoChip extends StatelessWidget {
 
 String _sourceLabel(ActionDicePartResult part) {
   switch (part.request.sourceType) {
+    case ActionDiceSourceType.weapon:
+      return 'Arma';
+
     case ActionDiceSourceType.ability:
       return 'Habilidad';
 
@@ -607,6 +610,9 @@ String _sourceLabel(ActionDicePartResult part) {
 
 IconData _sourceIcon(ActionDicePartResult part) {
   switch (part.request.sourceType) {
+    case ActionDiceSourceType.weapon:
+      return Icons.sports_martial_arts_rounded;
+
     case ActionDiceSourceType.ability:
       return Icons.auto_awesome_rounded;
 

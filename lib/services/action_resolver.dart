@@ -25,7 +25,9 @@ import '../models/action_saving_throw.dart';
 import '../models/action_effect_result.dart';
 import '../models/passive.dart';
 import '../models/action_hit_behavior.dart';
+import '../models/critical_damage_bonus.dart';
 
+import 'action_critical_dice_transformer.dart';
 import 'formula_evaluator.dart';
 import 'action_result_applier.dart';
 import 'action_chance_resolver.dart';
@@ -559,17 +561,6 @@ class ActionResolver {
     );
   }
 
-  bool _effectControlsLinkedEffect({
-    required CharacterAbility ability,
-    required AbilityEffect effect,
-  }) {
-    return ability.linkedEffects.any(
-      (linkedEffect) =>
-          linkedEffect.normalizedSourceEffectId == effect.id &&
-          linkedEffect.saveBehavior != ActionLinkedEffectSaveBehavior.ignore,
-    );
-  }
-
   List<ActionSavingThrowRequest> collectSavingThrowRequests({
     required PreparedActionResolution prepared,
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
@@ -675,6 +666,7 @@ class ActionResolver {
     required bool critical,
     required ActionResolutionContext context,
     ActionTarget? target,
+    Iterable<CriticalDamageBonus>? bonuses,
   }) {
     if (!critical) {
       return const [];
@@ -682,7 +674,9 @@ class ActionResolver {
 
     final checks = <ActionChanceCheck>[];
 
-    for (final bonus in character.activeCriticalDamageBonuses()) {
+    final activeBonuses = bonuses ?? character.activeCriticalDamageBonuses();
+
+    for (final bonus in activeBonuses) {
       if (!bonus.canTrigger) {
         continue;
       }
@@ -700,6 +694,7 @@ class ActionResolver {
 
       if (bonus.optional) {
         final groupId = bonus.effectiveOptionalGroupId;
+
         final selected = target != null
             ? context.isOptionalGroupSelectedForTarget(target.id, groupId)
             : context.isOptionalGroupSelected(groupId);
@@ -1069,20 +1064,21 @@ class ActionResolver {
     }
   }
 
-  void _appendCriticalExtraDice({
+  void appendCriticalExtraDice({
     required List<ActionDiceRequestPart> parts,
     required bool critical,
     required ActionResolutionContext context,
     ActionTarget? target,
     Set<String> successfulChanceCheckIds = const {},
+    Iterable<CriticalDamageBonus>? bonuses,
   }) {
     if (!critical) {
       return;
     }
 
-    final bonuses = character.activeCriticalDamageBonuses();
+    final activeBonuses = bonuses ?? character.activeCriticalDamageBonuses();
 
-    for (final bonus in bonuses) {
+    for (final bonus in activeBonuses) {
       if (!bonus.canTrigger) {
         continue;
       }
@@ -1123,15 +1119,6 @@ class ActionResolver {
       );
 
       parts.add(
-        // IMPORTANTE:
-        //
-        // CriticalDamageBonus ya es una consecuencia del crítico.
-        // Sus dados/modificadores NO vuelven a recibir la transformación
-        // de crítico normal ni de crítico potenciado.
-        //
-        // Por tanto:
-        // - crítico normal     -> bonus se tira normalmente
-        // - crítico potenciado -> bonus se tira normalmente
         ActionDiceRequestPart(
           id: 'critical_extra:${bonus.id}',
           hitBehavior: ActionHitBehavior.requireHit,
@@ -1139,19 +1126,13 @@ class ActionResolver {
           effectName: bonus.name.isNotEmpty
               ? bonus.name
               : 'Daño crítico adicional',
-
           effectType: AbilityEffectType.damage,
-
           dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
-
           modifier: modifier,
-
           kind: ActionDicePartKind.criticalExtra,
-
           sourceType: ActionDiceSourceType.criticalBonus,
           sourceId: bonus.id,
           sourceName: bonus.name,
-
           damageType: bonus.damageType,
         ),
       );
@@ -1282,12 +1263,6 @@ class ActionResolver {
 
         final baseModifier = character.abilityEffectPartModifier(part);
 
-        var dicePools = List<DicePool>.unmodifiable(part.dicePools);
-
-        var modifier = baseModifier;
-
-        var automaticValue = 0;
-
         final participatesInCritical =
             critical &&
             plan.ability.requiresAttackRoll &&
@@ -1295,29 +1270,15 @@ class ActionResolver {
             !effect.usesSavingThrow &&
             part.participatesInCritical;
 
-        if (participatesInCritical) {
-          switch (criticalType) {
-            case ActionCriticalType.none:
-              break;
+        final effectiveCriticalType = participatesInCritical
+            ? criticalType
+            : ActionCriticalType.none;
 
-            case ActionCriticalType.normal:
-              automaticValue += _maximumDiceValue(part.dicePools);
-
-              modifier = baseModifier * 2;
-
-              break;
-
-            case ActionCriticalType.empowered:
-              automaticValue +=
-                  (_maximumDiceValue(part.dicePools) + baseModifier) * 2;
-
-              dicePools = const [];
-
-              modifier = 0;
-
-              break;
-          }
-        }
+        final transformed = ActionCriticalDiceTransformer.transform(
+          dicePools: part.dicePools,
+          baseModifier: baseModifier,
+          criticalType: effectiveCriticalType,
+        );
 
         parts.add(
           ActionDiceRequestPart(
@@ -1326,9 +1287,9 @@ class ActionResolver {
             effectName: effect.name,
             effectType: effect.effectType,
             abilityPart: part,
-            dicePools: dicePools,
-            modifier: modifier,
-            automaticValue: automaticValue,
+            dicePools: transformed.dicePools,
+            modifier: transformed.modifier,
+            automaticValue: transformed.automaticValue,
 
             hitBehavior: part.hitBehavior,
 
@@ -1360,40 +1321,22 @@ class ActionResolver {
           effect,
         );
 
-        var dicePools = List<DicePool>.unmodifiable(effect.dicePools);
-
-        var modifier = baseModifier;
-        var automaticValue = 0;
-
-        final extraParticipatesInCritical =
+        final participatesInCritical =
             critical &&
             plan.ability.requiresAttackRoll &&
             effect.dealsDamage &&
             !effect.usesSavingThrow &&
             effect.extraParticipatesInCritical;
 
-        if (extraParticipatesInCritical) {
-          switch (criticalType) {
-            case ActionCriticalType.none:
-              break;
+        final effectiveCriticalType = participatesInCritical
+            ? criticalType
+            : ActionCriticalType.none;
 
-            case ActionCriticalType.normal:
-              automaticValue += _maximumDiceValue(effect.dicePools);
-
-              modifier = baseModifier * 2;
-
-              break;
-
-            case ActionCriticalType.empowered:
-              automaticValue =
-                  (_maximumDiceValue(effect.dicePools) + baseModifier) * 2;
-
-              dicePools = const [];
-              modifier = 0;
-
-              break;
-          }
-        }
+        final transformed = ActionCriticalDiceTransformer.transform(
+          dicePools: effect.dicePools,
+          baseModifier: baseModifier,
+          criticalType: effectiveCriticalType,
+        );
 
         parts.add(
           ActionDiceRequestPart(
@@ -1403,9 +1346,9 @@ class ActionResolver {
             effectName: effect.name,
             effectType: effect.effectType,
 
-            dicePools: dicePools,
-            modifier: modifier,
-            automaticValue: automaticValue,
+            dicePools: transformed.dicePools,
+            modifier: transformed.modifier,
+            automaticValue: transformed.automaticValue,
 
             sourceType: ActionDiceSourceType.ability,
             sourceId: plan.ability.id,
@@ -1431,7 +1374,7 @@ class ActionResolver {
     }
 
     if (critical && _abilityDealsDamage(plan.ability)) {
-      _appendCriticalExtraDice(
+      appendCriticalExtraDice(
         parts: parts,
         critical: critical,
         context: context,
@@ -1515,33 +1458,15 @@ class ActionResolver {
         ),
       );
 
-      var dicePools = List<DicePool>.unmodifiable(bonus.dicePools);
+      final effectiveCriticalType = bonus.participatesInCritical
+          ? criticalType
+          : ActionCriticalType.none;
 
-      var modifier = baseModifier;
-      var automaticValue = 0;
-
-      if (bonus.participatesInCritical) {
-        switch (criticalType) {
-          case ActionCriticalType.none:
-            break;
-
-          case ActionCriticalType.normal:
-            automaticValue += _maximumDiceValue(bonus.dicePools);
-
-            modifier = baseModifier * 2;
-
-            break;
-
-          case ActionCriticalType.empowered:
-            automaticValue =
-                (_maximumDiceValue(bonus.dicePools) + baseModifier) * 2;
-
-            dicePools = const [];
-            modifier = 0;
-
-            break;
-        }
-      }
+      final transformed = ActionCriticalDiceTransformer.transform(
+        dicePools: bonus.dicePools,
+        baseModifier: baseModifier,
+        criticalType: effectiveCriticalType,
+      );
 
       parts.add(
         ActionDiceRequestPart(
@@ -1551,9 +1476,9 @@ class ActionResolver {
           effectName: bonus.name.isNotEmpty ? bonus.name : 'Daño adicional',
           effectType: AbilityEffectType.damage,
 
-          dicePools: dicePools,
-          modifier: modifier,
-          automaticValue: automaticValue,
+          dicePools: transformed.dicePools,
+          modifier: transformed.modifier,
+          automaticValue: transformed.automaticValue,
 
           sourceType: passive != null
               ? ActionDiceSourceType.passive
@@ -2118,10 +2043,6 @@ class ActionResolver {
     }
 
     return List<AbilityEffectPart>.unmodifiable(result);
-  }
-
-  int _maximumDiceValue(Iterable<DicePool> pools) {
-    return pools.fold<int>(0, (total, pool) => total + pool.maximum);
   }
 
   List<ActionChanceResult> resolveCriticalChancesDigital({

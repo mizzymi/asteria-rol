@@ -83,19 +83,19 @@ Future<void> showActionResolutionResultDialog(
                 icon: Icons.summarize_rounded,
                 child: Column(
                   children: [
-                    if (application.affectedTargetCount > 1)
+                    if (resolution.affectedTargetCount > 1)
                       _SummaryLine(
                         label: 'Objetivos afectados',
-                        value: application.affectedTargetCount,
+                        value: resolution.affectedTargetCount,
                         icon: Icons.groups_rounded,
                       ),
 
-                    if (application.externalAffectedTargetCount > 0 &&
-                        application.affectedTargetCount !=
-                            application.externalAffectedTargetCount)
+                    if (resolution.externalAffectedTargetCount > 0 &&
+                        resolution.affectedTargetCount !=
+                            resolution.externalAffectedTargetCount)
                       _SummaryLine(
                         label: 'Objetivos externos',
-                        value: application.externalAffectedTargetCount,
+                        value: resolution.externalAffectedTargetCount,
                         icon: Icons.gps_fixed_rounded,
                       ),
 

@@ -6,6 +6,30 @@ class ActionDiceResolver {
   const ActionDiceResolver();
 
   // ===========================================================================
+  // DADO DIGITAL SIMPLE
+  // ===========================================================================
+
+  int rollDigitalDie({required int sides}) {
+    if (sides <= 0) {
+      throw ArgumentError.value(
+        sides,
+        'sides',
+        'El dado debe tener al menos 1 cara.',
+      );
+    }
+
+    final result = DicePoolRoller.roll(
+      pools: [DicePool(count: 1, sides: sides)],
+    );
+
+    return result.groups.first.rolls.first;
+  }
+
+  int rollDigitalD20() {
+    return rollDigitalDie(sides: 20);
+  }
+
+  // ===========================================================================
   // FÍSICO
   // ===========================================================================
 
@@ -21,15 +45,7 @@ class ActionDiceResolver {
       // -----------------------------------------------------------------------
 
       if (!part.requiresRoll) {
-        results.add(
-          ActionDicePartResult(
-            request: part,
-            result: DiceCalculationResult(
-              groups: const [],
-              modifier: part.modifier,
-            ),
-          ),
-        );
+        results.add(_resolveAutomaticPart(part));
 
         continue;
       }
@@ -128,15 +144,7 @@ class ActionDiceResolver {
       // -----------------------------------------------------------------------
 
       if (!part.requiresRoll) {
-        results.add(
-          ActionDicePartResult(
-            request: part,
-            result: DiceCalculationResult(
-              groups: const [],
-              modifier: part.modifier,
-            ),
-          ),
-        );
+        results.add(_resolveAutomaticPart(part));
 
         continue;
       }
@@ -155,6 +163,13 @@ class ActionDiceResolver {
 
     return ActionDiceResult(
       parts: List<ActionDicePartResult>.unmodifiable(results),
+    );
+  }
+
+  ActionDicePartResult _resolveAutomaticPart(ActionDiceRequestPart part) {
+    return ActionDicePartResult(
+      request: part,
+      result: DiceCalculationResult(groups: const [], modifier: part.modifier),
     );
   }
 }

@@ -1,5 +1,6 @@
 import '../models/action_saving_throw.dart';
-import '../models/dice_pool.dart';
+
+import 'action_dice_resolver.dart';
 
 class ActionSavingThrowResolver {
   const ActionSavingThrowResolver();
@@ -9,6 +10,14 @@ class ActionSavingThrowResolver {
     required int naturalRoll,
     required int modifier,
   }) {
+    if (naturalRoll < 1 || naturalRoll > 20) {
+      throw ArgumentError.value(
+        naturalRoll,
+        'naturalRoll',
+        'La tirada natural debe estar entre 1 y 20.',
+      );
+    }
+
     final total = naturalRoll + modifier;
 
     return ActionSavingThrowResult(
@@ -24,11 +33,9 @@ class ActionSavingThrowResolver {
     required ActionSavingThrowRequest request,
     required int modifier,
   }) {
-    final result = DicePoolRoller.roll(
-      pools: [DicePool(count: 1, sides: 20)],
-    );
+    const diceResolver = ActionDiceResolver();
 
-    final naturalRoll = result.groups.first.rolls.first;
+    final naturalRoll = diceResolver.rollDigitalD20();
 
     return resolve(
       request: request,

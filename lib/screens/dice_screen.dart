@@ -1,12 +1,12 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import '../models/character.dart';
 import '../models/dice_history_entry.dart';
-import '../services/character_storage_service.dart';
+import '../models/action_attack_roll_mode.dart';
 
-enum D20Mode { normal, advantage, disadvantage }
+import '../services/action_resolver.dart';
+import '../services/action_dice_resolver.dart';
+import '../services/character_storage_service.dart';
 
 class DiceScreen extends StatefulWidget {
   final Character character;
@@ -20,7 +20,7 @@ class DiceScreen extends StatefulWidget {
 class _DiceScreenState extends State<DiceScreen> {
   Character get character => widget.character;
 
-  final Random random = Random();
+  final ActionDiceResolver diceResolver = const ActionDiceResolver();
 
   int selectedSides = 20;
 
@@ -28,7 +28,7 @@ class _DiceScreenState extends State<DiceScreen> {
 
   int modifier = 0;
 
-  D20Mode d20Mode = D20Mode.normal;
+  AttackRollMode d20Mode = AttackRollMode.normal;
 
   final List<int> availableDice = [4, 6, 8, 10, 12, 20, 100];
 
@@ -41,11 +41,13 @@ class _DiceScreenState extends State<DiceScreen> {
   }
 
   int rollDie(int sides) {
-    return random.nextInt(sides) + 1;
+    return diceResolver.rollDigitalDie(sides: sides);
   }
 
   Future<void> roll() async {
-    if (selectedSides == 20 && diceCount == 1 && d20Mode != D20Mode.normal) {
+    if (selectedSides == 20 &&
+        diceCount == 1 &&
+        d20Mode != AttackRollMode.normal) {
       await rollD20Special();
 
       return;
@@ -98,13 +100,19 @@ class _DiceScreenState extends State<DiceScreen> {
 
     final second = rollDie(20);
 
-    final chosen = d20Mode == D20Mode.advantage
-        ? max(first, second)
-        : min(first, second);
+    final resolver = ActionResolver(character: character);
+
+    final chosen = resolver.selectNaturalAttackRoll(
+      mode: d20Mode,
+      firstRoll: first,
+      secondRoll: second,
+    );
 
     final total = chosen + modifier;
 
-    final label = d20Mode == D20Mode.advantage ? 'Ventaja' : 'Desventaja';
+    final label = d20Mode == AttackRollMode.advantage
+        ? 'Ventaja'
+        : 'Desventaja';
 
     final notation =
         '1d20 $label${modifier == 0 ? '' : ' ${bonusText(modifier)}'}';
@@ -160,7 +168,7 @@ class _DiceScreenState extends State<DiceScreen> {
               const SizedBox(height: 14),
 
               Text(
-                modifier == 0 ? '$chosen' : '${chosen} ${bonusText(modifier)}',
+                modifier == 0 ? '$chosen' : '$chosen ${bonusText(modifier)}',
               ),
 
               const SizedBox(height: 5),
@@ -374,7 +382,7 @@ class _DiceScreenState extends State<DiceScreen> {
                       selectedSides = sides;
 
                       if (sides != 20) {
-                        d20Mode = D20Mode.normal;
+                        d20Mode = AttackRollMode.normal;
                       }
                     });
                   },
@@ -486,18 +494,18 @@ class _DiceScreenState extends State<DiceScreen> {
 
               const SizedBox(height: 10),
 
-              SegmentedButton<D20Mode>(
+              SegmentedButton<AttackRollMode>(
                 segments: const [
-                  ButtonSegment<D20Mode>(
-                    value: D20Mode.normal,
+                  ButtonSegment<AttackRollMode>(
+                    value: AttackRollMode.normal,
                     label: Text('Normal'),
                   ),
-                  ButtonSegment<D20Mode>(
-                    value: D20Mode.advantage,
+                  ButtonSegment<AttackRollMode>(
+                    value: AttackRollMode.advantage,
                     label: Text('Ventaja'),
                   ),
-                  ButtonSegment<D20Mode>(
-                    value: D20Mode.disadvantage,
+                  ButtonSegment<AttackRollMode>(
+                    value: AttackRollMode.disadvantage,
                     label: Text('Desventaja'),
                   ),
                 ],

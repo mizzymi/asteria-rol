@@ -1139,7 +1139,7 @@ class _LinkedEffectTile extends StatelessWidget {
           const SizedBox(height: 14),
 
           DropdownButtonFormField<String?>(
-            value: linkedEffect.normalizedSourceEffectId,
+            initialValue: linkedEffect.normalizedSourceEffectId,
             decoration: const InputDecoration(
               labelText: 'Efecto de origen',
               prefixIcon: Icon(Icons.account_tree_rounded),

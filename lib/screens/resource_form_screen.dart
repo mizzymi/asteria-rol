@@ -80,7 +80,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
 
     currentValue = resource?.currentValue ?? 1;
 
-    colorValue = resource?.colorValue ?? availableColors.first.value;
+    colorValue = resource?.colorValue ?? availableColors.first.toARGB32();
 
     selectedIcon = resource?.icon ?? availableIcons.first;
 
@@ -430,13 +430,13 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                 spacing: 10,
                 runSpacing: 10,
                 children: availableColors.map((option) {
-                  final selected = option.value == colorValue;
+                  final selected = option.toARGB32() == colorValue;
 
                   return InkWell(
                     borderRadius: BorderRadius.circular(50),
                     onTap: () {
                       setState(() {
-                        colorValue = option.value;
+                        colorValue = option.toARGB32();
                       });
                     },
                     child: Container(

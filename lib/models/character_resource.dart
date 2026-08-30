@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:rol/utils/number_format.dart';
+
+import '../utils/number_format.dart';
 
 class CharacterResource {
   String id;

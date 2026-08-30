@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../models/dice_roll.dart';
 import '../../models/skill.dart';
 
 import 'stats_colors.dart';
@@ -10,7 +9,9 @@ class RollResultDialog extends StatelessWidget {
 
   final AbilityType ability;
 
-  final DiceRollResult roll;
+  final int naturalRoll;
+
+  final int total;
 
   final int bonus;
 
@@ -20,7 +21,8 @@ class RollResultDialog extends StatelessWidget {
     super.key,
     required this.label,
     required this.ability,
-    required this.roll,
+    required this.naturalRoll,
+    required this.total,
     required this.bonus,
     required this.onRepeat,
   });
@@ -31,9 +33,9 @@ class RollResultDialog extends StatelessWidget {
 
     final color = StatsColors.abilityColor(ability);
 
-    final critical = roll.die == 20;
+    final critical = naturalRoll == 20;
 
-    final failure = roll.die == 1;
+    final failure = naturalRoll == 1;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -88,7 +90,7 @@ class RollResultDialog extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '${roll.die}',
+                    '$naturalRoll',
                     style: theme.textTheme.displaySmall?.copyWith(
                       fontWeight: FontWeight.w900,
                       color: color,
@@ -104,15 +106,15 @@ class RollResultDialog extends StatelessWidget {
 
             Text(
               bonus >= 0
-                  ? '${roll.die} + $bonus'
-                  : '${roll.die} - ${bonus.abs()}',
+                  ? '$naturalRoll + $bonus'
+                  : '$naturalRoll - ${bonus.abs()}',
               style: theme.textTheme.titleMedium,
             ),
 
             const SizedBox(height: 6),
 
             Text(
-              'TOTAL ${roll.total}',
+              'TOTAL $total',
               style: theme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w900,
                 color: color,

@@ -13,6 +13,10 @@ class Weapon {
 
   int magicBonus;
 
+  int criticalMinimumNaturalRoll;
+
+  bool empoweredCritical;
+
   // ===========================================================================
   // SISTEMA ANTIGUO
   // ===========================================================================
@@ -35,6 +39,8 @@ class Weapon {
     this.attackAbility = AbilityType.strength,
     this.proficient = true,
     this.magicBonus = 0,
+    this.criticalMinimumNaturalRoll = 20,
+    this.empoweredCritical = false,
 
     // Legacy
     this.damageDice = '1d6',
@@ -73,7 +79,8 @@ class Weapon {
       'attackAbility': attackAbility.name,
       'proficient': proficient,
       'magicBonus': magicBonus,
-
+      'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
+      'empoweredCritical': empoweredCritical,
       // Legacy
       'damageDice': damageDice,
       'damageType': damageType,
@@ -201,6 +208,11 @@ class Weapon {
       proficient: map['proficient'] as bool? ?? true,
 
       magicBonus: (map['magicBonus'] as num?)?.toInt() ?? 0,
+
+      criticalMinimumNaturalRoll:
+          (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
+
+      empoweredCritical: map['empoweredCritical'] as bool? ?? false,
 
       damageDice: oldDamageDice,
 

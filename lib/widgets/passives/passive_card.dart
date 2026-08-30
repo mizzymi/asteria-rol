@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:rol/utils/number_format.dart';
+
+import '../../utils/number_format.dart';
 
 import '../../models/formulas/formula_bonus.dart';
 import '../../models/character_effect.dart';

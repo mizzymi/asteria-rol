@@ -4,7 +4,6 @@ import 'action_resolution_context.dart';
 import 'action_saving_throw.dart';
 import 'action_effect_result.dart';
 import 'action_target_attack_result.dart';
-import 'action_dice_request.dart';
 
 class ActionTargetResult {
   final ActionTarget target;

@@ -9,7 +9,13 @@ class ItemWeaponSection extends StatelessWidget {
   final bool proficient;
 
   final TextEditingController magicBonusController;
+  final int criticalMinimumNaturalRoll;
 
+  final bool empoweredCritical;
+
+  final ValueChanged<int> onCriticalMinimumNaturalRollChanged;
+
+  final ValueChanged<bool> onEmpoweredCriticalChanged;
   final List<WeaponDamage> damages;
 
   final ValueChanged<AbilityType> onAttackAbilityChanged;
@@ -19,12 +25,17 @@ class ItemWeaponSection extends StatelessWidget {
   final ValueChanged<int> onEditDamage;
   final ValueChanged<int> onDeleteDamage;
   final ValueChanged<int> onEditCriticalDamage;
+  final ValueChanged<int> onDamageChanged;
 
   const ItemWeaponSection({
     super.key,
     required this.attackAbility,
     required this.proficient,
     required this.magicBonusController,
+    required this.criticalMinimumNaturalRoll,
+    required this.empoweredCritical,
+    required this.onCriticalMinimumNaturalRollChanged,
+    required this.onEmpoweredCriticalChanged,
     required this.damages,
     required this.onAttackAbilityChanged,
     required this.onProficientChanged,
@@ -32,6 +43,7 @@ class ItemWeaponSection extends StatelessWidget {
     required this.onEditDamage,
     required this.onDeleteDamage,
     required this.onEditCriticalDamage,
+    required this.onDamageChanged,
   });
 
   @override
@@ -114,6 +126,52 @@ class ItemWeaponSection extends StatelessWidget {
           },
         ),
 
+        const SizedBox(height: 16),
+
+        DropdownButtonFormField<int>(
+          initialValue: criticalMinimumNaturalRoll,
+          decoration: const InputDecoration(
+            labelText: 'Rango crítico',
+            helperText: 'Valor natural mínimo del d20 que produce crítico.',
+            prefixIcon: Icon(Icons.local_fire_department_rounded),
+          ),
+          items: List.generate(20, (index) {
+            final value = 20 - index;
+
+            return DropdownMenuItem<int>(
+              value: value,
+              child: Text(value == 20 ? '20' : '$value–20'),
+            );
+          }),
+          onChanged: (value) {
+            if (value == null) {
+              return;
+            }
+
+            onCriticalMinimumNaturalRollChanged(value);
+          },
+        ),
+
+        const SizedBox(height: 8),
+
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+
+          value: empoweredCritical,
+
+          title: const Text(
+            'Crítico potenciado',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+
+          subtitle: const Text(
+            'Los críticos realizados con esta arma '
+            'usan la regla potenciada.',
+          ),
+
+          onChanged: onEmpoweredCriticalChanged,
+        ),
+
         const SizedBox(height: 24),
 
         // =====================================================================
@@ -187,6 +245,11 @@ class ItemWeaponSection extends StatelessWidget {
                   onEditCriticalDamage(index);
                 },
 
+                onParticipatesInCriticalChanged: (value) {
+                  damage.participatesInCritical = value;
+                  onDamageChanged(index);
+                },
+
                 onDelete: () {
                   onDeleteDamage(index);
                 },
@@ -204,12 +267,14 @@ class _DamageCard extends StatelessWidget {
   final VoidCallback onEditCritical;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final ValueChanged<bool> onParticipatesInCriticalChanged;
 
   const _DamageCard({
     required this.damage,
     required this.onEditCritical,
     required this.onEdit,
     required this.onDelete,
+    required this.onParticipatesInCriticalChanged,
   });
 
   @override
@@ -333,7 +398,30 @@ class _DamageCard extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+
+              value: damage.participatesInCritical,
+
+              title: const Text(
+                'Participa en crítico',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+
+              subtitle: const Text(
+                'Este componente recibe la transformación '
+                'crítica del arma.',
+              ),
+
+              secondary: const Icon(Icons.local_fire_department_rounded),
+
+              onChanged: onParticipatesInCriticalChanged,
+            ),
+
+            const SizedBox(height: 4),
 
             Row(
               children: [

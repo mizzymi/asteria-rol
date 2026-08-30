@@ -13,10 +13,14 @@ import '../models/action_resolution_result.dart';
 import '../models/action_saving_throw.dart';
 import '../models/action_target_attack_result.dart';
 import '../models/character.dart';
-import '../models/dice_pool.dart';
 import '../models/prepared_action_resolution.dart';
 import '../models/action_external_requirement.dart';
 import '../models/action_dice_request.dart';
+import '../models/weapon.dart';
+import '../models/action_critical_profile.dart';
+import '../models/weapon_attack_resolution.dart';
+import '../models/passive.dart';
+import '../models/passive_roll_resolution.dart';
 
 import '../widgets/abilities/attack_roll_sheet.dart';
 import '../widgets/action_resolution/dice/dice_mode_sheet.dart';
@@ -30,6 +34,8 @@ import '../widgets/action_resolution/options/optional_choices_dialog.dart';
 import '../widgets/action_resolution/requirements/external_requirements_dialog.dart';
 import '../widgets/action_resolution/chance/chance_checks_dialog.dart';
 
+import 'passive_action_resolver.dart';
+import 'weapon_action_resolver.dart';
 import 'action_resolver.dart';
 import 'action_dice_resolver.dart';
 import 'action_chance_resolver.dart';
@@ -42,6 +48,241 @@ class ActionResolutionFlow {
 
   String get selfLabel {
     return character.name.isNotEmpty ? character.name : 'Tu personaje';
+  }
+
+  Future<PassiveRollResolution?> resolvePassiveRoll(
+    BuildContext context, {
+    required CharacterPassive passive,
+  }) async {
+    final resolver = PassiveActionResolver(character: character);
+
+    // ===========================================================================
+    // MODO DE DADOS
+    // ===========================================================================
+
+    final diceMode = await showActionDiceModeSheet(context);
+
+    if (diceMode == null || !context.mounted) {
+      return null;
+    }
+
+    final request = resolver.buildRollRequest(passive);
+
+    final calculationText = request.parts.isEmpty
+        ? '0'
+        : request.parts.first.calculationText;
+    // ===========================================================================
+    // DIGITAL
+    // ===========================================================================
+
+    switch (diceMode) {
+      case ActionDiceMode.digital:
+        final diceResult = resolver.rollDigital(passive);
+
+        return PassiveRollResolution(
+          diceResult: diceResult,
+          calculationText: calculationText,
+        );
+
+      // =========================================================================
+      // FÍSICO
+      // =========================================================================
+
+      case ActionDiceMode.physical:
+        final results = await showPhysicalDiceDialog(
+          context,
+          sections: [
+            PhysicalDiceSection(
+              id: 'passive:${passive.id}',
+              title: passive.name,
+              request: request,
+            ),
+          ],
+        );
+
+        if (results == null || !context.mounted) {
+          return null;
+        }
+
+        final diceResult = results['passive:${passive.id}'];
+
+        if (diceResult == null) {
+          return null;
+        }
+
+        return PassiveRollResolution(
+          diceResult: diceResult,
+          calculationText: calculationText,
+        );
+    }
+  }
+
+  Future<WeaponAttackResolution?> resolveWeaponAttack(
+    BuildContext context, {
+    required Weapon weapon,
+  }) async {
+    final weaponResolver = WeaponActionResolver(character: character);
+
+    // ===========================================================================
+    // MODO DE DADOS
+    // ===========================================================================
+
+    final diceMode = await showActionDiceModeSheet(context);
+
+    if (diceMode == null || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // NORMAL / VENTAJA / DESVENTAJA
+    // ===========================================================================
+
+    final attackMode = await showAttackRollModeSheet(context);
+
+    if (attackMode == null || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // D20
+    // ===========================================================================
+
+    switch (diceMode) {
+      case ActionDiceMode.digital:
+        return weaponResolver.rollAttackDigital(
+          weapon: weapon,
+          mode: attackMode,
+        );
+
+      case ActionDiceMode.physical:
+        final rolls = await showPhysicalAttackRollDialog(
+          context,
+          mode: attackMode,
+        );
+
+        if (rolls == null || !context.mounted) {
+          return null;
+        }
+
+        return weaponResolver.resolveAttackPhysical(
+          weapon: weapon,
+          mode: attackMode,
+          firstRoll: rolls.firstRoll,
+          secondRoll: rolls.secondRoll,
+        );
+    }
+  }
+
+  Future<ActionDiceResult?> resolveWeaponDamage(
+    BuildContext context, {
+    required Weapon weapon,
+    required ActionDiceMode diceMode,
+    ActionCriticalType criticalType = ActionCriticalType.none,
+  }) async {
+    final weaponResolver = WeaponActionResolver(character: character);
+
+    // ===========================================================================
+    // CONTEXTO
+    //
+    // El arma de momento resuelve daño contra un objetivo externo genérico.
+    // Más adelante podremos pasar targets reales igual que las habilidades.
+    // ===========================================================================
+
+    final actionContext = ActionResolutionContext(
+      character: character,
+      targets: const [
+        ActionTarget(
+          id: 'weapon_target',
+          kind: ActionTargetKind.external,
+          label: 'Objetivo',
+        ),
+      ],
+    );
+
+    actionContext.populateKnownTargetVariables();
+
+    // ===========================================================================
+    // CHANCE DE CRÍTICOS ADICIONALES
+    // ===========================================================================
+
+    final chanceChecks = weaponResolver.collectCriticalChanceChecks(
+      weapon: weapon,
+      criticalType: criticalType,
+      context: actionContext,
+    );
+
+    List<ActionChanceResult> chanceResults = const [];
+
+    switch (diceMode) {
+      case ActionDiceMode.digital:
+        if (chanceChecks.isNotEmpty) {
+          final chanceResolver = ActionChanceResolver();
+
+          chanceResults = List<ActionChanceResult>.unmodifiable(
+            chanceChecks.map(chanceResolver.rollDigital),
+          );
+        }
+
+        break;
+
+      case ActionDiceMode.physical:
+        if (chanceChecks.isNotEmpty) {
+          final resolved = await showPhysicalChanceChecksDialog(
+            context,
+            checks: chanceChecks,
+          );
+
+          if (resolved == null || !context.mounted) {
+            return null;
+          }
+
+          chanceResults = List<ActionChanceResult>.unmodifiable(resolved);
+        }
+
+        break;
+    }
+
+    final successfulChanceIds = ActionResolver(
+      character: character,
+    ).successfulChanceCheckIds(chanceResults);
+
+    // ===========================================================================
+    // REQUEST DE DAÑO
+    // ===========================================================================
+
+    final request = weaponResolver.buildDamageRequest(
+      weapon: weapon,
+      criticalType: criticalType,
+      context: actionContext,
+      successfulChanceCheckIds: successfulChanceIds,
+    );
+
+    // ===========================================================================
+    // RESOLVER DADOS
+    // ===========================================================================
+
+    switch (diceMode) {
+      case ActionDiceMode.digital:
+        return const ActionDiceResolver().rollDigital(request);
+
+      case ActionDiceMode.physical:
+        final results = await showPhysicalDiceDialog(
+          context,
+          sections: [
+            PhysicalDiceSection(
+              id: weapon.id,
+              title: weapon.name,
+              request: request,
+            ),
+          ],
+        );
+
+        if (results == null || !context.mounted) {
+          return null;
+        }
+
+        return results[weapon.id];
+    }
   }
 
   // ===========================================================================
@@ -128,7 +369,7 @@ class ActionResolutionFlow {
     } on StateError catch (error) {
       _showError(
         context,
-        error.message?.toString() ??
+        error.message.toString() ??
             'La acción no puede resolverse con estos objetivos.',
       );
 
@@ -350,16 +591,14 @@ class ActionResolutionFlow {
         return showPhysicalAttackRollDialog(context, mode: mode);
 
       case ActionDiceMode.digital:
-        final first = DicePoolRoller.roll(
-          pools: [DicePool(count: 1, sides: 20)],
-        ).groups.first.rolls.first;
+        const diceResolver = ActionDiceResolver();
+
+        final first = diceResolver.rollDigitalD20();
 
         int? second;
 
         if (mode != AttackRollMode.normal) {
-          second = DicePoolRoller.roll(
-            pools: [DicePool(count: 1, sides: 20)],
-          ).groups.first.rolls.first;
+          second = diceResolver.rollDigitalD20();
         }
 
         return (firstRoll: first, secondRoll: second);
@@ -1074,7 +1313,7 @@ class ActionResolutionFlow {
     } on StateError catch (error) {
       _showError(
         context,
-        error.message?.toString() ?? 'No se ha podido completar la acción.',
+        error.message.toString() ?? 'No se ha podido completar la acción.',
       );
 
       return null;

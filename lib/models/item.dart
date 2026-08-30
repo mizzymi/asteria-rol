@@ -1,5 +1,4 @@
-import 'package:rol/models/consumable.dart';
-
+import 'consumable.dart';
 import 'ability.dart';
 import 'passive.dart';
 import 'weapon.dart';

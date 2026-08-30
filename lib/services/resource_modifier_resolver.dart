@@ -1,6 +1,5 @@
 import '../models/character.dart';
 import '../models/character_resource.dart';
-import '../models/passive.dart';
 import '../models/formulas/formula_issue.dart';
 import '../models/passive_resource_modifier.dart';
 

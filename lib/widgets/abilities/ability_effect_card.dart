@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:rol/models/character_resource.dart';
 
+import '../../models/character_resource.dart';
 import '../../models/ability.dart';
 import '../../models/character.dart';
 import '../../models/skill.dart';
 import 'ability_colors.dart';
 
-import '../common/info_badge.dart';
 
 class AbilityEffectCard extends StatelessWidget {
   final CharacterAbility ability;

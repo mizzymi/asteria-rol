@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:rol/utils/number_format.dart';
+
+import '../../utils/number_format.dart';
 
 import '../../models/character_resource.dart';
+
 import '../common/app_card.dart';
 
 class ResourceCard extends StatelessWidget {

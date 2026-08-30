@@ -3,14 +3,18 @@ import 'package:flutter/material.dart';
 import '../../models/character.dart';
 import '../../models/passive.dart';
 
+import '../../services/action_resolution_flow.dart';
+
 Future<void> showPassiveRollDialog(
   BuildContext context, {
   required Character character,
   required CharacterPassive passive,
 }) async {
-  final result = character.rollPassive(passive);
+  final flow = ActionResolutionFlow(character: character);
 
-  if (!context.mounted) {
+  final result = await flow.resolvePassiveRoll(context, passive: passive);
+
+  if (result == null || !context.mounted) {
     return;
   }
 
@@ -32,7 +36,7 @@ Future<void> showPassiveRollDialog(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              character.passiveRollText(passive),
+              result.calculationText,
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -52,7 +56,7 @@ Future<void> showPassiveRollDialog(
         actions: [
           TextButton.icon(
             onPressed: () {
-              Navigator.pop(dialogContext);
+              Navigator.of(dialogContext).pop();
 
               showPassiveRollDialog(
                 context,
@@ -66,7 +70,7 @@ Future<void> showPassiveRollDialog(
 
           FilledButton(
             onPressed: () {
-              Navigator.pop(dialogContext);
+              Navigator.of(dialogContext).pop();
             },
             child: const Text('Cerrar'),
           ),

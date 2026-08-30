@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:rol/widgets/abilities/ability_effect_card.dart';
 
 import '../../models/ability.dart';
 import '../../models/character.dart';
@@ -10,6 +9,7 @@ import '../../models/character_effect.dart';
 
 import '../../services/action_cost_resolver.dart';
 
+import 'ability_effect_card.dart';
 import 'ability_attribute_colors.dart';
 import 'ability_action_badge.dart';
 
