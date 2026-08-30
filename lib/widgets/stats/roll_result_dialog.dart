@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/action_critical_profile.dart';
 import '../../models/skill.dart';
 
 import 'stats_colors.dart';
@@ -15,6 +16,8 @@ class RollResultDialog extends StatelessWidget {
 
   final int bonus;
 
+  final ActionCriticalProfile criticalProfile;
+
   final VoidCallback onRepeat;
 
   const RollResultDialog({
@@ -24,6 +27,7 @@ class RollResultDialog extends StatelessWidget {
     required this.naturalRoll,
     required this.total,
     required this.bonus,
+    required this.criticalProfile,
     required this.onRepeat,
   });
 
@@ -33,9 +37,9 @@ class RollResultDialog extends StatelessWidget {
 
     final color = StatsColors.abilityColor(ability);
 
-    final critical = naturalRoll == 20;
-
     final failure = naturalRoll == 1;
+
+    final critical = !failure && criticalProfile.isCriticalRoll(naturalRoll);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -121,12 +125,24 @@ class RollResultDialog extends StatelessWidget {
               ),
             ),
 
-            if (critical || failure) ...[
+            if (critical) ...[
               const SizedBox(height: 12),
 
               Text(
-                critical ? '✨ 20 natural' : '💀 1 natural',
+                criticalProfile.minimumNaturalRoll == 20
+                    ? '✨ $naturalRoll natural · crítico'
+                    : '✨ $naturalRoll natural · crítico '
+                          '(${criticalProfile.minimumNaturalRoll}–20)',
                 style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ],
+
+            if (failure) ...[
+              const SizedBox(height: 12),
+
+              const Text(
+                '💀 1 natural',
+                style: TextStyle(fontWeight: FontWeight.w800),
               ),
             ],
 

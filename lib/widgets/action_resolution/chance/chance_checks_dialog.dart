@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/action_chance_check.dart';
-import '../../../services/action_chance_resolver.dart';
 
 import '../common/action_dialog_scaffold.dart';
 import '../common/action_section_card.dart';
 import '../common/numeric_dice_field.dart';
 
-Future<List<ActionChanceResult>?> showPhysicalChanceChecksDialog(
+Future<List<ActionPhysicalChanceInput>?> showPhysicalChanceChecksDialog(
   BuildContext context, {
   required List<ActionChanceCheck> checks,
 }) async {
@@ -15,15 +14,16 @@ Future<List<ActionChanceResult>?> showPhysicalChanceChecksDialog(
     return const [];
   }
 
-  final controllers = <String, TextEditingController>{
-    for (final check in checks) check.id: TextEditingController(),
+  final rolls = <String, int?>{
+    for (final check in checks)
+      check.id: null,
   };
 
   final errors = <String, String?>{};
 
-  final result = await showDialog<List<ActionChanceResult>>(
+  final result = await showDialog<List<ActionPhysicalChanceInput>>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {
@@ -43,10 +43,8 @@ Future<List<ActionChanceResult>?> showPhysicalChanceChecksDialog(
             onPrimary: () {
               var valid = true;
 
-              final rolls = <String, int>{};
-
               for (final check in checks) {
-                final roll = int.tryParse(controllers[check.id]!.text.trim());
+                final roll = rolls[check.id];
 
                 if (roll == null || roll < 1 || roll > 100) {
                   errors[check.id] = 'Entre 1 y 100';
@@ -54,8 +52,6 @@ Future<List<ActionChanceResult>?> showPhysicalChanceChecksDialog(
                   valid = false;
                 } else {
                   errors[check.id] = null;
-
-                  rolls[check.id] = roll;
                 }
               }
 
@@ -64,21 +60,18 @@ Future<List<ActionChanceResult>?> showPhysicalChanceChecksDialog(
                 return;
               }
 
-              final resolver = ActionChanceResolver();
-
-              final results = checks
+              final inputs = checks
                   .map(
-                    (check) => resolver.resolvePhysical(
-                      check: check,
+                    (check) => ActionPhysicalChanceInput(
+                      checkId: check.id,
                       roll: rolls[check.id]!,
                     ),
                   )
                   .toList(growable: false);
 
-              Navigator.pop(
+              Navigator.of(
                 dialogContext,
-                List<ActionChanceResult>.unmodifiable(results),
-              );
+              ).pop(List<ActionPhysicalChanceInput>.unmodifiable(inputs));
             },
 
             child: Column(
@@ -93,10 +86,11 @@ Future<List<ActionChanceResult>?> showPhysicalChanceChecksDialog(
 
                     child: NumericDiceField(
                       sides: 100,
-
-                      controller: controllers[check.id]!,
-
+                      value: rolls[check.id],
                       errorText: errors[check.id],
+                      onChanged: (value) {
+                        rolls[check.id] = value;
+                      },
                     ),
                   ),
 
@@ -109,10 +103,6 @@ Future<List<ActionChanceResult>?> showPhysicalChanceChecksDialog(
       );
     },
   );
-
-  for (final controller in controllers.values) {
-    controller.dispose();
-  }
 
   return result;
 }

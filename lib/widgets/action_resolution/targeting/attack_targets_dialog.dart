@@ -21,7 +21,7 @@ Future<Map<String, ActionTargetAttackResult>?> showAttackTargetsDialog(
 
   return showDialog<Map<String, ActionTargetAttackResult>>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {

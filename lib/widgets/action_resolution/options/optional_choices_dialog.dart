@@ -40,7 +40,7 @@ Future<Map<String, bool>?> showOptionalChoicesDialog(
 
   return showDialog<Map<String, bool>>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {

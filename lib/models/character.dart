@@ -119,6 +119,20 @@ class Character {
     return result;
   }
 
+  List<int> get criticalMinimumRollSources {
+    final sources = <int>[criticalMinimumNaturalRoll];
+
+    for (final passive in enabledPassives) {
+      sources.add(passive.criticalMinimumNaturalRoll);
+    }
+
+    for (final effect in enabledEffects) {
+      sources.add(effect.criticalMinimumNaturalRoll);
+    }
+
+    return sources;
+  }
+
   List<HealingBonus> get activeHealingBonuses {
     final result = <HealingBonus>[];
 
@@ -623,37 +637,11 @@ class Character {
   }
 
   List<int> criticalMinimumRollSourcesForAbility(CharacterAbility ability) {
-    final sources = <int>[
-      criticalMinimumNaturalRoll,
-      ability.criticalMinimumNaturalRoll,
-    ];
-
-    for (final passive in enabledPassives) {
-      sources.add(passive.criticalMinimumNaturalRoll);
-    }
-
-    for (final effect in enabledEffects) {
-      sources.add(effect.criticalMinimumNaturalRoll);
-    }
-
-    return sources;
+    return [...criticalMinimumRollSources, ability.criticalMinimumNaturalRoll];
   }
 
   List<int> criticalMinimumRollSourcesForWeapon(Weapon weapon) {
-    final sources = <int>[
-      criticalMinimumNaturalRoll,
-      weapon.criticalMinimumNaturalRoll,
-    ];
-
-    for (final passive in enabledPassives) {
-      sources.add(passive.criticalMinimumNaturalRoll);
-    }
-
-    for (final effect in enabledEffects) {
-      sources.add(effect.criticalMinimumNaturalRoll);
-    }
-
-    return sources;
+    return [...criticalMinimumRollSources, weapon.criticalMinimumNaturalRoll];
   }
 
   bool empoweredCriticalForWeapon(Weapon weapon) {

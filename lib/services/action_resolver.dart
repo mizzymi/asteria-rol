@@ -27,6 +27,7 @@ import '../models/passive.dart';
 import '../models/action_hit_behavior.dart';
 import '../models/critical_damage_bonus.dart';
 
+import 'action_saving_throw_resolver.dart';
 import 'action_critical_dice_transformer.dart';
 import 'formula_evaluator.dart';
 import 'action_result_applier.dart';
@@ -40,13 +41,35 @@ class ActionResolver {
   const ActionResolver({required this.character});
 
   bool preparedActionRequiresDiceMode(PreparedActionResolution prepared) {
+    // ===========================================================================
+    // ATAQUE
+    //
+    // Si la habilidad requiere ataque, siempre necesitamos un d20.
+    // ===========================================================================
+
     if (prepared.ability.requiresAttackRoll) {
       return true;
     }
 
-    if (collectSavingThrowRequests(prepared: prepared).isNotEmpty) {
+    // ===========================================================================
+    // SALVACIONES
+    //
+    // Si existe al menos una salvación, habrá que resolver d20.
+    // ===========================================================================
+
+    final savingThrows = collectSavingThrowRequests(prepared: prepared);
+
+    final hasSelfSavingThrow = savingThrows.any(
+      (request) => request.targetId == 'self',
+    );
+
+    if (hasSelfSavingThrow) {
       return true;
     }
+
+    // ===========================================================================
+    // DADOS DEL REQUEST
+    // ===========================================================================
 
     final request = buildPreparedDiceRequest(
       prepared: prepared,
@@ -57,11 +80,24 @@ class ActionResolver {
       return true;
     }
 
-    if (collectCriticalChanceChecks(
-      critical: true,
-      context: prepared.context,
-    ).isNotEmpty) {
-      return true;
+    // ===========================================================================
+    // SIN ATAQUE NO PUEDE HABER CRÍTICO NATURAL
+    //
+    // Por tanto no debemos forzar selección físico/digital
+    // solo porque el personaje tenga bonos críticos configurados.
+    //
+    // Los críticos forzados sí pueden activar chance checks críticos.
+    // ===========================================================================
+
+    if (prepared.criticalProfile.forcedCritical) {
+      final criticalChecks = collectCriticalChanceChecks(
+        critical: true,
+        context: prepared.context,
+      );
+
+      if (criticalChecks.isNotEmpty) {
+        return true;
+      }
     }
 
     return false;
@@ -213,6 +249,34 @@ class ActionResolver {
     }
   }
 
+  String? _linkedEffectSourceEffectId({
+    required CharacterAbility ability,
+    required ActionLinkedEffect linkedEffect,
+  }) {
+    final explicit = linkedEffect.normalizedSourceEffectId;
+
+    if (explicit != null) {
+      return explicit;
+    }
+
+    // ===========================================================================
+    // COMPATIBILIDAD LEGACY
+    //
+    // Si antiguamente no se guardó sourceEffectId pero solo existe
+    // un AbilityEffect con salvación, la relación es inequívoca.
+    // ===========================================================================
+
+    final savingEffects = ability.effects
+        .where((effect) => effect.usesSavingThrow)
+        .toList(growable: false);
+
+    if (savingEffects.length == 1) {
+      return savingEffects.first.id;
+    }
+
+    return null;
+  }
+
   bool _effectNeedsSavingThrowForTarget({
     required PreparedActionResolution prepared,
     required AbilityEffect effect,
@@ -275,7 +339,10 @@ class ActionResolver {
         continue;
       }
 
-      final sourceEffectId = linkedEffect.normalizedSourceEffectId;
+      final sourceEffectId = _linkedEffectSourceEffectId(
+        ability: prepared.ability,
+        linkedEffect: linkedEffect,
+      );
 
       if (sourceEffectId != effect.id) {
         continue;
@@ -293,6 +360,35 @@ class ActionResolver {
     }
 
     return false;
+  }
+
+  List<ActionSavingThrowResult> resolveExternalSavingThrowResults({
+    required List<ActionSavingThrowRequest> requests,
+    required Map<String, bool> resultsByRequestId,
+  }) {
+    final results = <ActionSavingThrowResult>[];
+
+    for (final request in requests) {
+      if (request.targetId == 'self') {
+        continue;
+      }
+
+      final saved = resultsByRequestId[request.id];
+
+      if (saved == null) {
+        throw StateError(
+          'Falta indicar el resultado de '
+          '${request.effectName} para '
+          '${request.targetId}.',
+        );
+      }
+
+      results.add(
+        ActionSavingThrowResult.external(request: request, saved: saved),
+      );
+    }
+
+    return List<ActionSavingThrowResult>.unmodifiable(results);
   }
 
   List<ActionEffectResult> _buildLinkedEffectResultsForTarget({
@@ -387,26 +483,10 @@ class ActionResolver {
     // ENCONTRAR EFFECT ID
     // ===========================================================================
 
-    String? sourceEffectId = linkedEffect.normalizedSourceEffectId;
-
-    // ---------------------------------------------------------------------------
-    // COMPATIBILIDAD CON HABILIDADES ANTIGUAS
-    //
-    // Antes ActionLinkedEffect no guardaba sourceEffectId.
-    //
-    // Si la habilidad solo tiene UN AbilityEffect con salvación,
-    // podemos inferirlo sin ambigüedad.
-    // ---------------------------------------------------------------------------
-
-    if (sourceEffectId == null) {
-      final savingEffects = ability.effects
-          .where((effect) => effect.usesSavingThrow)
-          .toList(growable: false);
-
-      if (savingEffects.length == 1) {
-        sourceEffectId = savingEffects.first.id;
-      }
-    }
+    final sourceEffectId = _linkedEffectSourceEffectId(
+      ability: ability,
+      linkedEffect: linkedEffect,
+    );
 
     // Si no existe asociación inequívoca,
     // no dejamos que una salvación cualquiera
@@ -1397,6 +1477,119 @@ class ActionResolver {
     return externalModifiers[request.id] ?? 0;
   }
 
+  List<ActionSavingThrowResult> resolvePhysicalSavingThrows({
+    required List<ActionSavingThrowRequest> requests,
+    required List<ActionPhysicalSavingThrowInput> inputs,
+  }) {
+    if (requests.isEmpty) {
+      return const [];
+    }
+
+    final inputsByRequestId = {
+      for (final input in inputs) input.requestId: input,
+    };
+
+    const saveResolver = ActionSavingThrowResolver();
+
+    final results = <ActionSavingThrowResult>[];
+
+    for (final request in requests) {
+      final input = inputsByRequestId[request.id];
+
+      if (input == null) {
+        throw StateError(
+          'Falta la salvación física '
+          'para ${request.effectName} '
+          '(${request.targetId}).',
+        );
+      }
+
+      final externalModifiers = input.externalModifier == null
+          ? const <String, int>{}
+          : <String, int>{request.id: input.externalModifier!};
+
+      final modifier = savingThrowModifierForRequest(
+        request,
+        externalModifiers: externalModifiers,
+      );
+
+      results.add(
+        saveResolver.resolve(
+          request: request,
+          naturalRoll: input.naturalRoll,
+          modifier: modifier,
+        ),
+      );
+    }
+
+    return List<ActionSavingThrowResult>.unmodifiable(results);
+  }
+
+  List<ActionSavingThrowResult> resolveDigitalSavingThrows({
+    required List<ActionSavingThrowRequest> requests,
+    Map<String, int> externalModifiers = const {},
+  }) {
+    if (requests.isEmpty) {
+      return const [];
+    }
+
+    const saveResolver = ActionSavingThrowResolver();
+
+    final results = <ActionSavingThrowResult>[];
+
+    for (final request in requests) {
+      final modifier = savingThrowModifierForRequest(
+        request,
+        externalModifiers: externalModifiers,
+      );
+
+      results.add(
+        saveResolver.rollDigital(request: request, modifier: modifier),
+      );
+    }
+
+    return List<ActionSavingThrowResult>.unmodifiable(results);
+  }
+
+  List<ActionChanceResult> resolveChanceChecksDigital({
+    required List<ActionChanceCheck> checks,
+  }) {
+    if (checks.isEmpty) {
+      return const [];
+    }
+
+    final resolver = ActionChanceResolver();
+
+    return List<ActionChanceResult>.unmodifiable(
+      checks.map(resolver.rollDigital),
+    );
+  }
+
+  List<ActionChanceResult> resolveChanceChecksPhysical({
+    required List<ActionChanceCheck> checks,
+    required Map<String, int> rollsByCheckId,
+  }) {
+    if (checks.isEmpty) {
+      return const [];
+    }
+
+    final resolver = ActionChanceResolver();
+
+    final results = <ActionChanceResult>[];
+
+    for (final check in checks) {
+      final roll = rollsByCheckId[check.id];
+
+      if (roll == null) {
+        throw StateError('Falta la tirada física para ${check.id}.');
+      }
+
+      results.add(resolver.resolvePhysical(check: check, roll: roll));
+    }
+
+    return List<ActionChanceResult>.unmodifiable(results);
+  }
+
   bool _abilityDealsDamage(CharacterAbility ability) {
     return ability.effects.any(
       (effect) => effect.effectType == AbilityEffectType.damage,
@@ -1526,6 +1719,130 @@ class ActionResolver {
         ),
       );
     }
+  }
+
+  // ===========================================================================
+  // EXTERNAL REQUIREMENTS
+  // ===========================================================================
+
+  List<ActionExternalRequirement> orderedExternalRequirements({
+    required CharacterAbility ability,
+  }) {
+    final requirements = collectExternalRequirements(ability: ability);
+
+    if (requirements.isEmpty) {
+      return const [];
+    }
+
+    const percentagePlanner = ExternalPercentageQuestionPlanner();
+
+    final percentageRequirements = percentagePlanner.order(
+      requirements
+          .where((requirement) => requirement.isPercentageRequirement)
+          .toList(growable: false),
+    );
+
+    final nonPercentageRequirements = requirements
+        .where((requirement) => !requirement.isPercentageRequirement)
+        .toList(growable: false);
+
+    return List<ActionExternalRequirement>.unmodifiable([
+      ...percentageRequirements,
+      ...nonPercentageRequirements,
+    ]);
+  }
+
+  bool tryResolveKnownExternalRequirement({
+    required ActionResolutionContext context,
+    required ActionTarget target,
+    required ActionExternalRequirement requirement,
+  }) {
+    // ===========================================================================
+    // BOOLEAN YA CONOCIDO
+    // ===========================================================================
+
+    if (!requirement.isPercentageRequirement) {
+      final knownFlag = context.targetExternalFlag(
+        target.id,
+        requirement.normalizedVariableName,
+      );
+
+      if (knownFlag == null) {
+        return false;
+      }
+
+      applyExternalRequirementAnswer(
+        context: context,
+        target: target,
+        requirement: requirement,
+        answer: knownFlag,
+      );
+
+      return true;
+    }
+
+    // ===========================================================================
+    // PORCENTAJE
+    // ===========================================================================
+
+    final threshold = requirement.threshold;
+
+    final operator = requirement.percentageOperator;
+
+    if (threshold == null || operator == null) {
+      return false;
+    }
+
+    final knownAnswer = context.evaluateKnownTargetHealthThreshold(
+      target,
+      operator: operator,
+      threshold: threshold,
+    );
+
+    if (knownAnswer == null) {
+      return false;
+    }
+
+    applyExternalRequirementAnswer(
+      context: context,
+      target: target,
+      requirement: requirement,
+      answer: knownAnswer,
+    );
+
+    return true;
+  }
+
+  void applyExternalRequirementAnswer({
+    required ActionResolutionContext context,
+    required ActionTarget target,
+    required ActionExternalRequirement requirement,
+    required bool answer,
+  }) {
+    context.applyTargetExternalRequirementAnswer(
+      target.id,
+      requirement,
+      answer,
+    );
+
+    if (!requirement.isPercentageRequirement) {
+      return;
+    }
+
+    final threshold = requirement.threshold;
+
+    final operator = requirement.percentageOperator;
+
+    if (threshold == null || operator == null) {
+      return;
+    }
+
+    context.registerTargetHealthThresholdAnswer(
+      target,
+      operator: operator,
+      threshold: threshold,
+      answer: answer,
+    );
   }
 
   List<ActionExternalRequirement> collectExternalRequirements({

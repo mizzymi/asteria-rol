@@ -14,7 +14,6 @@ import '../models/action_saving_throw.dart';
 import '../models/action_target_attack_result.dart';
 import '../models/character.dart';
 import '../models/prepared_action_resolution.dart';
-import '../models/action_external_requirement.dart';
 import '../models/action_dice_request.dart';
 import '../models/weapon.dart';
 import '../models/action_critical_profile.dart';
@@ -38,8 +37,6 @@ import 'passive_action_resolver.dart';
 import 'weapon_action_resolver.dart';
 import 'action_resolver.dart';
 import 'action_dice_resolver.dart';
-import 'action_chance_resolver.dart';
-import 'action_saving_throw_resolver.dart';
 
 class ActionResolutionFlow {
   final Character character;
@@ -71,11 +68,16 @@ class ActionResolutionFlow {
     final calculationText = request.parts.isEmpty
         ? '0'
         : request.parts.first.calculationText;
+
     // ===========================================================================
-    // DIGITAL
+    // RESOLVER
     // ===========================================================================
 
     switch (diceMode) {
+      // -------------------------------------------------------------------------
+      // DIGITAL
+      // -------------------------------------------------------------------------
+
       case ActionDiceMode.digital:
         final diceResult = resolver.rollDigital(passive);
 
@@ -84,9 +86,9 @@ class ActionResolutionFlow {
           calculationText: calculationText,
         );
 
-      // =========================================================================
+      // -------------------------------------------------------------------------
       // FÍSICO
-      // =========================================================================
+      // -------------------------------------------------------------------------
 
       case ActionDiceMode.physical:
         final results = await showPhysicalDiceDialog(
@@ -181,6 +183,8 @@ class ActionResolutionFlow {
   }) async {
     final weaponResolver = WeaponActionResolver(character: character);
 
+    final actionResolver = ActionResolver(character: character);
+
     // ===========================================================================
     // CONTEXTO
     //
@@ -216,10 +220,8 @@ class ActionResolutionFlow {
     switch (diceMode) {
       case ActionDiceMode.digital:
         if (chanceChecks.isNotEmpty) {
-          final chanceResolver = ActionChanceResolver();
-
-          chanceResults = List<ActionChanceResult>.unmodifiable(
-            chanceChecks.map(chanceResolver.rollDigital),
+          chanceResults = actionResolver.resolveChanceChecksDigital(
+            checks: chanceChecks,
           );
         }
 
@@ -227,24 +229,31 @@ class ActionResolutionFlow {
 
       case ActionDiceMode.physical:
         if (chanceChecks.isNotEmpty) {
-          final resolved = await showPhysicalChanceChecksDialog(
+          final inputs = await showPhysicalChanceChecksDialog(
             context,
             checks: chanceChecks,
           );
 
-          if (resolved == null || !context.mounted) {
+          if (inputs == null || !context.mounted) {
             return null;
           }
 
-          chanceResults = List<ActionChanceResult>.unmodifiable(resolved);
+          final rollsByCheckId = {
+            for (final input in inputs) input.checkId: input.roll,
+          };
+
+          chanceResults = actionResolver.resolveChanceChecksPhysical(
+            checks: chanceChecks,
+            rollsByCheckId: rollsByCheckId,
+          );
         }
 
         break;
     }
 
-    final successfulChanceIds = ActionResolver(
-      character: character,
-    ).successfulChanceCheckIds(chanceResults);
+    final successfulChanceIds = actionResolver.successfulChanceCheckIds(
+      chanceResults,
+    );
 
     // ===========================================================================
     // REQUEST DE DAÑO
@@ -367,11 +376,7 @@ class ActionResolutionFlow {
     try {
       resolver.validatePreparedTargetResolution(prepared);
     } on StateError catch (error) {
-      _showError(
-        context,
-        error.message.toString() ??
-            'La acción no puede resolverse con estos objetivos.',
-      );
+      _showError(context, error.message.toString());
 
       return null;
     }
@@ -886,27 +891,30 @@ class ActionResolutionFlow {
 
       switch (diceMode) {
         case ActionDiceMode.digital:
-          final chanceResolver = ActionChanceResolver();
-
-          results[target.id] = List<ActionChanceResult>.unmodifiable(
-            checks.map(chanceResolver.rollDigital),
+          results[target.id] = resolver.resolveChanceChecksDigital(
+            checks: checks,
           );
 
           break;
 
         case ActionDiceMode.physical:
-          final resolved = await showPhysicalChanceChecksDialog(
+          final inputs = await showPhysicalChanceChecksDialog(
             context,
             checks: checks,
           );
 
-          if (resolved == null || !context.mounted) {
+          if (inputs == null || !context.mounted) {
             return null;
           }
 
-          results[target.id] = List<ActionChanceResult>.unmodifiable(resolved);
+          final rollsByCheckId = {
+            for (final input in inputs) input.checkId: input.roll,
+          };
 
-          break;
+          results[target.id] = resolver.resolveChanceChecksPhysical(
+            checks: checks,
+            rollsByCheckId: rollsByCheckId,
+          );
       }
     }
 
@@ -920,11 +928,8 @@ class ActionResolutionFlow {
   Future<List<ActionSavingThrowResult>?> _collectSavingThrows(
     BuildContext context, {
     required ActionResolver resolver,
-
     required PreparedActionResolution prepared,
-
     required ActionDiceMode diceMode,
-
     Map<String, ActionTargetAttackResult> attackResults = const {},
   }) async {
     final requests = resolver.collectSavingThrowRequests(
@@ -936,51 +941,98 @@ class ActionResolutionFlow {
       return const [];
     }
 
-    // -------------------------------------------------------------------------
-    // FÍSICO
-    // -------------------------------------------------------------------------
+    final selfRequests = requests
+        .where((request) => request.targetId == 'self')
+        .toList(growable: false);
 
-    if (diceMode == ActionDiceMode.physical) {
-      return showPhysicalSavingThrowsDialog(
-        context,
-
-        character: character,
-
-        requests: requests,
-      );
-    }
-
-    // -------------------------------------------------------------------------
-    // DIGITAL
-    // -------------------------------------------------------------------------
-
-    final externalModifiers = await showExternalSavingModifiersDialog(
-      context,
-      requests: requests,
-    );
-
-    if (externalModifiers == null || !context.mounted) {
-      return null;
-    }
-
-    const saveResolver = ActionSavingThrowResolver();
+    final externalRequests = requests
+        .where((request) => request.targetId != 'self')
+        .toList(growable: false);
 
     final results = <ActionSavingThrowResult>[];
 
-    for (final request in requests) {
-      final modifier = resolver.savingThrowModifierForRequest(
-        request,
-        externalModifiers: externalModifiers,
+    // ===========================================================================
+    // SELF
+    // ===========================================================================
+
+    if (selfRequests.isNotEmpty) {
+      switch (diceMode) {
+        // -----------------------------------------------------------------------
+        // SELF FÍSICO
+        // -----------------------------------------------------------------------
+
+        case ActionDiceMode.physical:
+          final inputs = await showPhysicalSavingThrowsDialog(
+            context,
+            requests: selfRequests,
+          );
+
+          if (inputs == null || !context.mounted) {
+            // Cancelar aquí cancela TODA
+            // la acción.
+            return null;
+          }
+
+          results.addAll(
+            resolver.resolvePhysicalSavingThrows(
+              requests: selfRequests,
+              inputs: inputs,
+            ),
+          );
+
+          break;
+
+        // -----------------------------------------------------------------------
+        // SELF DIGITAL
+        // -----------------------------------------------------------------------
+
+        case ActionDiceMode.digital:
+          results.addAll(
+            resolver.resolveDigitalSavingThrows(requests: selfRequests),
+          );
+
+          break;
+      }
+    }
+
+    // ===========================================================================
+    // EXTERNOS
+    //
+    // No conocemos sus stats ni su tirada.
+    // Solo preguntamos si superaron la salvación.
+    // ===========================================================================
+
+    if (externalRequests.isNotEmpty) {
+      final externalAnswers = await showExternalSavingThrowResultsDialog(
+        context,
+        requests: externalRequests,
       );
 
-      results.add(
-        saveResolver.rollDigital(request: request, modifier: modifier),
+      if (externalAnswers == null || !context.mounted) {
+        // Cancelar aquí cancela TODA
+        // la acción.
+        return null;
+      }
+
+      results.addAll(
+        resolver.resolveExternalSavingThrowResults(
+          requests: externalRequests,
+          resultsByRequestId: externalAnswers,
+        ),
       );
     }
 
-    await showSavingThrowResultsDialog(context, results: results);
+    final immutableResults = List<ActionSavingThrowResult>.unmodifiable(
+      results,
+    );
 
-    return List<ActionSavingThrowResult>.unmodifiable(results);
+    await showSavingThrowResultsDialog(context, results: immutableResults);
+
+    if (!context.mounted) {
+      return null;
+    }
+
+    return immutableResults;
   }
 
   // ===========================================================================
@@ -1005,14 +1057,26 @@ class ActionResolutionFlow {
 
     switch (diceMode) {
       case ActionDiceMode.digital:
-        final chanceResolver = ActionChanceResolver();
-
-        return List<ActionChanceResult>.unmodifiable(
-          checks.map(chanceResolver.rollDigital),
-        );
+        return resolver.resolveChanceChecksDigital(checks: checks);
 
       case ActionDiceMode.physical:
-        return showPhysicalChanceChecksDialog(context, checks: checks);
+        final inputs = await showPhysicalChanceChecksDialog(
+          context,
+          checks: checks,
+        );
+
+        if (inputs == null || !context.mounted) {
+          return null;
+        }
+
+        final rollsByCheckId = {
+          for (final input in inputs) input.checkId: input.roll,
+        };
+
+        return resolver.resolveChanceChecksPhysical(
+          checks: checks,
+          rollsByCheckId: rollsByCheckId,
+        );
     }
   }
 
@@ -1026,128 +1090,30 @@ class ActionResolutionFlow {
     required CharacterAbility ability,
     required ActionResolutionContext actionContext,
   }) async {
-    final requirements = resolver.collectExternalRequirements(ability: ability);
+    final requirements = resolver.orderedExternalRequirements(ability: ability);
 
     if (requirements.isEmpty) {
       return true;
     }
 
-    const percentagePlanner = ExternalPercentageQuestionPlanner();
-
-    // =========================================================================
-    // ORDEN
-    //
-    // El planner decide el orden óptimo de las preguntas porcentuales.
-    //
-    // Ejemplo:
-    //
-    // <25 → <50 → <75
-    //
-    // >75 → >50 → >25
-    // =========================================================================
-
-    final percentageRequirements = percentagePlanner.order(
-      requirements
-          .where((requirement) => requirement.isPercentageRequirement)
-          .toList(growable: false),
-    );
-
-    final nonPercentageRequirements = requirements
-        .where((requirement) => !requirement.isPercentageRequirement)
-        .toList(growable: false);
-
-    final orderedRequirements = <ActionExternalRequirement>[
-      ...percentageRequirements,
-      ...nonPercentageRequirements,
-    ];
-
-    // =========================================================================
-    // TARGETS
-    // =========================================================================
-
     for (final target in actionContext.targets) {
-      for (final requirement in orderedRequirements) {
+      for (final requirement in requirements) {
         // =====================================================================
-        // VARIABLE BOOLEANA YA CONOCIDA
-        //
-        // Ejemplos:
-        // - target_is_self
-        // - target_is_external
-        // - target_wounded
-        // - target_full_health
-        // - target_below_half
+        // EL RESOLVER DECIDE SI YA PUEDE RESPONDER
         // =====================================================================
 
-        if (!requirement.isPercentageRequirement) {
-          final knownFlag = actionContext.targetExternalFlag(
-            target.id,
-            requirement.normalizedVariableName,
-          );
+        final resolved = resolver.tryResolveKnownExternalRequirement(
+          context: actionContext,
+          target: target,
+          requirement: requirement,
+        );
 
-          if (knownFlag != null) {
-            actionContext.applyTargetExternalRequirementAnswer(
-              target.id,
-              requirement,
-              knownFlag,
-            );
-
-            continue;
-          }
+        if (resolved) {
+          continue;
         }
 
         // =====================================================================
-        // PORCENTAJE
-        // =====================================================================
-
-        if (requirement.isPercentageRequirement) {
-          final threshold = requirement.threshold;
-          final operator = requirement.percentageOperator;
-
-          bool? knownAnswer;
-
-          // -------------------------------------------------------------------
-          // 1. INFORMACIÓN YA CONOCIDA POR EL CONTEXTO
-          //
-          // Por ejemplo, self normalmente conoce su HP exacto.
-          // -------------------------------------------------------------------
-
-          if (threshold != null && operator != null) {
-            knownAnswer = actionContext.evaluateKnownTargetHealthThreshold(
-              target,
-              operator: operator,
-              threshold: threshold,
-            );
-          }
-
-          // -------------------------------------------------------------------
-          // 3. YA PODEMOS RESPONDER SIN PREGUNTAR
-          // -------------------------------------------------------------------
-
-          if (knownAnswer != null) {
-            actionContext.applyTargetExternalRequirementAnswer(
-              target.id,
-              requirement,
-              knownAnswer,
-            );
-
-            if (threshold != null && operator != null) {
-              actionContext.registerTargetHealthThresholdAnswer(
-                target,
-                operator: operator,
-                threshold: threshold,
-                answer: knownAnswer,
-              );
-            }
-
-            continue;
-          }
-        }
-
-        // =====================================================================
-        // PREGUNTAR
-        //
-        // Solo llegamos aquí cuando todavía no podemos conocer/inferir
-        // la respuesta.
+        // EL FLOW SOLO PREGUNTA
         // =====================================================================
 
         final answers = await showExternalRequirementsDialog(
@@ -1168,32 +1134,15 @@ class ActionResolutionFlow {
         }
 
         // =====================================================================
-        // GUARDAR
+        // EL RESOLVER INTERPRETA / REGISTRA
         // =====================================================================
 
-        actionContext.applyTargetExternalRequirementAnswer(
-          target.id,
-          requirement,
-          answer,
+        resolver.applyExternalRequirementAnswer(
+          context: actionContext,
+          target: target,
+          requirement: requirement,
+          answer: answer,
         );
-
-        // =====================================================================
-        // REGISTRAR RESPUESTA PORCENTUAL
-        // =====================================================================
-
-        if (requirement.isPercentageRequirement) {
-          final threshold = requirement.threshold;
-          final operator = requirement.percentageOperator;
-
-          if (threshold != null && operator != null) {
-            actionContext.registerTargetHealthThresholdAnswer(
-              target,
-              operator: operator,
-              threshold: threshold,
-              answer: answer,
-            );
-          }
-        }
       }
     }
 
@@ -1311,10 +1260,7 @@ class ActionResolutionFlow {
     try {
       return resolver.commitResolution(resolution);
     } on StateError catch (error) {
-      _showError(
-        context,
-        error.message.toString() ?? 'No se ha podido completar la acción.',
-      );
+      _showError(context, error.message.toString());
 
       return null;
     }

@@ -61,16 +61,9 @@ class _SavingThrowResultRow extends StatelessWidget {
 
               Text(
                 _rollText(result),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(height: 2),
-
-              Text(
-                _resultText(result),
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
               ),
 
               const SizedBox(height: 2),
@@ -89,8 +82,22 @@ class _SavingThrowResultRow extends StatelessWidget {
   String _rollText(ActionSavingThrowResult result) {
     final request = result.request;
 
+    if (!result.hasRollDetails) {
+      return '${request.ability.name} · '
+          'CD ${request.dc} · '
+          '${result.saved ? 'superada' : 'fallida'}';
+    }
+
+    final naturalRoll = result.naturalRoll!;
+
+    final modifier = result.modifier!;
+
+    final total = result.total!;
+
+    final modifierText = modifier >= 0 ? '+ $modifier' : '- ${modifier.abs()}';
+
     return '${request.ability.name} · '
-        '${result.naturalRoll} + ${result.modifier} = ${result.total} '
+        '$naturalRoll $modifierText = $total '
         'vs CD ${request.dc}';
   }
 }

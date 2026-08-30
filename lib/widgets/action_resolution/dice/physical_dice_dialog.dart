@@ -33,7 +33,7 @@ class _DieBinding {
 
   final int sides;
 
-  final TextEditingController controller;
+  int? value;
 
   String? error;
 
@@ -43,11 +43,7 @@ class _DieBinding {
     required this.poolIndex,
     required this.dieIndex,
     required this.sides,
-  }) : controller = TextEditingController();
-
-  void dispose() {
-    controller.dispose();
-  }
+  });
 }
 
 Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
@@ -59,6 +55,10 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
   }
 
   final bindings = <_DieBinding>[];
+
+  // ===========================================================================
+  // BINDINGS
+  // ===========================================================================
 
   for (final section in sections) {
     for (final part in section.request.parts.where(
@@ -85,20 +85,11 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
   // ===========================================================================
   // SIN DADOS FÍSICOS REALES
   //
-  // Puede haber partes con:
-  //
-  // - modifier
-  // - automaticValue
-  //
+  // Puede haber partes con modifier / automaticValue,
   // pero ningún dado que introducir.
   //
   // Ejemplo:
-  //
-  // crítico potenciado
-  // → daño completamente automático.
-  //
-  // En ese caso no mostramos ningún diálogo.
-  // Resolvemos directamente utilizando los mismos requests.
+  // crítico potenciado completamente automático.
   // ===========================================================================
 
   if (bindings.isEmpty) {
@@ -113,17 +104,25 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
     });
   }
 
-  final result = await showDialog<Map<String, ActionDiceResult>>(
+  // ===========================================================================
+  // DIÁLOGO
+  // ===========================================================================
+
+  return showDialog<Map<String, ActionDiceResult>>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {
           void submit() {
             var valid = true;
 
+            // ===================================================================
+            // VALIDAR
+            // ===================================================================
+
             for (final binding in bindings) {
-              final value = int.tryParse(binding.controller.text.trim());
+              final value = binding.value;
 
               if (value == null || value < 1 || value > binding.sides) {
                 binding.error = '1-${binding.sides}';
@@ -138,6 +137,10 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
               setDialogState(() {});
               return;
             }
+
+            // ===================================================================
+            // CONSTRUIR RESULTADOS
+            // ===================================================================
 
             const diceResolver = ActionDiceResolver();
 
@@ -169,7 +172,7 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
                           binding.dieIndex == dieIndex,
                     );
 
-                    poolRolls.add(int.parse(binding.controller.text.trim()));
+                    poolRolls.add(binding.value!);
                   }
 
                   rolls.add(poolRolls);
@@ -186,10 +189,9 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
               );
             }
 
-            Navigator.pop(
+            Navigator.of(
               dialogContext,
-              Map<String, ActionDiceResult>.unmodifiable(results),
-            );
+            ).pop(Map<String, ActionDiceResult>.unmodifiable(results));
           }
 
           return ActionDialogScaffold(
@@ -204,7 +206,7 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
             maxWidth: 640,
 
             onSecondary: () {
-              Navigator.pop(dialogContext);
+              Navigator.of(dialogContext).pop();
             },
 
             onPrimary: submit,
@@ -216,9 +218,8 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
                   if (sections.length > 1) ...[
                     Text(
                       section.title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: Theme.of(dialogContext).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900),
                     ),
 
                     const SizedBox(height: 12),
@@ -231,6 +232,9 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
                       sectionId: section.id,
                       part: part,
                       bindings: bindings,
+                      onChanged: () {
+                        setDialogState(() {});
+                      },
                     ),
 
                     const SizedBox(height: 12),
@@ -249,12 +253,6 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
       );
     },
   );
-
-  for (final binding in bindings) {
-    binding.dispose();
-  }
-
-  return result;
 }
 
 class _PhysicalDicePartCard extends StatelessWidget {
@@ -264,10 +262,13 @@ class _PhysicalDicePartCard extends StatelessWidget {
 
   final List<_DieBinding> bindings;
 
+  final VoidCallback onChanged;
+
   const _PhysicalDicePartCard({
     required this.sectionId,
     required this.part,
     required this.bindings,
+    required this.onChanged,
   });
 
   @override
@@ -275,7 +276,7 @@ class _PhysicalDicePartCard extends StatelessWidget {
     return ActionSectionCard(
       title: part.effectName,
 
-      subtitle: part.damageType.trim().isNotEmpty == true
+      subtitle: part.damageType.trim().isNotEmpty
           ? part.damageType.trim()
           : null,
 
@@ -311,12 +312,26 @@ class _PhysicalDicePartCard extends StatelessWidget {
                       width: 92,
                       child: NumericDiceField(
                         sides: binding.sides,
-                        controller: binding.controller,
+
+                        value: binding.value,
+
                         errorText: binding.error,
+
+                        onChanged: (value) {
+                          binding.value = value;
+
+                          if (value != null &&
+                              value >= 1 &&
+                              value <= binding.sides) {
+                            binding.error = null;
+                          }
+
+                          onChanged();
+                        },
                       ),
                     ),
                   )
-                  .toList(),
+                  .toList(growable: false),
             ),
 
             const SizedBox(height: 12),
@@ -338,9 +353,7 @@ class _PhysicalDicePartCard extends StatelessWidget {
 
             if (part.automaticValue != 0)
               _PhysicalFixedValueRow(
-                label: part.isCriticalExtra
-                    ? 'Valor automático'
-                    : 'Valor automático',
+                label: 'Valor automático',
                 value: part.automaticValue,
               ),
           ],

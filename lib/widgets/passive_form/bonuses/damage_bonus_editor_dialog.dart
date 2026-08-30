@@ -18,7 +18,7 @@ Future<DamageBonus?> showDamageBonusEditorDialog(
 }) {
   return showDialog<DamageBonus>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (_) {
       return DamageBonusEditorDialog(
         bonus: bonus,

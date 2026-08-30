@@ -16,7 +16,7 @@ Future<PassiveResourceModifier?> showResourceModifierEditorDialog(
 }) {
   return showDialog<PassiveResourceModifier>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (_) {
       return ResourceModifierEditorDialog(
         modifier: modifier,

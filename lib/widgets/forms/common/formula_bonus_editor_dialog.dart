@@ -14,7 +14,7 @@ Future<FormulaBonus?> showFormulaBonusEditorDialog(
 }) {
   return showDialog<FormulaBonus>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (_) {
       return FormulaBonusEditorDialog(
         title: title,

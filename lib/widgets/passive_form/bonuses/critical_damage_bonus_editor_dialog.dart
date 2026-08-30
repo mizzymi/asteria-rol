@@ -18,7 +18,7 @@ Future<CriticalDamageBonus?> showCriticalDamageBonusEditorDialog(
 }) {
   return showDialog<CriticalDamageBonus>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (_) {
       return CriticalDamageBonusEditorDialog(
         bonus: bonus,

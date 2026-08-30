@@ -6,6 +6,7 @@ import '../widgets/stats/roll_result_dialog.dart';
 import '../widgets/stats/saving_throw_tile.dart';
 import '../widgets/stats/skill_tile.dart';
 
+import '../models/action_critical_profile.dart';
 import '../models/character.dart';
 import '../models/proficiency.dart';
 import '../models/skill.dart';
@@ -40,6 +41,12 @@ class _StatsScreenState extends State<StatsScreen> {
 
     final total = naturalRoll + bonus;
 
+    final criticalProfile = ActionCriticalProfile(
+      minimumNaturalRoll: ActionCriticalProfile.effectiveMinimumRoll(
+        character.criticalMinimumRollSources,
+      ),
+    );
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -49,7 +56,7 @@ class _StatsScreenState extends State<StatsScreen> {
           naturalRoll: naturalRoll,
           total: total,
           bonus: bonus,
-
+          criticalProfile: criticalProfile,
           onRepeat: () {
             Navigator.pop(dialogContext);
 

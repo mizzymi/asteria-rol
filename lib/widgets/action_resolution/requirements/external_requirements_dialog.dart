@@ -91,7 +91,7 @@ Future<Map<String, bool>?> showExternalRequirementsDialog(
 
   return showDialog<Map<String, bool>>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {

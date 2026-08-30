@@ -24,6 +24,14 @@ class ActionChanceCheck {
   }
 }
 
+class ActionPhysicalChanceInput {
+  final String checkId;
+
+  final int roll;
+
+  const ActionPhysicalChanceInput({required this.checkId, required this.roll});
+}
+
 class ActionChanceResult {
   final ActionChanceCheck check;
 

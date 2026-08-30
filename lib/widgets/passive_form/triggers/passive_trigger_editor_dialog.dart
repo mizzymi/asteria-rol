@@ -34,7 +34,7 @@ Future<PassiveTrigger?> showPassiveTriggerEditorDialog(
 }) {
   return showDialog<PassiveTrigger>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (_) {
       return PassiveTriggerEditorDialog(
         trigger: trigger,

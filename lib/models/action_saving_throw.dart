@@ -30,26 +30,46 @@ class ActionSavingThrowRequest {
 class ActionSavingThrowResult {
   final ActionSavingThrowRequest request;
 
-  /// Resultado natural del d20.
-  ///
-  /// Puede ser null en personajes/importaciones antiguas
-  /// donde solo se conocía si superó o no.
   final int? naturalRoll;
 
-  /// Modificador utilizado.
   final int? modifier;
 
-  /// Total final de la salvación.
   final int? total;
 
-  /// true = el objetivo superó la salvación.
   final bool saved;
 
   const ActionSavingThrowResult({
     required this.request,
-    required this.saved,
     this.naturalRoll,
     this.modifier,
     this.total,
+    required this.saved,
+  });
+
+  const ActionSavingThrowResult.external({
+    required ActionSavingThrowRequest request,
+    required bool saved,
+  }) : this(request: request, saved: saved);
+
+  bool get hasRollDetails {
+    return naturalRoll != null && modifier != null && total != null;
+  }
+}
+
+class ActionPhysicalSavingThrowInput {
+  final String requestId;
+
+  final int naturalRoll;
+
+  /// Solo se usa para objetivos externos.
+  ///
+  /// Para self, el modificador real lo obtiene ActionResolver
+  /// desde Character.
+  final int? externalModifier;
+
+  const ActionPhysicalSavingThrowInput({
+    required this.requestId,
+    required this.naturalRoll,
+    this.externalModifier,
   });
 }

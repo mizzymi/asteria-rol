@@ -18,7 +18,7 @@ Future<HealingBonus?> showHealingBonusEditorDialog(
 }) {
   return showDialog<HealingBonus>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (_) {
       return HealingBonusEditorDialog(
         bonus: bonus,

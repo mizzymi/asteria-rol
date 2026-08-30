@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/action_attack_roll_mode.dart';
+
 import '../common/action_dialog_scaffold.dart';
 import '../common/numeric_dice_field.dart';
 
@@ -10,17 +11,17 @@ Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
   BuildContext context, {
   required AttackRollMode mode,
 }) async {
-  final firstController = TextEditingController();
-  final secondController = TextEditingController();
+  int? firstRoll;
+  int? secondRoll;
 
   String? firstError;
   String? secondError;
 
   final needsSecondRoll = mode != AttackRollMode.normal;
 
-  final result = await showDialog<PhysicalAttackRolls>(
+  return showDialog<PhysicalAttackRolls>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {
@@ -35,24 +36,20 @@ Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
           };
 
           void submit() {
-            final first = int.tryParse(firstController.text.trim());
-
-            final second = needsSecondRoll
-                ? int.tryParse(secondController.text.trim())
-                : null;
-
             var valid = true;
 
-            if (first == null || first < 1 || first > 20) {
+            if (firstRoll == null || firstRoll! < 1 || firstRoll! > 20) {
               firstError = 'Entre 1 y 20';
+
               valid = false;
             } else {
               firstError = null;
             }
 
             if (needsSecondRoll) {
-              if (second == null || second < 1 || second > 20) {
+              if (secondRoll == null || secondRoll! < 1 || secondRoll! > 20) {
                 secondError = 'Entre 1 y 20';
+
                 valid = false;
               } else {
                 secondError = null;
@@ -64,9 +61,9 @@ Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
               return;
             }
 
-            Navigator.pop(dialogContext, (
-              firstRoll: first!,
-              secondRoll: second,
+            Navigator.of(dialogContext).pop((
+              firstRoll: firstRoll!,
+              secondRoll: needsSecondRoll ? secondRoll : null,
             ));
           }
 
@@ -80,7 +77,7 @@ Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
             primaryLabel: 'Continuar',
 
             onSecondary: () {
-              Navigator.pop(dialogContext);
+              Navigator.of(dialogContext).pop();
             },
 
             onPrimary: submit,
@@ -91,10 +88,19 @@ Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
                       Expanded(
                         child: NumericDiceField(
                           sides: 20,
-                          controller: firstController,
+                          value: firstRoll,
                           label: 'd20 #1',
                           errorText: firstError,
                           autofocus: true,
+                          onChanged: (value) {
+                            firstRoll = value;
+
+                            if (value != null && value >= 1 && value <= 20) {
+                              firstError = null;
+                            }
+
+                            setDialogState(() {});
+                          },
                         ),
                       ),
 
@@ -103,27 +109,40 @@ Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
                       Expanded(
                         child: NumericDiceField(
                           sides: 20,
-                          controller: secondController,
+                          value: secondRoll,
                           label: 'd20 #2',
                           errorText: secondError,
+                          onChanged: (value) {
+                            secondRoll = value;
+
+                            if (value != null && value >= 1 && value <= 20) {
+                              secondError = null;
+                            }
+
+                            setDialogState(() {});
+                          },
                         ),
                       ),
                     ],
                   )
                 : NumericDiceField(
                     sides: 20,
-                    controller: firstController,
+                    value: firstRoll,
                     errorText: firstError,
                     autofocus: true,
+                    onChanged: (value) {
+                      firstRoll = value;
+
+                      if (value != null && value >= 1 && value <= 20) {
+                        firstError = null;
+                      }
+
+                      setDialogState(() {});
+                    },
                   ),
           );
         },
       );
     },
   );
-
-  firstController.dispose();
-  secondController.dispose();
-
-  return result;
 }

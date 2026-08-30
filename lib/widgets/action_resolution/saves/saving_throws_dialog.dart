@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/action_saving_throw.dart';
-import '../../../models/character.dart';
-import '../../../services/action_saving_throw_resolver.dart';
 
 import '../common/action_dialog_scaffold.dart';
 import '../common/action_section_card.dart';
@@ -11,43 +9,28 @@ import '../common/numeric_dice_field.dart';
 class _SavingInput {
   final ActionSavingThrowRequest request;
 
-  final TextEditingController rollController;
-
-  final TextEditingController modifierController;
+  int? naturalRoll;
 
   String? rollError;
-  String? modifierError;
 
-  _SavingInput({required this.request, required int initialModifier})
-    : rollController = TextEditingController(),
-      modifierController = TextEditingController(text: '$initialModifier');
-
-  void dispose() {
-    rollController.dispose();
-    modifierController.dispose();
-  }
+  _SavingInput({required this.request});
 }
 
-Future<List<ActionSavingThrowResult>?> showPhysicalSavingThrowsDialog(
+Future<List<ActionPhysicalSavingThrowInput>?> showPhysicalSavingThrowsDialog(
   BuildContext context, {
-  required Character character,
   required List<ActionSavingThrowRequest> requests,
 }) async {
   if (requests.isEmpty) {
     return const [];
   }
 
-  final entries = requests.map((request) {
-    final modifier = request.targetId == 'self'
-        ? character.savingThrowBonus(request.ability)
-        : 0;
+  final entries = requests
+      .map((request) => _SavingInput(request: request))
+      .toList();
 
-    return _SavingInput(request: request, initialModifier: modifier);
-  }).toList();
-
-  final result = await showDialog<List<ActionSavingThrowResult>>(
+  final result = await showDialog<List<ActionPhysicalSavingThrowInput>>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {
@@ -55,11 +38,7 @@ Future<List<ActionSavingThrowResult>?> showPhysicalSavingThrowsDialog(
             var valid = true;
 
             for (final entry in entries) {
-              final roll = int.tryParse(entry.rollController.text.trim());
-
-              final modifier = int.tryParse(
-                entry.modifierController.text.trim(),
-              );
+              final roll = entry.naturalRoll;
 
               if (roll == null || roll < 1 || roll > 20) {
                 entry.rollError = 'Entre 1 y 20';
@@ -68,14 +47,6 @@ Future<List<ActionSavingThrowResult>?> showPhysicalSavingThrowsDialog(
               } else {
                 entry.rollError = null;
               }
-
-              if (modifier == null) {
-                entry.modifierError = 'Número inválido';
-
-                valid = false;
-              } else {
-                entry.modifierError = null;
-              }
             }
 
             if (!valid) {
@@ -83,22 +54,18 @@ Future<List<ActionSavingThrowResult>?> showPhysicalSavingThrowsDialog(
               return;
             }
 
-            const resolver = ActionSavingThrowResolver();
-
-            final results = entries
+            final inputs = entries
                 .map(
-                  (entry) => resolver.resolve(
-                    request: entry.request,
-                    naturalRoll: int.parse(entry.rollController.text.trim()),
-                    modifier: int.parse(entry.modifierController.text.trim()),
+                  (entry) => ActionPhysicalSavingThrowInput(
+                    requestId: entry.request.id,
+                    naturalRoll: entry.naturalRoll!,
                   ),
                 )
                 .toList(growable: false);
 
-            Navigator.pop(
+            Navigator.of(
               dialogContext,
-              List<ActionSavingThrowResult>.unmodifiable(results),
-            );
+            ).pop(List<ActionPhysicalSavingThrowInput>.unmodifiable(inputs));
           }
 
           return ActionDialogScaffold(
@@ -119,7 +86,7 @@ Future<List<ActionSavingThrowResult>?> showPhysicalSavingThrowsDialog(
             child: Column(
               children: [
                 for (final entry in entries) ...[
-                  _SavingThrowCard(character: character, entry: entry),
+                  _SavingThrowCard(entry: entry),
 
                   const SizedBox(height: 12),
                 ],
@@ -131,30 +98,20 @@ Future<List<ActionSavingThrowResult>?> showPhysicalSavingThrowsDialog(
     },
   );
 
-  for (final entry in entries) {
-    entry.dispose();
-  }
-
   return result;
 }
 
 class _SavingThrowCard extends StatelessWidget {
-  final Character character;
-
   final _SavingInput entry;
 
-  const _SavingThrowCard({required this.character, required this.entry});
+  const _SavingThrowCard({required this.entry});
 
   @override
   Widget build(BuildContext context) {
     final request = entry.request;
 
-    final targetLabel = request.targetId == 'self'
-        ? (character.name.isNotEmpty ? character.name : 'Tu personaje')
-        : _externalTargetLabel(request.targetId);
-
     return ActionSectionCard(
-      title: targetLabel,
+      title: 'Tu personaje',
 
       subtitle:
           '${request.effectName} · '
@@ -163,45 +120,19 @@ class _SavingThrowCard extends StatelessWidget {
 
       icon: Icons.security_rounded,
 
-      child: Row(
-        children: [
-          Expanded(
-            child: NumericDiceField(
-              sides: 20,
-              controller: entry.rollController,
-              errorText: entry.rollError,
-            ),
-          ),
-
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text('+', style: TextStyle(fontWeight: FontWeight.w900)),
-          ),
-
-          Expanded(
-            child: TextField(
-              controller: entry.modifierController,
-
-              enabled: request.targetId != 'self',
-
-              keyboardType: const TextInputType.numberWithOptions(signed: true),
-
-              textAlign: TextAlign.center,
-
-              decoration: InputDecoration(
-                labelText: 'Mod.',
-                errorText: entry.modifierError,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-          ),
-        ],
+      child: NumericDiceField(
+        sides: 20,
+        value: entry.naturalRoll,
+        errorText: entry.rollError,
+        onChanged: (value) {
+          entry.naturalRoll = value;
+        },
       ),
     );
   }
 }
 
-Future<Map<String, int>?> showExternalSavingModifiersDialog(
+Future<Map<String, bool>?> showExternalSavingThrowResultsDialog(
   BuildContext context, {
   required List<ActionSavingThrowRequest> requests,
 }) async {
@@ -213,86 +144,96 @@ Future<Map<String, int>?> showExternalSavingModifiersDialog(
     return const {};
   }
 
-  final controllers = <String, TextEditingController>{
-    for (final request in external)
-      request.id: TextEditingController(text: '0'),
+  final answers = <String, bool?>{
+    for (final request in external) request.id: null,
   };
 
-  final errors = <String, String?>{};
-
-  final result = await showDialog<Map<String, int>>(
+  return showDialog<Map<String, bool>>(
     context: context,
-    barrierDismissible: false,
+
+    // Ahora sí puedes cancelar también
+    // tocando fuera del diálogo.
+    barrierDismissible: true,
+
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (dialogContext, setDialogState) {
+          final completed = answers.values.every((value) => value != null);
+
           return ActionDialogScaffold(
             icon: Icons.security_rounded,
 
             title: 'Salvaciones externas',
 
-            subtitle: 'Introduce sus modificadores. Asteria tirará los d20.',
+            subtitle: 'Indica únicamente si cada objetivo supera su salvación.',
 
-            primaryLabel: 'Tirar',
+            primaryLabel: 'Continuar',
 
+            // CANCELAR TODA LA ACCIÓN
             onSecondary: () {
-              Navigator.pop(dialogContext);
+              Navigator.of(dialogContext).pop(null);
             },
 
-            onPrimary: () {
-              var valid = true;
-
-              final values = <String, int>{};
-
-              for (final request in external) {
-                final value = int.tryParse(
-                  controllers[request.id]!.text.trim(),
-                );
-
-                if (value == null) {
-                  errors[request.id] = 'Número inválido';
-
-                  valid = false;
-                } else {
-                  errors[request.id] = null;
-
-                  values[request.id] = value;
-                }
-              }
-
-              if (!valid) {
-                setDialogState(() {});
-                return;
-              }
-
-              Navigator.pop(
-                dialogContext,
-                Map<String, int>.unmodifiable(values),
-              );
-            },
+            onPrimary: completed
+                ? () {
+                    Navigator.of(dialogContext).pop(
+                      Map<String, bool>.unmodifiable({
+                        for (final entry in answers.entries)
+                          entry.key: entry.value!,
+                      }),
+                    );
+                  }
+                : null,
 
             child: Column(
               children: [
                 for (final request in external) ...[
-                  TextField(
-                    controller: controllers[request.id],
+                  ActionSectionCard(
+                    title: _externalTargetLabel(request.targetId),
 
-                    keyboardType: const TextInputType.numberWithOptions(
-                      signed: true,
-                    ),
+                    subtitle:
+                        '${request.effectName} · '
+                        '${request.ability.name} · '
+                        'CD ${request.dc}',
 
-                    decoration: InputDecoration(
-                      labelText:
-                          '${_externalTargetLabel(request.targetId)} · '
-                          '${request.ability.name}',
+                    icon: Icons.security_rounded,
 
-                      helperText:
-                          '${request.effectName} · '
-                          'CD ${request.dc}',
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setDialogState(() {
+                                answers[request.id] = false;
+                              });
+                            },
+                            icon: Icon(
+                              answers[request.id] == false
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                            ),
+                            label: const Text('No se salva'),
+                          ),
+                        ),
 
-                      errorText: errors[request.id],
+                        const SizedBox(width: 10),
 
-                      prefixIcon: const Icon(Icons.security_rounded),
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: () {
+                              setDialogState(() {
+                                answers[request.id] = true;
+                              });
+                            },
+                            icon: Icon(
+                              answers[request.id] == true
+                                  ? Icons.check_circle
+                                  : Icons.circle_outlined,
+                            ),
+                            label: const Text('Se salva'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -305,12 +246,6 @@ Future<Map<String, int>?> showExternalSavingModifiersDialog(
       );
     },
   );
-
-  for (final controller in controllers.values) {
-    controller.dispose();
-  }
-
-  return result;
 }
 
 String _externalTargetLabel(String targetId) {
