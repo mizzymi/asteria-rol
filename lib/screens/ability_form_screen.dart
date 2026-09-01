@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'effect_form_screen.dart';
 
+import '../models/action_hit_behavior.dart';
 import '../models/action_linked_effect.dart';
 import '../models/ability_effect_part.dart';
 import '../models/character.dart';
@@ -339,6 +340,22 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     });
   }
 
+  AbilityEffect? _linkedEffectSourceEffect(ActionLinkedEffect linkedEffect) {
+    final sourceId = _validatedLinkedEffectSourceId(linkedEffect);
+
+    if (sourceId == null) {
+      return null;
+    }
+
+    for (final effect in effects) {
+      if (effect.id == sourceId) {
+        return effect;
+      }
+    }
+
+    return null;
+  }
+
   String? _validatedLinkedEffectSourceId(ActionLinkedEffect linkedEffect) {
     final sourceId = linkedEffect.normalizedSourceEffectId;
 
@@ -404,6 +421,27 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     });
   }
 
+  void updateLinkedEffectHitBehavior(
+    int index,
+    ActionHitBehavior? hitBehavior,
+  ) {
+    if (index < 0 || index >= linkedEffects.length) {
+      return;
+    }
+
+    final linkedEffect = linkedEffects[index];
+
+    setState(() {
+      linkedEffects[index] = ActionLinkedEffect(
+        effect: linkedEffect.effect,
+        target: linkedEffect.target,
+        sourceEffectId: linkedEffect.sourceEffectId,
+        hitBehavior: hitBehavior,
+        saveBehavior: linkedEffect.saveBehavior,
+      );
+    });
+  }
+
   void updateLinkedEffectTarget(int index, ActionLinkedEffectTarget target) {
     if (index < 0 || index >= linkedEffects.length) {
       return;
@@ -433,15 +471,29 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
         ? sourceEffectId!.trim()
         : null;
 
+    AbilityEffect? sourceEffect;
+
+    if (normalizedSourceId != null) {
+      for (final effect in effects) {
+        if (effect.id == normalizedSourceId) {
+          sourceEffect = effect;
+          break;
+        }
+      }
+    }
+
+    final sourceHasSavingThrow = sourceEffect?.usesSavingThrow ?? false;
+
     setState(() {
       linkedEffects[index] = ActionLinkedEffect(
         effect: linkedEffect.effect,
         target: linkedEffect.target,
         sourceEffectId: normalizedSourceId,
         hitBehavior: linkedEffect.hitBehavior,
-        saveBehavior: normalizedSourceId == null
-            ? ActionLinkedEffectSaveBehavior.ignore
-            : linkedEffect.saveBehavior,
+
+        saveBehavior: sourceHasSavingThrow
+            ? linkedEffect.saveBehavior
+            : ActionLinkedEffectSaveBehavior.ignore,
       );
     });
   }
@@ -480,9 +532,9 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
   ActionLinkedEffectSaveBehavior _validatedLinkedEffectSaveBehavior(
     ActionLinkedEffect linkedEffect,
   ) {
-    final sourceId = _validatedLinkedEffectSourceId(linkedEffect);
+    final sourceEffect = _linkedEffectSourceEffect(linkedEffect);
 
-    if (sourceId == null) {
+    if (sourceEffect == null || !sourceEffect.usesSavingThrow) {
       return ActionLinkedEffectSaveBehavior.ignore;
     }
 
@@ -577,7 +629,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
               target: linkedEffect.target,
               hitBehavior: linkedEffect.hitBehavior,
               sourceEffectId: linkedEffect.sourceEffectId,
-              saveBehavior: linkedEffect.saveBehavior,
+              saveBehavior: _validatedLinkedEffectSaveBehavior(linkedEffect),
             ),
           )
           .toList(),
@@ -884,6 +936,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                             updateLinkedEffectSource(i, effectId);
                           },
 
+                          onHitBehaviorChanged: (behavior) {
+                            updateLinkedEffectHitBehavior(i, behavior);
+                          },
+
+                          requiresAttackRoll: requiresAttackRoll,
+
                           onSaveBehaviorChanged: (behavior) {
                             updateLinkedEffectSaveBehavior(i, behavior);
                           },
@@ -1033,6 +1091,9 @@ class _LinkedEffectTile extends StatelessWidget {
 
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final bool requiresAttackRoll;
+
+  final ValueChanged<ActionHitBehavior?> onHitBehaviorChanged;
 
   const _LinkedEffectTile({
     required this.linkedEffect,
@@ -1042,13 +1103,64 @@ class _LinkedEffectTile extends StatelessWidget {
     required this.onSaveBehaviorChanged,
     required this.onEdit,
     required this.onDelete,
+    required this.requiresAttackRoll,
+    required this.onHitBehaviorChanged,
   });
+
+  String _hitBehaviorDescription(
+    ActionLinkedEffect linkedEffect, {
+    required bool requiresAttackRoll,
+  }) {
+    if (!requiresAttackRoll) {
+      return 'Esta habilidad no utiliza tirada de ataque, '
+          'así que hit/miss no afecta a este efecto.';
+    }
+
+    final explicit = linkedEffect.hitBehavior;
+
+    if (explicit != null) {
+      return explicit.description;
+    }
+
+    switch (linkedEffect.target) {
+      case ActionLinkedEffectTarget.self:
+        return 'Automático: al aplicarse sobre ti mismo, '
+            'no depende del impacto.';
+
+      case ActionLinkedEffectTarget.actionTarget:
+        return 'Automático: requiere impactar al objetivo '
+            'de la acción.';
+
+      case ActionLinkedEffectTarget.externalTargets:
+        return 'Automático: requiere impactar a cada '
+            'objetivo externo.';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     final effect = linkedEffect.effect;
+
+    AbilityEffect? sourceEffect;
+
+    final sourceEffectId = linkedEffect.normalizedSourceEffectId;
+
+    if (sourceEffectId != null) {
+      for (final candidate in abilityEffects) {
+        if (candidate.id == sourceEffectId) {
+          sourceEffect = candidate;
+          break;
+        }
+      }
+    }
+
+    final sourceHasSavingThrow = sourceEffect?.usesSavingThrow ?? false;
+
+    final effectiveSaveBehavior = sourceHasSavingThrow
+        ? linkedEffect.saveBehavior
+        : ActionLinkedEffectSaveBehavior.ignore;
 
     return Padding(
       padding: const EdgeInsets.all(14),
@@ -1124,6 +1236,55 @@ class _LinkedEffectTile extends StatelessWidget {
             },
           ),
 
+          const SizedBox(height: 14),
+
+          DropdownButtonFormField<ActionHitBehavior?>(
+            key: ValueKey(
+              'linked_hit_'
+              '${linkedEffect.target.name}_'
+              '${linkedEffect.hitBehavior?.name ?? 'auto'}',
+            ),
+
+            initialValue: linkedEffect.hitBehavior,
+
+            decoration: const InputDecoration(
+              labelText: 'Si hay tirada de ataque',
+              prefixIcon: Icon(Icons.gps_fixed_rounded),
+              border: OutlineInputBorder(),
+            ),
+
+            items: [
+              const DropdownMenuItem<ActionHitBehavior?>(
+                value: null,
+                child: Text('Automático'),
+              ),
+
+              ...ActionHitBehavior.values.map(
+                (behavior) => DropdownMenuItem<ActionHitBehavior?>(
+                  value: behavior,
+                  child: Text(behavior.label),
+                ),
+              ),
+            ],
+
+            onChanged: requiresAttackRoll ? onHitBehaviorChanged : null,
+          ),
+
+          const SizedBox(height: 7),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              _hitBehaviorDescription(
+                linkedEffect,
+                requiresAttackRoll: requiresAttackRoll,
+              ),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+
           const SizedBox(height: 7),
 
           Padding(
@@ -1170,9 +1331,11 @@ class _LinkedEffectTile extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              linkedEffect.normalizedSourceEffectId == null
+              sourceEffect == null
                   ? 'Este efecto vinculado no depende de un efecto concreto de la habilidad.'
-                  : 'Las salvaciones de este efecto de origen pueden afectar al efecto vinculado.',
+                  : sourceHasSavingThrow
+                  ? 'La salvación de este efecto de origen puede afectar al efecto vinculado.'
+                  : 'Este efecto de origen no utiliza salvación.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -1182,21 +1345,26 @@ class _LinkedEffectTile extends StatelessWidget {
           const SizedBox(height: 14),
 
           DropdownButtonFormField<ActionLinkedEffectSaveBehavior>(
-            initialValue: linkedEffect.normalizedSourceEffectId == null
-                ? ActionLinkedEffectSaveBehavior.ignore
-                : linkedEffect.saveBehavior,
+            key: ValueKey(
+              'linked_save_${sourceEffectId ?? 'none'}_$sourceHasSavingThrow',
+            ),
+
+            initialValue: effectiveSaveBehavior,
+
             decoration: const InputDecoration(
               labelText: 'Si hay salvación',
               prefixIcon: Icon(Icons.shield_outlined),
               border: OutlineInputBorder(),
             ),
+
             items: ActionLinkedEffectSaveBehavior.values.map((behavior) {
               return DropdownMenuItem(
                 value: behavior,
                 child: Text(behavior.label),
               );
             }).toList(),
-            onChanged: linkedEffect.normalizedSourceEffectId == null
+
+            onChanged: !sourceHasSavingThrow
                 ? null
                 : (behavior) {
                     if (behavior == null) {
@@ -1212,7 +1380,9 @@ class _LinkedEffectTile extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              linkedEffect.saveBehavior.description,
+              sourceHasSavingThrow
+                  ? effectiveSaveBehavior.description
+                  : 'No hay comportamiento de salvación para este vínculo.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

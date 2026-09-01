@@ -28,6 +28,11 @@ class ActionResolutionResult {
 
   final Map<String, List<ActionChanceResult>> chanceResultsByTargetId;
 
+  final Map<String, Map<String, double>>
+  preResolutionExternalVariablesByTargetId;
+
+  final Map<String, Set<String>> selectedOptionalGroupIdsByTargetId;
+
   const ActionResolutionResult({
     required this.ability,
     required this.targetResolutionMode,
@@ -37,9 +42,32 @@ class ActionResolutionResult {
     this.chanceResults = const [],
     this.chanceResultsByTargetId = const {},
     this.selectedOptionalGroupIds = const {},
+    this.selectedOptionalGroupIdsByTargetId = const {},
     this.costs = const [],
+    this.preResolutionExternalVariablesByTargetId = const {},
     this.externalVariablesByTargetId = const {},
   });
+
+  Set<String> selectedOptionalGroupIdsForTargetId(String targetId) {
+    return selectedOptionalGroupIdsByTargetId[targetId] ?? const <String>{};
+  }
+
+  Set<String> selectedOptionalGroupIdsForTarget(ActionTarget target) {
+    return selectedOptionalGroupIdsForTargetId(target.id);
+  }
+
+  Map<String, double> preResolutionExternalVariablesForTargetId(
+    String targetId,
+  ) {
+    return preResolutionExternalVariablesByTargetId[targetId] ??
+        const <String, double>{};
+  }
+
+  Map<String, double> preResolutionExternalVariablesForTarget(
+    ActionTarget target,
+  ) {
+    return preResolutionExternalVariablesForTargetId(target.id);
+  }
 
   List<ActionChanceResult> chanceResultsForTargetId(String targetId) {
     return chanceResultsByTargetId[targetId] ?? const <ActionChanceResult>[];
@@ -66,12 +94,38 @@ class ActionResolutionResult {
   }
 
   Map<String, double> eventVariablesForTarget(ActionTarget target) {
-    final index = targetResults.indexWhere(
+    final index = actionTargetResults.indexWhere(
       (result) => result.target.id == target.id,
     );
 
     return {
       ...externalVariablesForTarget(target),
+
+      ActionEventVariables.actionTargetCount: targetCount.toDouble(),
+
+      ActionEventVariables.affectedActionTargetCount: affectedTargetCount
+          .toDouble(),
+
+      ActionEventVariables.externalAffectedTargetCount:
+          externalAffectedTargetCount.toDouble(),
+
+      ActionEventVariables.targetIndex: index >= 0 ? (index + 1).toDouble() : 0,
+
+      ActionEventVariables.targetIsSelf: target.isSelf ? 1 : 0,
+
+      ActionEventVariables.targetIsExternal: target.isExternal ? 1 : 0,
+    };
+  }
+
+  Map<String, double> preResolutionEventVariablesForTarget(
+    ActionTarget target,
+  ) {
+    final index = actionTargetResults.indexWhere(
+      (result) => result.target.id == target.id,
+    );
+
+    return {
+      ...preResolutionExternalVariablesForTarget(target),
 
       ActionEventVariables.actionTargetCount: targetCount.toDouble(),
 
@@ -107,6 +161,12 @@ class ActionResolutionResult {
     return value != 0;
   }
 
+  List<ActionTargetResult> get actionTargetResults {
+    return targetResults
+        .where((result) => result.isActionTarget)
+        .toList(growable: false);
+  }
+
   // ===========================================================================
   // CRÍTICO
   // ===========================================================================
@@ -139,10 +199,10 @@ class ActionResolutionResult {
   // OBJETIVOS
   // ===========================================================================
 
-  int get targetCount => targetResults.length;
+  int get targetCount => actionTargetResults.length;
 
   int get affectedTargetCount {
-    return targetResults.where((result) {
+    return actionTargetResults.where((result) {
       return result.damage > 0 || result.healing > 0 || result.hasEffects;
     }).length;
   }
@@ -255,5 +315,31 @@ class ActionResolutionResult {
 
   int get missedTargetCount {
     return attackTargetResults.where((result) => result.missed).length;
+  }
+
+  ActionResolutionResult copyWith({
+    Map<String, Map<String, double>>? preResolutionExternalVariablesByTargetId,
+    Map<String, Set<String>>? selectedOptionalGroupIdsByTargetId,
+    Map<String, Map<String, double>>? externalVariablesByTargetId,
+  }) {
+    return ActionResolutionResult(
+      ability: ability,
+      targetResolutionMode: targetResolutionMode,
+      targetResults: targetResults,
+      attackResult: attackResult,
+      criticalProfile: criticalProfile,
+      chanceResults: chanceResults,
+      chanceResultsByTargetId: chanceResultsByTargetId,
+      selectedOptionalGroupIds: selectedOptionalGroupIds,
+      costs: costs,
+      preResolutionExternalVariablesByTargetId:
+          preResolutionExternalVariablesByTargetId ??
+          this.preResolutionExternalVariablesByTargetId,
+      externalVariablesByTargetId:
+          externalVariablesByTargetId ?? this.externalVariablesByTargetId,
+      selectedOptionalGroupIdsByTargetId:
+          selectedOptionalGroupIdsByTargetId ??
+          this.selectedOptionalGroupIdsByTargetId,
+    );
   }
 }

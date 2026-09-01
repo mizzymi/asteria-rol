@@ -1,8 +1,12 @@
 import 'dart:math';
+
 import '../services/resource_modifier_resolver.dart';
 import '../services/formula_evaluator.dart';
 import '../services/passive_trigger_engine.dart';
+import '../services/character_effect_trigger_engine.dart';
+
 import 'formulas/formula_bonus.dart';
+import 'character_content_folder.dart';
 import 'formulas/character_formula_context.dart';
 import 'character_counter.dart';
 import 'formulas/formula_context.dart';
@@ -25,6 +29,7 @@ import 'weapon_damage.dart';
 import 'damage_bonus.dart';
 import 'critical_damage_bonus.dart';
 import 'healing_bonus.dart';
+import 'action_trigger_context.dart';
 
 class Character {
   final String id;
@@ -38,7 +43,7 @@ class Character {
   ///
   /// La primera clase se considera la clase principal / inicial.
   List<CharacterClassLevel> classes;
-
+  List<CharacterContentFolder> contentFolders;
   AbilityScores abilities;
 
   int currentHealth;
@@ -76,9 +81,13 @@ class Character {
 
   List<CharacterEffect> effects;
 
+  bool combatActive;
+
   int combatRound;
 
   bool turnActive;
+
+  int combatTurnSequence;
 
   List<ActiveDamageBonus> get activeDamageBonuses {
     final result = <ActiveDamageBonus>[];
@@ -168,6 +177,7 @@ class Character {
     int? level,
 
     AbilityScores? abilities,
+    List<CharacterContentFolder>? contentFolders,
     int? currentHealth,
     this.armorClass = 10,
     this.speed = 30,
@@ -189,8 +199,10 @@ class Character {
     List<CharacterItem>? items,
     List<CharacterResource>? resources,
     List<CharacterEffect>? effects,
+    this.combatActive = false,
     this.combatRound = 1,
     this.turnActive = false,
+    this.combatTurnSequence = 0,
     List<CharacterCounter>? counters,
     this.criticalMinimumNaturalRoll = 20,
   }) : classes = _resolveClasses(
@@ -199,6 +211,7 @@ class Character {
          level: level,
        ),
        abilities = abilities ?? AbilityScores(),
+       contentFolders = contentFolders ?? <CharacterContentFolder>[],
        skillProficiencies =
            skillProficiencies ??
            {for (final skill in DndSkill.values) skill: ProficiencyLevel.none},
@@ -239,12 +252,204 @@ class Character {
     normalizeHealth();
   }
 
+  String createContentFolder({required String name, String? parentId}) {
+    final normalizedName = name.trim();
+
+    if (normalizedName.isEmpty) {
+      throw ArgumentError('La carpeta necesita un nombre.');
+    }
+
+    if (parentId != null && contentFolderById(parentId) == null) {
+      throw StateError('La carpeta padre no existe.');
+    }
+
+    final id =
+        'content-folder-'
+        '${DateTime.now().microsecondsSinceEpoch}';
+
+    contentFolders.add(
+      CharacterContentFolder(id: id, name: normalizedName, parentId: parentId),
+    );
+
+    return id;
+  }
+
+  CharacterContentFolder? contentFolderById(String? folderId) {
+    if (folderId == null || folderId.trim().isEmpty) {
+      return null;
+    }
+
+    for (final folder in contentFolders) {
+      if (folder.id == folderId) {
+        return folder;
+      }
+    }
+
+    return null;
+  }
+
+  void renameContentFolder(String folderId, String newName) {
+    final folder = contentFolderById(folderId);
+
+    if (folder == null) {
+      return;
+    }
+
+    final normalizedName = newName.trim();
+
+    if (normalizedName.isEmpty) {
+      return;
+    }
+
+    folder.name = normalizedName;
+  }
+
+  void moveAbilityToFolder(CharacterAbility ability, String? folderId) {
+    if (folderId != null && contentFolderById(folderId) == null) {
+      throw StateError('La carpeta no existe.');
+    }
+
+    ability.folderId = folderId;
+  }
+
+  void movePassiveToFolder(CharacterPassive passive, String? folderId) {
+    if (folderId != null && contentFolderById(folderId) == null) {
+      throw StateError('La carpeta no existe.');
+    }
+
+    passive.folderId = folderId;
+  }
+
+  // ===========================================================================
+  // CONTENIDO ORGANIZADO
+  // ===========================================================================
+
+  List<CharacterContentFolder> contentFoldersInside(String? parentId) {
+    final result = contentFolders
+        .where((folder) => folder.parentId == parentId)
+        .toList(growable: false);
+
+    result.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    return result;
+  }
+
+  List<CharacterAbility> abilitiesInFolder(String? folderId) {
+    return characterAbilities
+        .where((ability) => ability.folderId == folderId)
+        .toList(growable: false);
+  }
+
+  List<CharacterPassive> passivesInFolder(String? folderId) {
+    return passives
+        .where((passive) => passive.folderId == folderId)
+        .toList(growable: false);
+  }
+
+  int directContentCountInFolder(String? folderId) {
+    return abilitiesInFolder(folderId).length +
+        passivesInFolder(folderId).length;
+  }
+
+  List<CharacterItem> get equippedContentItems {
+    return items
+        .where(
+          (item) =>
+              item.equipped &&
+              (item.abilities.isNotEmpty || item.passives.isNotEmpty),
+        )
+        .toList(growable: false);
+  }
+
+  int itemContentCount(CharacterItem item) {
+    return item.abilities.length + item.passives.length;
+  }
+
+  bool contentFolderContains(String ancestorId, String descendantId) {
+    String? currentId = descendantId;
+
+    final visited = <String>{};
+
+    while (currentId != null) {
+      if (!visited.add(currentId)) {
+        return false;
+      }
+
+      if (currentId == ancestorId) {
+        return true;
+      }
+
+      currentId = contentFolderById(currentId)?.parentId;
+    }
+
+    return false;
+  }
+
+  void moveContentFolder(String folderId, String? newParentId) {
+    final folder = contentFolderById(folderId);
+
+    if (folder == null) {
+      return;
+    }
+
+    if (folderId == newParentId) {
+      throw StateError('Una carpeta no puede estar dentro de sí misma.');
+    }
+
+    if (newParentId != null) {
+      final parent = contentFolderById(newParentId);
+
+      if (parent == null) {
+        throw StateError('La carpeta destino no existe.');
+      }
+
+      if (contentFolderContains(folderId, newParentId)) {
+        throw StateError(
+          'No puedes mover una carpeta dentro de una subcarpeta suya.',
+        );
+      }
+    }
+
+    folder.parentId = newParentId;
+  }
+
+  void removeContentFolder(String folderId) {
+    final folder = contentFolderById(folderId);
+
+    if (folder == null) {
+      return;
+    }
+
+    final parentId = folder.parentId;
+
+    for (final ability in characterAbilities) {
+      if (ability.folderId == folderId) {
+        ability.folderId = parentId;
+      }
+    }
+
+    for (final passive in passives) {
+      if (passive.folderId == folderId) {
+        passive.folderId = parentId;
+      }
+    }
+
+    for (final child in contentFolders) {
+      if (child.parentId == folderId) {
+        child.parentId = parentId;
+      }
+    }
+
+    contentFolders.removeWhere((candidate) => candidate.id == folderId);
+  }
+
   Map<String, double> _passiveTriggerContext(
     Map<String, double> eventVariables,
   ) {
     return <String, double>{
       'round': combatRound.toDouble(),
       'turn_active': turnActive ? 1 : 0,
+      'turn_sequence': combatTurnSequence.toDouble(),
       ...eventVariables,
     };
   }
@@ -252,18 +457,31 @@ class Character {
   void dispatchPassiveTrigger(
     PassiveTriggerEvent event, {
     Map<String, double> eventVariables = const {},
+    ActionTriggerContext? actionContext,
   }) {
-    final engine = PassiveTriggerEngine(character: this);
-
     final variables = _passiveTriggerContext(eventVariables);
 
-    engine.dispatch(event, eventVariables: variables);
+    final passiveEngine = PassiveTriggerEngine(character: this);
 
-    engine.refreshPersistentTriggers();
+    final effectEngine = CharacterEffectTriggerEngine(character: this);
+
+    passiveEngine.dispatch(
+      event,
+      eventVariables: variables,
+      actionContext: actionContext,
+    );
+
+    effectEngine.dispatch(
+      event,
+      eventVariables: variables,
+      actionContext: actionContext,
+    );
   }
 
   void refreshPassiveTriggers() {
     PassiveTriggerEngine(character: this).refreshPersistentTriggers();
+
+    CharacterEffectTriggerEngine(character: this).refreshPersistentTriggers();
   }
 
   int evaluateFormulaBonus(FormulaBonus bonus, {CharacterPassive? passive}) {
@@ -336,16 +554,48 @@ class Character {
   // COMBATE · RONDAS / TURNOS
   // ===========================================================================
 
+  void startCombat() {
+    if (combatActive) return;
+
+    combatActive = true;
+    combatRound = 1;
+    turnActive = false;
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.roundStarted,
+      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
+    );
+
+    refreshPassiveTriggers();
+  }
+
+  void endCombat() {
+    if (!combatActive) return;
+
+    resetCombat();
+    combatActive = false;
+  }
+
   void startTurn() {
     if (turnActive) {
       return;
     }
 
+    // ===========================================================================
+    // NUEVO TURNO
+    // ===========================================================================
+
+    combatTurnSequence++;
+
     turnActive = true;
 
     dispatchPassiveTrigger(
       PassiveTriggerEvent.turnStarted,
-      eventVariables: {'round': combatRound.toDouble(), 'turn_active': 1},
+      eventVariables: {
+        'round': combatRound.toDouble(),
+        'turn_active': 1,
+        'turn_sequence': combatTurnSequence.toDouble(),
+      },
     );
   }
 
@@ -614,6 +864,8 @@ class Character {
         'resource_gained': currentValue > previousValue ? 1 : 0,
       },
     );
+
+    refreshPassiveTriggers();
   }
 
   void restoreResourceFull(String resourceId, {bool dispatchTriggers = true}) {
@@ -878,6 +1130,8 @@ class Character {
         'resource_gained': after > before ? 1 : 0,
       },
     );
+
+    refreshPassiveTriggers();
   }
 
   void addResource(CharacterResource resource, {bool refreshTriggers = true}) {
@@ -1203,6 +1457,8 @@ class Character {
         'charge_gained': currentValue > previousValue ? 1 : 0,
       },
     );
+
+    refreshPassiveTriggers();
   }
 
   CharacterPassive? passiveById(String passiveId) {
@@ -1247,6 +1503,38 @@ class Character {
     } else {
       normalizeHealth();
     }
+
+    if (refreshTriggers) {
+      refreshPassiveTriggers();
+    }
+  }
+
+  void applyReceivedEffect(
+    CharacterEffect effect, {
+    String? templateId,
+    bool refreshTriggers = true,
+    bool dispatchHealthTriggers = true,
+    Map<String, double> eventVariables = const {},
+  }) {
+    final effectiveTemplateId = templateId?.trim() ?? '';
+
+    addEffect(
+      effect,
+      refreshTriggers: false,
+      dispatchHealthTriggers: dispatchHealthTriggers,
+    );
+
+    dispatchPassiveTrigger(
+      PassiveTriggerEvent.effectReceived,
+      eventVariables: {
+        ...eventVariables,
+
+        'effect_received': 1,
+        'effect_applied': 1,
+
+        if (effectiveTemplateId.isNotEmpty) 'effect_$effectiveTemplateId': 1,
+      },
+    );
 
     if (refreshTriggers) {
       refreshPassiveTriggers();
@@ -1813,6 +2101,8 @@ class Character {
         },
       );
     }
+
+    refreshPassiveTriggers();
   }
 
   void heal(int amount, {bool dispatchTriggers = true}) {
@@ -3041,6 +3331,8 @@ class Character {
         'counter_decreased': currentValue < previousValue ? 1 : 0,
       },
     );
+
+    refreshPassiveTriggers();
   }
 
   // ===========================================================================
@@ -3086,6 +3378,8 @@ class Character {
       'level': level,
 
       'abilities': abilities.toMap(),
+
+      'contentFolders': contentFolders.map((folder) => folder.toMap()).toList(),
 
       'currentHealth': currentHealth,
 
@@ -3140,6 +3434,8 @@ class Character {
       'combatRound': combatRound,
 
       'turnActive': turnActive,
+
+      'combatTurnSequence': combatTurnSequence,
 
       'counters': counters.map((counter) => counter.toMap()).toList(),
 
@@ -3370,8 +3666,27 @@ class Character {
     }
 
     // -------------------------------------------------------------------------
-    // HABILIDADES ACTIVAS
+    // HABILIDADES
     // -------------------------------------------------------------------------
+    final contentFolders = <CharacterContentFolder>[];
+
+    final rawContentFolders = map['contentFolders'];
+
+    if (rawContentFolders is List) {
+      for (final rawFolder in rawContentFolders) {
+        if (rawFolder is! Map) {
+          continue;
+        }
+
+        final folder = CharacterContentFolder.fromMap(rawFolder);
+
+        if (folder.id.trim().isEmpty || folder.name.trim().isEmpty) {
+          continue;
+        }
+
+        contentFolders.add(folder);
+      }
+    }
 
     final characterAbilities = <CharacterAbility>[];
 
@@ -3392,10 +3707,6 @@ class Character {
         }
       }
     }
-
-    // -------------------------------------------------------------------------
-    // PASIVAS
-    // -------------------------------------------------------------------------
 
     final passives = <CharacterPassive>[];
 
@@ -3469,6 +3780,8 @@ class Character {
 
     final turnActive = map['turnActive'] == true;
 
+    final combatTurnSequence =
+        (map['combatTurnSequence'] as num?)?.toInt() ?? 0;
     // -------------------------------------------------------------------------
     // CREAR PERSONAJE
     // -------------------------------------------------------------------------
@@ -3485,6 +3798,8 @@ class Character {
       classes: classes,
 
       abilities: abilities,
+
+      contentFolders: contentFolders,
 
       currentHealth: (map['currentHealth'] as num?)?.toInt(),
 
@@ -3531,6 +3846,8 @@ class Character {
       combatRound: combatRound,
 
       turnActive: turnActive,
+
+      combatTurnSequence: combatTurnSequence,
 
       counters: counters,
 

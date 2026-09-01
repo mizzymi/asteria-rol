@@ -1,8 +1,12 @@
+import '../models/passive_triggered_external_outcome.dart';
 import '../models/character.dart';
 import '../models/passive.dart';
 import '../models/character_effect.dart';
 import '../models/formulas/formula_context.dart';
 import '../models/formulas/character_formula_context.dart';
+import '../models/dice_pool.dart';
+import '../models/action_trigger_context.dart';
+import '../models/passive_trigger_external_result.dart';
 
 import 'resource_modifier_resolver.dart';
 import 'formula_evaluator.dart';
@@ -42,6 +46,61 @@ class PassiveTriggerEngine {
     return runtime;
   }
 
+  bool canUseTrigger(CharacterPassive passive, PassiveTrigger trigger) {
+    switch (trigger.usageLimit) {
+      // =========================================================================
+      // SIN LÍMITE
+      // =========================================================================
+
+      case TriggerUsageLimit.unlimited:
+        return true;
+
+      // =========================================================================
+      // UNA VEZ POR TURNO
+      // =========================================================================
+
+      case TriggerUsageLimit.oncePerTurn:
+        final key = _usageKey(passive, trigger);
+
+        final lastUsed = _runtime.lastUsedTurnByTriggerKey[key];
+
+        return lastUsed != character.combatTurnSequence;
+
+      // =========================================================================
+      // UNA VEZ POR RONDA
+      // =========================================================================
+
+      case TriggerUsageLimit.oncePerRound:
+        final key = _usageKey(passive, trigger);
+
+        final lastUsed = _runtime.lastUsedRoundByTriggerKey[key];
+
+        return lastUsed != character.combatRound;
+    }
+  }
+
+  void consumeTriggerUsage(CharacterPassive passive, PassiveTrigger trigger) {
+    final key = _usageKey(passive, trigger);
+
+    switch (trigger.usageLimit) {
+      case TriggerUsageLimit.unlimited:
+        return;
+
+      case TriggerUsageLimit.oncePerTurn:
+        _runtime.lastUsedTurnByTriggerKey[key] = character.combatTurnSequence;
+
+        return;
+
+      case TriggerUsageLimit.oncePerRound:
+        _runtime.lastUsedRoundByTriggerKey[key] = character.combatRound;
+
+        return;
+    }
+  }
+
+  String _usageKey(CharacterPassive passive, PassiveTrigger trigger) {
+    return '${passive.id}:${trigger.id}';
+  }
   // ===========================================================================
   // DISPATCH
   // ===========================================================================
@@ -49,12 +108,9 @@ class PassiveTriggerEngine {
   void dispatch(
     PassiveTriggerEvent event, {
     Map<String, double> eventVariables = const {},
+    ActionTriggerContext? actionContext,
   }) {
     final runtime = _runtime;
-
-    // ===========================================================================
-    // PROTECCIÓN DE PROFUNDIDAD
-    // ===========================================================================
 
     if (runtime.dispatchDepth >= _PassiveTriggerRuntime.maximumDispatchDepth) {
       return;
@@ -63,13 +119,6 @@ class PassiveTriggerEngine {
     runtime.dispatchDepth++;
 
     try {
-      // -------------------------------------------------------------------------
-      // SNAPSHOT
-      //
-      // Un trigger puede modificar efectos/pasivas durante su ejecución.
-      // Trabajamos con una copia para no modificar la colección que recorremos.
-      // -------------------------------------------------------------------------
-
       final passives = character.enabledPassives.toList(growable: false);
 
       for (final passive in passives) {
@@ -80,26 +129,12 @@ class PassiveTriggerEngine {
             continue;
           }
 
-          // ---------------------------------------------------------------------
-          // CLAVE DE REENTRADA
-          //
-          // El mismo trigger no puede volver a entrar mientras todavía se está
-          // ejecutando.
-          // ---------------------------------------------------------------------
-
-          final triggerKey = '${passive.id}:${trigger.id}:${event.name}';
-
-          if (runtime.activeTriggerKeys.contains(triggerKey)) {
-            continue;
-          }
-
-          runtime.activeTriggerKeys.add(triggerKey);
-
-          try {
-            evaluateTrigger(passive, trigger, eventVariables: eventVariables);
-          } finally {
-            runtime.activeTriggerKeys.remove(triggerKey);
-          }
+          evaluateTrigger(
+            passive,
+            trigger,
+            eventVariables: eventVariables,
+            actionContext: actionContext,
+          );
         }
       }
     } finally {
@@ -112,7 +147,17 @@ class PassiveTriggerEngine {
       return false;
     }
 
-    if (trigger.actionType != PassiveTriggerActionType.applyEffect) {
+    if (!trigger.targetsSelf) {
+      return false;
+    }
+
+    if (trigger.actions.length != 1) {
+      return false;
+    }
+
+    final action = trigger.actions.first;
+
+    if (action.type != PassiveTriggerActionType.applyEffect) {
       return false;
     }
 
@@ -136,21 +181,21 @@ class PassiveTriggerEngine {
     CharacterPassive passive,
     PassiveTrigger trigger, {
     Map<String, double> eventVariables = const {},
+    ActionTriggerContext? actionContext,
   }) {
     // ===========================================================================
-    // TRIGGER REALMENTE PERSISTENTE
+    // EXTERNOS
     //
-    // Un whileCondition representa ESTADO persistente.
-    //
-    // Por tanto NO utiliza variables transitorias del evento actual como:
-    //
-    // damage
-    // healing
-    // resource_change
-    // charges_change
-    // counter_change
-    //
-    // La condición se evalúa únicamente contra el estado actual del Character.
+    // Los actionTarget se resuelven mediante ActionResolver / ActionResolutionFlow.
+    // Este engine solo ejecuta mecánicamente triggers sobre self.
+    // ===========================================================================
+
+    if (trigger.targetsActionTarget) {
+      return;
+    }
+
+    // ===========================================================================
+    // PERSISTENTES
     // ===========================================================================
 
     if (_supportsPersistentTrigger(trigger)) {
@@ -162,9 +207,15 @@ class PassiveTriggerEngine {
     }
 
     // ===========================================================================
-    // TRIGGER NORMAL
-    //
-    // Estos sí pueden utilizar el contexto concreto del evento.
+    // LÍMITE
+    // ===========================================================================
+
+    if (!canUseTrigger(passive, trigger)) {
+      return;
+    }
+
+    // ===========================================================================
+    // CONDICIÓN
     // ===========================================================================
 
     final conditionMet = _evaluateCondition(
@@ -177,9 +228,53 @@ class PassiveTriggerEngine {
       return;
     }
 
-    _executeTriggerAction(passive, trigger, eventVariables: eventVariables);
+    // ===========================================================================
+    // ACCIONES SELF
+    // ===========================================================================
+
+    _executeTriggerActions(
+      passive,
+      trigger,
+      eventVariables: eventVariables,
+      actionContext: actionContext,
+    );
+
+    // ===========================================================================
+    // CONSUMIR
+    // ===========================================================================
+
+    consumeTriggerUsage(passive, trigger);
   }
 
+  void consumeExternalTriggerResult(PassiveTriggerExternalResult result) {
+    CharacterPassive? passive;
+
+    for (final candidate in character.enabledPassives) {
+      if (candidate.id == result.passiveId) {
+        passive = candidate;
+        break;
+      }
+    }
+
+    if (passive == null) {
+      return;
+    }
+
+    PassiveTrigger? trigger;
+
+    for (final candidate in passive.triggers) {
+      if (candidate.id == result.triggerId) {
+        trigger = candidate;
+        break;
+      }
+    }
+
+    if (trigger == null) {
+      return;
+    }
+
+    consumeTriggerUsage(passive, trigger);
+  }
   // ===========================================================================
   // REEVALUAR TRIGGERS PERSISTENTES
   // ===========================================================================
@@ -336,12 +431,12 @@ class PassiveTriggerEngine {
   // VALOR
   // ===========================================================================
 
-  double _evaluateValue(
+  double _evaluateActionValue(
     CharacterPassive passive,
-    PassiveTrigger trigger, {
+    PassiveTriggerAction action, {
     Map<String, double> eventVariables = const {},
   }) {
-    final formula = trigger.valueFormula;
+    final formula = action.valueFormula;
 
     if (formula == null || formula.expression.trim().isEmpty) {
       return 0;
@@ -363,24 +458,115 @@ class PassiveTriggerEngine {
   // EJECUTAR ACCIÓN
   // ===========================================================================
 
-  void _executeTriggerAction(
+  void _executeTriggerActions(
     CharacterPassive passive,
     PassiveTrigger trigger, {
     Map<String, double> eventVariables = const {},
+    ActionTriggerContext? actionContext,
   }) {
-    final value = _evaluateValue(
+    // ===========================================================================
+    // TARGET EXTERNO
+    // ===========================================================================
+
+    if (trigger.targetsActionTarget) {
+      final targetId = actionContext?.targetId?.trim();
+
+      if (targetId == null || targetId.isEmpty) {
+        return;
+      }
+
+      _queueExternalTrigger(
+        passive: passive,
+        trigger: trigger,
+        targetId: targetId,
+        targetLabel: actionContext?.targetLabel,
+        eventVariables: eventVariables,
+      );
+
+      return;
+    }
+
+    // ===========================================================================
+    // SELF
+    // ===========================================================================
+
+    for (final action in trigger.actions) {
+      _executeSelfAction(
+        passive,
+        trigger,
+        action,
+        eventVariables: eventVariables,
+      );
+    }
+  }
+
+  void _queueExternalTrigger({
+    required CharacterPassive passive,
+    required PassiveTrigger trigger,
+    required String targetId,
+    String? targetLabel,
+    Map<String, double> eventVariables = const {},
+  }) {
+    if (trigger.actions.isEmpty) {
+      return;
+    }
+
+    _runtime.pendingExternalOutcomes.add(
+      PassiveTriggeredExternalOutcome(
+        passiveId: passive.id,
+
+        passiveName: passive.name,
+
+        triggerId: trigger.id,
+
+        targetId: targetId,
+
+        targetLabel: targetLabel,
+
+        savingThrow: trigger.savingThrow,
+
+        actions: trigger.actions
+            .map((action) => PassiveTriggerAction.fromMap(action.toMap()))
+            .toList(),
+      ),
+    );
+  }
+
+  List<PassiveTriggeredExternalOutcome> takePendingExternalOutcomes() {
+    final runtime = _runtime;
+
+    if (runtime.pendingExternalOutcomes.isEmpty) {
+      return const [];
+    }
+
+    final result = List<PassiveTriggeredExternalOutcome>.unmodifiable(
+      runtime.pendingExternalOutcomes,
+    );
+
+    runtime.pendingExternalOutcomes.clear();
+
+    return result;
+  }
+
+  void _executeSelfAction(
+    CharacterPassive passive,
+    PassiveTrigger trigger,
+    PassiveTriggerAction action, {
+    Map<String, double> eventVariables = const {},
+  }) {
+    final value = _evaluateActionValue(
       passive,
-      trigger,
+      action,
       eventVariables: eventVariables,
     );
 
-    switch (trigger.actionType) {
-      // -----------------------------------------------------------------------
+    switch (action.type) {
+      // =========================================================================
       // RECURSOS
-      // -----------------------------------------------------------------------
+      // =========================================================================
 
       case PassiveTriggerActionType.addResource:
-        final resourceId = trigger.targetId;
+        final resourceId = action.resourceId;
 
         if (resourceId == null || resourceId.isEmpty) {
           return;
@@ -394,10 +580,10 @@ class PassiveTriggerEngine {
 
         character.addResourceValue(resourceId, amount, dispatchTriggers: true);
 
-        break;
+        return;
 
       case PassiveTriggerActionType.subtractResource:
-        final resourceId = trigger.targetId;
+        final resourceId = action.resourceId;
 
         if (resourceId == null || resourceId.isEmpty) {
           return;
@@ -415,10 +601,10 @@ class PassiveTriggerEngine {
           dispatchTriggers: true,
         );
 
-        break;
+        return;
 
       case PassiveTriggerActionType.setResource:
-        final resourceId = trigger.targetId;
+        final resourceId = action.resourceId;
 
         if (resourceId == null || resourceId.isEmpty) {
           return;
@@ -430,11 +616,11 @@ class PassiveTriggerEngine {
           dispatchTriggers: true,
         );
 
-        break;
+        return;
 
-      // -----------------------------------------------------------------------
+      // =========================================================================
       // CARGAS
-      // -----------------------------------------------------------------------
+      // =========================================================================
 
       case PassiveTriggerActionType.addCharge:
         final amount = value.round();
@@ -445,7 +631,7 @@ class PassiveTriggerEngine {
 
         character.addPassiveCharges(passive.id, amount, dispatchTriggers: true);
 
-        break;
+        return;
 
       case PassiveTriggerActionType.subtractCharge:
         final amount = value.round();
@@ -460,14 +646,14 @@ class PassiveTriggerEngine {
           dispatchTriggers: true,
         );
 
-        break;
+        return;
 
-      // -----------------------------------------------------------------------
+      // =========================================================================
       // CONTADORES
-      // -----------------------------------------------------------------------
+      // =========================================================================
 
       case PassiveTriggerActionType.incrementCounter:
-        final counterId = trigger.targetId;
+        final counterId = action.counterId;
 
         if (counterId == null || counterId.isEmpty) {
           return;
@@ -481,10 +667,10 @@ class PassiveTriggerEngine {
 
         character.incrementCounter(counterId, amount, dispatchTriggers: true);
 
-        break;
+        return;
 
       case PassiveTriggerActionType.setCounter:
-        final counterId = trigger.targetId;
+        final counterId = action.counterId;
 
         if (counterId == null || counterId.isEmpty) {
           return;
@@ -492,28 +678,32 @@ class PassiveTriggerEngine {
 
         character.setCounter(counterId, value.round(), dispatchTriggers: true);
 
-        break;
+        return;
 
-      // -----------------------------------------------------------------------
+      // =========================================================================
       // EFECTOS
-      // -----------------------------------------------------------------------
+      // =========================================================================
 
       case PassiveTriggerActionType.applyEffect:
-        _applyOneShotTriggerEffect(passive, trigger);
+        _applyOneShotTriggerEffect(passive, trigger, action);
 
-        break;
+        return;
 
       case PassiveTriggerActionType.removeEffect:
-        _removeSelectedEffect(trigger);
+        _removeSelectedEffect(action);
 
-        break;
+        return;
 
-      // -----------------------------------------------------------------------
-      // VIDA / DAÑO
-      // -----------------------------------------------------------------------
+      // =========================================================================
+      // DAÑO
+      // =========================================================================
 
       case PassiveTriggerActionType.dealDamage:
-        final amount = value.round();
+        final amount = _resolveTriggerActionAmount(
+          passive,
+          action,
+          eventVariables: eventVariables,
+        );
 
         if (amount <= 0) {
           return;
@@ -521,10 +711,18 @@ class PassiveTriggerEngine {
 
         character.takeDamage(amount, dispatchTriggers: true);
 
-        break;
+        return;
+
+      // =========================================================================
+      // CURACIÓN
+      // =========================================================================
 
       case PassiveTriggerActionType.heal:
-        final amount = value.round();
+        final amount = _resolveTriggerActionAmount(
+          passive,
+          action,
+          eventVariables: eventVariables,
+        );
 
         if (amount <= 0) {
           return;
@@ -532,7 +730,7 @@ class PassiveTriggerEngine {
 
         character.heal(amount, dispatchTriggers: true);
 
-        break;
+        return;
     }
   }
 
@@ -592,8 +790,15 @@ class PassiveTriggerEngine {
   void _applyOneShotTriggerEffect(
     CharacterPassive passive,
     PassiveTrigger trigger,
+    PassiveTriggerAction action,
   ) {
-    final sourceEffect = _findLinkedEffectTemplate(passive, trigger.targetId);
+    final templateId = action.effectId?.trim();
+
+    if (templateId == null || templateId.isEmpty) {
+      return;
+    }
+
+    final sourceEffect = _findLinkedEffectTemplate(passive, templateId);
 
     if (sourceEffect == null) {
       return;
@@ -602,22 +807,53 @@ class PassiveTriggerEngine {
     final instance = CharacterEffect.fromMap(sourceEffect.toMap());
 
     instance.id =
-        'trigger:${passive.id}:${trigger.id}:${sourceEffect.id}:'
+        'trigger:${passive.id}:'
+        '${trigger.id}:'
+        '${sourceEffect.id}:'
         '${DateTime.now().microsecondsSinceEpoch}';
 
     instance.enabled = true;
 
     instance.resetDuration();
 
-    character.addEffect(
+    character.applyReceivedEffect(
       instance,
+      templateId: templateId,
       refreshTriggers: false,
       dispatchHealthTriggers: false,
+      eventVariables: {
+        'trigger_source_passive': 1,
+        'source_passive_${passive.id}': 1,
+        'passive_trigger_${trigger.id}': 1,
+      },
     );
   }
 
-  void _removeSelectedEffect(PassiveTrigger trigger) {
-    final effectId = trigger.targetId?.trim();
+  int _resolveTriggerActionAmount(
+    CharacterPassive passive,
+    PassiveTriggerAction action, {
+    Map<String, double> eventVariables = const {},
+  }) {
+    final modifier = _evaluateActionValue(
+      passive,
+      action,
+      eventVariables: eventVariables,
+    ).round();
+
+    if (!action.hasDice) {
+      return modifier;
+    }
+
+    final roll = DicePoolRoller.roll(
+      pools: action.dicePools,
+      modifier: modifier,
+    );
+
+    return roll.total;
+  }
+
+  void _removeSelectedEffect(PassiveTriggerAction action) {
+    final effectId = action.effectId?.trim();
 
     if (effectId == null || effectId.isEmpty) {
       return;
@@ -635,25 +871,36 @@ class PassiveTriggerEngine {
     PassiveTrigger trigger, {
     required bool active,
   }) {
-    final sourceEffect = _findLinkedEffectTemplate(passive, trigger.targetId);
+    if (trigger.actions.length != 1) {
+      return false;
+    }
+
+    final action = trigger.actions.first;
+
+    if (action.type != PassiveTriggerActionType.applyEffect) {
+      return false;
+    }
+
+    final templateId = action.effectId?.trim();
+
+    if (templateId == null || templateId.isEmpty) {
+      return false;
+    }
+
+    final sourceEffect = _findLinkedEffectTemplate(passive, templateId);
 
     if (sourceEffect == null) {
       return false;
     }
 
-    // ===========================================================================
-    // ID ÚNICO DE RUNTIME
-    // ===========================================================================
-
-    final instanceId = 'trigger:${passive.id}:${trigger.id}:${sourceEffect.id}';
+    final instanceId =
+        'trigger:${passive.id}:'
+        '${trigger.id}:'
+        '${sourceEffect.id}';
 
     final existingIndex = character.effects.indexWhere(
       (effect) => effect.id == instanceId,
     );
-
-    // ===========================================================================
-    // DESACTIVAR
-    // ===========================================================================
 
     if (!active) {
       if (existingIndex < 0) {
@@ -668,10 +915,6 @@ class PassiveTriggerEngine {
 
       return true;
     }
-
-    // ===========================================================================
-    // YA EXISTE
-    // ===========================================================================
 
     if (existingIndex >= 0) {
       final existing = character.effects[existingIndex];
@@ -701,6 +944,7 @@ class PassiveTriggerEngine {
 
       if (existing.minuteRoundProgress != 0) {
         existing.minuteRoundProgress = 0;
+
         changed = true;
       }
 
@@ -711,27 +955,27 @@ class PassiveTriggerEngine {
       return changed;
     }
 
-    // ===========================================================================
-    // CREAR INSTANCIA
-    // ===========================================================================
-
     final instance = CharacterEffect.fromMap(sourceEffect.toMap());
 
     instance.id = instanceId;
     instance.enabled = true;
 
-    // La duración de un whileCondition depende exclusivamente
-    // de la condición, no de la duración configurada en la plantilla.
     instance.durationType = CharacterEffectDurationType.permanent;
 
     instance.maxDuration = 0;
     instance.currentDuration = 0;
     instance.minuteRoundProgress = 0;
 
-    character.addEffect(
+    character.applyReceivedEffect(
       instance,
+      templateId: templateId,
       refreshTriggers: false,
       dispatchHealthTriggers: false,
+      eventVariables: {
+        'trigger_source_passive': 1,
+        'source_passive_${passive.id}': 1,
+        'passive_trigger_${trigger.id}': 1,
+      },
     );
 
     return true;
@@ -739,11 +983,19 @@ class PassiveTriggerEngine {
 }
 
 class _PassiveTriggerRuntime {
+  final List<PassiveTriggeredExternalOutcome> pendingExternalOutcomes =
+      <PassiveTriggeredExternalOutcome>[];
   // ===========================================================================
   // TRIGGERS ACTIVOS
   // ===========================================================================
 
   final Set<String> activeTriggerKeys = <String>{};
+
+  /// Último turno en el que se consumió cada trigger.
+  final Map<String, int> lastUsedTurnByTriggerKey = <String, int>{};
+
+  /// Última ronda en la que se consumió cada trigger.
+  final Map<String, int> lastUsedRoundByTriggerKey = <String, int>{};
 
   // ===========================================================================
   // PROFUNDIDAD DE DISPATCH
@@ -753,7 +1005,7 @@ class _PassiveTriggerRuntime {
 
   static const int maximumPersistentRefreshPasses = 32;
 
-  static const int maximumDispatchDepth = 64;
+  static const int maximumDispatchDepth = 16;
 
   // ===========================================================================
   // REFRESH PERSISTENTE PENDIENTE

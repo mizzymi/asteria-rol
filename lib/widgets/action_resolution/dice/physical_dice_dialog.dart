@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/action_dice_request.dart';
-import '../../../models/action_dice_result.dart';
-import '../../../services/action_dice_resolver.dart';
 
 import '../common/action_dialog_scaffold.dart';
 import '../common/action_section_card.dart';
@@ -46,7 +44,7 @@ class _DieBinding {
   });
 }
 
-Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
+Future<Map<String, List<ActionPhysicalDiceInput>>?> showPhysicalDiceDialog(
   BuildContext context, {
   required List<PhysicalDiceSection> sections,
 }) async {
@@ -93,14 +91,9 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
   // ===========================================================================
 
   if (bindings.isEmpty) {
-    const diceResolver = ActionDiceResolver();
-
-    return Map<String, ActionDiceResult>.unmodifiable({
+    return Map<String, List<ActionPhysicalDiceInput>>.unmodifiable({
       for (final section in sections)
-        section.id: diceResolver.resolvePhysical(
-          request: section.request,
-          inputs: const [],
-        ),
+        section.id: const <ActionPhysicalDiceInput>[],
     });
   }
 
@@ -108,7 +101,7 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
   // DIÁLOGO
   // ===========================================================================
 
-  return showDialog<Map<String, ActionDiceResult>>(
+  return showDialog<Map<String, List<ActionPhysicalDiceInput>>>(
     context: context,
     barrierDismissible: true,
     builder: (dialogContext) {
@@ -142,9 +135,7 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
             // CONSTRUIR RESULTADOS
             // ===================================================================
 
-            const diceResolver = ActionDiceResolver();
-
-            final results = <String, ActionDiceResult>{};
+            final inputsBySection = <String, List<ActionPhysicalDiceInput>>{};
 
             for (final section in sections) {
               final inputs = <ActionPhysicalDiceInput>[];
@@ -183,15 +174,15 @@ Future<Map<String, ActionDiceResult>?> showPhysicalDiceDialog(
                 );
               }
 
-              results[section.id] = diceResolver.resolvePhysical(
-                request: section.request,
-                inputs: inputs,
-              );
+              inputsBySection[section.id] =
+                  List<ActionPhysicalDiceInput>.unmodifiable(inputs);
             }
 
-            Navigator.of(
-              dialogContext,
-            ).pop(Map<String, ActionDiceResult>.unmodifiable(results));
+            Navigator.of(dialogContext).pop(
+              Map<String, List<ActionPhysicalDiceInput>>.unmodifiable(
+                inputsBySection,
+              ),
+            );
           }
 
           return ActionDialogScaffold(

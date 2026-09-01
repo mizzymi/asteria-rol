@@ -1,5 +1,7 @@
 import 'action_critical_profile.dart';
 
+typedef ActionAttackRolls = ({int firstRoll, int? secondRoll});
+
 class ActionAttackResult {
   final int naturalRoll;
 

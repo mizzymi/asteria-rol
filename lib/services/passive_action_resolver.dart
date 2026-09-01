@@ -15,6 +15,17 @@ class PassiveActionResolver {
 
   PassiveActionResolver({required this.character});
 
+  ActionDiceResult resolveDigitalRequest(ActionDiceRequest request) {
+    return diceResolver.rollDigital(request);
+  }
+
+  ActionDiceResult resolvePhysicalRequest(
+    ActionDiceRequest request, {
+    required List<ActionPhysicalDiceInput> inputs,
+  }) {
+    return diceResolver.resolvePhysical(request: request, inputs: inputs);
+  }
+
   // ===========================================================================
   // REQUEST
   // ===========================================================================
@@ -53,27 +64,15 @@ class PassiveActionResolver {
     );
   }
 
-  // ===========================================================================
-  // DIGITAL
-  // ===========================================================================
-
   ActionDiceResult rollDigital(CharacterPassive passive) {
-    final request = buildRollRequest(passive);
-
-    return diceResolver.rollDigital(request);
+    return resolveDigitalRequest(buildRollRequest(passive));
   }
-
-  // ===========================================================================
-  // FÍSICO
-  // ===========================================================================
 
   ActionDiceResult resolvePhysical(
     CharacterPassive passive, {
     required List<ActionPhysicalDiceInput> inputs,
   }) {
-    final request = buildRollRequest(passive);
-
-    return diceResolver.resolvePhysical(request: request, inputs: inputs);
+    return resolvePhysicalRequest(buildRollRequest(passive), inputs: inputs);
   }
 
   String rollText(CharacterPassive passive) {

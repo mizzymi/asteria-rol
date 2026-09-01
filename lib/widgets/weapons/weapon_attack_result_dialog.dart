@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../models/action_attack_roll_mode.dart';
 import '../../models/action_critical_profile.dart';
 import '../../models/weapon.dart';
 import '../../models/weapon_attack_resolution.dart';
+
+import '../abilities/attack_roll_sheet.dart';
+
+import '../action_resolution/common/action_attack_roll_result_card.dart';
+import '../action_resolution/common/action_dialog_scaffold.dart';
+import '../action_resolution/common/action_section_card.dart';
 
 Future<void> showWeaponAttackResultDialog(
   BuildContext context, {
@@ -13,158 +18,139 @@ Future<void> showWeaponAttackResultDialog(
   required ValueChanged<ActionCriticalType> onRollDamage,
 }) {
   final attackResult = result.attackResult;
-
   final criticalType = attackResult.criticalType;
-
-  final critical = attackResult.critical;
-
   final criticalFail = result.criticalFail;
 
-  final bonus = attackResult.modifier;
+  final criticalLabel = switch (criticalType) {
+    ActionCriticalType.none => null,
+    ActionCriticalType.normal => 'Crítico',
+    ActionCriticalType.empowered => 'Crítico potenciado',
+  };
 
   return showDialog<void>(
     context: context,
+    barrierDismissible: true,
     builder: (dialogContext) {
-      return AlertDialog(
-        title: Row(
+      return ActionDialogScaffold(
+        icon: attackResult.critical
+            ? Icons.local_fire_department_rounded
+            : criticalFail
+            ? Icons.warning_amber_rounded
+            : Icons.gps_fixed_rounded,
+        title: weapon.name,
+        subtitle: criticalFail
+            ? 'Pifia'
+            : attackResult.critical
+            ? criticalLabel
+            : 'Resultado del ataque',
+        secondaryLabel: 'Volver a atacar',
+        onSecondary: () {
+          Navigator.of(dialogContext).pop();
+          onReroll();
+        },
+        primaryLabel: criticalFail
+            ? 'Cerrar'
+            : attackResult.critical
+            ? 'Daño crítico'
+            : 'Tirar daño',
+        onPrimary: () {
+          Navigator.of(dialogContext).pop();
+
+          if (!criticalFail) {
+            onRollDamage(criticalType);
+          }
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(
-              critical
-                  ? Icons.local_fire_department_rounded
-                  : criticalFail
-                  ? Icons.warning_rounded
-                  : Icons.gps_fixed_rounded,
+            ActionAttackRollResultCard(
+              attackResult: attackResult,
+              criticalLabel: criticalLabel,
             ),
-
-            const SizedBox(width: 10),
-
-            Expanded(child: Text(weapon.name)),
-          ],
-        ),
-
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (result.mode != AttackRollMode.normal)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
+            if (result.secondRoll != null) ...[
+              const SizedBox(height: 12),
+              ActionSectionCard(
+                icon: result.mode.icon,
+                title: result.mode.label,
+                child: Row(
                   children: [
-                    Text(
-                      result.mode == AttackRollMode.advantage
-                          ? 'Ventaja'
-                          : 'Desventaja',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    Expanded(
+                      child: _RollLine(
+                        label: 'd20 #1',
+                        value: result.firstRoll,
+                        selected: result.firstRoll == result.naturalRoll,
+                      ),
                     ),
-
-                    const SizedBox(height: 6),
-
-                    Text(
-                      '${result.firstRoll}  /  '
-                      '${result.secondRoll}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _RollLine(
+                        label: 'd20 #2',
+                        value: result.secondRoll!,
+                        selected: result.secondRoll == result.naturalRoll,
                       ),
                     ),
                   ],
                 ),
               ),
-
-            Text('d20', style: Theme.of(context).textTheme.bodySmall),
-
-            const SizedBox(height: 4),
-
-            Text(
-              '${result.naturalRoll}',
-              style: Theme.of(
-                context,
-              ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Bonificador '),
-
-                Text(
-                  bonus >= 0 ? '+$bonus' : '$bonus',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            const Divider(),
-
-            const SizedBox(height: 8),
-
-            Text('TOTAL', style: Theme.of(context).textTheme.labelLarge),
-
-            Text(
-              '${result.total}',
-              style: Theme.of(
-                context,
-              ).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.w900),
-            ),
-
-            if (critical) ...[
-              const SizedBox(height: 8),
-
-              Text(
-                criticalType == ActionCriticalType.empowered
-                    ? '🔥 CRÍTICO POTENCIADO'
-                    : '💥 CRÍTICO',
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
             ],
-
             if (criticalFail) ...[
-              const SizedBox(height: 8),
-
-              const Text(
-                '💀 PIFIA',
-                style: TextStyle(fontWeight: FontWeight.w900),
+              const SizedBox(height: 12),
+              const ActionSectionCard(
+                icon: Icons.warning_amber_rounded,
+                title: 'Pifia',
+                child: Text(
+                  'El resultado natural fue 1. No se puede tirar daño.',
+                ),
               ),
             ],
           ],
         ),
-
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-
-              onReroll();
-            },
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Volver a atacar'),
-          ),
-
-          if (!criticalFail)
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-
-                onRollDamage(criticalType);
-              },
-              icon: Icon(
-                critical
-                    ? Icons.local_fire_department_rounded
-                    : Icons.casino_rounded,
-              ),
-              label: Text(critical ? 'Daño crítico' : 'Tirar daño'),
-            ),
-        ],
       );
     },
   );
+}
+
+class _RollLine extends StatelessWidget {
+  final String label;
+  final int value;
+  final bool selected;
+
+  const _RollLine({
+    required this.label,
+    required this.value,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: selected ? theme.colorScheme.primary : null,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

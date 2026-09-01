@@ -1,3 +1,5 @@
+import '../models/action_external_requirement.dart';
+import '../models/passive.dart';
 import '../models/ability.dart';
 import '../models/action_hit_behavior.dart';
 import '../models/action_dice_request.dart';
@@ -7,20 +9,155 @@ import '../models/action_critical_profile.dart';
 import '../models/character.dart';
 import '../models/weapon.dart';
 import '../models/weapon_attack_resolution.dart';
+import '../models/damage_bonus.dart';
 import '../models/dice_pool.dart';
 import '../models/action_chance_check.dart';
 import '../models/action_resolution_context.dart';
 import '../models/action_dice_mode.dart';
+import '../models/action_optional_group.dart';
 
 import 'action_chance_resolver.dart';
 import 'action_critical_dice_transformer.dart';
 import 'action_resolver.dart';
 import 'action_dice_resolver.dart';
+import 'formula_evaluator.dart';
+import 'action_external_requirement_parser.dart';
 
 class WeaponActionResolver {
   final Character character;
 
   final ActionDiceResolver diceResolver = const ActionDiceResolver();
+
+  ActionTarget? _targetForContext(ActionResolutionContext context) {
+    if (context.targets.isEmpty) {
+      return null;
+    }
+
+    return context.targets.first;
+  }
+
+  List<ActionExternalRequirement> collectPreResolutionExternalRequirements({
+    required Weapon weapon,
+  }) {
+    final requirements = <ActionExternalRequirement>[];
+
+    const parser = ActionExternalRequirementParser();
+
+    // ===========================================================================
+    // DAMAGE BONUSES
+    // ===========================================================================
+
+    for (final active in character.activeDamageBonuses) {
+      final bonus = active.bonus;
+
+      if (!bonus.hasDamage) {
+        continue;
+      }
+
+      if (bonus.hasCondition) {
+        requirements.addAll(parser.fromExpression(bonus.condition!.expression));
+      }
+
+      if (bonus.hasFormula) {
+        requirements.addAll(parser.fromExpression(bonus.formula!.expression));
+      }
+    }
+
+    // ===========================================================================
+    // CRITICAL DAMAGE BONUSES
+    // ===========================================================================
+
+    for (final bonus in character.activeCriticalDamageBonuses(weapon)) {
+      if (!bonus.canTrigger) {
+        continue;
+      }
+
+      if (bonus.hasCondition) {
+        requirements.addAll(parser.fromExpression(bonus.condition!.expression));
+      }
+
+      if (bonus.hasFormula) {
+        requirements.addAll(parser.fromExpression(bonus.formula!.expression));
+      }
+    }
+
+    return ActionExternalRequirementSet(requirements).requirements;
+  }
+
+  List<ActionExternalRequirement> orderedPreResolutionExternalRequirements({
+    required Weapon weapon,
+  }) {
+    final requirements = collectPreResolutionExternalRequirements(
+      weapon: weapon,
+    );
+
+    if (requirements.isEmpty) {
+      return const [];
+    }
+
+    const percentagePlanner = ExternalPercentageQuestionPlanner();
+
+    final percentageRequirements = percentagePlanner.order(
+      requirements
+          .where((requirement) => requirement.isPercentageRequirement)
+          .toList(growable: false),
+    );
+
+    final nonPercentageRequirements = requirements
+        .where((requirement) => !requirement.isPercentageRequirement)
+        .toList(growable: false);
+
+    return List<ActionExternalRequirement>.unmodifiable([
+      ...percentageRequirements,
+      ...nonPercentageRequirements,
+    ]);
+  }
+
+  List<ActionExternalRequirement>
+  orderedPreResolutionExternalRequirementsForTarget({
+    required Weapon weapon,
+    required ActionResolutionContext context,
+    required ActionTarget target,
+  }) {
+    final requirements = orderedPreResolutionExternalRequirements(
+      weapon: weapon,
+    );
+
+    if (requirements.isEmpty) {
+      return const [];
+    }
+
+    final actionResolver = ActionResolver(character: character);
+
+    final pending = <ActionExternalRequirement>[];
+
+    for (final requirement in requirements) {
+      final resolved = actionResolver.tryResolveKnownExternalRequirement(
+        context: context,
+        target: target,
+        requirement: requirement,
+      );
+
+      if (resolved) {
+        continue;
+      }
+
+      pending.add(requirement);
+    }
+
+    return List<ActionExternalRequirement>.unmodifiable(pending);
+  }
+
+  ActionDiceResult resolveDamageDigitalRequest(ActionDiceRequest request) {
+    return diceResolver.rollDigital(request);
+  }
+
+  ActionDiceResult resolveDamagePhysicalRequest({
+    required ActionDiceRequest request,
+    required List<ActionPhysicalDiceInput> inputs,
+  }) {
+    return diceResolver.resolvePhysical(request: request, inputs: inputs);
+  }
 
   // ===========================================================================
   // CHANCE DE BONUS CRÍTICOS
@@ -31,19 +168,66 @@ class WeaponActionResolver {
     required ActionCriticalType criticalType,
     required ActionResolutionContext context,
   }) {
-    final critical = criticalType != ActionCriticalType.none;
-
-    if (!critical) {
+    if (criticalType == ActionCriticalType.none) {
       return const [];
     }
 
-    final resolver = ActionResolver(character: character);
+    final checks = <ActionChanceCheck>[];
 
-    return resolver.collectCriticalChanceChecks(
-      critical: true,
-      context: context,
-      bonuses: character.activeCriticalDamageBonuses(weapon),
-    );
+    final bonuses = character.activeCriticalDamageBonuses(weapon);
+
+    for (final bonus in bonuses) {
+      if (!bonus.canTrigger) {
+        continue;
+      }
+
+      // =======================================================================
+      // CONDICIÓN
+      //
+      // El daño de arma actualmente trabaja con un único contexto global
+      // de target. No existe ActionResolutionPlan de habilidad.
+      // =======================================================================
+
+      if (bonus.hasCondition) {
+        final result = const FormulaEvaluator().evaluate(
+          bonus.condition!,
+          context: context.buildFormulaContext(
+            target: _targetForContext(context),
+          ),
+        );
+
+        if (!result.valid || result.value == 0) {
+          continue;
+        }
+      }
+
+      // =======================================================================
+      // OPCIONAL
+      //
+      // Las armas no utilizan selección per-target de habilidad.
+      // Conservamos la selección global del contexto.
+      // =======================================================================
+
+      if (bonus.optional) {
+        if (!context.isOptionalGroupSelected(bonus.effectiveOptionalGroupId)) {
+          continue;
+        }
+      }
+
+      if (bonus.alwaysTriggers) {
+        continue;
+      }
+
+      checks.add(
+        ActionChanceCheck(
+          id: 'critical_bonus:${bonus.id}',
+          label: bonus.effectiveOptionalLabel,
+          chancePercent: bonus.chancePercent,
+        ),
+      );
+    }
+
+    return List<ActionChanceCheck>.unmodifiable(checks);
   }
 
   List<ActionChanceResult> rollCriticalChanceChecksDigital({
@@ -262,6 +446,237 @@ class WeaponActionResolver {
   // ===========================================================================
   // DAÑO
   // ===========================================================================
+  List<ActionOptionalGroup> availableOptionalGroups({
+    required Weapon weapon,
+    required ActionResolutionContext context,
+  }) {
+    final sourcesByGroup = <String, List<ActionOptionalSource>>{};
+    final labelsByGroup = <String, String>{};
+
+    // ===========================================================================
+    // DAMAGE BONUS
+    // ===========================================================================
+
+    for (final active in character.activeDamageBonuses) {
+      final bonus = active.bonus;
+      final passive = active.passive;
+
+      if (!bonus.optional || !bonus.hasDamage) {
+        continue;
+      }
+
+      if (!_damageBonusConditionMet(
+        context: context,
+        bonus: bonus,
+        passive: passive,
+      )) {
+        continue;
+      }
+
+      final groupId = bonus.effectiveOptionalGroupId;
+
+      sourcesByGroup.putIfAbsent(groupId, () => <ActionOptionalSource>[]);
+
+      sourcesByGroup[groupId]!.add(
+        ActionOptionalSource(
+          type: ActionOptionalSourceType.damageBonus,
+          id: bonus.id,
+          label: bonus.effectiveOptionalLabel,
+        ),
+      );
+
+      labelsByGroup.putIfAbsent(groupId, () => bonus.effectiveOptionalLabel);
+    }
+
+    // ===========================================================================
+    // CRITICAL DAMAGE BONUS
+    //
+    // Aquí solo declaramos la opción.
+    // Que finalmente se use dependerá de que haya crítico y chance.
+    // ===========================================================================
+
+    for (final bonus in character.activeCriticalDamageBonuses(weapon)) {
+      if (!bonus.optional || !bonus.canTrigger) {
+        continue;
+      }
+
+      if (bonus.hasCondition) {
+        final result = const FormulaEvaluator().evaluate(
+          bonus.condition!,
+          context: context.buildFormulaContext(
+            target: _targetForContext(context),
+          ),
+        );
+
+        if (!result.valid || result.value == 0) {
+          continue;
+        }
+      }
+
+      final groupId = bonus.effectiveOptionalGroupId;
+
+      sourcesByGroup.putIfAbsent(groupId, () => <ActionOptionalSource>[]);
+
+      sourcesByGroup[groupId]!.add(
+        ActionOptionalSource(
+          type: ActionOptionalSourceType.criticalDamageBonus,
+          id: bonus.id,
+          label: bonus.effectiveOptionalLabel,
+        ),
+      );
+
+      labelsByGroup.putIfAbsent(groupId, () => bonus.effectiveOptionalLabel);
+    }
+
+    final result = <ActionOptionalGroup>[];
+
+    for (final entry in sourcesByGroup.entries) {
+      result.add(
+        ActionOptionalGroup(
+          id: entry.key,
+          label: labelsByGroup[entry.key] ?? 'Componente opcional',
+          parts: const [],
+          sources: List<ActionOptionalSource>.unmodifiable(entry.value),
+          costs: const [],
+        ),
+      );
+    }
+
+    return List<ActionOptionalGroup>.unmodifiable(result);
+  }
+
+  void _appendCriticalDamageBonuses({
+    required List<ActionDiceRequestPart> parts,
+    required Weapon weapon,
+    required ActionCriticalType criticalType,
+    required ActionResolutionContext context,
+    required Set<String> successfulChanceCheckIds,
+  }) {
+    if (criticalType == ActionCriticalType.none) {
+      return;
+    }
+
+    final bonuses = character.activeCriticalDamageBonuses(weapon);
+
+    for (final bonus in bonuses) {
+      if (!bonus.canTrigger) {
+        continue;
+      }
+
+      // =======================================================================
+      // CONDICIÓN
+      // =======================================================================
+
+      if (bonus.hasCondition) {
+        final result = const FormulaEvaluator().evaluate(
+          bonus.condition!,
+          context: context.buildFormulaContext(
+            target: _targetForContext(context),
+          ),
+        );
+
+        if (!result.valid || result.value == 0) {
+          continue;
+        }
+      }
+
+      // =======================================================================
+      // OPCIONAL
+      // =======================================================================
+
+      if (bonus.optional &&
+          !context.isOptionalGroupSelected(bonus.effectiveOptionalGroupId)) {
+        continue;
+      }
+
+      // =======================================================================
+      // CHANCE
+      // =======================================================================
+
+      final chanceCheckId = 'critical_bonus:${bonus.id}';
+
+      if (!bonus.alwaysTriggers &&
+          !successfulChanceCheckIds.contains(chanceCheckId)) {
+        continue;
+      }
+
+      // =======================================================================
+      // MODIFICADOR
+      // =======================================================================
+
+      final modifier = character.criticalDamageBonusModifier(
+        bonus,
+        formulaContext: context.buildFormulaContext(
+          target: _targetForContext(context),
+        ),
+      );
+
+      // =======================================================================
+      // REQUEST PART
+      // =======================================================================
+
+      parts.add(
+        ActionDiceRequestPart(
+          id: 'critical_extra:${bonus.id}',
+
+          hitBehavior: ActionHitBehavior.requireHit,
+
+          effectId: 'critical_extra',
+
+          effectName: bonus.name.isNotEmpty
+              ? bonus.name
+              : 'Daño crítico adicional',
+
+          effectType: AbilityEffectType.damage,
+
+          dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
+
+          modifier: modifier,
+
+          kind: ActionDicePartKind.criticalExtra,
+
+          sourceType: ActionDiceSourceType.criticalBonus,
+
+          sourceId: bonus.id,
+
+          sourceName: bonus.name,
+
+          damageType: bonus.damageType,
+        ),
+      );
+    }
+  }
+
+  bool _damageBonusConditionMet({
+    required ActionResolutionContext context,
+    required DamageBonus bonus,
+    CharacterPassive? passive,
+  }) {
+    if (!bonus.hasCondition) {
+      return true;
+    }
+
+    final result = const FormulaEvaluator().evaluate(
+      bonus.condition!,
+      context: context.buildFormulaContext(
+        passive: passive,
+        target: _targetForContext(context),
+      ),
+    );
+
+    return result.valid && result.value != 0;
+  }
+
+  bool _damageBonusSelected({
+    required ActionResolutionContext context,
+    required DamageBonus bonus,
+  }) {
+    if (!bonus.optional) {
+      return true;
+    }
+
+    return context.isOptionalGroupSelected(bonus.effectiveOptionalGroupId);
+  }
 
   ActionDiceRequest buildDamageRequest({
     required Weapon weapon,
@@ -345,57 +760,85 @@ class WeaponActionResolver {
       }
     }
 
-    for (final active in character.activeDamageBonuses) {
-      final bonus = active.bonus;
+    if (context != null) {
+      for (final active in character.activeDamageBonuses) {
+        final bonus = active.bonus;
+        final passive = active.passive;
 
-      if (!bonus.hasDamage) {
-        continue;
+        if (!bonus.hasDamage) {
+          continue;
+        }
+
+        if (!_damageBonusConditionMet(
+          context: context,
+          bonus: bonus,
+          passive: passive,
+        )) {
+          continue;
+        }
+
+        if (!_damageBonusSelected(context: context, bonus: bonus)) {
+          continue;
+        }
+
+        final baseModifier = character.damageBonusModifier(
+          bonus,
+          passive: passive,
+          formulaContext: context.buildFormulaContext(
+            passive: passive,
+            target: _targetForContext(context),
+          ),
+        );
+
+        final effectiveCriticalType = bonus.participatesInCritical
+            ? criticalType
+            : ActionCriticalType.none;
+
+        final transformed = ActionCriticalDiceTransformer.transform(
+          dicePools: bonus.dicePools,
+          baseModifier: baseModifier,
+          criticalType: effectiveCriticalType,
+        );
+
+        parts.add(
+          ActionDiceRequestPart(
+            id: 'weapon_bonus:${weapon.id}:${bonus.id}',
+
+            effectId: bonus.id,
+
+            effectName: bonus.name.isNotEmpty ? bonus.name : 'Daño adicional',
+
+            effectType: AbilityEffectType.damage,
+
+            dicePools: transformed.dicePools,
+
+            modifier: transformed.modifier,
+
+            automaticValue: transformed.automaticValue,
+
+            sourceType: passive != null
+                ? ActionDiceSourceType.passive
+                : ActionDiceSourceType.effect,
+
+            sourceId: passive?.id ?? bonus.id,
+
+            sourceName: passive?.name ?? bonus.name,
+
+            damageType: bonus.damageType,
+
+            hitBehavior: bonus.hitBehavior,
+          ),
+        );
       }
-
-      final baseModifier = character.damageBonusModifier(
-        bonus,
-        passive: active.passive,
-      );
-
-      final effectiveCriticalType = bonus.participatesInCritical
-          ? criticalType
-          : ActionCriticalType.none;
-
-      final transformed = ActionCriticalDiceTransformer.transform(
-        dicePools: bonus.dicePools,
-        baseModifier: baseModifier,
-        criticalType: effectiveCriticalType,
-      );
-
-      parts.add(
-        ActionDiceRequestPart(
-          id: 'weapon_bonus:${weapon.id}:${bonus.id}',
-          effectId: bonus.id,
-          effectName: bonus.effectiveOptionalLabel,
-          effectType: AbilityEffectType.damage,
-          dicePools: transformed.dicePools,
-          modifier: transformed.modifier,
-          automaticValue: transformed.automaticValue,
-          sourceType: active.passive != null
-              ? ActionDiceSourceType.passive
-              : ActionDiceSourceType.effect,
-          sourceId: active.passive?.id ?? bonus.id,
-          sourceName: active.passive?.name ?? bonus.name,
-          damageType: bonus.damageType,
-          hitBehavior: bonus.hitBehavior,
-        ),
-      );
     }
 
     if (criticalType != ActionCriticalType.none && context != null) {
-      final actionResolver = ActionResolver(character: character);
-
-      actionResolver.appendCriticalExtraDice(
+      _appendCriticalDamageBonuses(
         parts: parts,
-        critical: true,
+        weapon: weapon,
+        criticalType: criticalType,
         context: context,
         successfulChanceCheckIds: successfulChanceCheckIds,
-        bonuses: character.activeCriticalDamageBonuses(weapon),
       );
     }
 

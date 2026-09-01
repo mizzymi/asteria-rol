@@ -10,6 +10,22 @@ import 'dice_pool.dart';
 
 enum PassiveTriggerMode { once, whileCondition }
 
+enum PassiveTriggerTarget {
+  self,
+
+  /// El objetivo actual de la acción que provocó el trigger.
+  actionTarget,
+}
+
+enum TriggerSaveBehavior {
+  none,
+
+  /// Si supera la salvación, no ocurre nada.
+  negate,
+}
+
+enum TriggerUsageLimit { unlimited, oncePerTurn, oncePerRound }
+
 enum PassiveSourceType { race, classFeature, feat, item, background, custom }
 
 enum PassiveTriggerEvent {
@@ -63,6 +79,40 @@ enum PassiveTriggerActionType {
   setCounter,
 }
 
+class TriggerSavingThrow {
+  final AbilityType ability;
+
+  final int dc;
+
+  final TriggerSaveBehavior behavior;
+
+  const TriggerSavingThrow({
+    required this.ability,
+    required this.dc,
+    this.behavior = TriggerSaveBehavior.negate,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {'ability': ability.name, 'dc': dc, 'behavior': behavior.name};
+  }
+
+  factory TriggerSavingThrow.fromMap(Map<dynamic, dynamic> map) {
+    return TriggerSavingThrow(
+      ability: AbilityType.values.firstWhere(
+        (value) => value.name == map['ability']?.toString(),
+        orElse: () => AbilityType.constitution,
+      ),
+
+      dc: (map['dc'] as num?)?.toInt() ?? 0,
+
+      behavior: TriggerSaveBehavior.values.firstWhere(
+        (value) => value.name == map['behavior']?.toString(),
+        orElse: () => TriggerSaveBehavior.negate,
+      ),
+    );
+  }
+}
+
 class PassiveTrigger {
   String id;
 
@@ -70,33 +120,29 @@ class PassiveTrigger {
 
   CharacterFormula? condition;
 
-  PassiveTriggerActionType actionType;
+  PassiveTriggerMode mode;
 
-  /// ID genérico del destino.
-  ///
-  /// Su significado depende de [actionType]:
-  ///
-  /// resource actions -> CharacterResource.id
-  /// counter actions  -> CharacterCounter.id
-  /// effect actions   -> CharacterEffect.id de linkedEffects
-  String? targetId;
+  PassiveTriggerTarget target;
 
-  CharacterFormula? valueFormula;
+  TriggerUsageLimit usageLimit;
+
+  TriggerSavingThrow? savingThrow;
+
+  List<PassiveTriggerAction> actions;
 
   String? customEvent;
-
-  PassiveTriggerMode mode;
 
   PassiveTrigger({
     required this.id,
     required this.event,
-    required this.actionType,
     this.mode = PassiveTriggerMode.once,
+    this.target = PassiveTriggerTarget.self,
+    this.usageLimit = TriggerUsageLimit.unlimited,
+    this.savingThrow,
     this.condition,
-    this.targetId,
-    this.valueFormula,
+    List<PassiveTriggerAction>? actions,
     this.customEvent,
-  });
+  }) : actions = List<PassiveTriggerAction>.from(actions ?? const []);
 
   bool get hasCondition {
     return condition != null &&
@@ -104,88 +150,28 @@ class PassiveTrigger {
         condition!.expression.trim() != '0';
   }
 
-  // ===========================================================================
-  // TARGET
-  // ===========================================================================
-
-  bool get requiresTarget {
-    switch (actionType) {
-      case PassiveTriggerActionType.addResource:
-      case PassiveTriggerActionType.subtractResource:
-      case PassiveTriggerActionType.setResource:
-      case PassiveTriggerActionType.applyEffect:
-      case PassiveTriggerActionType.removeEffect:
-      case PassiveTriggerActionType.incrementCounter:
-      case PassiveTriggerActionType.setCounter:
-        return true;
-
-      case PassiveTriggerActionType.addCharge:
-      case PassiveTriggerActionType.subtractCharge:
-      case PassiveTriggerActionType.dealDamage:
-      case PassiveTriggerActionType.heal:
-        return false;
-    }
+  bool get targetsSelf {
+    return target == PassiveTriggerTarget.self;
   }
 
-  bool get hasValidTarget {
-    if (!requiresTarget) {
-      return true;
-    }
-
-    return targetId?.trim().isNotEmpty == true;
+  bool get targetsActionTarget {
+    return target == PassiveTriggerTarget.actionTarget;
   }
 
-  String? get resourceId {
-    switch (actionType) {
-      case PassiveTriggerActionType.addResource:
-      case PassiveTriggerActionType.subtractResource:
-      case PassiveTriggerActionType.setResource:
-        return targetId;
-
-      default:
-        return null;
-    }
+  bool get hasSavingThrow {
+    return savingThrow != null && savingThrow!.dc > 0;
   }
 
-  String? get counterId {
-    switch (actionType) {
-      case PassiveTriggerActionType.incrementCounter:
-      case PassiveTriggerActionType.setCounter:
-        return targetId;
-
-      default:
-        return null;
-    }
+  bool get isOncePerTurn {
+    return usageLimit == TriggerUsageLimit.oncePerTurn;
   }
 
-  String? get effectId {
-    switch (actionType) {
-      case PassiveTriggerActionType.applyEffect:
-      case PassiveTriggerActionType.removeEffect:
-        return targetId;
-
-      default:
-        return null;
-    }
+  bool get isOncePerRound {
+    return usageLimit == TriggerUsageLimit.oncePerRound;
   }
 
-  bool get requiresValue {
-    switch (actionType) {
-      case PassiveTriggerActionType.addResource:
-      case PassiveTriggerActionType.subtractResource:
-      case PassiveTriggerActionType.setResource:
-      case PassiveTriggerActionType.addCharge:
-      case PassiveTriggerActionType.subtractCharge:
-      case PassiveTriggerActionType.dealDamage:
-      case PassiveTriggerActionType.heal:
-      case PassiveTriggerActionType.incrementCounter:
-      case PassiveTriggerActionType.setCounter:
-        return true;
-
-      case PassiveTriggerActionType.applyEffect:
-      case PassiveTriggerActionType.removeEffect:
-        return false;
-    }
+  bool get hasUsageLimit {
+    return usageLimit != TriggerUsageLimit.unlimited;
   }
 
   bool get isCustomEvent {
@@ -201,17 +187,77 @@ class PassiveTrigger {
       'id': id,
       'event': event.name,
       'condition': condition?.toMap(),
-      'actionType': actionType.name,
-      'targetId': targetId,
-      'valueFormula': valueFormula?.toMap(),
-      'customEvent': customEvent,
       'mode': mode.name,
+
+      'target': target.name,
+
+      'usageLimit': usageLimit.name,
+
+      'savingThrow': savingThrow?.toMap(),
+
+      'actions': actions.map((action) => action.toMap()).toList(),
+
+      'customEvent': customEvent,
     };
   }
 
   factory PassiveTrigger.fromMap(Map<dynamic, dynamic> map) {
     final rawCondition = map['condition'];
-    final rawValueFormula = map['valueFormula'];
+
+    final rawSavingThrow = map['savingThrow'];
+
+    final actions = <PassiveTriggerAction>[];
+
+    // =========================================================================
+    // FORMATO NUEVO
+    // =========================================================================
+
+    final rawActions = map['actions'];
+
+    if (rawActions is List) {
+      for (final rawAction in rawActions) {
+        if (rawAction is! Map) {
+          continue;
+        }
+
+        try {
+          actions.add(
+            PassiveTriggerAction.fromMap(Map<dynamic, dynamic>.from(rawAction)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
+    // COMPATIBILIDAD CON FORMATO ANTIGUO
+    // =========================================================================
+
+    if (actions.isEmpty && map['actionType'] != null) {
+      final rawValueFormula = map['valueFormula'];
+
+      actions.add(
+        PassiveTriggerAction(
+          type: PassiveTriggerActionType.values.firstWhere(
+            (value) => value.name == map['actionType']?.toString(),
+            orElse: () => PassiveTriggerActionType.incrementCounter,
+          ),
+
+          targetId: map['targetId']?.toString(),
+
+          valueFormula: rawValueFormula is Map
+              ? CharacterFormula.fromMap(
+                  Map<dynamic, dynamic>.from(rawValueFormula),
+                )
+              : null,
+        ),
+      );
+    }
+
+    // =========================================================================
+    // CREAR
+    // =========================================================================
 
     return PassiveTrigger(
       id: map['id']?.toString() ?? '',
@@ -221,27 +267,32 @@ class PassiveTrigger {
         orElse: () => PassiveTriggerEvent.custom,
       ),
 
-      actionType: PassiveTriggerActionType.values.firstWhere(
-        (value) => value.name == map['actionType']?.toString(),
-        orElse: () => PassiveTriggerActionType.incrementCounter,
-      ),
-
       mode: PassiveTriggerMode.values.firstWhere(
         (value) => value.name == map['mode']?.toString(),
         orElse: () => PassiveTriggerMode.once,
       ),
 
+      target: PassiveTriggerTarget.values.firstWhere(
+        (value) => value.name == map['target']?.toString(),
+        orElse: () => PassiveTriggerTarget.self,
+      ),
+
+      usageLimit: TriggerUsageLimit.values.firstWhere(
+        (value) => value.name == map['usageLimit']?.toString(),
+        orElse: () => TriggerUsageLimit.unlimited,
+      ),
+
+      savingThrow: rawSavingThrow is Map
+          ? TriggerSavingThrow.fromMap(
+              Map<dynamic, dynamic>.from(rawSavingThrow),
+            )
+          : null,
+
       condition: rawCondition is Map
           ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawCondition))
           : null,
 
-      targetId: map['targetId']?.toString(),
-
-      valueFormula: rawValueFormula is Map
-          ? CharacterFormula.fromMap(
-              Map<dynamic, dynamic>.from(rawValueFormula),
-            )
-          : null,
+      actions: actions,
 
       customEvent: map['customEvent']?.toString(),
     );
@@ -276,7 +327,7 @@ class CharacterPassive {
   String id;
   String name;
   String description;
-
+  String? folderId;
   PassiveSourceType sourceType;
 
   bool enabled;
@@ -371,6 +422,7 @@ class CharacterPassive {
     required this.id,
     required this.name,
     this.description = '',
+    this.folderId,
     this.sourceType = PassiveSourceType.custom,
     this.enabled = true,
     FormulaBonus? armorClassBonus,
@@ -439,9 +491,11 @@ class CharacterPassive {
 
   bool get hasAutomaticLinkedEffectTriggers {
     return triggers.any(
-      (trigger) =>
-          trigger.actionType == PassiveTriggerActionType.applyEffect ||
-          trigger.actionType == PassiveTriggerActionType.removeEffect,
+      (trigger) => trigger.actions.any(
+        (action) =>
+            action.type == PassiveTriggerActionType.applyEffect ||
+            action.type == PassiveTriggerActionType.removeEffect,
+      ),
     );
   }
 
@@ -563,6 +617,7 @@ class CharacterPassive {
       'id': id,
       'name': name,
       'description': description,
+      'folderId': folderId,
       'sourceType': sourceType.name,
       'enabled': enabled,
 
@@ -943,6 +998,8 @@ class CharacterPassive {
 
       description: map['description']?.toString() ?? '',
 
+      folderId: map['folderId']?.toString(),
+
       sourceType: PassiveSourceType.values.firstWhere(
         (item) => item.name == map['sourceType'],
         orElse: () => PassiveSourceType.custom,
@@ -1017,5 +1074,201 @@ class CharacterPassive {
     passive.normalizeCharges();
 
     return passive;
+  }
+}
+
+class PassiveTriggerAction {
+  PassiveTriggerActionType type;
+
+  /// ID específico usado por la acción.
+  ///
+  /// Ejemplos:
+  /// - recurso -> CharacterResource.id
+  /// - contador -> CharacterCounter.id
+  /// - efecto -> CharacterEffect.id dentro de linkedEffects
+  String? targetId;
+
+  /// Valor numérico de la acción.
+  ///
+  /// Ejemplos:
+  /// - daño
+  /// - curación
+  /// - recurso
+  /// - cargas
+  /// - contador
+  CharacterFormula? valueFormula;
+
+  /// Dados propios de esta acción.
+  ///
+  /// Principalmente para daño/curación disparados por triggers.
+  List<DicePool> dicePools;
+
+  /// Tipo de daño cuando corresponda.
+  String damageType;
+
+  PassiveTriggerAction({
+    required this.type,
+    this.targetId,
+    this.valueFormula,
+    List<DicePool>? dicePools,
+    this.damageType = '',
+  }) : dicePools = List<DicePool>.from(dicePools ?? const []);
+
+  // ===========================================================================
+  // ESTADO
+  // ===========================================================================
+
+  bool get hasDice {
+    return dicePools.any((pool) => pool.count > 0);
+  }
+
+  bool get hasFormula {
+    return valueFormula != null &&
+        valueFormula!.expression.trim().isNotEmpty &&
+        valueFormula!.expression.trim() != '0';
+  }
+
+  bool get hasDamageType {
+    return damageType.trim().isNotEmpty;
+  }
+
+  bool get requiresTargetId {
+    switch (type) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return true;
+
+      case PassiveTriggerActionType.addCharge:
+      case PassiveTriggerActionType.subtractCharge:
+      case PassiveTriggerActionType.dealDamage:
+      case PassiveTriggerActionType.heal:
+        return false;
+    }
+  }
+
+  bool get hasValidTargetId {
+    return !requiresTargetId || targetId?.trim().isNotEmpty == true;
+  }
+
+  String? get resourceId {
+    switch (type) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+        return targetId;
+
+      default:
+        return null;
+    }
+  }
+
+  String? get counterId {
+    switch (type) {
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return targetId;
+
+      default:
+        return null;
+    }
+  }
+
+  String? get effectId {
+    switch (type) {
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
+        return targetId;
+
+      default:
+        return null;
+    }
+  }
+
+  bool get requiresNumericValue {
+    switch (type) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+      case PassiveTriggerActionType.addCharge:
+      case PassiveTriggerActionType.subtractCharge:
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return true;
+
+      case PassiveTriggerActionType.dealDamage:
+      case PassiveTriggerActionType.heal:
+        return !hasDice;
+
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
+        return false;
+    }
+  }
+
+  String get diceNotation {
+    return dicePools
+        .where((pool) => pool.count > 0)
+        .map((pool) => pool.notation)
+        .join(' + ');
+  }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
+
+  Map<String, dynamic> toMap() {
+    return {
+      'type': type.name,
+      'targetId': targetId,
+      'valueFormula': valueFormula?.toMap(),
+
+      'dicePools': dicePools.map((pool) => pool.toMap()).toList(),
+
+      'damageType': damageType,
+    };
+  }
+
+  factory PassiveTriggerAction.fromMap(Map<dynamic, dynamic> map) {
+    final rawFormula = map['valueFormula'];
+
+    final dicePools = <DicePool>[];
+
+    final rawDicePools = map['dicePools'];
+
+    if (rawDicePools is List) {
+      for (final rawPool in rawDicePools) {
+        if (rawPool is! Map) {
+          continue;
+        }
+
+        try {
+          dicePools.add(DicePool.fromMap(Map<dynamic, dynamic>.from(rawPool)));
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    return PassiveTriggerAction(
+      type: PassiveTriggerActionType.values.firstWhere(
+        (value) => value.name == map['type']?.toString(),
+        orElse: () => PassiveTriggerActionType.incrementCounter,
+      ),
+
+      targetId: map['targetId']?.toString(),
+
+      valueFormula: rawFormula is Map
+          ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawFormula))
+          : null,
+
+      dicePools: dicePools,
+
+      damageType: map['damageType']?.toString() ?? '',
+    );
   }
 }

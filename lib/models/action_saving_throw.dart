@@ -61,15 +61,8 @@ class ActionPhysicalSavingThrowInput {
 
   final int naturalRoll;
 
-  /// Solo se usa para objetivos externos.
-  ///
-  /// Para self, el modificador real lo obtiene ActionResolver
-  /// desde Character.
-  final int? externalModifier;
-
   const ActionPhysicalSavingThrowInput({
     required this.requestId,
     required this.naturalRoll,
-    this.externalModifier,
   });
 }

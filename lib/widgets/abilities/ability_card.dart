@@ -26,6 +26,7 @@ class AbilityCard extends StatefulWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onRestore;
   final VoidCallback onCombatActions;
+  final VoidCallback? onMove;
 
   const AbilityCard({
     super.key,
@@ -36,6 +37,7 @@ class AbilityCard extends StatefulWidget {
     required this.onDelete,
     required this.onRestore,
     required this.onCombatActions,
+    this.onMove,
   });
 
   @override
@@ -68,6 +70,7 @@ class _AbilityCardState extends State<AbilityCard> {
             onEdit: widget.onEdit,
             onDelete: widget.onDelete,
             onRestore: widget.onRestore,
+            onMove: widget.onMove,
           ),
 
           AnimatedCrossFade(
@@ -104,6 +107,7 @@ class _CompactAbilityHeader extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onRestore;
+  final VoidCallback? onMove;
 
   const _CompactAbilityHeader({
     required this.ability,
@@ -113,6 +117,7 @@ class _CompactAbilityHeader extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onRestore,
+    this.onMove,
   });
 
   @override
@@ -209,6 +214,10 @@ class _CompactAbilityHeader extends StatelessWidget {
                         case 'delete':
                           onDelete?.call();
                           break;
+
+                        case 'move':
+                          onMove?.call();
+                          break;
                       }
                     },
                     itemBuilder: (context) {
@@ -229,6 +238,12 @@ class _CompactAbilityHeader extends StatelessWidget {
                           const PopupMenuItem(
                             value: 'delete',
                             child: Text('Eliminar'),
+                          ),
+
+                        if (onMove != null)
+                          const PopupMenuItem(
+                            value: 'move',
+                            child: Text('Mover'),
                           ),
                       ];
                     },

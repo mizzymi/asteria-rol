@@ -1,3 +1,5 @@
+import 'formulas/character_formula.dart';
+import 'passive.dart';
 import 'healing_bonus.dart';
 import 'skill.dart';
 import 'damage_bonus.dart';
@@ -113,6 +115,7 @@ class CharacterEffect {
   // ===========================================================================
   // OTROS
   // ===========================================================================
+  final List<CharacterEffectTrigger> triggers;
 
   String notes;
 
@@ -147,7 +150,10 @@ class CharacterEffect {
     List<HealingBonus>? healingBonuses,
 
     this.notes = '',
-  }) : abilityModifierBonuses = abilityModifierBonuses ?? {},
+
+    List<CharacterEffectTrigger>? triggers,
+  }) : triggers = triggers ?? [],
+       abilityModifierBonuses = abilityModifierBonuses ?? {},
        skillBonuses = skillBonuses ?? {},
        savingThrowBonuses = savingThrowBonuses ?? {},
        damageBonuses = damageBonuses ?? [],
@@ -299,7 +305,8 @@ class CharacterEffect {
         savingThrowBonuses.values.any((value) => value != 0) ||
         damageBonuses.any((damage) => damage.hasDamage) ||
         criticalDamageBonuses.any((damage) => damage.canTrigger) ||
-        healingBonuses.any((bonus) => bonus.hasHealing);
+        healingBonuses.any((bonus) => bonus.hasHealing) ||
+        triggers.any((trigger) => trigger.hasMechanicalEffects);
   }
 
   bool get hasDuration {
@@ -357,6 +364,11 @@ class CharacterEffect {
       currentDuration--;
     }
 
+    if (currentDuration <= 0) {
+      currentDuration = 0;
+      enabled = false;
+    }
+
     minuteRoundProgress = 0;
   }
 
@@ -369,6 +381,10 @@ class CharacterEffect {
 
     if (maxDuration > 0 && currentDuration > maxDuration) {
       currentDuration = maxDuration;
+    }
+
+    if (currentDuration > 0) {
+      enabled = true;
     }
 
     minuteRoundProgress = 0;
@@ -458,6 +474,7 @@ class CharacterEffect {
     List<DamageBonus>? damageBonuses,
     List<CriticalDamageBonus>? criticalDamageBonuses,
     List<HealingBonus>? healingBonuses,
+    List<CharacterEffectTrigger>? triggers,
     String? notes,
   }) {
     return CharacterEffect(
@@ -509,6 +526,12 @@ class CharacterEffect {
           healingBonuses ??
           this.healingBonuses
               .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+              .toList(),
+
+      triggers:
+          triggers ??
+          this.triggers
+              .map((trigger) => CharacterEffectTrigger.fromMap(trigger.toMap()))
               .toList(),
 
       notes: notes ?? this.notes,
@@ -572,6 +595,8 @@ class CharacterEffect {
           .toList(),
 
       'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
+
+      'triggers': triggers.map((trigger) => trigger.toMap()).toList(),
 
       'notes': notes,
     };
@@ -686,6 +711,22 @@ class CharacterEffect {
       }
     }
 
+    final triggers = <CharacterEffectTrigger>[];
+
+    final rawTriggers = map['triggers'];
+
+    if (rawTriggers is List) {
+      for (final raw in rawTriggers) {
+        if (raw is! Map) {
+          continue;
+        }
+
+        triggers.add(
+          CharacterEffectTrigger.fromMap(Map<dynamic, dynamic>.from(raw)),
+        );
+      }
+    }
+
     final effect = CharacterEffect(
       id: map['id']?.toString() ?? '',
 
@@ -740,11 +781,230 @@ class CharacterEffect {
 
       healingBonuses: healingBonuses,
 
+      triggers: triggers,
+
       notes: map['notes']?.toString() ?? '',
     );
 
     effect.normalizeDuration();
 
     return effect;
+  }
+}
+
+class CharacterEffectTrigger {
+  final String id;
+
+  final PassiveTriggerEvent event;
+
+  final PassiveTriggerTarget target;
+
+  final TriggerUsageLimit usageLimit;
+
+  /// Define cómo se comporta el trigger.
+  ///
+  /// once:
+  /// se ejecuta una vez cuando ocurre el evento.
+  ///
+  /// whileCondition:
+  /// mantiene sus efectos vinculados mientras
+  /// la condición permanezca verdadera.
+  final PassiveTriggerMode mode;
+
+  final CharacterFormula? condition;
+
+  final List<DamageBonus> damageBonuses;
+  final List<HealingBonus> healingBonuses;
+  final List<CharacterEffect> linkedEffects;
+
+  const CharacterEffectTrigger({
+    required this.id,
+    required this.event,
+    this.target = PassiveTriggerTarget.self,
+    this.usageLimit = TriggerUsageLimit.unlimited,
+    this.mode = PassiveTriggerMode.once,
+    this.condition,
+    this.damageBonuses = const [],
+    this.healingBonuses = const [],
+    this.linkedEffects = const [],
+  });
+
+  bool get targetsSelf {
+    return target == PassiveTriggerTarget.self;
+  }
+
+  bool get targetsActionTarget {
+    return target == PassiveTriggerTarget.actionTarget;
+  }
+
+  bool get executesOnce {
+    return mode == PassiveTriggerMode.once;
+  }
+
+  bool get maintainsWhileCondition {
+    return mode == PassiveTriggerMode.whileCondition;
+  }
+
+  bool get supportsPersistentMode {
+    return linkedEffects.isNotEmpty &&
+        damageBonuses.every((bonus) => !bonus.hasDamage) &&
+        healingBonuses.every((bonus) => !bonus.hasHealing);
+  }
+
+  String usageKey(String sourceEffectId) {
+    return '$sourceEffectId:$id';
+  }
+
+  bool get hasCondition {
+    return condition != null &&
+        condition!.expression.trim().isNotEmpty &&
+        condition!.expression.trim() != '0';
+  }
+
+  bool get hasMechanicalEffects {
+    return damageBonuses.any((bonus) => bonus.hasDamage) ||
+        healingBonuses.any((bonus) => bonus.hasHealing) ||
+        linkedEffects.isNotEmpty;
+  }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'event': event.name,
+      'target': target.name,
+      'usageLimit': usageLimit.name,
+      'mode': mode.name,
+      'condition': condition?.toMap(),
+
+      'damageBonuses': damageBonuses.map((bonus) => bonus.toMap()).toList(),
+
+      'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
+
+      'linkedEffects': linkedEffects.map((effect) => effect.toMap()).toList(),
+    };
+  }
+
+  factory CharacterEffectTrigger.fromMap(Map<dynamic, dynamic> map) {
+    // =========================================================================
+    // CONDICIÓN
+    // =========================================================================
+
+    final rawCondition = map['condition'];
+
+    final condition = rawCondition is Map
+        ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawCondition))
+        : null;
+
+    // =========================================================================
+    // DAÑO
+    // =========================================================================
+
+    final damageBonuses = <DamageBonus>[];
+
+    final rawDamageBonuses = map['damageBonuses'];
+
+    if (rawDamageBonuses is List) {
+      for (final rawBonus in rawDamageBonuses) {
+        if (rawBonus is! Map) {
+          continue;
+        }
+
+        try {
+          damageBonuses.add(
+            DamageBonus.fromMap(Map<dynamic, dynamic>.from(rawBonus)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
+    // CURACIÓN
+    // =========================================================================
+
+    final healingBonuses = <HealingBonus>[];
+
+    final rawHealingBonuses = map['healingBonuses'];
+
+    if (rawHealingBonuses is List) {
+      for (final rawBonus in rawHealingBonuses) {
+        if (rawBonus is! Map) {
+          continue;
+        }
+
+        try {
+          healingBonuses.add(
+            HealingBonus.fromMap(Map<dynamic, dynamic>.from(rawBonus)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
+    // EFECTOS VINCULADOS
+    // =========================================================================
+
+    final linkedEffects = <CharacterEffect>[];
+
+    final rawLinkedEffects = map['linkedEffects'];
+
+    if (rawLinkedEffects is List) {
+      for (final rawEffect in rawLinkedEffects) {
+        if (rawEffect is! Map) {
+          continue;
+        }
+
+        try {
+          linkedEffects.add(
+            CharacterEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
+    // CREAR TRIGGER
+    // =========================================================================
+
+    return CharacterEffectTrigger(
+      id: map['id']?.toString() ?? '',
+
+      event: PassiveTriggerEvent.values.firstWhere(
+        (value) => value.name == map['event']?.toString(),
+        orElse: () => PassiveTriggerEvent.custom,
+      ),
+
+      usageLimit: TriggerUsageLimit.values.firstWhere(
+        (value) => value.name == map['usageLimit']?.toString(),
+        orElse: () => TriggerUsageLimit.unlimited,
+      ),
+
+      mode: PassiveTriggerMode.values.firstWhere(
+        (value) => value.name == map['mode']?.toString(),
+        orElse: () => PassiveTriggerMode.once,
+      ),
+
+      target: PassiveTriggerTarget.values.firstWhere(
+        (value) => value.name == map['target']?.toString(),
+        orElse: () => PassiveTriggerTarget.self,
+      ),
+
+      condition: condition,
+
+      damageBonuses: damageBonuses,
+
+      healingBonuses: healingBonuses,
+
+      linkedEffects: linkedEffects,
+    );
   }
 }

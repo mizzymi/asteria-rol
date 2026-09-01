@@ -65,4 +65,54 @@ class ExternalActionOutcome {
   bool appliedEffect(String effectId) {
     return appliedEffectIds.contains(effectId);
   }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
+
+  Map<String, dynamic> toMap() {
+    return {
+      'targetId': targetId,
+      'damageApplied': damageApplied,
+      'healingApplied': healingApplied,
+      'appliedEffectIds': appliedEffectIds.toList(),
+      'killed': killed,
+      'healthBefore': healthBefore,
+      'healthAfter': healthAfter,
+    };
+  }
+
+  factory ExternalActionOutcome.fromMap(Map<dynamic, dynamic> map) {
+    final appliedEffectIds = <String>{};
+
+    final rawEffectIds = map['appliedEffectIds'];
+
+    if (rawEffectIds is List) {
+      for (final value in rawEffectIds) {
+        final id = value?.toString().trim();
+
+        if (id == null || id.isEmpty) {
+          continue;
+        }
+
+        appliedEffectIds.add(id);
+      }
+    }
+
+    return ExternalActionOutcome(
+      targetId: map['targetId']?.toString() ?? '',
+
+      damageApplied: (map['damageApplied'] as num?)?.toInt() ?? 0,
+
+      healingApplied: (map['healingApplied'] as num?)?.toInt() ?? 0,
+
+      appliedEffectIds: Set<String>.unmodifiable(appliedEffectIds),
+
+      killed: map['killed'] as bool? ?? false,
+
+      healthBefore: (map['healthBefore'] as num?)?.toInt(),
+
+      healthAfter: (map['healthAfter'] as num?)?.toInt(),
+    );
+  }
 }

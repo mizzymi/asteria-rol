@@ -478,6 +478,8 @@ class CharacterAbility {
 
   AbilityActionType actionType;
 
+  String? folderId;
+
   // ==========================================================================
   // ATAQUE
   // ==========================================================================
@@ -575,6 +577,7 @@ class CharacterAbility {
     required this.name,
     this.description = '',
     this.actionType = AbilityActionType.action,
+    this.folderId,
     this.targetType = AbilityTargetType.external,
     this.targetResolutionMode = AbilityTargetResolutionMode.shared,
     this.requiresAttackRoll = false,
@@ -707,6 +710,8 @@ class CharacterAbility {
 
       'actionType': actionType.name,
 
+      'folderId': folderId,
+
       'requiresAttackRoll': requiresAttackRoll,
 
       'abilityType': abilityType.name,
@@ -759,22 +764,6 @@ class CharacterAbility {
           .map((linkedEffect) => linkedEffect.toMap())
           .toList(),
     };
-  }
-
-  bool _linkedEffectAppliesToTarget({
-    required ActionLinkedEffect linkedEffect,
-    required ActionTarget target,
-  }) {
-    switch (linkedEffect.target) {
-      case ActionLinkedEffectTarget.actionTarget:
-        return true;
-
-      case ActionLinkedEffectTarget.self:
-        return target.isSelf;
-
-      case ActionLinkedEffectTarget.externalTargets:
-        return target.isExternal;
-    }
   }
 
   factory CharacterAbility.fromMap(Map<dynamic, dynamic> map) {
@@ -1107,6 +1096,8 @@ class CharacterAbility {
         (item) => item.name == map['actionType'],
         orElse: () => AbilityActionType.action,
       ),
+
+      folderId: map['folderId']?.toString(),
 
       targetType: AbilityTargetType.values.firstWhere(
         (item) => item.name == map['targetType'],

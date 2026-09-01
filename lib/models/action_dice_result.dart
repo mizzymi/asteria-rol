@@ -5,19 +5,14 @@ import 'ability.dart';
 class ActionDiceResult {
   final List<ActionDicePartResult> parts;
 
-  const ActionDiceResult({
-    this.parts = const [],
-  });
+  const ActionDiceResult({this.parts = const []});
 
   // ===========================================================================
   // TOTAL
   // ===========================================================================
 
   int get total {
-    return parts.fold<int>(
-      0,
-          (sum, part) => sum + part.total,
-    );
+    return parts.fold<int>(0, (sum, part) => sum + part.total);
   }
 
   bool get isEmpty => parts.isEmpty;
@@ -28,9 +23,7 @@ class ActionDiceResult {
   // LOOKUPS
   // ===========================================================================
 
-  ActionDicePartResult? partById(
-      String id,
-      ) {
+  ActionDicePartResult? partById(String id) {
     for (final part in parts) {
       if (part.request.id == id) {
         return part;
@@ -40,39 +33,21 @@ class ActionDiceResult {
     return null;
   }
 
-  List<ActionDicePartResult> partsForEffect(
-      String effectId,
-      ) {
+  List<ActionDicePartResult> partsForEffect(String effectId) {
     return parts
-        .where(
-          (part) =>
-      part.request.effectId ==
-          effectId,
-    )
+        .where((part) => part.request.effectId == effectId)
         .toList(growable: false);
   }
 
-  List<ActionDicePartResult> partsForSource(
-      ActionDiceSourceType sourceType,
-      ) {
+  List<ActionDicePartResult> partsForSource(ActionDiceSourceType sourceType) {
     return parts
-        .where(
-          (part) =>
-      part.request.sourceType ==
-          sourceType,
-    )
+        .where((part) => part.request.sourceType == sourceType)
         .toList(growable: false);
   }
 
-  List<ActionDicePartResult> partsForEffectType(
-      AbilityEffectType effectType,
-      ) {
+  List<ActionDicePartResult> partsForEffectType(AbilityEffectType effectType) {
     return parts
-        .where(
-          (part) =>
-      part.request.effectType ==
-          effectType,
-    )
+        .where((part) => part.request.effectType == effectType)
         .toList(growable: false);
   }
 
@@ -80,68 +55,28 @@ class ActionDiceResult {
   // TOTALES
   // ===========================================================================
 
-  int totalForEffectType(
-      AbilityEffectType effectType,
-      ) {
+  int totalForEffectType(AbilityEffectType effectType) {
     return parts
-        .where(
-          (part) =>
-      part.request.effectType ==
-          effectType,
-    )
-        .fold<int>(
-      0,
-          (sum, part) =>
-      sum + part.total,
-    );
+        .where((part) => part.request.effectType == effectType)
+        .fold<int>(0, (sum, part) => sum + part.total);
   }
 
-  int totalForEffect(
-      String effectId,
-      ) {
+  int totalForEffect(String effectId) {
     return parts
-        .where(
-          (part) =>
-      part.request.effectId ==
-          effectId,
-    )
-        .fold<int>(
-      0,
-          (sum, part) =>
-      sum + part.total,
-    );
+        .where((part) => part.request.effectId == effectId)
+        .fold<int>(0, (sum, part) => sum + part.total);
   }
 
-  int totalForSource(
-      ActionDiceSourceType sourceType,
-      ) {
+  int totalForSource(ActionDiceSourceType sourceType) {
     return parts
-        .where(
-          (part) =>
-      part.request.sourceType ==
-          sourceType,
-    )
-        .fold<int>(
-      0,
-          (sum, part) =>
-      sum + part.total,
-    );
+        .where((part) => part.request.sourceType == sourceType)
+        .fold<int>(0, (sum, part) => sum + part.total);
   }
 
-  int totalForSourceId(
-      String sourceId,
-      ) {
+  int totalForSourceId(String sourceId) {
     return parts
-        .where(
-          (part) =>
-      part.request.sourceId ==
-          sourceId,
-    )
-        .fold<int>(
-      0,
-          (sum, part) =>
-      sum + part.total,
-    );
+        .where((part) => part.request.sourceId == sourceId)
+        .fold<int>(0, (sum, part) => sum + part.total);
   }
 
   // ===========================================================================
@@ -150,16 +85,8 @@ class ActionDiceResult {
 
   int get criticalExtraTotal {
     return parts
-        .where(
-          (part) =>
-      part.request.kind ==
-          ActionDicePartKind.criticalExtra,
-    )
-        .fold<int>(
-      0,
-          (sum, part) =>
-      sum + part.total,
-    );
+        .where((part) => part.request.kind == ActionDicePartKind.criticalExtra)
+        .fold<int>(0, (sum, part) => sum + part.total);
   }
 }
 
@@ -168,16 +95,13 @@ class ActionDicePartResult {
 
   final DiceCalculationResult result;
 
-  const ActionDicePartResult({
-    required this.request,
-    required this.result,
-  });
+  const ActionDicePartResult({required this.request, required this.result});
 
   // ===========================================================================
   // DESGLOSE
   // ===========================================================================
 
-  int get rolledTotal {
+  int get calculatedTotal {
     return result.total;
   }
 
@@ -186,7 +110,7 @@ class ActionDicePartResult {
   }
 
   int get total {
-    return rolledTotal + automaticValue;
+    return calculatedTotal + automaticValue;
   }
 
   bool get hasAutomaticValue {
@@ -194,23 +118,10 @@ class ActionDicePartResult {
   }
 
   bool get isCriticalExtra {
-    return request.kind ==
-        ActionDicePartKind.criticalExtra;
+    return request.kind == ActionDicePartKind.criticalExtra;
   }
 
   bool get hasValue {
-    return total != 0 ||
-        request.requiresRoll;
+    return total != 0 || request.requiresRoll;
   }
-}
-
-class ActionPhysicalDiceInput {
-  final String requestPartId;
-
-  final List<List<int>> rolls;
-
-  const ActionPhysicalDiceInput({
-    required this.requestPartId,
-    required this.rolls,
-  });
 }

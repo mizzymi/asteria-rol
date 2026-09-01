@@ -6,6 +6,7 @@ import '../models/character.dart';
 import '../models/passive.dart';
 import '../models/action_effect_result.dart';
 import '../models/external_action_outcome.dart';
+import '../models/external_action_confirmation_context.dart';
 
 class ActionResultApplier {
   final Character character;
@@ -60,18 +61,40 @@ class ActionResultApplier {
       return;
     }
 
-    final targetVariables = result.eventVariablesForTarget(
-      resolvedTarget.target,
+    final context = ExternalActionConfirmationContext(
+      transferId: '',
+      targetId: resolvedTarget.target.id,
+
+      targetLabel: resolvedTarget.target.label ?? '',
+
+      eventVariables: result.eventVariablesForTarget(resolvedTarget.target),
+
+      resolvedDamage: resolvedTarget.damage,
+
+      resolvedHealing: resolvedTarget.healing,
+
+      resolvedEffectCount: resolvedTarget.effects.length,
     );
 
+    dispatchExternalConfirmation(context: context, outcome: outcome);
+  }
+
+  void dispatchExternalConfirmation({
+    required ExternalActionConfirmationContext context,
+    required ExternalActionOutcome outcome,
+  }) {
+    if (context.targetId != outcome.targetId) {
+      throw StateError('La confirmación no pertenece al objetivo esperado.');
+    }
+
     final outcomeVariables = <String, double>{
-      ...targetVariables,
+      ...context.eventVariables,
 
-      ActionEventVariables.resolvedDamage: resolvedTarget.damage.toDouble(),
+      ActionEventVariables.resolvedDamage: context.resolvedDamage.toDouble(),
 
-      ActionEventVariables.resolvedHealing: resolvedTarget.healing.toDouble(),
+      ActionEventVariables.resolvedHealing: context.resolvedHealing.toDouble(),
 
-      ActionEventVariables.resolvedEffectCount: resolvedTarget.effects.length
+      ActionEventVariables.resolvedEffectCount: context.resolvedEffectCount
           .toDouble(),
 
       ActionEventVariables.damageApplied: outcome.damageApplied.toDouble(),
@@ -101,7 +124,7 @@ class ActionResultApplier {
     };
 
     // ===========================================================================
-    // DAÑO REALMENTE APLICADO
+    // DAÑO
     // ===========================================================================
 
     if (outcome.damageApplied > 0) {
@@ -112,7 +135,7 @@ class ActionResultApplier {
 
           ActionEventVariables.damage: outcome.damageApplied.toDouble(),
 
-          ActionEventVariables.damageResolved: resolvedTarget.damage > 0
+          ActionEventVariables.damageResolved: context.resolvedDamage > 0
               ? 1
               : 0,
 
@@ -122,7 +145,7 @@ class ActionResultApplier {
     }
 
     // ===========================================================================
-    // CURACIÓN REALMENTE APLICADA
+    // CURACIÓN
     // ===========================================================================
 
     if (outcome.healingApplied > 0) {
@@ -133,7 +156,7 @@ class ActionResultApplier {
 
           ActionEventVariables.healing: outcome.healingApplied.toDouble(),
 
-          ActionEventVariables.healingResolved: resolvedTarget.healing > 0
+          ActionEventVariables.healingResolved: context.resolvedHealing > 0
               ? 1
               : 0,
 
@@ -143,7 +166,7 @@ class ActionResultApplier {
     }
 
     // ===========================================================================
-    // EFECTOS REALMENTE APLICADOS
+    // EFECTOS
     // ===========================================================================
 
     if (outcome.receivedEffects) {
@@ -155,8 +178,9 @@ class ActionResultApplier {
 
             ActionEventVariables.effectApplied: 1,
 
-            ActionEventVariables.effectResolved:
-                resolvedTarget.effects.isNotEmpty ? 1 : 0,
+            ActionEventVariables.effectResolved: context.resolvedEffectCount > 0
+                ? 1
+                : 0,
 
             ActionEventVariables.effectConfirmed: 1,
 
@@ -235,8 +259,6 @@ class ActionResultApplier {
     var selfHealingApplied = 0;
     var selfEffectsApplied = 0;
 
-    var criticalDispatched = false;
-
     // ===========================================================================
     // RESULTADOS POR TARGET
     // ===========================================================================
@@ -253,6 +275,10 @@ class ActionResultApplier {
       // target_index
       // target_is_self
       // target_is_external
+      final preTargetVariables = result.preResolutionEventVariablesForTarget(
+        target,
+      );
+
       final targetVariables = result.eventVariablesForTarget(target);
 
       // =========================================================================
@@ -264,7 +290,7 @@ class ActionResultApplier {
 
       if (result.attackResult != null && targetResult.hasAttackResult) {
         final attackVariables = <String, double>{
-          ...targetVariables,
+          ...preTargetVariables,
 
           ActionEventVariables.attackRoll: result.attackResult!.naturalRoll
               .toDouble(),
@@ -280,17 +306,6 @@ class ActionResultApplier {
             PassiveTriggerEvent.attackHit,
             eventVariables: attackVariables,
           );
-
-          // Una acción crítica se despacha una sola vez,
-          // aunque tenga varios targets.
-          if (result.critical && !criticalDispatched) {
-            character.dispatchPassiveTrigger(
-              PassiveTriggerEvent.criticalHit,
-              eventVariables: attackVariables,
-            );
-
-            criticalDispatched = true;
-          }
         } else {
           character.dispatchPassiveTrigger(
             PassiveTriggerEvent.attackMiss,
@@ -363,6 +378,49 @@ class ActionResultApplier {
           ),
         );
       }
+    }
+
+    // ===========================================================================
+    // CRÍTICO GLOBAL
+    //
+    // Se despacha una única vez por acción.
+    // No heredamos el estado externo de ningún target concreto.
+    // ===========================================================================
+
+    var criticalDispatched = false;
+
+    if (result.critical && result.hitAnyTarget) {
+      character.dispatchPassiveTrigger(
+        PassiveTriggerEvent.criticalHit,
+        eventVariables: {
+          ActionEventVariables.attackRoll:
+              result.attackResult?.naturalRoll.toDouble() ?? 0,
+
+          ActionEventVariables.attackTotal:
+              result.attackResult?.total.toDouble() ?? 0,
+
+          ActionEventVariables.critical: 1,
+
+          ActionEventVariables.actionTargetCount: result.targetCount.toDouble(),
+
+          ActionEventVariables.affectedActionTargetCount: result
+              .affectedTargetCount
+              .toDouble(),
+
+          ActionEventVariables.externalAffectedTargetCount: result
+              .externalAffectedTargetCount
+              .toDouble(),
+
+          // Evento global: no representa un target particular.
+          ActionEventVariables.targetIndex: 0,
+
+          ActionEventVariables.targetIsSelf: 0,
+
+          ActionEventVariables.targetIsExternal: 0,
+        },
+      );
+
+      criticalDispatched = true;
     }
 
     // ===========================================================================

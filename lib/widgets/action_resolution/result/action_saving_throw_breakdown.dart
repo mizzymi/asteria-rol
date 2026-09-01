@@ -40,7 +40,7 @@ class _SavingThrowResultRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
-          result.saved ? Icons.shield_rounded : Icons.shield_outlined,
+          result.saved ? Icons.shield_outlined : Icons.warning_amber_rounded,
           size: 18,
         ),
 
@@ -83,9 +83,9 @@ class _SavingThrowResultRow extends StatelessWidget {
     final request = result.request;
 
     if (!result.hasRollDetails) {
-      return '${request.ability.name} · '
-          'CD ${request.dc} · '
-          '${result.saved ? 'superada' : 'fallida'}';
+      return result.saved
+          ? '${request.ability.name} · CD ${request.dc}'
+          : '${request.ability.name} · CD ${request.dc} · fallida';
     }
 
     final naturalRoll = result.naturalRoll!;
@@ -109,12 +109,12 @@ String _resultText(ActionSavingThrowResult result) {
 
   switch (result.request.successEffect) {
     case SaveSuccessEffect.full:
-      return 'Salvación superada · efecto completo.';
+      return 'Efecto completo.';
 
     case SaveSuccessEffect.half:
-      return 'Salvación superada · efecto reducido a la mitad.';
+      return 'Efecto reducido a la mitad.';
 
     case SaveSuccessEffect.none:
-      return 'Salvación superada · sin efecto.';
+      return 'Sin efecto.';
   }
 }

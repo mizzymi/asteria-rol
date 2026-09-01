@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 
+import '../models/character_content_folder.dart';
+import '../models/item.dart';
 import '../models/ability.dart';
 import '../models/character.dart';
 import '../models/passive.dart';
+import '../models/external_action_transfer.dart';
 
+import '../services/external_action_transfer_storage_service.dart';
 import '../services/character_effect_application_service.dart';
 import '../services/action_resolution_flow.dart';
 import '../services/character_storage_service.dart';
+import '../services/action_result_applier.dart';
 
 import '../widgets/common/empty_state.dart';
-import '../widgets/common/section_header.dart';
 import '../widgets/passives/passive_roll_dialog.dart';
 import '../widgets/combat/combat_action_sheet.dart';
 import '../widgets/abilities/ability_card.dart';
 import '../widgets/passives/passive_card.dart';
 import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
+import '../widgets/action_resolution/result/external_action_import_dialog.dart';
 
 import 'ability_form_screen.dart';
 import 'passive_form_screen.dart';
@@ -22,7 +27,13 @@ import 'passive_form_screen.dart';
 class AbilitiesScreen extends StatefulWidget {
   final Character character;
 
-  const AbilitiesScreen({super.key, required this.character});
+  final Future<void> Function()? onCharacterChanged;
+
+  const AbilitiesScreen({
+    super.key,
+    required this.character,
+    this.onCharacterChanged,
+  });
 
   @override
   State<AbilitiesScreen> createState() => _AbilitiesScreenState();
@@ -30,6 +41,548 @@ class AbilitiesScreen extends StatefulWidget {
 
 class _AbilitiesScreenState extends State<AbilitiesScreen> {
   Character get character => widget.character;
+
+  String? _currentFolderId;
+
+  bool _showingItemsRoot = false;
+
+  String? _currentItemId;
+
+  CharacterContentFolder? get _currentFolder {
+    return character.contentFolderById(_currentFolderId);
+  }
+
+  CharacterItem? get _currentItem {
+    final id = _currentItemId;
+
+    if (id == null) {
+      return null;
+    }
+
+    return character.itemById(id);
+  }
+
+  void _openFolder(String folderId) {
+    setState(() {
+      _currentFolderId = folderId;
+
+      _showingItemsRoot = false;
+
+      _currentItemId = null;
+    });
+  }
+
+  void _openItemsRoot() {
+    setState(() {
+      _currentFolderId = null;
+
+      _showingItemsRoot = true;
+
+      _currentItemId = null;
+    });
+  }
+
+  void _openItemFolder(CharacterItem item) {
+    setState(() {
+      _currentFolderId = null;
+
+      _showingItemsRoot = false;
+
+      _currentItemId = item.id;
+    });
+  }
+
+  bool get _canGoBackInsideContent {
+    return _currentFolderId != null ||
+        _showingItemsRoot ||
+        _currentItemId != null;
+  }
+
+  void _goBackInsideContent() {
+    if (_currentItemId != null) {
+      setState(() {
+        _currentItemId = null;
+
+        _showingItemsRoot = true;
+      });
+
+      return;
+    }
+
+    if (_showingItemsRoot) {
+      setState(() {
+        _showingItemsRoot = false;
+      });
+
+      return;
+    }
+
+    final folder = _currentFolder;
+
+    if (folder != null) {
+      setState(() {
+        _currentFolderId = folder.parentId;
+      });
+    }
+  }
+
+  String get _screenTitle {
+    final item = _currentItem;
+
+    if (item != null) {
+      return item.name;
+    }
+
+    if (_showingItemsRoot) {
+      return 'Objetos';
+    }
+
+    final folder = _currentFolder;
+
+    if (folder != null) {
+      return folder.name;
+    }
+
+    return 'Habilidades y pasivas';
+  }
+
+  Future<void> _createFolder() async {
+    var folderName = '';
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nueva carpeta'),
+
+          content: TextField(
+            autofocus: true,
+
+            decoration: const InputDecoration(
+              labelText: 'Nombre',
+              prefixIcon: Icon(Icons.folder_rounded),
+            ),
+
+            onChanged: (value) {
+              folderName = value;
+            },
+
+            onSubmitted: (value) {
+              final name = value.trim();
+
+              if (name.isEmpty) {
+                return;
+              }
+
+              Navigator.of(dialogContext).pop(name);
+            },
+          ),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                final name = folderName.trim();
+
+                if (name.isEmpty) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(name);
+              },
+              child: const Text('Crear'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null || result.trim().isEmpty || !mounted) {
+      return;
+    }
+
+    setState(() {
+      character.createContentFolder(
+        name: result.trim(),
+        parentId: _currentFolderId,
+      );
+    });
+
+    await save();
+  }
+
+  Future<void> _renameCurrentFolder() async {
+    final folder = _currentFolder;
+
+    if (folder == null) {
+      return;
+    }
+
+    var folderName = folder.name;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Renombrar carpeta'),
+
+          content: TextFormField(
+            initialValue: folder.name,
+            autofocus: true,
+
+            decoration: const InputDecoration(
+              labelText: 'Nombre',
+              prefixIcon: Icon(Icons.folder_rounded),
+            ),
+
+            onChanged: (value) {
+              folderName = value;
+            },
+
+            onFieldSubmitted: (value) {
+              final name = value.trim();
+
+              if (name.isEmpty) {
+                return;
+              }
+
+              Navigator.of(dialogContext).pop(name);
+            },
+          ),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                final name = folderName.trim();
+
+                if (name.isEmpty) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(name);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null || result.trim().isEmpty || !mounted) {
+      return;
+    }
+
+    setState(() {
+      character.renameContentFolder(folder.id, result.trim());
+    });
+
+    await save();
+  }
+
+  Future<void> _deleteCurrentFolder() async {
+    final folder = _currentFolder;
+
+    if (folder == null) {
+      return;
+    }
+
+    final confirmed = await _confirmDelete(
+      title: 'Eliminar carpeta',
+      message:
+          '¿Quieres eliminar "${folder.name}"? '
+          'Su contenido subirá a la carpeta anterior.',
+    );
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    final parentId = folder.parentId;
+
+    setState(() {
+      character.removeContentFolder(folder.id);
+
+      _currentFolderId = parentId;
+    });
+
+    await save();
+  }
+
+  List<_FolderOption> _folderOptions() {
+    final result = <_FolderOption>[];
+
+    void visit(String? parentId, int depth) {
+      final folders = character.contentFoldersInside(parentId);
+
+      for (final folder in folders) {
+        result.add(_FolderOption(folder: folder, depth: depth));
+
+        visit(folder.id, depth + 1);
+      }
+    }
+
+    visit(null, 0);
+
+    return result;
+  }
+
+  Future<String?> _pickFolder({required String? currentFolderId}) async {
+    final options = _folderOptions();
+
+    return showModalBottomSheet<String?>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final colors = theme.colorScheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Mover a carpeta',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      // =========================================================
+                      // SIN CARPETA
+                      // =========================================================
+                      ListTile(
+                        leading: const Icon(Icons.home_outlined),
+                        title: const Text('Sin carpeta'),
+                        trailing: currentFolderId == null
+                            ? Icon(Icons.check_rounded, color: colors.primary)
+                            : null,
+                        onTap: () {
+                          // Usamos un valor especial porque
+                          // Navigator.pop(..., null) también
+                          // significaría "cancelado".
+                          Navigator.pop(sheetContext, '__root__');
+                        },
+                      ),
+
+                      if (options.isNotEmpty) const Divider(),
+
+                      // =========================================================
+                      // CARPETAS
+                      // =========================================================
+                      ...options.map((option) {
+                        final folder = option.folder;
+
+                        final selected = folder.id == currentFolderId;
+
+                        return ListTile(
+                          contentPadding: EdgeInsets.only(
+                            left: 16 + (option.depth * 20),
+                            right: 12,
+                          ),
+                          leading: Icon(
+                            Icons.folder_rounded,
+                            color: colors.primary,
+                          ),
+                          title: Text(
+                            folder.name,
+                            style: TextStyle(
+                              fontWeight: option.depth == 0
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                          trailing: selected
+                              ? Icon(Icons.check_rounded, color: colors.primary)
+                              : null,
+                          onTap: () {
+                            Navigator.pop(sheetContext, folder.id);
+                          },
+                        );
+                      }),
+
+                      const Divider(),
+
+                      // =========================================================
+                      // NUEVA CARPETA
+                      // =========================================================
+                      ListTile(
+                        leading: const Icon(Icons.create_new_folder_rounded),
+                        title: const Text('Nueva carpeta'),
+                        onTap: () async {
+                          Navigator.pop(sheetContext, '__create__');
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> moveAbility(CharacterAbility ability) async {
+    var selected = await _pickFolder(currentFolderId: ability.folderId);
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    if (selected == '__create__') {
+      await _createFolder();
+
+      if (!mounted) {
+        return;
+      }
+
+      selected = await _pickFolder(currentFolderId: ability.folderId);
+
+      if (selected == null || selected == '__create__' || !mounted) {
+        return;
+      }
+    }
+
+    final folderId = selected == '__root__' ? null : selected;
+
+    setState(() {
+      character.moveAbilityToFolder(ability, folderId);
+    });
+
+    await save();
+  }
+
+  Future<void> movePassive(CharacterPassive passive) async {
+    var selected = await _pickFolder(currentFolderId: passive.folderId);
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    if (selected == '__create__') {
+      await _createFolder();
+
+      if (!mounted) {
+        return;
+      }
+
+      selected = await _pickFolder(currentFolderId: passive.folderId);
+
+      if (selected == null || selected == '__create__' || !mounted) {
+        return;
+      }
+    }
+
+    final folderId = selected == '__root__' ? null : selected;
+
+    setState(() {
+      character.movePassiveToFolder(passive, folderId);
+    });
+
+    await save();
+  }
+
+  Future<void> _importExternalAction() async {
+    await showExternalActionImportDialog(
+      context,
+      character: character,
+
+      onCharacterChanged: () async {
+        await save();
+      },
+
+      onConfirmTransfer: (transfer) {
+        return _confirmExternalTransfer(transfer: transfer);
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+
+    await widget.onCharacterChanged?.call();
+  }
+
+  Future<bool> _confirmExternalTransfer({
+    required ExternalActionTransfer transfer,
+  }) async {
+    if (!transfer.isConfirmed) {
+      throw StateError('La transferencia recibida no es una confirmación.');
+    }
+
+    final outcome = transfer.confirmedOutcome;
+
+    if (outcome == null) {
+      throw StateError('La confirmación no contiene resultado.');
+    }
+
+    final alreadyConfirmed =
+        await ExternalActionTransferStorageService.hasConfirmed(
+          transfer.transferId,
+        );
+
+    if (alreadyConfirmed) {
+      return false;
+    }
+
+    final confirmationContext =
+        await ExternalActionTransferStorageService.getConfirmationContext(
+          transfer.transferId,
+        );
+
+    if (confirmationContext == null) {
+      throw StateError(
+        'No se encuentra la acción original de esta confirmación.',
+      );
+    }
+
+    final applier = ActionResultApplier(character: character);
+
+    applier.dispatchExternalConfirmation(
+      context: confirmationContext,
+      outcome: outcome,
+    );
+
+    await save();
+
+    await ExternalActionTransferStorageService.markConfirmed(
+      transfer.transferId,
+    );
+
+    await ExternalActionTransferStorageService.removeConfirmationContext(
+      transfer.transferId,
+    );
+
+    await widget.onCharacterChanged?.call();
+
+    return true;
+  }
 
   // ===========================================================================
   // STORAGE
@@ -472,6 +1025,15 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                     Navigator.pop(sheetContext, 'passive');
                   },
                 ),
+
+                ListTile(
+                  leading: const Icon(Icons.create_new_folder_rounded),
+                  title: const Text('Nueva carpeta'),
+                  subtitle: const Text('Organiza habilidades y pasivas'),
+                  onTap: () {
+                    Navigator.pop(sheetContext, 'folder');
+                  },
+                ),
               ],
             ),
           ),
@@ -487,6 +1049,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       case 'passive':
         await createPassive();
         break;
+
+      case 'folder':
+        await _createFolder();
+        break;
     }
   }
 
@@ -496,64 +1062,162 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final abilities = character.availableAbilities;
+    final currentItem = _currentItem;
 
-    final itemPassives = character.items
-        .where((item) => item.equipped)
-        .expand((item) => item.passives)
-        .toList();
+    final folders = !_showingItemsRoot && currentItem == null
+        ? character.contentFoldersInside(_currentFolderId)
+        : <CharacterContentFolder>[];
 
-    final passives = [...character.passives, ...itemPassives];
+    final abilities = currentItem != null
+        ? currentItem.abilities
+        : _showingItemsRoot
+        ? const <CharacterAbility>[]
+        : character.abilitiesInFolder(_currentFolderId);
 
-    final empty = abilities.isEmpty && passives.isEmpty;
+    final passives = currentItem != null
+        ? currentItem.passives
+        : _showingItemsRoot
+        ? const <CharacterPassive>[]
+        : character.passivesInFolder(_currentFolderId);
+
+    final itemFolders = _showingItemsRoot
+        ? character.equippedContentItems
+        : const <CharacterItem>[];
+
+    final showObjectsFolder =
+        _currentFolderId == null &&
+        !_showingItemsRoot &&
+        currentItem == null &&
+        character.equippedContentItems.isNotEmpty;
+
+    final hasContent =
+        folders.isNotEmpty ||
+        abilities.isNotEmpty ||
+        passives.isNotEmpty ||
+        itemFolders.isNotEmpty ||
+        showObjectsFolder;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Habilidades'),
+        leading: _canGoBackInsideContent
+            ? IconButton(
+                onPressed: _goBackInsideContent,
+                icon: const Icon(Icons.arrow_back_rounded),
+              )
+            : null,
+
+        title: Text(_screenTitle),
 
         actions: [
           if (abilities.any((ability) => ability.hasLimitedUses))
             IconButton(
               tooltip: 'Restaurar usos',
-
               onPressed: restoreAllAbilities,
-
               icon: const Icon(Icons.restart_alt_rounded),
             ),
+
+          if (_currentFolder != null)
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                switch (value) {
+                  case 'rename':
+                    await _renameCurrentFolder();
+                    break;
+
+                  case 'delete':
+                    await _deleteCurrentFolder();
+                    break;
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'rename',
+                  child: ListTile(
+                    leading: Icon(Icons.edit_rounded),
+                    title: Text('Renombrar'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline_rounded),
+                    title: Text('Eliminar'),
+                  ),
+                ),
+              ],
+            ),
+
+          IconButton(
+            tooltip: 'Importar resultado externo',
+            onPressed: _importExternalAction,
+            icon: const Icon(Icons.move_to_inbox_rounded),
+          ),
         ],
       ),
 
-      body: empty
+      body: !hasContent
           ? EmptyState(
               icon: Icons.auto_awesome_rounded,
-
-              title: 'Sin habilidades',
-
-              message: 'Añade habilidades activas, ataques, poderes y pasivas.',
-
-              actionLabel: 'Crear habilidad',
-
-              onAction: createAbility,
+              title: 'Carpeta vacía',
+              message: 'Añade habilidades, pasivas o subcarpetas.',
+              actionLabel: 'Añadir',
+              onAction: _showCreateMenu,
             )
           : ListView(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
-
               children: [
-                // ===========================================================
-                // HABILIDADES
-                // ===========================================================
-                if (abilities.isNotEmpty) ...[
-                  SectionHeader(
-                    icon: Icons.flash_on_rounded,
+                // =============================================================
+                // SUBCARPETAS
+                // =============================================================
+                ...folders.map(
+                  (folder) => _ContentFolderTile(
+                    icon: Icons.folder_rounded,
+                    name: folder.name,
+                    count: character.directContentCountInFolder(folder.id),
+                    onTap: () {
+                      _openFolder(folder.id);
+                    },
+                  ),
+                ),
 
-                    title: 'Habilidades',
-
-                    subtitle:
-                        '${abilities.length} '
-                        '${abilities.length == 1 ? 'habilidad' : 'habilidades'}',
+                // =============================================================
+                // OBJETOS ROOT
+                // =============================================================
+                if (showObjectsFolder)
+                  _ContentFolderTile(
+                    icon: Icons.inventory_2_rounded,
+                    name: 'Objetos',
+                    count: character.equippedContentItems.fold<int>(
+                      0,
+                      (sum, item) => sum + character.itemContentCount(item),
+                    ),
+                    automatic: true,
+                    onTap: _openItemsRoot,
                   ),
 
-                  const SizedBox(height: 12),
+                // =============================================================
+                // CARPETAS DE OBJETO
+                // =============================================================
+                ...itemFolders.map(
+                  (item) => _ContentFolderTile(
+                    icon: Icons.inventory_2_rounded,
+                    name: item.name,
+                    count: character.itemContentCount(item),
+                    automatic: true,
+                    onTap: () {
+                      _openItemFolder(item);
+                    },
+                  ),
+                ),
+
+                // =============================================================
+                // CONTENIDO
+                // =============================================================
+                if (abilities.isNotEmpty || passives.isNotEmpty) ...[
+                  if (folders.isNotEmpty ||
+                      itemFolders.isNotEmpty ||
+                      showObjectsFolder)
+                    const SizedBox(height: 14),
 
                   ...abilities.map((ability) {
                     final sourceItem = character.itemForAbility(ability);
@@ -562,6 +1226,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       ability: ability,
                       character: character,
                       sourceItem: sourceItem,
+
+                      onMove: sourceItem == null
+                          ? () {
+                              moveAbility(ability);
+                            }
+                          : null,
 
                       onEdit: sourceItem == null
                           ? () {
@@ -587,25 +1257,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                     );
                   }),
 
-                  if (passives.isNotEmpty) const SizedBox(height: 24),
-                ],
-
-                // ===========================================================
-                // PASIVAS
-                // ===========================================================
-                if (passives.isNotEmpty) ...[
-                  SectionHeader(
-                    icon: Icons.auto_awesome_rounded,
-
-                    title: 'Pasivas',
-
-                    subtitle:
-                        '${passives.length} '
-                        '${passives.length == 1 ? 'pasiva' : 'pasivas'}',
-                  ),
-
-                  const SizedBox(height: 12),
-
                   ...passives.map((passive) {
                     final sourceItem = character.itemForPassive(passive);
 
@@ -615,6 +1266,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       passive: passive,
                       sourceItem: sourceItem,
                       showPassiveBadge: true,
+
+                      onMove: fromItem
+                          ? null
+                          : () {
+                              movePassive(passive);
+                            },
 
                       onRoll: passive.hasRoll
                           ? () {
@@ -659,13 +1316,84 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               ],
             ),
 
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateMenu,
+      floatingActionButton: _showingItemsRoot || currentItem != null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _showCreateMenu,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Añadir'),
+            ),
+    );
+  }
+}
 
-        icon: const Icon(Icons.add_rounded),
+class _ContentFolderTile extends StatelessWidget {
+  final IconData icon;
+  final String name;
+  final int count;
+  final bool automatic;
 
-        label: const Text('Añadir'),
+  final VoidCallback onTap;
+
+  const _ContentFolderTile({
+    required this.icon,
+    required this.name,
+    required this.count,
+    required this.onTap,
+    this.automatic = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        onTap: onTap,
+        leading: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, color: colors.onPrimaryContainer),
+        ),
+        title: Text(
+          name,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        subtitle: Text(
+          '$count '
+          '${count == 1 ? 'elemento' : 'elementos'}',
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (automatic)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Icon(
+                  Icons.lock_outline_rounded,
+                  size: 16,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _FolderOption {
+  final CharacterContentFolder folder;
+  final int depth;
+
+  const _FolderOption({required this.folder, required this.depth});
 }

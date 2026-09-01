@@ -9,17 +9,19 @@ import '../models/passive.dart';
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
 
-import '../widgets/common/section_header.dart';
+import '../widgets/character_home/character_quick_actions.dart';
+import '../widgets/character_home/character_home_navigation_section.dart';
+import '../widgets/character_home/quick_resource_card.dart';
+import '../widgets/character_home/active_effect_chip.dart';
 import '../widgets/character_home/resource_edit_dialog.dart';
 import '../widgets/character_home/avatar_viewer.dart';
 import '../widgets/character_home/character_header_card.dart';
 import '../widgets/character_home/character_home_colors.dart';
-import '../widgets/character_home/character_menu_card.dart';
 import '../widgets/character_home/combat_stat_card.dart';
 import '../widgets/character_home/health_edit_dialog.dart';
-import '../widgets/character_home/health_resource_card.dart';
 import '../widgets/character_home/level_edit_dialog.dart';
 
+import 'combat_screen.dart';
 import 'character_counters_screen.dart';
 import 'abilities_screen.dart';
 import 'class_editor_screen.dart';
@@ -367,181 +369,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     setState(() {});
   }
 
-  Future<void> showCombatActions() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          child: Icon(
-                            character.turnActive
-                                ? Icons.sports_martial_arts_rounded
-                                : Icons.shield_rounded,
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Combate',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.w900),
-                              ),
-                              Text(
-                                'Ronda $character.combatRound · '
-                                '${character.turnActive ? 'Turno activo' : 'Esperando turno'}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: character.turnActive
-                                ? null
-                                : () async {
-                                    Navigator.pop(sheetContext);
-
-                                    character.startTurn();
-
-                                    await saveCharacter();
-
-                                    if (!mounted) {
-                                      return;
-                                    }
-
-                                    setState(() {});
-                                  },
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('Empezar turno'),
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: !character.turnActive
-                                ? null
-                                : () async {
-                                    Navigator.pop(sheetContext);
-
-                                    character.endTurn();
-
-                                    await saveCharacter();
-
-                                    if (!mounted) {
-                                      return;
-                                    }
-
-                                    setState(() {});
-                                  },
-                            icon: const Icon(Icons.stop_rounded),
-                            label: const Text('Terminar'),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.repeat_rounded),
-                      ),
-                      title: const Text('Siguiente ronda'),
-                      subtitle: Text('Ronda → ${character.combatRound + 1}'),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () async {
-                        Navigator.pop(sheetContext);
-
-                        character.startNextRound();
-
-                        await saveCharacter();
-
-                        if (!mounted) {
-                          return;
-                        }
-
-                        setState(() {});
-                      },
-                    ),
-
-                    const Divider(),
-
-                    ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.heart_broken_rounded),
-                      ),
-                      title: const Text('Recibir daño'),
-                      subtitle: Text(
-                        '${character.currentHealth} / ${character.maxHealth} PG',
-                      ),
-                      onTap: () async {
-                        Navigator.pop(sheetContext);
-                        await applyDamage();
-                      },
-                    ),
-
-                    ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.favorite_rounded),
-                      ),
-                      title: const Text('Recibir curación'),
-                      subtitle: Text(
-                        '${character.currentHealth} / ${character.maxHealth} PG',
-                      ),
-                      onTap: () async {
-                        Navigator.pop(sheetContext);
-                        await applyHealing();
-                      },
-                    ),
-
-                    const Divider(),
-
-                    ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.sports_mma_rounded),
-                      ),
-                      title: const Text('Registrar enemigo derrotado'),
-                      subtitle: const Text('Dispara el evento enemyKilled'),
-                      onTap: () async {
-                        Navigator.pop(sheetContext);
-                        await registerKill();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   // ===========================================================================
   // HELPERS
   // ===========================================================================
@@ -606,16 +433,48 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     return value.toString();
   }
 
+  String _signed(int value) {
+    if (value > 0) {
+      return '+$value';
+    }
+
+    return '$value';
+  }
+
   // ===========================================================================
   // BUILD
   // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    final quickResources = character.resources
+        .where((resource) => resource.visible)
+        .take(2)
+        .toList(growable: false);
+
+    final homeEffectStacks = stackedEnabledEffects
+        .take(4)
+        .toList(growable: false);
+
+    final hiddenEffectCount =
+        stackedEnabledEffects.length - homeEffectStacks.length;
+
     return Scaffold(
+      backgroundColor: colors.surface,
+
+      // =========================================================================
+      // APP BAR
+      // =========================================================================
       appBar: AppBar(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+
         title: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           onTap: editCharacterName,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -623,99 +482,176 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Flexible(
-                  child: Text(character.name, overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    character.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
                 ),
 
                 const SizedBox(width: 6),
 
-                const Icon(Icons.edit_rounded, size: 16),
+                Icon(
+                  Icons.edit_rounded,
+                  size: 15,
+                  color: colors.onSurfaceVariant,
+                ),
               ],
             ),
           ),
         ),
-
-        actions: [
-          IconButton(
-            tooltip: 'Combate',
-            onPressed: showCombatActions,
-            icon: Badge(
-              isLabelVisible: character.turnActive,
-              child: const Icon(Icons.sports_martial_arts_rounded),
-            ),
-          ),
-
-          const SizedBox(width: 6),
-        ],
       ),
 
+      // =========================================================================
+      // BODY
+      // =========================================================================
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 40),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 40),
           children: [
-            // =================================================================
+            // ===================================================================
             // PERSONAJE
-            // =================================================================
+            // ===================================================================
             CharacterHeaderCard(
               character: character,
-
               onEditLevel: editLevel,
-
               onEditClasses: editClasses,
-
               onAvatarTap: showAvatar,
-
               onChangeAvatar: changeAvatar,
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 24),
 
-            // =================================================================
-            // VIDA
-            // =================================================================
-            HealthResourceCard(
-              current: character.currentHealth,
-              max: character.maxHealth,
-              onTap: editHealth,
+            // ===================================================================
+            // STATS PRINCIPALES
+            // ===================================================================
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: CombatStatCard(
+                    icon: Icons.favorite_rounded,
+                    title: 'PG',
+                    value: '${character.currentHealth}/${character.maxHealth}',
+                    color: CharacterHomeColors.health,
+                    onTap: editHealth,
+                    editable: true,
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                Expanded(
+                  child: CombatStatCard(
+                    icon: Icons.shield_rounded,
+                    title: 'CA',
+                    value: '${character.armorClass}',
+                    color: CharacterHomeColors.armor,
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                Expanded(
+                  child: CombatStatCard(
+                    icon: Icons.bolt_rounded,
+                    title: 'INI',
+                    value: _signed(character.initiative),
+                    color: CharacterHomeColors.initiative,
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                Expanded(
+                  child: CombatStatCard(
+                    icon: Icons.directions_run_rounded,
+                    title: 'VEL',
+                    value: '${character.speed}',
+                    color: CharacterHomeColors.speed,
+                  ),
+                ),
+              ],
             ),
 
-            const SizedBox(height: 12),
+            // ===================================================================
+            // RECURSOS RÁPIDOS
+            // ===================================================================
+            if (quickResources.isNotEmpty) ...[
+              const SizedBox(height: 24),
 
-            if (character.resources.isNotEmpty) ...[
-              const SizedBox(height: 12),
-
-              ...character.resources
-                  .where((resource) => resource.visible)
-                  .map(
-                    (resource) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _QuickResourceCard(
-                        resource: resource,
-
-                        effectiveCurrent: character.resourceEffectiveCurrent(
-                          resource,
-                        ),
-
-                        effectiveMax: character.resourceEffectiveMax(resource),
-
-                        onTap: () {
-                          editResourceQuick(resource);
-                        },
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Recursos',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
 
-              const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: openResources,
+                    child: const Text('Ver todos'),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: QuickResourceCard(
+                      resource: quickResources[0],
+                      effectiveCurrent: character.resourceEffectiveCurrent(
+                        quickResources[0],
+                      ),
+                      effectiveMax: character.resourceEffectiveMax(
+                        quickResources[0],
+                      ),
+                      onTap: () {
+                        editResourceQuick(quickResources[0]);
+                      },
+                    ),
+                  ),
+
+                  if (quickResources.length > 1) ...[
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: QuickResourceCard(
+                        resource: quickResources[1],
+                        effectiveCurrent: character.resourceEffectiveCurrent(
+                          quickResources[1],
+                        ),
+                        effectiveMax: character.resourceEffectiveMax(
+                          quickResources[1],
+                        ),
+                        onTap: () {
+                          editResourceQuick(quickResources[1]);
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
 
+            // ===================================================================
+            // ESTADOS ACTIVOS
+            // ===================================================================
             if (character.enabledEffects.isNotEmpty) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
               Row(
                 children: [
                   Expanded(
                     child: Text(
                       'Estados activos',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -735,164 +671,93 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: stackedEnabledEffects
-                    .map(
-                      (stack) => _ActiveEffectChip(
-                        effect: stack.effect,
-                        count: stack.count,
-                        onTap: () {
-                          openScreen(EffectsScreen(character: character));
-                        },
-                      ),
-                    )
-                    .toList(),
-              ),
+                children: [
+                  ...homeEffectStacks.map(
+                    (stack) => ActiveEffectChip(
+                      effect: stack.effect,
+                      count: stack.count,
+                      onTap: () {
+                        openScreen(EffectsScreen(character: character));
+                      },
+                    ),
+                  ),
 
-              const SizedBox(height: 18),
+                  if (hiddenEffectCount > 0)
+                    _MoreEffectsChip(
+                      count: hiddenEffectCount,
+                      onTap: () {
+                        openScreen(EffectsScreen(character: character));
+                      },
+                    ),
+                ],
+              ),
             ],
 
-            // =================================================================
-            // COMBATE
-            // =================================================================
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 1.45,
-              children: [
-                CombatStatCard(
-                  icon: Icons.shield_rounded,
-                  title: 'CA',
-                  value: '${character.calculatedArmorClass}',
-                  color: CharacterHomeColors.armor,
-                ),
+            const SizedBox(height: 26),
 
-                CombatStatCard(
-                  icon: Icons.bolt_rounded,
-                  title: 'Iniciativa',
-                  value: bonusText(character.initiative),
-                  color: CharacterHomeColors.initiative,
-                ),
-
-                CombatStatCard(
-                  icon: Icons.military_tech_rounded,
-                  title: 'Competencia',
-                  value: '+${character.proficiencyBonus}',
-                  color: CharacterHomeColors.proficiency,
-                ),
-
-                CombatStatCard(
-                  icon: Icons.directions_run_rounded,
-                  title: 'Velocidad',
-                  value: '${character.totalSpeed} pies',
-                  color: CharacterHomeColors.speed,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 28),
-
-            // =================================================================
-            // MENÚ
-            // =================================================================
-            const SectionHeader(
-              icon: Icons.person_rounded,
-              title: 'Personaje',
-              subtitle: 'Ficha, habilidades y aventura',
-            ),
-
-            const SizedBox(height: 12),
-
-            CharacterMenuCard(
-              icon: Icons.bar_chart_rounded,
-              title: 'Stats',
-              subtitle: 'Atributos, salvaciones y habilidades',
-              color: CharacterHomeColors.stats,
-              onTap: () {
-                openScreen(StatsScreen(character: character));
+            CharacterQuickActions(
+              onCombat: () {
+                openScreen(CombatScreen(character: character));
               },
-            ),
 
-            CharacterMenuCard(
-              icon: Icons.flash_on_rounded,
-              title: 'Habilidades',
-              subtitle: 'Ataques, poderes y técnicas',
-              color: CharacterHomeColors.abilities,
-              onTap: () {
-                openScreen(AbilitiesScreen(character: character));
+              onRest: () {
+                // Lo implementamos después.
               },
-            ),
 
-            CharacterMenuCard(
-              icon: Icons.auto_awesome_rounded,
-              title: 'Estados y efectos',
-              subtitle: character.enabledEffects.isEmpty
-                  ? 'Sin efectos activos'
-                  : '${character.enabledEffects.length} activos',
-              color: const Color(0xFF9B6CE8),
-              onTap: () {
-                openScreen(EffectsScreen(character: character));
-              },
-            ),
-
-            CharacterMenuCard(
-              icon: Icons.inventory_2_rounded,
-              title: 'Objetos',
-              subtitle: 'Inventario y equipo',
-              color: CharacterHomeColors.items,
-              onTap: () {
-                openScreen(ItemsScreen(character: character));
-              },
-            ),
-
-            CharacterMenuCard(
-              icon: Icons.menu_book_rounded,
-              title: 'Historia',
-              subtitle: 'Trasfondo, personalidad y objetivos',
-              color: CharacterHomeColors.story,
-              onTap: () {
-                openScreen(StoryScreen(character: character));
-              },
-            ),
-
-            CharacterMenuCard(
-              icon: Icons.history_edu_rounded,
-              title: 'Diario',
-              subtitle: 'Sesiones, misiones y acontecimientos',
-              color: CharacterHomeColors.journal,
-              onTap: () {
+              onNotes: () {
                 openScreen(JournalScreen(character: character));
               },
             ),
+            // ===================================================================
+            // NAVEGACIÓN
+            // ===================================================================
+            const SizedBox(height: 28),
 
-            CharacterMenuCard(
-              icon: Icons.battery_charging_full_rounded,
-              title: 'Recursos',
-              subtitle: character.resources.isEmpty
-                  ? 'Gestiona maná, energía, ki y otros recursos'
-                  : '${character.resources.length} recursos configurados',
-              color: Colors.teal,
-              onTap: openResources,
-            ),
+            CharacterHomeNavigationSection(
+              activeEffectsCount: character.enabledEffects.length,
+              resourceCount: character.resources.length,
+              counterCount: character.counters.length,
 
-            CharacterMenuCard(
-              icon: Icons.tag_rounded,
-              title: 'Contadores',
-              subtitle: character.counters.isEmpty
-                  ? 'Kills, críticos, combos y otros contadores'
-                  : '${character.counters.length} contadores configurados',
-              color: const Color(0xFF6C8CD5),
-              onTap: openCounters,
-            ),
+              onStats: () {
+                openScreen(StatsScreen(character: character));
+              },
 
-            CharacterMenuCard(
-              icon: Icons.casino_rounded,
-              title: 'Dados',
-              subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
-              color: CharacterHomeColors.dice,
-              onTap: () {
+              onAbilities: () {
+                openScreen(
+                  AbilitiesScreen(
+                    character: character,
+                    onCharacterChanged: () async {
+                      if (!mounted) {
+                        return;
+                      }
+
+                      setState(() {});
+                    },
+                  ),
+                );
+              },
+
+              onEffects: () {
+                openScreen(EffectsScreen(character: character));
+              },
+
+              onItems: () {
+                openScreen(ItemsScreen(character: character));
+              },
+
+              onStory: () {
+                openScreen(StoryScreen(character: character));
+              },
+
+              onJournal: () {
+                openScreen(JournalScreen(character: character));
+              },
+
+              onResources: openResources,
+
+              onCounters: openCounters,
+
+              onDice: () {
                 openScreen(DiceScreen(character: character));
               },
             ),
@@ -903,79 +768,35 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
   }
 }
 
-class _QuickResourceCard extends StatelessWidget {
-  final CharacterResource resource;
-
-  final int effectiveCurrent;
-  final int? effectiveMax;
-
+class _MoreEffectsChip extends StatelessWidget {
+  final int count;
   final VoidCallback onTap;
 
-  const _QuickResourceCard({
-    required this.resource,
-    required this.effectiveCurrent,
-    required this.effectiveMax,
-    required this.onTap,
-  });
+  const _MoreEffectsChip({required this.count, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final shownMax = effectiveMax ?? resource.maxValue;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
-    final progress = resource.hasMaximum
-        ? shownMax <= 0
-              ? 0.0
-              : (effectiveCurrent / shownMax).clamp(0.0, 1.0)
-        : 0.0;
-
-    final displayText = resource.hasMaximum
-        ? '$effectiveCurrent/$shownMax'
-        : '$effectiveCurrent';
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: resource.color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: resource.color.withValues(alpha: 0.18)),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(resource.icon, color: resource.color),
-
-                const SizedBox(width: 8),
-
-                Expanded(
-                  child: Text(
-                    resource.name,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-
-                Text(
-                  displayText,
-                  style: TextStyle(
-                    color: resource.color,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+    return Material(
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Text(
+            '+$count',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w900,
             ),
-
-            if (resource.hasMaximum) ...[
-              const SizedBox(height: 16),
-
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: LinearProgressIndicator(value: progress, minHeight: 6),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -987,112 +808,4 @@ class _EffectStack {
   int count;
 
   _EffectStack({required this.effect, required this.count});
-}
-
-class _ActiveEffectChip extends StatelessWidget {
-  final CharacterEffect effect;
-  final int count;
-  final VoidCallback onTap;
-
-  const _ActiveEffectChip({
-    required this.effect,
-    required this.count,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _effectColor(effect);
-    final icon = _effectIcon(effect);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: color.withValues(alpha: 0.22)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: color),
-
-              const SizedBox(width: 6),
-
-              Text(
-                count > 1 ? '${effect.name} ×$count' : effect.name,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-
-              if (effect.hasDuration) ...[
-                const SizedBox(width: 6),
-
-                Text(
-                  '· ${effect.durationText}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Color _effectColor(CharacterEffect effect) {
-    if (!effect.enabled) {
-      return Colors.grey;
-    }
-
-    if (effect.expired) {
-      return Colors.grey;
-    }
-
-    switch (effect.type) {
-      case CharacterEffectType.buff:
-        return const Color(0xFF4CAF7D);
-
-      case CharacterEffectType.debuff:
-        return const Color(0xFFE45D68);
-
-      case CharacterEffectType.condition:
-        return const Color(0xFF9B6CE8);
-
-      case CharacterEffectType.neutral:
-        return const Color(0xFF5F8FD8);
-    }
-  }
-
-  IconData _effectIcon(CharacterEffect effect) {
-    if (effect.expired) {
-      return Icons.timer_off_rounded;
-    }
-
-    if (!effect.enabled) {
-      return Icons.visibility_off_rounded;
-    }
-
-    switch (effect.type) {
-      case CharacterEffectType.buff:
-        return Icons.trending_up_rounded;
-
-      case CharacterEffectType.debuff:
-        return Icons.trending_down_rounded;
-
-      case CharacterEffectType.condition:
-        return Icons.warning_amber_rounded;
-
-      case CharacterEffectType.neutral:
-        return Icons.auto_awesome_rounded;
-    }
-  }
 }

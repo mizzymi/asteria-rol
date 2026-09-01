@@ -20,6 +20,8 @@ class ActionTargetResult {
 
   final int resolvedHealing;
 
+  final bool auxiliary;
+
   const ActionTargetResult({
     required this.target,
     required this.diceResult,
@@ -28,6 +30,7 @@ class ActionTargetResult {
     this.effects = const [],
     this.resolvedDamage = 0,
     this.resolvedHealing = 0,
+    this.auxiliary = false,
   }) : assert(resolvedDamage >= 0),
        assert(resolvedHealing >= 0);
 
@@ -39,9 +42,13 @@ class ActionTargetResult {
 
   bool get hasAttackResult => attackResult != null;
 
-  bool get hit => attackResult?.hit ?? true;
+  bool get hit => attackResult?.hit ?? false;
 
-  bool get missed => !hit;
+  bool get missed => attackResult != null && !attackResult!.hit;
+
+  bool get isAuxiliary => auxiliary;
+
+  bool get isActionTarget => !auxiliary;
 
   int get rawDamage {
     return damageParts.fold<int>(0, (sum, part) => sum + part.total);

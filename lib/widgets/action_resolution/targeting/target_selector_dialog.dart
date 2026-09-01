@@ -74,7 +74,7 @@ Future<List<ActionTarget>?> showActionTargetSelector(
         context,
         title: 'Objetivos del área',
         message:
-        '¿A cuántos objetivos afecta el área en total, incluyéndote a ti?',
+            '¿A cuántos objetivos afecta el área en total, incluyéndote a ti?',
       );
 
       if (totalCount == null) {
@@ -85,7 +85,7 @@ Future<List<ActionTarget>?> showActionTargetSelector(
       final externalCount = totalCount - 1;
 
       return [
-        const ActionTarget.self(),
+        const ActionTarget.self(participatesInAttackRoll: false),
         ..._buildExternalTargets(externalCount),
       ];
 
@@ -126,12 +126,10 @@ class _TargetCountDialog extends StatefulWidget {
   });
 
   @override
-  State<_TargetCountDialog> createState() =>
-      _TargetCountDialogState();
+  State<_TargetCountDialog> createState() => _TargetCountDialogState();
 }
 
-class _TargetCountDialogState
-    extends State<_TargetCountDialog> {
+class _TargetCountDialogState extends State<_TargetCountDialog> {
   late final TextEditingController controller;
 
   String? error;
@@ -140,9 +138,7 @@ class _TargetCountDialogState
   void initState() {
     super.initState();
 
-    controller = TextEditingController(
-      text: widget.allowZero ? '0' : '1',
-    );
+    controller = TextEditingController(text: widget.allowZero ? '0' : '1');
   }
 
   @override
@@ -153,8 +149,7 @@ class _TargetCountDialogState
   }
 
   void _submit() {
-    final value =
-    int.tryParse(controller.text.trim());
+    final value = int.tryParse(controller.text.trim());
 
     final minimum = widget.allowZero ? 0 : 1;
 
@@ -211,26 +206,20 @@ class _TargetCountDialogState
       ),
 
       actions: [
-        TextButton(
-          onPressed: _cancel,
-          child: const Text('Cancelar'),
-        ),
+        TextButton(onPressed: _cancel, child: const Text('Cancelar')),
 
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Continuar'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Continuar')),
       ],
     );
   }
 }
 
 Future<int?> _askTargetCount(
-    BuildContext context, {
-      required String title,
-      required String message,
-      bool allowZero = false,
-    }) {
+  BuildContext context, {
+  required String title,
+  required String message,
+  bool allowZero = false,
+}) {
   return showDialog<int>(
     context: context,
     builder: (_) {

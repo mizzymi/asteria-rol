@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/passive.dart';
 import '../models/character.dart';
 import '../models/formulas/character_formula.dart';
 import '../models/character_effect.dart';
@@ -9,6 +10,7 @@ import '../models/dice_pool.dart';
 import '../models/healing_bonus.dart';
 import '../models/skill.dart';
 
+import '../widgets/passive_form/triggers/passive_trigger_labels.dart';
 import '../widgets/formulas/formula_insert_bar.dart';
 
 class EffectFormScreen extends StatefulWidget {
@@ -67,6 +69,8 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
   late bool empoweredCritical;
 
   bool get editing => widget.effect != null;
+
+  late List<CharacterEffectTrigger> triggers;
 
   @override
   void initState() {
@@ -142,6 +146,95 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
     criticalMinimumNaturalRoll = effect?.criticalMinimumNaturalRoll ?? 20;
 
     empoweredCritical = effect?.empoweredCritical ?? false;
+
+    triggers =
+        effect?.triggers
+            .map((trigger) => CharacterEffectTrigger.fromMap(trigger.toMap()))
+            .toList() ??
+        [];
+  }
+
+  Future<void> _addTrigger() async {
+    final trigger = CharacterEffectTrigger(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      event: PassiveTriggerEvent.custom,
+    );
+
+    final result = await showDialog<CharacterEffectTrigger>(
+      context: context,
+      builder: (_) {
+        return _EffectTriggerDialog(
+          trigger: trigger,
+          character: widget.character,
+        );
+      },
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    setState(() {
+      triggers.add(result);
+    });
+  }
+
+  Future<void> _editTrigger(CharacterEffectTrigger trigger) async {
+    final copy = CharacterEffectTrigger.fromMap(trigger.toMap());
+
+    final result = await showDialog<CharacterEffectTrigger>(
+      context: context,
+      builder: (_) {
+        return _EffectTriggerDialog(trigger: copy, character: widget.character);
+      },
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    final index = triggers.indexOf(trigger);
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      triggers[index] = result;
+    });
+  }
+
+  void _deleteTrigger(CharacterEffectTrigger trigger) {
+    setState(() {
+      triggers.remove(trigger);
+    });
+  }
+
+  String _triggerTitle(CharacterEffectTrigger trigger) {
+    return trigger.event.label;
+  }
+
+  String _triggerSubtitle(CharacterEffectTrigger trigger) {
+    final pieces = <String>[];
+
+    if (trigger.condition != null &&
+        trigger.condition!.expression.trim().isNotEmpty) {
+      pieces.add('Si ${trigger.condition!.expression.trim()}');
+    }
+
+    if (trigger.damageBonuses.isNotEmpty) {
+      pieces.add('${trigger.damageBonuses.length} daño');
+    }
+
+    if (trigger.healingBonuses.isNotEmpty) {
+      pieces.add('${trigger.healingBonuses.length} curación');
+    }
+
+    if (trigger.linkedEffects.isNotEmpty) {
+      pieces.add('${trigger.linkedEffects.length} efecto(s)');
+    }
+
+    return pieces.isEmpty ? 'Sin consecuencias' : pieces.join(' · ');
   }
 
   @override
@@ -319,7 +412,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       if (entry.value == 1) {
         pieces.add(entry.key.shortLabel);
       } else {
-        pieces.add('${entry.value}×${entry.key.shortLabel}');
+        pieces.add(
+          '${entry.value}×'
+          '${entry.key.shortLabel}',
+        );
       }
     }
 
@@ -329,16 +425,16 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       );
     }
 
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
+    }
+
     var result = pieces.isEmpty
         ? 'Sin daño'
         : pieces.join(' + ').replaceAll('+ -', '- ');
 
     if (bonus.damageType.trim().isNotEmpty) {
       result += ' · ${bonus.damageType.trim()}';
-    }
-
-    if (bonus.hasFormula) {
-      pieces.add('ƒ(${bonus.formula!.expression})');
     }
 
     return result;
@@ -529,6 +625,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       criticalDamageBonuses: criticalDamageBonuses
           .where((bonus) => bonus.canTrigger)
           .map((bonus) => CriticalDamageBonus.fromMap(bonus.toMap()))
+          .toList(),
+
+      triggers: triggers
+          .map((trigger) => CharacterEffectTrigger.fromMap(trigger.toMap()))
           .toList(),
 
       notes: notesController.text.trim(),
@@ -832,22 +932,17 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Rango crítico',
                   helperText:
-                  'Valor natural mínimo del d20 que produce crítico.',
+                      'Valor natural mínimo del d20 que produce crítico.',
                   prefixIcon: Icon(Icons.auto_awesome_rounded),
                 ),
-                items: List.generate(
-                  20,
-                      (index) {
-                    final value = 20 - index;
+                items: List.generate(20, (index) {
+                  final value = 20 - index;
 
-                    return DropdownMenuItem<int>(
-                      value: value,
-                      child: Text(
-                        value == 20 ? '20' : '$value–20',
-                      ),
-                    );
-                  },
-                ),
+                  return DropdownMenuItem<int>(
+                    value: value,
+                    child: Text(value == 20 ? '20' : '$value–20'),
+                  );
+                }),
                 onChanged: (value) {
                   if (value == null) {
                     return;
@@ -867,7 +962,7 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                 title: const Text('Crítico potenciado'),
                 subtitle: const Text(
                   'Mientras este efecto esté activo, '
-                      'los críticos usan la regla potenciada.',
+                  'los críticos usan la regla potenciada.',
                 ),
                 onChanged: (value) {
                   setState(() {
@@ -1004,6 +1099,34 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                     }
                   });
                 },
+              ),
+
+              const SizedBox(height: 28),
+
+              _BonusListSection(
+                title: 'Triggers',
+                description:
+                    'Reacciones automáticas mientras este efecto esté activo.',
+                icon: Icons.bolt_rounded,
+
+                items: triggers
+                    .map(
+                      (trigger) => _BonusListItem(
+                        title: _triggerTitle(trigger),
+                        subtitle: _triggerSubtitle(trigger),
+
+                        onEdit: () {
+                          _editTrigger(trigger);
+                        },
+
+                        onDelete: () {
+                          _deleteTrigger(trigger);
+                        },
+                      ),
+                    )
+                    .toList(),
+
+                onAdd: _addTrigger,
               ),
 
               const SizedBox(height: 28),
@@ -2130,6 +2253,657 @@ class _CriticalDamageBonusDialogState
               onCancel: () {
                 Navigator.pop(context);
               },
+              onSave: _save,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// DIÁLOGO - TRIGGER DE EFECTO
+// =============================================================================
+
+class _EffectTriggerDialog extends StatefulWidget {
+  final CharacterEffectTrigger trigger;
+
+  final Character? character;
+
+  const _EffectTriggerDialog({required this.trigger, this.character});
+
+  @override
+  State<_EffectTriggerDialog> createState() => _EffectTriggerDialogState();
+}
+
+class _EffectTriggerDialogState extends State<_EffectTriggerDialog> {
+  late CharacterEffectTrigger trigger;
+
+  late PassiveTriggerEvent event;
+
+  late PassiveTriggerTarget target;
+
+  late List<DamageBonus> damageBonuses;
+
+  late List<HealingBonus> healingBonuses;
+
+  late List<CharacterEffect> linkedEffects;
+
+  late final TextEditingController conditionController;
+
+  bool showConditionTools = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    trigger = CharacterEffectTrigger.fromMap(widget.trigger.toMap());
+
+    event = trigger.event;
+
+    target = trigger.target;
+
+    damageBonuses = trigger.damageBonuses
+        .map((bonus) => DamageBonus.fromMap(bonus.toMap()))
+        .toList();
+
+    healingBonuses = trigger.healingBonuses
+        .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+        .toList();
+
+    linkedEffects = trigger.linkedEffects
+        .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+        .toList();
+
+    conditionController = TextEditingController(
+      text: trigger.condition?.expression ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    conditionController.dispose();
+
+    super.dispose();
+  }
+
+  // ===========================================================================
+  // CONDICIÓN
+  // ===========================================================================
+
+  void _insertConditionFormula(String text) {
+    final selection = conditionController.selection;
+
+    final current = conditionController.text;
+
+    final start = selection.isValid ? selection.start : current.length;
+
+    final end = selection.isValid ? selection.end : current.length;
+
+    final updated = current.replaceRange(start, end, text);
+
+    conditionController.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+
+    setState(() {});
+  }
+
+  // ===========================================================================
+  // DAÑO
+  // ===========================================================================
+
+  Future<void> _addDamage() async {
+    final bonus = DamageBonus(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+    );
+
+    final result = await showDialog<DamageBonus>(
+      context: context,
+      builder: (_) {
+        return _DamageBonusDialog(bonus: bonus, character: widget.character);
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      damageBonuses.add(result);
+    });
+  }
+
+  Future<void> _editDamage(DamageBonus bonus) async {
+    final copy = DamageBonus.fromMap(bonus.toMap());
+
+    final result = await showDialog<DamageBonus>(
+      context: context,
+      builder: (_) {
+        return _DamageBonusDialog(bonus: copy, character: widget.character);
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    final index = damageBonuses.indexOf(bonus);
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      damageBonuses[index] = result;
+    });
+  }
+
+  // ===========================================================================
+  // CURACIÓN
+  // ===========================================================================
+
+  Future<void> _addHealing() async {
+    final bonus = HealingBonus(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+    );
+
+    final result = await showDialog<HealingBonus>(
+      context: context,
+      builder: (_) {
+        return _HealingBonusDialog(bonus: bonus, character: widget.character);
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      healingBonuses.add(result);
+    });
+  }
+
+  Future<void> _editHealing(HealingBonus bonus) async {
+    final copy = HealingBonus.fromMap(bonus.toMap());
+
+    final result = await showDialog<HealingBonus>(
+      context: context,
+      builder: (_) {
+        return _HealingBonusDialog(bonus: copy, character: widget.character);
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    final index = healingBonuses.indexOf(bonus);
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      healingBonuses[index] = result;
+    });
+  }
+
+  // ===========================================================================
+  // EFECTOS VINCULADOS
+  // ===========================================================================
+
+  Future<void> _addLinkedEffect() async {
+    final result = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EffectFormScreen(character: widget.character),
+      ),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects.add(result);
+    });
+  }
+
+  Future<void> _editLinkedEffect(CharacterEffect effect) async {
+    final copy = CharacterEffect.fromMap(effect.toMap());
+
+    final result = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            EffectFormScreen(effect: copy, character: widget.character),
+      ),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    final index = linkedEffects.indexOf(effect);
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      linkedEffects[index] = result;
+    });
+  }
+
+  // ===========================================================================
+  // GUARDAR
+  // ===========================================================================
+
+  void _save() {
+    final conditionText = conditionController.text.trim();
+
+    final result = CharacterEffectTrigger(
+      id: trigger.id,
+
+      event: event,
+
+      target: target,
+
+      condition: conditionText.isEmpty
+          ? null
+          : CharacterFormula(expression: conditionText),
+
+      damageBonuses: damageBonuses
+          .where((bonus) => bonus.hasDamage)
+          .map((bonus) => DamageBonus.fromMap(bonus.toMap()))
+          .toList(),
+
+      healingBonuses: healingBonuses
+          .where((bonus) => bonus.hasHealing)
+          .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+          .toList(),
+
+      linkedEffects: linkedEffects
+          .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+          .toList(),
+    );
+
+    Navigator.pop(context, result);
+  }
+
+  // ===========================================================================
+  // TEXTOS
+  // ===========================================================================
+
+  String _damageText(DamageBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    for (final entry in bonus.abilityModifierMultipliers.entries) {
+      if (entry.value == 1) {
+        pieces.add(entry.key.shortLabel);
+      } else {
+        pieces.add(
+          '${entry.value}×'
+          '${entry.key.shortLabel}',
+        );
+      }
+    }
+
+    if (bonus.flatBonus != 0) {
+      pieces.add(
+        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
+      );
+    }
+
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
+    }
+
+    var result = pieces.isEmpty
+        ? 'Sin daño'
+        : pieces.join(' + ').replaceAll('+ -', '- ');
+
+    if (bonus.damageType.trim().isNotEmpty) {
+      result += ' · ${bonus.damageType.trim()}';
+    }
+
+    return result;
+  }
+
+  String _healingText(HealingBonus bonus) {
+    final pieces = <String>[];
+
+    if (bonus.diceNotation.isNotEmpty) {
+      pieces.add(bonus.diceNotation);
+    }
+
+    for (final entry in bonus.abilityModifierMultipliers.entries) {
+      if (entry.value == 1) {
+        pieces.add(entry.key.shortLabel);
+      } else {
+        pieces.add(
+          '${entry.value}×'
+          '${entry.key.shortLabel}',
+        );
+      }
+    }
+
+    if (bonus.flatBonus != 0) {
+      pieces.add(
+        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
+      );
+    }
+
+    if (bonus.hasFormula) {
+      pieces.add('ƒ(${bonus.formula!.expression})');
+    }
+
+    return pieces.isEmpty
+        ? 'Sin curación'
+        : pieces.join(' + ').replaceAll('+ -', '- ');
+  }
+
+  String _linkedEffectSubtitle(CharacterEffect effect) {
+    final pieces = <String>[];
+
+    if (effect.description.trim().isNotEmpty) {
+      pieces.add(effect.description.trim());
+    }
+
+    if (effect.hasDuration) {
+      pieces.add(effect.durationText);
+    }
+
+    if (effect.triggers.isNotEmpty) {
+      pieces.add('${effect.triggers.length} trigger(s)');
+    }
+
+    return pieces.isEmpty ? 'Efecto vinculado' : pieces.join(' · ');
+  }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 780),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _BonusDialogHeader(
+              icon: Icons.bolt_rounded,
+              title: 'Trigger de efecto',
+              onClose: () {
+                Navigator.pop(context);
+              },
+            ),
+
+            const Divider(height: 1),
+
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // =========================================================
+                    // EVENTO
+                    // =========================================================
+                    DropdownButtonFormField<PassiveTriggerEvent>(
+                      initialValue: event,
+
+                      decoration: const InputDecoration(
+                        labelText: 'Evento',
+                        prefixIcon: Icon(Icons.bolt_rounded),
+                      ),
+
+                      items: PassiveTriggerEvent.values.map((value) {
+                        return DropdownMenuItem(
+                          value: value,
+                          child: Text(value.label),
+                        );
+                      }).toList(),
+
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+
+                        setState(() {
+                          event = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // =========================================================
+                    // OBJETIVO
+                    // =========================================================
+                    DropdownButtonFormField<PassiveTriggerTarget>(
+                      initialValue: target,
+
+                      decoration: const InputDecoration(
+                        labelText: 'Objetivo',
+                        prefixIcon: Icon(Icons.gps_fixed_rounded),
+                      ),
+
+                      items: PassiveTriggerTarget.values.map((value) {
+                        return DropdownMenuItem(
+                          value: value,
+                          child: Text(value.name),
+                        );
+                      }).toList(),
+
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+
+                        setState(() {
+                          target = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // =========================================================
+                    // CONDICIÓN
+                    // =========================================================
+                    Text(
+                      'Condición',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'Si queda vacía, '
+                      'el trigger se ejecuta '
+                      'siempre que ocurra '
+                      'el evento.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    TextFormField(
+                      controller: conditionController,
+
+                      minLines: 1,
+                      maxLines: 4,
+
+                      decoration: const InputDecoration(
+                        labelText: 'Fórmula de condición',
+                        hintText: 'damage >= 10',
+                        prefixIcon: Icon(Icons.functions_rounded),
+                      ),
+
+                      onChanged: (_) {
+                        setState(() {});
+                      },
+                    ),
+
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            showConditionTools = !showConditionTools;
+                          });
+                        },
+
+                        icon: Icon(
+                          showConditionTools
+                              ? Icons.expand_less_rounded
+                              : Icons.functions_rounded,
+                        ),
+
+                        label: Text(
+                          showConditionTools
+                              ? 'Ocultar herramientas'
+                              : 'Insertar en condición',
+                        ),
+                      ),
+                    ),
+
+                    if (showConditionTools)
+                      FormulaInsertBar(
+                        character: widget.character,
+                        onInsert: _insertConditionFormula,
+                      ),
+
+                    const SizedBox(height: 26),
+
+                    // =========================================================
+                    // DAÑO
+                    // =========================================================
+                    _BonusListSection(
+                      title: 'Daño',
+                      description:
+                          'Daño causado cuando se activa este trigger.',
+                      icon: Icons.flash_on_rounded,
+
+                      items: damageBonuses.map((bonus) {
+                        return _BonusListItem(
+                          title: bonus.name.trim().isNotEmpty
+                              ? bonus.name.trim()
+                              : 'Daño',
+
+                          subtitle: _damageText(bonus),
+
+                          onEdit: () {
+                            _editDamage(bonus);
+                          },
+
+                          onDelete: () {
+                            setState(() {
+                              damageBonuses.remove(bonus);
+                            });
+                          },
+                        );
+                      }).toList(),
+
+                      onAdd: _addDamage,
+                    ),
+
+                    const SizedBox(height: 26),
+
+                    // =========================================================
+                    // CURACIÓN
+                    // =========================================================
+                    _BonusListSection(
+                      title: 'Curación',
+                      description:
+                          'Curación realizada cuando se activa este trigger.',
+                      icon: Icons.favorite_rounded,
+
+                      items: healingBonuses.map((bonus) {
+                        return _BonusListItem(
+                          title: bonus.name.trim().isNotEmpty
+                              ? bonus.name.trim()
+                              : 'Curación',
+
+                          subtitle: _healingText(bonus),
+
+                          onEdit: () {
+                            _editHealing(bonus);
+                          },
+
+                          onDelete: () {
+                            setState(() {
+                              healingBonuses.remove(bonus);
+                            });
+                          },
+                        );
+                      }).toList(),
+
+                      onAdd: _addHealing,
+                    ),
+
+                    const SizedBox(height: 26),
+
+                    // =========================================================
+                    // EFECTOS
+                    // =========================================================
+                    _BonusListSection(
+                      title: 'Efectos vinculados',
+                      description:
+                          'Estados o efectos que se aplican cuando se activa el trigger.',
+                      icon: Icons.auto_awesome_rounded,
+
+                      items: linkedEffects.map((effect) {
+                        return _BonusListItem(
+                          title: effect.name.trim().isNotEmpty
+                              ? effect.name.trim()
+                              : 'Efecto',
+
+                          subtitle: _linkedEffectSubtitle(effect),
+
+                          onEdit: () {
+                            _editLinkedEffect(effect);
+                          },
+
+                          onDelete: () {
+                            setState(() {
+                              linkedEffects.remove(effect);
+                            });
+                          },
+                        );
+                      }).toList(),
+
+                      onAdd: _addLinkedEffect,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const Divider(height: 1),
+
+            _BonusDialogActions(
+              onCancel: () {
+                Navigator.pop(context);
+              },
+
               onSave: _save,
             ),
           ],

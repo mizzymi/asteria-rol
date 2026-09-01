@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../models/skill.dart';
 import '../../../models/action_external_requirement.dart';
 import '../../../models/character.dart';
 import '../../../models/character_effect.dart';
 import '../../../models/passive.dart';
 import '../../../models/formulas/character_formula.dart';
+import '../../../models/dice_pool.dart';
 
 import '../../forms/common/formula_input_section.dart';
 
@@ -39,7 +41,6 @@ Future<PassiveTrigger?> showPassiveTriggerEditorDialog(
       return PassiveTriggerEditorDialog(
         trigger: trigger,
         character: character,
-        passive: passive,
         linkedEffects: linkedEffects,
       );
     },
@@ -51,15 +52,12 @@ class PassiveTriggerEditorDialog extends StatefulWidget {
 
   final Character? character;
 
-  final CharacterPassive? passive;
-
   final List<CharacterEffect> linkedEffects;
 
   const PassiveTriggerEditorDialog({
     super.key,
     required this.trigger,
     this.character,
-    this.passive,
     this.linkedEffects = const [],
   });
 
@@ -73,10 +71,6 @@ class _PassiveTriggerEditorDialogState
   late PassiveTrigger trigger;
 
   late final TextEditingController conditionController;
-
-  late final TextEditingController valueController;
-
-  late final TextEditingController targetController;
 
   late final TextEditingController customEventController;
 
@@ -96,12 +90,6 @@ class _PassiveTriggerEditorDialogState
       text: trigger.condition?.expression ?? '',
     );
 
-    valueController = TextEditingController(
-      text: trigger.valueFormula?.expression ?? '1',
-    );
-
-    targetController = TextEditingController(text: trigger.targetId ?? '');
-
     customEventController = TextEditingController(
       text: trigger.customEvent ?? '',
     );
@@ -112,65 +100,10 @@ class _PassiveTriggerEditorDialogState
   @override
   void dispose() {
     conditionController.dispose();
-    valueController.dispose();
-    targetController.dispose();
     customEventController.dispose();
     percentController.dispose();
 
     super.dispose();
-  }
-
-  bool get _usesResource {
-    switch (trigger.actionType) {
-      case PassiveTriggerActionType.addResource:
-      case PassiveTriggerActionType.subtractResource:
-      case PassiveTriggerActionType.setResource:
-        return true;
-
-      default:
-        return false;
-    }
-  }
-
-  bool get _usesCounter {
-    switch (trigger.actionType) {
-      case PassiveTriggerActionType.incrementCounter:
-      case PassiveTriggerActionType.setCounter:
-        return true;
-
-      default:
-        return false;
-    }
-  }
-
-  bool get _usesEffect {
-    switch (trigger.actionType) {
-      case PassiveTriggerActionType.applyEffect:
-      case PassiveTriggerActionType.removeEffect:
-        return true;
-
-      default:
-        return false;
-    }
-  }
-
-  bool get _usesValue {
-    switch (trigger.actionType) {
-      case PassiveTriggerActionType.addResource:
-      case PassiveTriggerActionType.subtractResource:
-      case PassiveTriggerActionType.setResource:
-      case PassiveTriggerActionType.addCharge:
-      case PassiveTriggerActionType.subtractCharge:
-      case PassiveTriggerActionType.dealDamage:
-      case PassiveTriggerActionType.heal:
-      case PassiveTriggerActionType.incrementCounter:
-      case PassiveTriggerActionType.setCounter:
-        return true;
-
-      case PassiveTriggerActionType.applyEffect:
-      case PassiveTriggerActionType.removeEffect:
-        return false;
-    }
   }
 
   bool get _eventSupportsTargetConditions {
@@ -196,7 +129,9 @@ class _PassiveTriggerEditorDialogState
       case PassiveTriggerEvent.resourceChanged:
       case PassiveTriggerEvent.chargeChanged:
       case PassiveTriggerEvent.counterChanged:
-        return trigger.actionType == PassiveTriggerActionType.applyEffect;
+        return trigger.targetsSelf &&
+            trigger.actions.length == 1 &&
+            trigger.actions.first.type == PassiveTriggerActionType.applyEffect;
 
       default:
         return false;
@@ -354,66 +289,148 @@ class _PassiveTriggerEditorDialogState
     setState(() {});
   }
 
-  List<CharacterEffect> get _effectsForApply {
-    return List<CharacterEffect>.from(widget.linkedEffects);
-  }
+  Future<void> _addAction() async {
+    final action = PassiveTriggerAction(
+      type: PassiveTriggerActionType.dealDamage,
+    );
 
-  List<CharacterEffect> get _effectsForRemoval {
-    final character = widget.character;
+    final result = await showDialog<PassiveTriggerAction>(
+      context: context,
+      builder: (_) {
+        return _PassiveTriggerActionEditorDialog(
+          action: action,
+          character: widget.character,
+          linkedEffects: widget.linkedEffects,
+        );
+      },
+    );
 
-    if (character == null) {
-      return const [];
+    if (result == null || !mounted) {
+      return;
     }
 
-    return List<CharacterEffect>.from(character.effects);
+    setState(() {
+      trigger.actions.add(result);
+
+      _normalizeTriggerMode();
+    });
   }
 
-  List<CharacterEffect> get _selectedEffectOptions {
-    switch (trigger.actionType) {
-      case PassiveTriggerActionType.applyEffect:
-        return _effectsForApply;
+  Future<void> _editAction(PassiveTriggerAction action) async {
+    final copy = PassiveTriggerAction.fromMap(action.toMap());
 
-      case PassiveTriggerActionType.removeEffect:
-        return _effectsForRemoval;
+    final result = await showDialog<PassiveTriggerAction>(
+      context: context,
+      builder: (_) {
+        return _PassiveTriggerActionEditorDialog(
+          action: copy,
+          character: widget.character,
+          linkedEffects: widget.linkedEffects,
+        );
+      },
+    );
 
-      default:
-        return const [];
+    if (result == null || !mounted) {
+      return;
     }
+
+    final index = trigger.actions.indexOf(action);
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      trigger.actions[index] = result;
+
+      _normalizeTriggerMode();
+    });
+  }
+
+  void _deleteAction(PassiveTriggerAction action) {
+    setState(() {
+      trigger.actions.remove(action);
+
+      _normalizeTriggerMode();
+    });
+  }
+
+  String _actionSubtitle(PassiveTriggerAction action) {
+    final pieces = <String>[];
+
+    if (action.hasDice) {
+      pieces.add(action.diceNotation);
+    }
+
+    if (action.hasFormula) {
+      pieces.add(action.valueFormula!.expression.trim());
+    }
+
+    if (action.hasDamageType) {
+      pieces.add(action.damageType.trim());
+    }
+
+    if (action.targetId?.trim().isNotEmpty == true) {
+      pieces.add(action.targetId!.trim());
+    }
+
+    return pieces.isEmpty ? 'Sin configuración adicional' : pieces.join(' · ');
   }
 
   void _save() {
     final condition = conditionController.text.trim();
 
-    final value = valueController.text.trim();
-
-    final target = targetController.text.trim();
-
     final customEvent = customEventController.text.trim();
 
     if (trigger.event == PassiveTriggerEvent.custom && customEvent.isEmpty) {
-      _showError('Escribe el nombre del evento personalizado.');
+      _showError(
+        'Escribe el nombre del '
+        'evento personalizado.',
+      );
+
       return;
     }
 
-    if ((_usesResource || _usesCounter || _usesEffect) && target.isEmpty) {
-      _showError('Selecciona el objetivo de la acción.');
+    if (trigger.actions.isEmpty) {
+      _showError('Añade al menos una acción.');
+
       return;
     }
 
-    if (_usesValue && value.isEmpty) {
-      _showError('Introduce el valor de la acción.');
+    for (final action in trigger.actions) {
+      if (!action.hasValidTargetId) {
+        _showError(
+          'Hay una acción sin '
+          'objetivo configurado.',
+        );
+
+        return;
+      }
+
+      if (action.requiresNumericValue &&
+          !action.hasFormula &&
+          !action.hasDice) {
+        _showError(
+          'Hay una acción sin '
+          'valor configurado.',
+        );
+
+        return;
+      }
+    }
+
+    if (trigger.savingThrow != null && trigger.savingThrow!.dc <= 0) {
+      _showError(
+        'La CD de salvación '
+        'debe ser mayor que 0.',
+      );
+
       return;
     }
 
     trigger.condition = condition.isEmpty
         ? null
         : CharacterFormula(expression: condition);
-
-    trigger.valueFormula = _usesValue
-        ? CharacterFormula(expression: value)
-        : null;
-
-    trigger.targetId = target.isEmpty ? null : target;
 
     trigger.customEvent = trigger.event == PassiveTriggerEvent.custom
         ? customEvent
@@ -424,6 +441,10 @@ class _PassiveTriggerEditorDialogState
 
   void _showError(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  bool get _hasSavingThrow {
+    return trigger.savingThrow != null;
   }
 
   @override
@@ -474,6 +495,177 @@ class _PassiveTriggerEditorDialogState
                 },
               ),
 
+              const SizedBox(height: 12),
+
+              DropdownButtonFormField<PassiveTriggerTarget>(
+                initialValue: trigger.target,
+
+                decoration: const InputDecoration(
+                  labelText: 'Objetivo del trigger',
+                  prefixIcon: Icon(Icons.gps_fixed_rounded),
+                ),
+
+                items: PassiveTriggerTarget.values.map((value) {
+                  return DropdownMenuItem(
+                    value: value,
+                    child: Text(
+                      value == PassiveTriggerTarget.self
+                          ? 'Mi personaje'
+                          : 'Objetivo de la acción',
+                    ),
+                  );
+                }).toList(),
+
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+
+                  setState(() {
+                    trigger.target = value;
+
+                    if (value == PassiveTriggerTarget.actionTarget) {
+                      // Los persistentes no pueden
+                      // apuntar a otro personaje.
+                      trigger.mode = PassiveTriggerMode.once;
+                    }
+
+                    _normalizeTriggerMode();
+                  });
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              DropdownButtonFormField<TriggerUsageLimit>(
+                initialValue: trigger.usageLimit,
+
+                decoration: const InputDecoration(
+                  labelText: 'Límite de activación',
+                  prefixIcon: Icon(Icons.timer_outlined),
+                ),
+
+                items: TriggerUsageLimit.values.map((value) {
+                  final label = switch (value) {
+                    TriggerUsageLimit.unlimited => 'Sin límite',
+                    TriggerUsageLimit.oncePerTurn => 'Una vez por turno',
+                    TriggerUsageLimit.oncePerRound => 'Una vez por ronda',
+                  };
+
+                  return DropdownMenuItem(value: value, child: Text(label));
+                }).toList(),
+
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+
+                  setState(() {
+                    trigger.usageLimit = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 18),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+
+                title: const Text(
+                  'Salvación',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+
+                subtitle: const Text(
+                  'Las acciones del trigger dependen '
+                  'de una tirada de salvación.',
+                ),
+
+                value: _hasSavingThrow,
+
+                onChanged: (value) {
+                  setState(() {
+                    if (value) {
+                      trigger.savingThrow = const TriggerSavingThrow(
+                        ability: AbilityType.constitution,
+                        dc: 10,
+                        behavior: TriggerSaveBehavior.negate,
+                      );
+                    } else {
+                      trigger.savingThrow = null;
+                    }
+                  });
+                },
+              ),
+
+              if (trigger.savingThrow != null) ...[
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<AbilityType>(
+                        initialValue: trigger.savingThrow!.ability,
+
+                        decoration: const InputDecoration(
+                          labelText: 'Atributo de salvación',
+                        ),
+
+                        items: AbilityType.values.map((ability) {
+                          return DropdownMenuItem(
+                            value: ability,
+                            child: Text(ability.shortLabel),
+                          );
+                        }).toList(),
+
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            trigger.savingThrow = TriggerSavingThrow(
+                              ability: value,
+                              dc: trigger.savingThrow!.dc,
+                              behavior: trigger.savingThrow!.behavior,
+                            );
+                          });
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    SizedBox(
+                      width: 110,
+                      child: TextFormField(
+                        initialValue: '${trigger.savingThrow!.dc}',
+
+                        keyboardType: TextInputType.number,
+
+                        decoration: const InputDecoration(labelText: 'CD'),
+
+                        onChanged: (value) {
+                          final dc = int.tryParse(value);
+
+                          if (dc == null) {
+                            return;
+                          }
+
+                          trigger.savingThrow = TriggerSavingThrow(
+                            ability: trigger.savingThrow!.ability,
+
+                            dc: dc,
+
+                            behavior: trigger.savingThrow!.behavior,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
               if (trigger.event == PassiveTriggerEvent.custom) ...[
                 const SizedBox(height: 12),
 
@@ -492,8 +684,9 @@ class _PassiveTriggerEditorDialogState
                 key: ValueKey(
                   'trigger_mode_'
                   '${trigger.event.name}_'
-                  '${trigger.actionType.name}_'
-                  '${trigger.mode.name}',
+                  '${trigger.target.name}_'
+                  '${trigger.mode.name}_'
+                  '${trigger.actions.length}',
                 ),
 
                 initialValue: trigger.mode,
@@ -568,87 +761,80 @@ class _PassiveTriggerEditorDialogState
 
               const SizedBox(height: 22),
 
-              DropdownButtonFormField<PassiveTriggerActionType>(
-                initialValue: trigger.actionType,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Acciones',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
 
-                isExpanded: true,
+                  FilledButton.tonalIcon(
+                    onPressed: _addAction,
 
-                decoration: const InputDecoration(
-                  labelText: 'Acción',
-                  prefixIcon: Icon(Icons.play_arrow_rounded),
-                ),
+                    icon: const Icon(Icons.add_rounded),
 
-                items: PassiveTriggerActionType.values.map((action) {
-                  return DropdownMenuItem(
-                    value: action,
-                    child: Text(action.label),
-                  );
-                }).toList(),
-
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-
-                  setState(() {
-                    trigger.actionType = value;
-
-                    targetController.clear();
-
-                    if (!_usesValue) {
-                      valueController.clear();
-                    }
-
-                    _normalizeTriggerMode();
-                  });
-                },
+                    label: const Text('Añadir'),
+                  ),
+                ],
               ),
 
-              if (_usesResource) ...[
-                const SizedBox(height: 12),
+              const SizedBox(height: 6),
 
-                _ResourceTargetField(
-                  character: widget.character,
-
-                  controller: targetController,
+              Text(
+                'Todas estas acciones pertenecen '
+                'al mismo trigger y comparten '
+                'condición, límite y salvación.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ],
+              ),
 
-              if (_usesCounter) ...[
-                const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-                _CounterTargetField(
-                  character: widget.character,
+              if (trigger.actions.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(14),
 
-                  controller: targetController,
-                ),
-              ],
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
 
-              if (_usesEffect) ...[
-                const SizedBox(height: 12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
 
-                _EffectTargetField(
-                  effects: _selectedEffectOptions,
-                  controller: targetController,
-                  actionType: trigger.actionType,
-                ),
-              ],
+                  child: const Text('Este trigger no tiene acciones.'),
+                )
+              else
+                for (final action in trigger.actions)
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.play_arrow_rounded),
 
-              if (_usesValue) ...[
-                const SizedBox(height: 18),
+                      title: Text(
+                        action.type.label,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
 
-                FormulaInputSection(
-                  controller: valueController,
+                      subtitle: Text(_actionSubtitle(action)),
 
-                  character: widget.character,
+                      onTap: () {
+                        _editAction(action);
+                      },
 
-                  title: 'Valor',
+                      trailing: IconButton(
+                        tooltip: 'Eliminar acción',
 
-                  label: 'Fórmula de valor',
+                        onPressed: () {
+                          _deleteAction(action);
+                        },
 
-                  hint: '1',
-                ),
-              ],
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ),
+                  ),
             ],
           ),
         ),
@@ -911,6 +1097,454 @@ class _EffectTargetField extends StatelessWidget {
       onChanged: (value) {
         controller.text = value ?? '';
       },
+    );
+  }
+}
+
+class _PassiveTriggerActionEditorDialog extends StatefulWidget {
+  final PassiveTriggerAction action;
+
+  final Character? character;
+
+  final List<CharacterEffect> linkedEffects;
+
+  const _PassiveTriggerActionEditorDialog({
+    required this.action,
+    required this.character,
+    required this.linkedEffects,
+  });
+
+  @override
+  State<_PassiveTriggerActionEditorDialog> createState() =>
+      _PassiveTriggerActionEditorDialogState();
+}
+
+class _PassiveTriggerActionEditorDialogState
+    extends State<_PassiveTriggerActionEditorDialog> {
+  late PassiveTriggerAction action;
+
+  late final TextEditingController targetController;
+
+  late final TextEditingController valueController;
+
+  late final TextEditingController damageTypeController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    action = PassiveTriggerAction.fromMap(widget.action.toMap());
+
+    targetController = TextEditingController(text: action.targetId ?? '');
+
+    valueController = TextEditingController(
+      text: action.valueFormula?.expression ?? '',
+    );
+
+    damageTypeController = TextEditingController(text: action.damageType);
+  }
+
+  @override
+  void dispose() {
+    targetController.dispose();
+    valueController.dispose();
+    damageTypeController.dispose();
+
+    super.dispose();
+  }
+
+  bool get _usesResource {
+    switch (action.type) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+        return true;
+
+      default:
+        return false;
+    }
+  }
+
+  bool get _usesCounter {
+    switch (action.type) {
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return true;
+
+      default:
+        return false;
+    }
+  }
+
+  bool get _usesEffect {
+    return action.type == PassiveTriggerActionType.applyEffect ||
+        action.type == PassiveTriggerActionType.removeEffect;
+  }
+
+  bool get _usesDamage {
+    return action.type == PassiveTriggerActionType.dealDamage;
+  }
+
+  bool get _usesHealing {
+    return action.type == PassiveTriggerActionType.heal;
+  }
+
+  List<CharacterEffect> get _effectOptions {
+    if (action.type == PassiveTriggerActionType.applyEffect) {
+      return widget.linkedEffects;
+    }
+
+    if (action.type == PassiveTriggerActionType.removeEffect) {
+      return widget.character?.effects ?? const [];
+    }
+
+    return const [];
+  }
+
+  bool get _usesValue {
+    switch (action.type) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+      case PassiveTriggerActionType.addCharge:
+      case PassiveTriggerActionType.subtractCharge:
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return true;
+
+      case PassiveTriggerActionType.dealDamage:
+      case PassiveTriggerActionType.heal:
+        return true;
+
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
+        return false;
+    }
+  }
+
+  void _save() {
+    final target = targetController.text.trim();
+
+    final valueText = valueController.text.trim();
+
+    final damageType = damageTypeController.text.trim();
+
+    if (action.requiresTargetId && target.isEmpty) {
+      _showError('Selecciona el objetivo de la acción.');
+      return;
+    }
+
+    if (action.requiresNumericValue && !action.hasDice && valueText.isEmpty) {
+      _showError('Introduce un valor o configura dados.');
+      return;
+    }
+
+    action.targetId = target.isEmpty ? null : target;
+
+    action.valueFormula = valueText.isEmpty
+        ? null
+        : CharacterFormula(expression: valueText);
+
+    action.damageType = _usesDamage ? damageType : '';
+
+    Navigator.pop(context, action);
+  }
+
+  void _showError(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _addDicePool() async {
+    final result = await showDialog<DicePool>(
+      context: context,
+      builder: (_) {
+        return const _DicePoolEditorDialog();
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      action.dicePools.add(result);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: const Text('Acción del trigger'),
+
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ===============================================================
+              // TIPO
+              // ===============================================================
+              DropdownButtonFormField<PassiveTriggerActionType>(
+                initialValue: action.type,
+
+                isExpanded: true,
+
+                decoration: const InputDecoration(
+                  labelText: 'Tipo de acción',
+                  prefixIcon: Icon(Icons.play_arrow_rounded),
+                ),
+
+                items: PassiveTriggerActionType.values.map((type) {
+                  return DropdownMenuItem(value: type, child: Text(type.label));
+                }).toList(),
+
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+
+                  setState(() {
+                    action.type = value;
+
+                    targetController.clear();
+
+                    valueController.clear();
+
+                    damageTypeController.clear();
+
+                    action.dicePools = [];
+                  });
+                },
+              ),
+
+              // ===============================================================
+              // RECURSO
+              // ===============================================================
+              if (_usesResource) ...[
+                const SizedBox(height: 14),
+
+                _ResourceTargetField(
+                  character: widget.character,
+                  controller: targetController,
+                ),
+              ],
+
+              // ===============================================================
+              // CONTADOR
+              // ===============================================================
+              if (_usesCounter) ...[
+                const SizedBox(height: 14),
+
+                _CounterTargetField(
+                  character: widget.character,
+                  controller: targetController,
+                ),
+              ],
+
+              // ===============================================================
+              // EFECTO
+              // ===============================================================
+              if (_usesEffect) ...[
+                const SizedBox(height: 14),
+
+                _EffectTargetField(
+                  effects: _effectOptions,
+                  controller: targetController,
+                  actionType: action.type,
+                ),
+              ],
+
+              // ===============================================================
+              // DADOS
+              // ===============================================================
+              if (_usesDamage || _usesHealing) ...[
+                const SizedBox(height: 20),
+
+                Text(
+                  'Dados',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                if (action.dicePools.isEmpty)
+                  Text(
+                    'Sin dados configurados.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  for (final pool in action.dicePools)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(Icons.casino_rounded),
+                      title: Text(pool.notation),
+                      trailing: IconButton(
+                        tooltip: 'Eliminar dado',
+                        onPressed: () {
+                          setState(() {
+                            action.dicePools.remove(pool);
+                          });
+                        },
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ),
+
+                const SizedBox(height: 8),
+
+                FilledButton.tonalIcon(
+                  onPressed: _addDicePool,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Añadir dado'),
+                ),
+              ],
+
+              // ===============================================================
+              // VALOR / FÓRMULA
+              // ===============================================================
+              if (_usesValue) ...[
+                const SizedBox(height: 20),
+
+                FormulaInputSection(
+                  controller: valueController,
+                  character: widget.character,
+                  title: _usesDamage
+                      ? 'Modificador de daño'
+                      : _usesHealing
+                      ? 'Modificador de curación'
+                      : 'Valor',
+                  label: 'Fórmula',
+                  hint: _usesDamage || _usesHealing ? 'Opcional' : '1',
+                  description: _usesDamage || _usesHealing
+                      ? 'Se suma al resultado de los dados.'
+                      : 'Valor que aplicará esta acción.',
+                ),
+              ],
+
+              // ===============================================================
+              // TIPO DE DAÑO
+              // ===============================================================
+              if (_usesDamage) ...[
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: damageTypeController,
+
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de daño',
+                    hintText: 'Veneno',
+                    prefixIcon: Icon(Icons.flash_on_rounded),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Cancelar'),
+        ),
+
+        FilledButton(onPressed: _save, child: const Text('Guardar')),
+      ],
+    );
+  }
+}
+
+class _DicePoolEditorDialog extends StatefulWidget {
+  const _DicePoolEditorDialog();
+
+  @override
+  State<_DicePoolEditorDialog> createState() => _DicePoolEditorDialogState();
+}
+
+class _DicePoolEditorDialogState extends State<_DicePoolEditorDialog> {
+  final countController = TextEditingController(text: '1');
+
+  int sides = 6;
+
+  @override
+  void dispose() {
+    countController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final count = int.tryParse(countController.text.trim()) ?? 0;
+
+    if (count <= 0) {
+      return;
+    }
+
+    Navigator.pop(context, DicePool(count: count, sides: sides));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Añadir dados'),
+
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            controller: countController,
+
+            keyboardType: TextInputType.number,
+
+            decoration: const InputDecoration(
+              labelText: 'Cantidad',
+              prefixText: '',
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          DropdownButtonFormField<int>(
+            initialValue: sides,
+
+            decoration: const InputDecoration(labelText: 'Dado'),
+
+            items: const [4, 6, 8, 10, 12, 20, 100].map((value) {
+              return DropdownMenuItem(value: value, child: Text('d$value'));
+            }).toList(),
+
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+
+              setState(() {
+                sides = value;
+              });
+            },
+          ),
+        ],
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Cancelar'),
+        ),
+
+        FilledButton(onPressed: _save, child: const Text('Añadir')),
+      ],
     );
   }
 }

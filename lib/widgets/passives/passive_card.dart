@@ -40,6 +40,7 @@ class PassiveCard extends StatefulWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onRestoreCharges;
   final VoidCallback? onRoll;
+  final VoidCallback? onMove;
 
   const PassiveCard({
     super.key,
@@ -52,6 +53,7 @@ class PassiveCard extends StatefulWidget {
     this.onDelete,
     this.onRestoreCharges,
     this.onRoll,
+    this.onMove,
   });
 
   @override
@@ -113,6 +115,7 @@ class _PassiveCardState extends State<PassiveCard> {
                 onRestoreCharges: widget.onRestoreCharges,
                 onRoll: widget.onRoll,
                 onApplyLinkedEffects: widget.onApplyLinkedEffects,
+                onMove: widget.onMove,
               ),
             ),
           ],
@@ -305,6 +308,7 @@ class _PassiveExpandedContent extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onRestoreCharges;
   final VoidCallback? onRoll;
+  final VoidCallback? onMove;
 
   const _PassiveExpandedContent({
     required this.passive,
@@ -316,6 +320,7 @@ class _PassiveExpandedContent extends StatelessWidget {
     required this.onRestoreCharges,
     required this.onApplyLinkedEffects,
     required this.onRoll,
+    this.onMove,
   });
 
   static String _passiveRollLabel(CharacterPassive passive) {
@@ -724,7 +729,10 @@ class _PassiveExpandedContent extends StatelessWidget {
           // CONTROLES
           // ===================================================================
           if (!isItemPassive &&
-              (onToggle != null || onEdit != null || onDelete != null)) ...[
+              (onToggle != null ||
+                  onEdit != null ||
+                  onMove != null ||
+                  onDelete != null)) ...[
             const SizedBox(height: 18),
 
             const Divider(height: 1),
@@ -770,30 +778,32 @@ class _PassiveExpandedContent extends StatelessWidget {
                 ),
               ),
 
-            if (onEdit != null || onDelete != null) ...[
+            if (onEdit != null || onMove != null || onDelete != null) ...[
               const SizedBox(height: 10),
 
-              Row(
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
                 children: [
                   if (onEdit != null)
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onEdit,
-                        icon: const Icon(Icons.edit_rounded),
-                        label: const Text('Editar'),
-                      ),
+                    OutlinedButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text('Editar'),
                     ),
 
-                  if (onEdit != null && onDelete != null)
-                    const SizedBox(width: 10),
+                  if (onMove != null)
+                    OutlinedButton.icon(
+                      onPressed: onMove,
+                      icon: const Icon(Icons.drive_file_move_rounded),
+                      label: const Text('Mover'),
+                    ),
 
                   if (onDelete != null)
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onDelete,
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        label: const Text('Eliminar'),
-                      ),
+                    OutlinedButton.icon(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      label: const Text('Eliminar'),
                     ),
                 ],
               ),

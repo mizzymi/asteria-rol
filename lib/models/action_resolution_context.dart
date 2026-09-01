@@ -21,9 +21,16 @@ class ActionTarget {
 
   final String? label;
 
-  const ActionTarget({required this.id, required this.kind, this.label});
+  final bool participatesInAttackRoll;
 
-  const ActionTarget.self()
+  const ActionTarget({
+    required this.id,
+    required this.kind,
+    this.label,
+    this.participatesInAttackRoll = true,
+  });
+
+  const ActionTarget.self({this.participatesInAttackRoll = true})
     : id = 'self',
       kind = ActionTargetKind.self,
       label = null;
@@ -46,168 +53,379 @@ class ExternalPercentageAnswerResolver {
   }) {
     final result = <String, double>{};
 
-    final percentageRequirements = requirements.where(
-      (requirement) => requirement.isPercentageRequirement,
-    );
+    final groups = <String, List<ActionExternalRequirement>>{};
 
-    for (final requirement in percentageRequirements) {
-      final directAnswer = answers[requirement.normalizedVariableName];
-
-      if (directAnswer != null) {
-        result[requirement.normalizedVariableName] = directAnswer ? 1 : 0;
-
+    for (final requirement in requirements) {
+      if (!requirement.isPercentageRequirement) {
         continue;
       }
 
-      final inferred = _inferAnswer(
-        requirement: requirement,
-        requirements: percentageRequirements.toList(),
-        answers: answers,
-      );
+      final variable = _percentageBaseVariable(requirement);
 
-      if (inferred != null) {
-        result[requirement.normalizedVariableName] = inferred ? 1 : 0;
+      groups
+          .putIfAbsent(variable, () => <ActionExternalRequirement>[])
+          .add(requirement);
+    }
+
+    for (final group in groups.values) {
+      final bounds = _buildBounds(requirements: group, answers: answers);
+
+      for (final requirement in group) {
+        final directAnswer = answers[requirement.normalizedVariableName];
+
+        if (directAnswer != null) {
+          result[requirement.normalizedVariableName] = directAnswer ? 1 : 0;
+
+          continue;
+        }
+
+        final inferred = _inferFromBounds(requirement, bounds);
+
+        if (inferred != null) {
+          result[requirement.normalizedVariableName] = inferred ? 1 : 0;
+        }
       }
     }
 
-    return result;
+    return Map<String, double>.unmodifiable(result);
   }
 
-  bool? _inferAnswer({
-    required ActionExternalRequirement requirement,
+  String _percentageBaseVariable(ActionExternalRequirement requirement) {
+    final name = requirement.normalizedVariableName;
+
+    if (name.startsWith('target_health_percent_before_')) {
+      return 'target_health_percent_before';
+    }
+
+    if (name.startsWith('target_health_percent_')) {
+      return 'target_health_percent';
+    }
+
+    return name;
+  }
+
+  _PercentageBounds _buildBounds({
     required List<ActionExternalRequirement> requirements,
     required Map<String, bool> answers,
   }) {
-    final threshold = requirement.threshold;
+    // Los porcentajes de vida siempre están
+    // dentro de 0..100.
+    var lower = 0.0;
+    var lowerInclusive = true;
 
-    if (threshold == null) {
-      return null;
-    }
+    var upper = 100.0;
+    var upperInclusive = true;
 
-    for (final answeredRequirement in requirements) {
-      if (answeredRequirement.variableName
-          .trim()
-          .toLowerCase() !=
-          requirement.variableName
-              .trim()
-              .toLowerCase()) {
+    for (final requirement in requirements) {
+      final threshold = requirement.threshold;
+
+      if (threshold == null) {
         continue;
       }
 
-      final answeredThreshold = answeredRequirement.threshold;
-
-      if (answeredThreshold == null) {
-        continue;
-      }
-
-      final answer = answers[answeredRequirement.normalizedVariableName];
+      final answer = answers[requirement.normalizedVariableName];
 
       if (answer == null) {
         continue;
       }
 
-      final inferred = _inferBetweenRequirements(
-        requested: requirement,
-        requestedThreshold: threshold,
-        answered: answeredRequirement,
-        answeredThreshold: answeredThreshold,
-        answer: answer,
-      );
+      final operator = requirement.percentageOperator;
 
-      if (inferred != null) {
-        return inferred;
+      if (operator == null) {
+        continue;
       }
+
+      switch (operator) {
+        // ===============================================================
+        // x < T
+        // ===============================================================
+
+        case '<':
+          if (answer) {
+            final updated = _tighterUpper(
+              current: upper,
+              currentInclusive: upperInclusive,
+              candidate: threshold,
+              candidateInclusive: false,
+            );
+
+            upper = updated.value;
+            upperInclusive = updated.inclusive;
+          } else {
+            final updated = _tighterLower(
+              current: lower,
+              currentInclusive: lowerInclusive,
+              candidate: threshold,
+              candidateInclusive: true,
+            );
+
+            lower = updated.value;
+            lowerInclusive = updated.inclusive;
+          }
+
+          break;
+
+        // ===============================================================
+        // x <= T
+        // ===============================================================
+
+        case '<=':
+          if (answer) {
+            final updated = _tighterUpper(
+              current: upper,
+              currentInclusive: upperInclusive,
+              candidate: threshold,
+              candidateInclusive: true,
+            );
+
+            upper = updated.value;
+            upperInclusive = updated.inclusive;
+          } else {
+            final updated = _tighterLower(
+              current: lower,
+              currentInclusive: lowerInclusive,
+              candidate: threshold,
+              candidateInclusive: false,
+            );
+
+            lower = updated.value;
+            lowerInclusive = updated.inclusive;
+          }
+
+          break;
+
+        // ===============================================================
+        // x > T
+        // ===============================================================
+
+        case '>':
+          if (answer) {
+            final updated = _tighterLower(
+              current: lower,
+              currentInclusive: lowerInclusive,
+              candidate: threshold,
+              candidateInclusive: false,
+            );
+
+            lower = updated.value;
+            lowerInclusive = updated.inclusive;
+          } else {
+            final updated = _tighterUpper(
+              current: upper,
+              currentInclusive: upperInclusive,
+              candidate: threshold,
+              candidateInclusive: true,
+            );
+
+            upper = updated.value;
+            upperInclusive = updated.inclusive;
+          }
+
+          break;
+
+        // ===============================================================
+        // x >= T
+        // ===============================================================
+
+        case '>=':
+          if (answer) {
+            final updated = _tighterLower(
+              current: lower,
+              currentInclusive: lowerInclusive,
+              candidate: threshold,
+              candidateInclusive: true,
+            );
+
+            lower = updated.value;
+            lowerInclusive = updated.inclusive;
+          } else {
+            final updated = _tighterUpper(
+              current: upper,
+              currentInclusive: upperInclusive,
+              candidate: threshold,
+              candidateInclusive: false,
+            );
+
+            upper = updated.value;
+            upperInclusive = updated.inclusive;
+          }
+
+          break;
+      }
+    }
+
+    final bounds = _PercentageBounds(
+      lower: lower,
+      lowerInclusive: lowerInclusive,
+      upper: upper,
+      upperInclusive: upperInclusive,
+    );
+
+    if (!bounds.isValid) {
+      throw StateError(
+        'Las respuestas de porcentaje del objetivo son contradictorias.',
+      );
+    }
+
+    return bounds;
+  }
+
+  bool? _inferFromBounds(
+    ActionExternalRequirement requirement,
+    _PercentageBounds bounds,
+  ) {
+    final threshold = requirement.threshold;
+
+    final operator = requirement.percentageOperator;
+
+    if (threshold == null || operator == null) {
+      return null;
+    }
+
+    switch (operator) {
+      // =====================================================================
+      // x < T
+      // =====================================================================
+
+      case '<':
+        if (bounds.upper < threshold) {
+          return true;
+        }
+
+        if (bounds.upper == threshold && !bounds.upperInclusive) {
+          return true;
+        }
+
+        if (bounds.lower >= threshold) {
+          return false;
+        }
+
+        return null;
+
+      // =====================================================================
+      // x <= T
+      // =====================================================================
+
+      case '<=':
+        if (bounds.upper <= threshold) {
+          return true;
+        }
+
+        if (bounds.lower > threshold) {
+          return false;
+        }
+
+        if (bounds.lower == threshold && !bounds.lowerInclusive) {
+          return false;
+        }
+
+        return null;
+
+      // =====================================================================
+      // x > T
+      // =====================================================================
+
+      case '>':
+        if (bounds.lower > threshold) {
+          return true;
+        }
+
+        if (bounds.lower == threshold && !bounds.lowerInclusive) {
+          return true;
+        }
+
+        if (bounds.upper <= threshold) {
+          return false;
+        }
+
+        return null;
+
+      // =====================================================================
+      // x >= T
+      // =====================================================================
+
+      case '>=':
+        if (bounds.lower >= threshold) {
+          return true;
+        }
+
+        if (bounds.upper < threshold) {
+          return false;
+        }
+
+        if (bounds.upper == threshold && !bounds.upperInclusive) {
+          return false;
+        }
+
+        return null;
     }
 
     return null;
   }
 
-  bool? _inferBetweenRequirements({
-    required ActionExternalRequirement requested,
-    required double requestedThreshold,
-    required ActionExternalRequirement answered,
-    required double answeredThreshold,
-    required bool answer,
+  ({double value, bool inclusive}) _tighterLower({
+    required double current,
+    required bool currentInclusive,
+    required double candidate,
+    required bool candidateInclusive,
   }) {
-    // =======================================================================
-    // MISMA FAMILIA: POR DEBAJO
-    // =======================================================================
-
-    if (requested.isBelowPercentageRequirement &&
-        answered.isBelowPercentageRequirement) {
-      // HP < 25 = true
-      // implica HP < 50 = true.
-      if (answer && answeredThreshold <= requestedThreshold) {
-        return true;
-      }
-
-      // HP < 75 = false
-      // implica HP < 50 = false.
-      if (!answer && answeredThreshold >= requestedThreshold) {
-        return false;
-      }
+    if (candidate > current) {
+      return (value: candidate, inclusive: candidateInclusive);
     }
 
-    // =======================================================================
-    // MISMA FAMILIA: POR ENCIMA
-    // =======================================================================
-
-    if (requested.isAbovePercentageRequirement &&
-        answered.isAbovePercentageRequirement) {
-      // HP > 75 = true
-      // implica HP > 50 = true.
-      if (answer && answeredThreshold >= requestedThreshold) {
-        return true;
-      }
-
-      // HP > 25 = false
-      // implica HP > 50 = false.
-      if (!answer && answeredThreshold <= requestedThreshold) {
-        return false;
-      }
+    if (candidate < current) {
+      return (value: current, inclusive: currentInclusive);
     }
 
-    // =======================================================================
-    // INFERENCIAS CRUZADAS SEGURAS
-    // =======================================================================
+    // Misma frontera:
+    // exclusiva es más restrictiva que inclusiva.
+    return (value: current, inclusive: currentInclusive && candidateInclusive);
+  }
 
-    final requestedOperator = requested.percentageOperator;
+  ({double value, bool inclusive}) _tighterUpper({
+    required double current,
+    required bool currentInclusive,
+    required double candidate,
+    required bool candidateInclusive,
+  }) {
+    if (candidate < current) {
+      return (value: candidate, inclusive: candidateInclusive);
+    }
 
-    final answeredOperator = answered.percentageOperator;
+    if (candidate > current) {
+      return (value: current, inclusive: currentInclusive);
+    }
 
-    // !(HP < 50) => HP >= 50
-    if (!answer &&
-        answeredOperator == '<' &&
-        requestedOperator == '>=' &&
-        answeredThreshold == requestedThreshold) {
+    return (value: current, inclusive: currentInclusive && candidateInclusive);
+  }
+}
+
+class _PercentageBounds {
+  final double lower;
+
+  final bool lowerInclusive;
+
+  final double upper;
+
+  final bool upperInclusive;
+
+  const _PercentageBounds({
+    required this.lower,
+    required this.lowerInclusive,
+    required this.upper,
+    required this.upperInclusive,
+  });
+
+  bool get isValid {
+    if (lower < upper) {
       return true;
     }
 
-    // !(HP >= 50) => HP < 50
-    if (!answer &&
-        answeredOperator == '>=' &&
-        requestedOperator == '<' &&
-        answeredThreshold == requestedThreshold) {
-      return true;
+    if (lower > upper) {
+      return false;
     }
 
-    // !(HP <= 50) => HP > 50
-    if (!answer &&
-        answeredOperator == '<=' &&
-        requestedOperator == '>' &&
-        answeredThreshold == requestedThreshold) {
-      return true;
-    }
-
-    // !(HP > 50) => HP <= 50
-    if (!answer &&
-        answeredOperator == '>' &&
-        requestedOperator == '<=' &&
-        answeredThreshold == requestedThreshold) {
-      return true;
-    }
-
-    return null;
+    return lowerInclusive && upperInclusive;
   }
 }
 
@@ -284,12 +502,14 @@ class ActionResolutionContext {
 
   void registerTargetHealthThresholdAnswer(
     ActionTarget target, {
+    required String variableName,
     required String operator,
     required double threshold,
     required bool answer,
   }) {
     setTargetHealthThresholdAnswer(
       target,
+      variableName: variableName,
       operator: operator,
       threshold: threshold,
       answer: answer,
@@ -312,6 +532,13 @@ class ActionResolutionContext {
         maxHealth: character.maxHealth,
       );
     }
+  }
+
+  Map<String, Set<String>> get selectedOptionalGroupIdsByTargetId {
+    return Map<String, Set<String>>.unmodifiable({
+      for (final entry in _targetSelectedOptionalGroupIds.entries)
+        entry.key: Set<String>.unmodifiable(entry.value),
+    });
   }
 
   Map<String, Map<String, double>> snapshotTargetExternalVariables() {
@@ -777,9 +1004,12 @@ class ActionResolutionContext {
   }
 
   static String targetHealthThresholdVariable({
+    required String variableName,
     required String operator,
     required double threshold,
   }) {
+    final normalizedVariable = _normalize(variableName);
+
     final cleanThreshold = threshold == threshold.roundToDouble()
         ? threshold.toInt().toString()
         : threshold.toString();
@@ -793,18 +1023,20 @@ class ActionResolutionContext {
       _ => 'unknown',
     };
 
-    return 'target_health_percent_'
+    return '${normalizedVariable}_'
         '${operatorName}_'
         '$cleanThreshold';
   }
 
   void setTargetHealthThresholdAnswer(
     ActionTarget target, {
+    required String variableName,
     required String operator,
     required double threshold,
     required bool answer,
   }) {
     final variable = targetHealthThresholdVariable(
+      variableName: variableName,
       operator: operator,
       threshold: threshold,
     );
@@ -814,10 +1046,12 @@ class ActionResolutionContext {
 
   bool? targetHealthThresholdAnswer(
     ActionTarget target, {
+    required String variableName,
     required String operator,
     required double threshold,
   }) {
     final variable = targetHealthThresholdVariable(
+      variableName: variableName,
       operator: operator,
       threshold: threshold,
     );
@@ -827,14 +1061,17 @@ class ActionResolutionContext {
 
   bool? evaluateKnownTargetHealthThreshold(
     ActionTarget target, {
+    required String variableName,
     required String operator,
     required double threshold,
   }) {
+    final normalizedVariable = _normalize(variableName);
+
     // ===========================================================================
-    // 1. PORCENTAJE EXACTO CONOCIDO
+    // 1. VALOR EXACTO
     // ===========================================================================
 
-    final exact = targetExternalValue(target.id, 'target_health_percent');
+    final exact = targetExternalValue(target.id, normalizedVariable);
 
     if (exact != null) {
       switch (operator.trim()) {
@@ -859,11 +1096,12 @@ class ActionResolutionContext {
     }
 
     // ===========================================================================
-    // 2. RESPUESTA DIRECTA YA CONOCIDA
+    // 2. RESPUESTA DIRECTA
     // ===========================================================================
 
     final direct = targetHealthThresholdAnswer(
       target,
+      variableName: normalizedVariable,
       operator: operator,
       threshold: threshold,
     );
@@ -873,7 +1111,7 @@ class ActionResolutionContext {
     }
 
     // ===========================================================================
-    // 3. RECONSTRUIR REQUIREMENTS YA CONOCIDOS
+    // 3. RECONSTRUIR SOLO RESPUESTAS DE ESTA MISMA VARIABLE
     // ===========================================================================
 
     final knownVariables = targetExternalVariables(target.id);
@@ -883,6 +1121,10 @@ class ActionResolutionContext {
     final answers = <String, bool>{};
 
     for (final entry in knownVariables.entries) {
+      if (!entry.key.startsWith('${normalizedVariable}_')) {
+        continue;
+      }
+
       final requirement = ActionExternalRequirement.tryParsePercentageVariable(
         entry.key,
       );
@@ -897,10 +1139,11 @@ class ActionResolutionContext {
     }
 
     // ===========================================================================
-    // 4. REQUIREMENT SOLICITADO
+    // 4. REQUEST
     // ===========================================================================
 
     final requestedVariable = targetHealthThresholdVariable(
+      variableName: normalizedVariable,
       operator: operator,
       threshold: threshold,
     );
@@ -930,6 +1173,146 @@ class ActionResolutionContext {
     return inferred != 0;
   }
 
+  void clearTargetCurrentHealthKnowledge(ActionTarget target) {
+    final variables = _targetExternalVariables[target.id];
+
+    if (variables == null) {
+      return;
+    }
+
+    // ===========================================================================
+    // VALORES ACTUALES
+    //
+    // NO tocamos:
+    // - target_health_before
+    // - target_health_percent_before
+    // - sus thresholds normalizados
+    // ===========================================================================
+
+    variables.remove('target_health');
+    variables.remove('target_health_percent');
+
+    variables.remove('target_wounded');
+    variables.remove('target_full_health');
+
+    variables.remove('target_below_half');
+    variables.remove('target_at_or_below_half');
+    variables.remove('target_above_half');
+    variables.remove('target_at_or_above_half');
+
+    // ===========================================================================
+    // RESPUESTAS DE THRESHOLD DEL ESTADO ACTUAL
+    //
+    // target_health_percent_lt_25
+    // target_health_percent_gte_50
+    // etc.
+    //
+    // Pero preservamos:
+    // target_health_percent_before_...
+    // ===========================================================================
+
+    final keysToRemove = variables.keys
+        .where(
+          (key) =>
+              key.startsWith('target_health_percent_') &&
+              !key.startsWith('target_health_percent_before_'),
+        )
+        .toList(growable: false);
+
+    for (final key in keysToRemove) {
+      variables.remove(key);
+    }
+
+    if (variables.isEmpty) {
+      _targetExternalVariables.remove(target.id);
+    }
+  }
+
+  bool? evaluateKnownTargetBoolean(ActionTarget target, String variableName) {
+    final normalized = _normalize(variableName);
+
+    // ===========================================================================
+    // VALOR DIRECTO
+    // ===========================================================================
+
+    final direct = targetExternalFlag(target.id, normalized);
+
+    if (direct != null) {
+      return direct;
+    }
+
+    // ===========================================================================
+    // VARIABLES QUE CONOCEMOS POR EL PROPIO TARGET
+    // ===========================================================================
+
+    switch (normalized) {
+      case 'target_is_self':
+        return target.isSelf;
+
+      case 'target_is_external':
+        return target.isExternal;
+    }
+
+    // ===========================================================================
+    // ALIAS DE VIDA
+    //
+    // No inventamos información:
+    // preguntamos al mismo sistema de inferencia de porcentajes.
+    // ===========================================================================
+
+    switch (normalized) {
+      case 'target_wounded':
+        return evaluateKnownTargetHealthThreshold(
+          target,
+          variableName: 'target_health_percent',
+          operator: '<',
+          threshold: 100,
+        );
+
+      case 'target_full_health':
+        return evaluateKnownTargetHealthThreshold(
+          target,
+          variableName: 'target_health_percent',
+          operator: '>=',
+          threshold: 100,
+        );
+
+      case 'target_below_half':
+        return evaluateKnownTargetHealthThreshold(
+          target,
+          variableName: 'target_health_percent',
+          operator: '<',
+          threshold: 50,
+        );
+
+      case 'target_at_or_below_half':
+        return evaluateKnownTargetHealthThreshold(
+          target,
+          variableName: 'target_health_percent',
+          operator: '<=',
+          threshold: 50,
+        );
+
+      case 'target_above_half':
+        return evaluateKnownTargetHealthThreshold(
+          target,
+          variableName: 'target_health_percent',
+          operator: '>',
+          threshold: 50,
+        );
+
+      case 'target_at_or_above_half':
+        return evaluateKnownTargetHealthThreshold(
+          target,
+          variableName: 'target_health_percent',
+          operator: '>=',
+          threshold: 50,
+        );
+    }
+
+    return null;
+  }
+
   // ===========================================================================
   // CONTEXTO DE FÓRMULAS
   // ===========================================================================
@@ -951,7 +1334,6 @@ class ActionResolutionContext {
       }
 
       extraVariables['target_is_self'] = target.isSelf ? 1 : 0;
-
       extraVariables['target_is_external'] = target.isExternal ? 1 : 0;
     }
 

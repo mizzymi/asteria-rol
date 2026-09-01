@@ -26,4 +26,26 @@ class ActionEffectResult {
   ActionLinkedEffectSaveBehavior get saveBehavior {
     return linkedEffect.saveBehavior;
   }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
+
+  Map<String, dynamic> toMap() {
+    return {'linkedEffect': linkedEffect.toMap()};
+  }
+
+  factory ActionEffectResult.fromMap(Map<dynamic, dynamic> map) {
+    final rawLinkedEffect = map['linkedEffect'];
+
+    if (rawLinkedEffect is! Map) {
+      throw StateError('ActionEffectResult inválido: falta linkedEffect.');
+    }
+
+    return ActionEffectResult(
+      linkedEffect: ActionLinkedEffect.fromMap(
+        Map<dynamic, dynamic>.from(rawLinkedEffect),
+      ),
+    );
+  }
 }

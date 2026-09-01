@@ -1,5 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../models/healing_bonus.dart';
+import '../models/character_effect_triggered_external_outcome.dart';
+import '../models/character_effect_trigger_external_result.dart';
+import '../models/damage_bonus.dart';
+import '../models/action_apply_result.dart';
+import '../models/action_hit_behavior.dart';
+import '../models/dice_pool.dart';
+import '../models/passive_trigger_external_result.dart';
+import '../models/character_effect.dart';
+import '../models/passive_triggered_external_outcome.dart';
+import '../models/action_trigger_context.dart';
+import '../models/action_target_result.dart';
+import '../models/action_cost.dart';
 import '../models/action_attack_roll_mode.dart';
 import '../models/ability.dart';
 import '../models/action_attack_result.dart';
@@ -28,15 +41,16 @@ import '../widgets/action_resolution/dice/physical_dice_dialog.dart';
 import '../widgets/action_resolution/targeting/target_selector_dialog.dart';
 import '../widgets/action_resolution/targeting/attack_targets_dialog.dart';
 import '../widgets/action_resolution/saves/saving_throws_dialog.dart';
-import '../widgets/action_resolution/saves/saving_throw_results_dialog.dart';
 import '../widgets/action_resolution/options/optional_choices_dialog.dart';
 import '../widgets/action_resolution/requirements/external_requirements_dialog.dart';
 import '../widgets/action_resolution/chance/chance_checks_dialog.dart';
 
+import 'character_effect_trigger_engine.dart';
+import 'passive_trigger_engine.dart';
+import 'action_dice_resolver.dart';
 import 'passive_action_resolver.dart';
 import 'weapon_action_resolver.dart';
 import 'action_resolver.dart';
-import 'action_dice_resolver.dart';
 
 class ActionResolutionFlow {
   final Character character;
@@ -45,6 +59,340 @@ class ActionResolutionFlow {
 
   String get selfLabel {
     return character.name.isNotEmpty ? character.name : 'Tu personaje';
+  }
+
+  Future<List<PassiveTriggerExternalResult>?>
+  _resolvePassiveTriggeredExternalOutcomes(
+    BuildContext context, {
+    required ActionResolver resolver,
+    required ActionResolutionContext actionContext,
+    required List<PassiveTriggeredExternalOutcome> outcomes,
+    required ActionDiceMode diceMode,
+  }) async {
+    final results = <PassiveTriggerExternalResult>[];
+
+    for (final outcome in outcomes) {
+      CharacterPassive? passive;
+
+      for (final candidate in character.enabledPassives) {
+        if (candidate.id == outcome.passiveId) {
+          passive = candidate;
+          break;
+        }
+      }
+
+      if (passive == null) {
+        continue;
+      }
+
+      ActionTarget? target;
+
+      for (final candidate in actionContext.targets) {
+        if (candidate.id == outcome.targetId) {
+          target = candidate;
+          break;
+        }
+      }
+
+      if (target == null) {
+        continue;
+      }
+      // =========================================================================
+      // SALVACIÓN
+      // =========================================================================
+
+      var saved = false;
+
+      final save = outcome.savingThrow;
+
+      if (save != null && save.dc > 0) {
+        final request = ActionSavingThrowRequest(
+          id:
+              'passive-trigger:'
+              '${outcome.passiveId}:'
+              '${outcome.triggerId}:'
+              '${outcome.targetId}',
+
+          targetId: outcome.targetId,
+
+          effectId: 'passive-trigger:${outcome.triggerId}',
+
+          effectName: outcome.passiveName,
+
+          ability: save.ability,
+
+          dc: save.dc,
+
+          successEffect: SaveSuccessEffect.none,
+        );
+
+        final answers = await showExternalSavingThrowResultsDialog(
+          context,
+          requests: [request],
+        );
+
+        if (answers == null || !context.mounted) {
+          return null;
+        }
+
+        saved = answers[request.id] ?? false;
+
+        // Salvación exitosa que anula todo.
+        if (saved && save.behavior == TriggerSaveBehavior.negate) {
+          results.add(
+            PassiveTriggerExternalResult(
+              passiveId: outcome.passiveId,
+
+              passiveName: outcome.passiveName,
+
+              triggerId: outcome.triggerId,
+
+              targetId: outcome.targetId,
+
+              targetLabel: outcome.targetLabel,
+
+              saved: true,
+            ),
+          );
+
+          continue;
+        }
+      }
+
+      // =========================================================================
+      // ACCIONES
+      // =========================================================================
+
+      var damage = 0;
+      var healing = 0;
+
+      final effects = <CharacterEffect>[];
+
+      for (final action in outcome.actions) {
+        switch (action.type) {
+          // =====================================================================
+          // DAÑO
+          // =====================================================================
+
+          case PassiveTriggerActionType.dealDamage:
+            final amount = await _resolvePassiveTriggerActionAmount(
+              context,
+              resolver: resolver,
+              passive: passive,
+              target: target,
+              actionContext: actionContext,
+              action: action,
+              diceMode: diceMode,
+            );
+
+            if (amount == null) {
+              return null;
+            }
+
+            damage += amount;
+
+            break;
+
+          // =====================================================================
+          // CURACIÓN
+          // =====================================================================
+
+          case PassiveTriggerActionType.heal:
+            final amount = await _resolvePassiveTriggerActionAmount(
+              context,
+              resolver: resolver,
+              passive: passive,
+              target: target,
+              actionContext: actionContext,
+              action: action,
+              diceMode: diceMode,
+            );
+
+            if (amount == null) {
+              return null;
+            }
+
+            healing += amount;
+
+            break;
+
+          // =====================================================================
+          // APLICAR EFECTO
+          // =====================================================================
+
+          case PassiveTriggerActionType.applyEffect:
+            final effectId = action.effectId?.trim();
+
+            if (effectId == null || effectId.isEmpty) {
+              break;
+            }
+
+            // ===========================================================================
+            // ENCONTRAR EFECTO VINCULADO
+            // ===========================================================================
+
+            CharacterEffect? template;
+
+            for (final candidate in passive.linkedEffects) {
+              if (candidate.id == effectId) {
+                template = candidate;
+                break;
+              }
+            }
+
+            if (template == null) {
+              break;
+            }
+
+            // ===========================================================================
+            // COPIA PARA EL RESULTADO EXTERNO
+            // ===========================================================================
+
+            final copy = CharacterEffect.fromMap(template.toMap());
+
+            copy.resetDuration();
+
+            effects.add(copy);
+
+            break;
+
+          // =====================================================================
+          // NO TIENEN SENTIDO SOBRE OTRO CHARACTER EN ESTE PIPELINE
+          // =====================================================================
+
+          case PassiveTriggerActionType.addResource:
+          case PassiveTriggerActionType.subtractResource:
+          case PassiveTriggerActionType.setResource:
+          case PassiveTriggerActionType.addCharge:
+          case PassiveTriggerActionType.subtractCharge:
+          case PassiveTriggerActionType.removeEffect:
+          case PassiveTriggerActionType.incrementCounter:
+          case PassiveTriggerActionType.setCounter:
+            break;
+        }
+      }
+
+      results.add(
+        PassiveTriggerExternalResult(
+          passiveId: outcome.passiveId,
+
+          passiveName: outcome.passiveName,
+
+          triggerId: outcome.triggerId,
+
+          targetId: outcome.targetId,
+
+          targetLabel: outcome.targetLabel,
+
+          saved: saved,
+
+          damage: damage,
+
+          healing: healing,
+
+          effects: List<CharacterEffect>.unmodifiable(effects),
+        ),
+      );
+    }
+
+    return List<PassiveTriggerExternalResult>.unmodifiable(results);
+  }
+
+  Future<int?> _resolvePassiveTriggerActionAmount(
+    BuildContext context, {
+    required ActionResolver resolver,
+    required CharacterPassive passive,
+    required ActionTarget target,
+    required ActionResolutionContext actionContext,
+    required PassiveTriggerAction action,
+    required ActionDiceMode diceMode,
+  }) async {
+    // ===========================================================================
+    // FÓRMULA
+    // ===========================================================================
+
+    final modifier = resolver.passiveTriggerActionModifier(
+      passive: passive,
+      action: action,
+      context: actionContext,
+      target: target,
+    );
+
+    // ===========================================================================
+    // SIN DADOS
+    // ===========================================================================
+
+    if (!action.hasDice) {
+      return modifier;
+    }
+
+    // ===========================================================================
+    // REQUEST
+    // ===========================================================================
+
+    final request = ActionDiceRequest(
+      parts: [
+        ActionDiceRequestPart(
+          id: 'passive-trigger-action',
+
+          effectId: 'passive-trigger',
+
+          effectName: 'Trigger de ${passive.name}',
+
+          effectType: action.type == PassiveTriggerActionType.heal
+              ? AbilityEffectType.healing
+              : AbilityEffectType.damage,
+
+          dicePools: List<DicePool>.unmodifiable(action.dicePools),
+
+          modifier: modifier,
+
+          hitBehavior: ActionHitBehavior.ignoreHit,
+
+          sourceType: ActionDiceSourceType.passive,
+
+          sourceId: passive.id,
+
+          sourceName: passive.name,
+
+          damageType: action.damageType,
+        ),
+      ],
+    );
+
+    if (diceMode == ActionDiceMode.digital) {
+      final result = const ActionDiceResolver().rollDigital(request);
+
+      return result.parts.fold<int>(0, (sum, part) => sum + part.total);
+    }
+
+    final inputs = await showPhysicalDiceDialog(
+      context,
+      sections: [
+        PhysicalDiceSection(
+          id: 'passive-trigger',
+          title: passive.name,
+          request: request,
+        ),
+      ],
+    );
+
+    if (inputs == null || !context.mounted) {
+      return null;
+    }
+
+    final physical = inputs['passive-trigger'];
+
+    if (physical == null) {
+      return null;
+    }
+
+    final result = const ActionDiceResolver().resolvePhysical(
+      request: request,
+      inputs: physical,
+    );
+
+    return result.parts.fold<int>(0, (sum, part) => sum + part.total);
   }
 
   Future<PassiveRollResolution?> resolvePassiveRoll(
@@ -79,7 +427,7 @@ class ActionResolutionFlow {
       // -------------------------------------------------------------------------
 
       case ActionDiceMode.digital:
-        final diceResult = resolver.rollDigital(passive);
+        final diceResult = resolver.resolveDigitalRequest(request);
 
         return PassiveRollResolution(
           diceResult: diceResult,
@@ -91,7 +439,7 @@ class ActionResolutionFlow {
       // -------------------------------------------------------------------------
 
       case ActionDiceMode.physical:
-        final results = await showPhysicalDiceDialog(
+        final inputsBySection = await showPhysicalDiceDialog(
           context,
           sections: [
             PhysicalDiceSection(
@@ -102,15 +450,20 @@ class ActionResolutionFlow {
           ],
         );
 
-        if (results == null || !context.mounted) {
+        if (inputsBySection == null || !context.mounted) {
           return null;
         }
 
-        final diceResult = results['passive:${passive.id}'];
+        final inputs = inputsBySection['passive:${passive.id}'];
 
-        if (diceResult == null) {
+        if (inputs == null) {
           return null;
         }
+
+        final diceResult = resolver.resolvePhysicalRequest(
+          request,
+          inputs: inputs,
+        );
 
         return PassiveRollResolution(
           diceResult: diceResult,
@@ -205,6 +558,39 @@ class ActionResolutionFlow {
 
     actionContext.populateKnownTargetVariables();
 
+    final optionalGroups = weaponResolver.availableOptionalGroups(
+      weapon: weapon,
+      context: actionContext,
+    );
+
+    if (optionalGroups.isNotEmpty) {
+      final entries = [
+        for (final group in optionalGroups)
+          OptionalChoiceEntry(
+            group: group,
+            target: null,
+            validation: const ActionCostValidationResult.success(),
+          ),
+      ];
+
+      final selections = await showOptionalChoicesDialog(
+        context,
+        entries: entries,
+        selfLabel: selfLabel,
+      );
+
+      if (selections == null || !context.mounted) {
+        return null;
+      }
+
+      for (final entry in entries) {
+        actionContext.setOptionalGroupSelected(
+          entry.group.id,
+          selections[entry.key] ?? false,
+        );
+      }
+    }
+
     // ===========================================================================
     // CHANCE DE CRÍTICOS ADICIONALES
     // ===========================================================================
@@ -271,11 +657,19 @@ class ActionResolutionFlow {
     // ===========================================================================
 
     switch (diceMode) {
+      // ===========================================================================
+      // DIGITAL
+      // ===========================================================================
+
       case ActionDiceMode.digital:
-        return const ActionDiceResolver().rollDigital(request);
+        return weaponResolver.resolveDamageDigitalRequest(request);
+
+      // ===========================================================================
+      // FÍSICO
+      // ===========================================================================
 
       case ActionDiceMode.physical:
-        final results = await showPhysicalDiceDialog(
+        final inputsBySection = await showPhysicalDiceDialog(
           context,
           sections: [
             PhysicalDiceSection(
@@ -286,11 +680,20 @@ class ActionResolutionFlow {
           ],
         );
 
-        if (results == null || !context.mounted) {
+        if (inputsBySection == null || !context.mounted) {
           return null;
         }
 
-        return results[weapon.id];
+        final inputs = inputsBySection[weapon.id];
+
+        if (inputs == null) {
+          return null;
+        }
+
+        return weaponResolver.resolveDamagePhysicalRequest(
+          request: request,
+          inputs: inputs,
+        );
     }
   }
 
@@ -303,6 +706,14 @@ class ActionResolutionFlow {
     required CharacterAbility ability,
   }) async {
     final resolver = ActionResolver(character: character);
+
+    try {
+      resolver.validatePassiveTriggerTargetScopes(ability: ability);
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+
+      return null;
+    }
 
     // -------------------------------------------------------------------------
     // TARGETS
@@ -444,6 +855,766 @@ class ActionResolutionFlow {
     );
   }
 
+  ActionExecutionResult _mergePassiveTriggeredResults({
+    required ActionExecutionResult execution,
+    required List<PassiveTriggerExternalResult> triggeredResults,
+  }) {
+    if (triggeredResults.isEmpty) {
+      return execution;
+    }
+
+    final application = execution.application;
+
+    final outcomes = List<ExternalTargetOutcome>.from(
+      application.externalTargetOutcomes,
+    );
+
+    for (final triggered in triggeredResults) {
+      if (!triggered.changedAnything) {
+        continue;
+      }
+
+      final index = outcomes.indexWhere(
+        (outcome) => outcome.targetId == triggered.targetId,
+      );
+
+      // =========================================================================
+      // TARGET NUEVO
+      // =========================================================================
+
+      if (index < 0) {
+        outcomes.add(
+          ExternalTargetOutcome(
+            targetId: triggered.targetId,
+
+            targetLabel: triggered.targetLabel,
+
+            damage: triggered.damage,
+
+            healing: triggered.healing,
+
+            passiveEffects: List<CharacterEffect>.unmodifiable(
+              triggered.effects,
+            ),
+
+            triggerResults: [triggered],
+
+            effectTriggerResults: const [],
+          ),
+        );
+
+        continue;
+      }
+
+      // =========================================================================
+      // TARGET EXISTENTE
+      // =========================================================================
+
+      final current = outcomes[index];
+
+      outcomes[index] = ExternalTargetOutcome(
+        targetId: current.targetId,
+
+        targetLabel: current.targetLabel ?? triggered.targetLabel,
+
+        damage: current.damage + triggered.damage,
+
+        healing: current.healing + triggered.healing,
+
+        effects: current.effects,
+
+        passiveEffects: [...current.passiveEffects, ...triggered.effects],
+
+        // Trigger procedente de PASIVA
+        triggerResults: [...current.triggerResults, triggered],
+
+        // Solo conservar los triggers procedentes de CharacterEffect
+        effectTriggerResults: current.effectTriggerResults,
+      );
+    }
+
+    final mergedApplication = ActionApplyResult(
+      selfDamageApplied: application.selfDamageApplied,
+
+      selfHealingApplied: application.selfHealingApplied,
+
+      selfEffectsApplied: application.selfEffectsApplied,
+
+      criticalDispatched: application.criticalDispatched,
+
+      externalTargetOutcomes: List<ExternalTargetOutcome>.unmodifiable(
+        outcomes,
+      ),
+    );
+
+    return ActionExecutionResult(
+      resolution: execution.resolution,
+      application: mergedApplication,
+    );
+  }
+
+  ActionExecutionResult _mergeEffectTriggeredResults({
+    required ActionExecutionResult execution,
+    required List<CharacterEffectTriggerExternalResult> triggeredResults,
+  }) {
+    if (triggeredResults.isEmpty) {
+      return execution;
+    }
+
+    final application = execution.application;
+
+    final outcomes = List<ExternalTargetOutcome>.from(
+      application.externalTargetOutcomes,
+    );
+
+    for (final triggered in triggeredResults) {
+      if (!triggered.changedAnything) {
+        continue;
+      }
+
+      final index = outcomes.indexWhere(
+        (outcome) => outcome.targetId == triggered.targetId,
+      );
+
+      // =========================================================================
+      // TARGET NUEVO
+      // =========================================================================
+
+      if (index < 0) {
+        outcomes.add(
+          ExternalTargetOutcome(
+            targetId: triggered.targetId,
+
+            targetLabel: triggered.targetLabel,
+
+            damage: triggered.damage,
+
+            healing: triggered.healing,
+
+            passiveEffects: List<CharacterEffect>.unmodifiable(
+              triggered.effects,
+            ),
+
+            triggerResults: const [],
+
+            effectTriggerResults: [triggered],
+          ),
+        );
+
+        continue;
+      }
+
+      // =========================================================================
+      // TARGET EXISTENTE
+      // =========================================================================
+
+      final current = outcomes[index];
+
+      outcomes[index] = ExternalTargetOutcome(
+        targetId: current.targetId,
+
+        targetLabel: current.targetLabel ?? triggered.targetLabel,
+
+        damage: current.damage + triggered.damage,
+
+        healing: current.healing + triggered.healing,
+
+        effects: current.effects,
+
+        passiveEffects: [...current.passiveEffects, ...triggered.effects],
+
+        // Conservar triggers de PASIVAS
+        triggerResults: current.triggerResults,
+
+        // Añadir trigger procedente de EFFECT
+        effectTriggerResults: [...current.effectTriggerResults, triggered],
+      );
+    }
+
+    final mergedApplication = ActionApplyResult(
+      selfDamageApplied: application.selfDamageApplied,
+
+      selfHealingApplied: application.selfHealingApplied,
+
+      selfEffectsApplied: application.selfEffectsApplied,
+
+      criticalDispatched: application.criticalDispatched,
+
+      externalTargetOutcomes: List<ExternalTargetOutcome>.unmodifiable(
+        outcomes,
+      ),
+    );
+
+    return ActionExecutionResult(
+      resolution: execution.resolution,
+      application: mergedApplication,
+    );
+  }
+
+  Future<ActionExecutionResult?> _finalizeResolution(
+    BuildContext context, {
+    required ActionResolver resolver,
+    required PreparedActionResolution prepared,
+    required ActionResolutionResult resolution,
+    required ActionDiceMode diceMode,
+  }) async {
+    // ===========================================================================
+    // REQUIREMENTS POST-RESOLUTION
+    //
+    // Todavía NO hemos:
+    // - pagado costes
+    // - aplicado resultado
+    // - disparado triggers post
+    //
+    // Así cancelar aquí sigue cancelando TODA la acción.
+    // ===========================================================================
+
+    final postCompleted = await _collectPostResolutionExternalRequirements(
+      context,
+      resolver: resolver,
+      prepared: prepared,
+      resolution: resolution,
+    );
+
+    if (!postCompleted || !context.mounted) {
+      return null;
+    }
+
+    final triggeredOutcomes = <PassiveTriggeredExternalOutcome>[];
+
+    final effectTriggeredOutcomes = <CharacterEffectTriggeredExternalOutcome>[];
+
+    final reservedLimitedTriggers = <String>{};
+
+    final reservedLimitedEffectTriggers = <String>{};
+
+    final critical =
+        resolution.attackResult?.critical ??
+        resolution.criticalProfile.forcedCritical;
+
+    for (final targetResult in resolution.externalTargetResults) {
+      final candidates = resolver.collectTriggeredExternalOutcomesForTarget(
+        targetResult: targetResult,
+        context: prepared.context,
+        critical: critical,
+      );
+
+      final effectCandidates = resolver
+          .collectEffectTriggeredExternalOutcomesForTarget(
+            targetResult: targetResult,
+            context: prepared.context,
+            critical: critical,
+          );
+
+      for (final candidate in effectCandidates) {
+        if (candidate.usageLimit == TriggerUsageLimit.unlimited) {
+          effectTriggeredOutcomes.add(candidate);
+
+          continue;
+        }
+
+        final key = candidate.usageKey;
+
+        if (reservedLimitedEffectTriggers.contains(key)) {
+          continue;
+        }
+
+        reservedLimitedEffectTriggers.add(key);
+
+        effectTriggeredOutcomes.add(candidate);
+      }
+
+      for (final candidate in candidates) {
+        // =======================================================================
+        // SIN LÍMITE
+        // =======================================================================
+
+        if (candidate.usageLimit == TriggerUsageLimit.unlimited) {
+          triggeredOutcomes.add(candidate);
+
+          continue;
+        }
+
+        // =======================================================================
+        // LIMITADO
+        //
+        // oncePerTurn / oncePerRound solo puede reservarse una vez
+        // dentro de esta resolución.
+        // =======================================================================
+
+        final key = candidate.usageKey;
+
+        if (reservedLimitedTriggers.contains(key)) {
+          continue;
+        }
+
+        reservedLimitedTriggers.add(key);
+
+        triggeredOutcomes.add(candidate);
+      }
+    }
+
+    final triggeredResults = await _resolvePassiveTriggeredExternalOutcomes(
+      context,
+      resolver: resolver,
+      actionContext: prepared.context,
+      outcomes: triggeredOutcomes,
+      diceMode: diceMode,
+    );
+
+    if (triggeredResults == null || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // TRIGGERS PROCEDENTES DE CHARACTER EFFECTS
+    // ===========================================================================
+
+    final effectTriggeredResults =
+        await _resolveEffectTriggeredExternalOutcomes(
+          context,
+          resolver: resolver,
+          actionContext: prepared.context,
+          outcomes: effectTriggeredOutcomes,
+          diceMode: diceMode,
+        );
+
+    if (effectTriggeredResults == null || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // REFRESCAR SNAPSHOT
+    //
+    // El resultado inicial se construyó antes de las respuestas post.
+    // ===========================================================================
+
+    final finalResolution = resolution.copyWith(
+      externalVariablesByTargetId: prepared.context
+          .snapshotTargetExternalVariables(),
+    );
+
+    // ===========================================================================
+    // COMMIT REAL
+    // ===========================================================================
+
+    return _commitResolution(
+      context: context,
+      resolver: resolver,
+      resolution: finalResolution,
+      triggeredResults: triggeredResults,
+      effectTriggeredResults: effectTriggeredResults,
+    );
+  }
+
+  Future<List<CharacterEffectTriggerExternalResult>?>
+  _resolveEffectTriggeredExternalOutcomes(
+    BuildContext context, {
+    required ActionResolver resolver,
+    required ActionResolutionContext actionContext,
+    required List<CharacterEffectTriggeredExternalOutcome> outcomes,
+    required ActionDiceMode diceMode,
+  }) async {
+    final results = <CharacterEffectTriggerExternalResult>[];
+
+    for (final outcome in outcomes) {
+      ActionTarget? target;
+
+      for (final candidate in actionContext.targets) {
+        if (candidate.id == outcome.targetId) {
+          target = candidate;
+          break;
+        }
+      }
+
+      if (target == null) {
+        continue;
+      }
+
+      var damage = 0;
+      var healing = 0;
+
+      // =======================================================================
+      // DAÑO
+      // =======================================================================
+
+      for (final bonus in outcome.damageBonuses) {
+        final amount = await _resolveEffectTriggerDamage(
+          context,
+          bonus: bonus,
+          sourceEffectId: outcome.sourceEffectId,
+          sourceEffectName: outcome.sourceEffectName,
+          target: target,
+          actionContext: actionContext,
+          diceMode: diceMode,
+        );
+
+        if (amount == null) {
+          return null;
+        }
+
+        damage += amount;
+      }
+
+      // =======================================================================
+      // CURACIÓN
+      // =======================================================================
+
+      for (final bonus in outcome.healingBonuses) {
+        final amount = await _resolveEffectTriggerHealing(
+          context,
+          bonus: bonus,
+          sourceEffectId: outcome.sourceEffectId,
+          sourceEffectName: outcome.sourceEffectName,
+          target: target,
+          actionContext: actionContext,
+          diceMode: diceMode,
+        );
+
+        if (amount == null) {
+          return null;
+        }
+
+        healing += amount;
+      }
+
+      // =======================================================================
+      // EFECTOS
+      // =======================================================================
+
+      final effects = outcome.linkedEffects
+          .map((effect) => CharacterEffect.fromMap(effect.toMap()))
+          .toList();
+
+      for (final effect in effects) {
+        effect.resetDuration();
+      }
+
+      results.add(
+        CharacterEffectTriggerExternalResult(
+          sourceEffectId: outcome.sourceEffectId,
+
+          sourceEffectName: outcome.sourceEffectName,
+
+          triggerId: outcome.triggerId,
+
+          targetId: outcome.targetId,
+
+          targetLabel: outcome.targetLabel,
+
+          damage: damage,
+
+          healing: healing,
+
+          effects: List<CharacterEffect>.unmodifiable(effects),
+        ),
+      );
+    }
+
+    return List<CharacterEffectTriggerExternalResult>.unmodifiable(results);
+  }
+
+  Future<int?> _resolveEffectTriggerDamage(
+    BuildContext context, {
+    required DamageBonus bonus,
+    required String sourceEffectId,
+    required String sourceEffectName,
+    required ActionTarget target,
+    required ActionResolutionContext actionContext,
+    required ActionDiceMode diceMode,
+  }) async {
+    // ===========================================================================
+    // CONTEXTO / MODIFICADOR
+    // ===========================================================================
+
+    final formulaContext = actionContext.buildFormulaContext(target: target);
+
+    final modifier = character.damageBonusModifier(
+      bonus,
+      formulaContext: formulaContext,
+    );
+
+    // ===========================================================================
+    // REQUEST
+    //
+    // El mismo request se utiliza para físico y digital.
+    // ===========================================================================
+
+    final partId =
+        'effect-trigger-damage:'
+        '$sourceEffectId:'
+        '${bonus.id}:'
+        '${target.id}';
+
+    final request = ActionDiceRequest(
+      parts: [
+        ActionDiceRequestPart(
+          id: partId,
+
+          effectId: 'effect-trigger:$sourceEffectId',
+
+          effectName: bonus.name.trim().isNotEmpty
+              ? bonus.name.trim()
+              : sourceEffectName,
+
+          effectType: AbilityEffectType.damage,
+
+          dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
+
+          modifier: modifier,
+
+          hitBehavior: ActionHitBehavior.ignoreHit,
+
+          sourceType: ActionDiceSourceType.effect,
+
+          sourceId: sourceEffectId,
+
+          sourceName: sourceEffectName,
+
+          damageType: bonus.damageType,
+        ),
+      ],
+    );
+
+    // ===========================================================================
+    // DIGITAL
+    // ===========================================================================
+
+    if (diceMode == ActionDiceMode.digital) {
+      final result = const ActionDiceResolver().rollDigital(request);
+
+      return result.parts.fold<int>(0, (sum, part) => sum + part.total);
+    }
+
+    // ===========================================================================
+    // FÍSICO
+    // ===========================================================================
+
+    final sectionId =
+        'effect-trigger-damage-section:'
+        '$sourceEffectId:'
+        '${bonus.id}:'
+        '${target.id}';
+
+    final inputsBySection = await showPhysicalDiceDialog(
+      context,
+      sections: [
+        PhysicalDiceSection(
+          id: sectionId,
+
+          title: sourceEffectName.trim().isNotEmpty
+              ? sourceEffectName.trim()
+              : 'Trigger de efecto',
+
+          request: request,
+        ),
+      ],
+    );
+
+    if (inputsBySection == null || !context.mounted) {
+      return null;
+    }
+
+    final inputs = inputsBySection[sectionId];
+
+    if (inputs == null) {
+      return null;
+    }
+
+    final result = const ActionDiceResolver().resolvePhysical(
+      request: request,
+      inputs: inputs,
+    );
+
+    return result.parts.fold<int>(0, (sum, part) => sum + part.total);
+  }
+
+  Future<int?> _resolveEffectTriggerHealing(
+    BuildContext context, {
+    required HealingBonus bonus,
+    required String sourceEffectId,
+    required String sourceEffectName,
+    required ActionTarget target,
+    required ActionResolutionContext actionContext,
+    required ActionDiceMode diceMode,
+  }) async {
+    // ===========================================================================
+    // CONTEXTO / MODIFICADOR
+    // ===========================================================================
+
+    final formulaContext = actionContext.buildFormulaContext(target: target);
+
+    final modifier = character.healingBonusModifier(
+      bonus,
+      formulaContext: formulaContext,
+    );
+
+    // ===========================================================================
+    // REQUEST
+    // ===========================================================================
+
+    final partId =
+        'effect-trigger-healing:'
+        '$sourceEffectId:'
+        '${bonus.id}:'
+        '${target.id}';
+
+    final request = ActionDiceRequest(
+      parts: [
+        ActionDiceRequestPart(
+          id: partId,
+
+          effectId: 'effect-trigger:$sourceEffectId',
+
+          effectName: bonus.name.trim().isNotEmpty
+              ? bonus.name.trim()
+              : sourceEffectName,
+
+          effectType: AbilityEffectType.healing,
+
+          dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
+
+          modifier: modifier,
+
+          hitBehavior: ActionHitBehavior.ignoreHit,
+
+          sourceType: ActionDiceSourceType.effect,
+
+          sourceId: sourceEffectId,
+
+          sourceName: sourceEffectName,
+        ),
+      ],
+    );
+
+    // ===========================================================================
+    // DIGITAL
+    // ===========================================================================
+
+    if (diceMode == ActionDiceMode.digital) {
+      final result = const ActionDiceResolver().rollDigital(request);
+
+      return result.parts.fold<int>(0, (sum, part) => sum + part.total);
+    }
+
+    // ===========================================================================
+    // FÍSICO
+    // ===========================================================================
+
+    final sectionId =
+        'effect-trigger-healing-section:'
+        '$sourceEffectId:'
+        '${bonus.id}:'
+        '${target.id}';
+
+    final inputsBySection = await showPhysicalDiceDialog(
+      context,
+      sections: [
+        PhysicalDiceSection(
+          id: sectionId,
+
+          title: sourceEffectName.trim().isNotEmpty
+              ? sourceEffectName.trim()
+              : 'Trigger de efecto',
+
+          request: request,
+        ),
+      ],
+    );
+
+    if (inputsBySection == null || !context.mounted) {
+      return null;
+    }
+
+    final inputs = inputsBySection[sectionId];
+
+    if (inputs == null) {
+      return null;
+    }
+
+    final result = const ActionDiceResolver().resolvePhysical(
+      request: request,
+      inputs: inputs,
+    );
+
+    return result.parts.fold<int>(0, (sum, part) => sum + part.total);
+  }
+
+  Future<bool> _collectPostResolutionExternalRequirements(
+    BuildContext context, {
+    required ActionResolver resolver,
+    required PreparedActionResolution prepared,
+    required ActionResolutionResult resolution,
+  }) async {
+    // ===========================================================================
+    // POST-RESOLUTION
+    //
+    // Se procesa únicamente para targets externos que realmente
+    // produjeron eventos post-resolution.
+    // ===========================================================================
+
+    for (final targetResult in resolution.externalTargetResults) {
+      final events = resolver.postResolutionEventsForTarget(targetResult);
+
+      if (events.isEmpty) {
+        continue;
+      }
+
+      final target = targetResult.target;
+
+      // =======================================================================
+      // INVALIDAR ESTADO CURRENT
+      //
+      // Después de daño/curación ya no podemos reutilizar como "current"
+      // la información recogida antes de resolver la acción.
+      //
+      // El snapshot BEFORE permanece intacto.
+      // =======================================================================
+
+      prepared.context.clearTargetCurrentHealthKnowledge(target);
+
+      final requirements = resolver
+          .orderedPostResolutionExternalRequirementsForTarget(
+            ability: prepared.ability,
+            context: prepared.context,
+            target: target,
+            events: events,
+          );
+
+      if (requirements.isEmpty) {
+        continue;
+      }
+
+      for (final requirement in requirements) {
+        final answers = await showExternalRequirementsDialog(
+          context,
+          targetLabel: target.label ?? 'Objetivo',
+          requirements: [requirement],
+          knownAnswers: const {},
+        );
+
+        if (answers == null || !context.mounted) {
+          return false;
+        }
+
+        final answer = answers[requirement.normalizedVariableName];
+
+        if (answer == null) {
+          continue;
+        }
+
+        resolver.applyExternalRequirementAnswer(
+          context: prepared.context,
+          target: target,
+          requirement: requirement,
+          answer: answer,
+        );
+      }
+    }
+
+    return true;
+  }
+
   // ===========================================================================
   // SIN ATAQUE
   // ===========================================================================
@@ -477,10 +1648,12 @@ class ActionResolutionFlow {
       return null;
     }
 
-    return _commitResolution(
-      context: context,
+    return _finalizeResolution(
+      context,
       resolver: resolver,
+      prepared: prepared,
       resolution: resolution,
+      diceMode: diceMode,
     );
   }
 
@@ -510,6 +1683,7 @@ class ActionResolutionFlow {
 
     final rolls = await _resolveAttackRolls(
       context,
+      resolver: resolver,
       mode: attackMode,
       diceMode: diceMode,
     );
@@ -575,10 +1749,12 @@ class ActionResolutionFlow {
       return null;
     }
 
-    return _commitResolution(
-      context: context,
+    return _finalizeResolution(
+      context,
       resolver: resolver,
+      prepared: prepared,
       resolution: resolution,
+      diceMode: diceMode,
     );
   }
 
@@ -586,8 +1762,9 @@ class ActionResolutionFlow {
   // D20 ATAQUE
   // ===========================================================================
 
-  Future<PhysicalAttackRolls?> _resolveAttackRolls(
+  Future<ActionAttackRolls?> _resolveAttackRolls(
     BuildContext context, {
+    required ActionResolver resolver,
     required AttackRollMode mode,
     required ActionDiceMode diceMode,
   }) async {
@@ -596,17 +1773,7 @@ class ActionResolutionFlow {
         return showPhysicalAttackRollDialog(context, mode: mode);
 
       case ActionDiceMode.digital:
-        const diceResolver = ActionDiceResolver();
-
-        final first = diceResolver.rollDigitalD20();
-
-        int? second;
-
-        if (mode != AttackRollMode.normal) {
-          second = diceResolver.rollDigitalD20();
-        }
-
-        return (firstRoll: first, secondRoll: second);
+        return resolver.resolvePreparedAttackRollsDigital(mode: mode);
     }
   }
 
@@ -628,274 +1795,52 @@ class ActionResolutionFlow {
       attackResult: attackResult,
     );
 
-    switch (prepared.ability.targetResolutionMode) {
-      // =========================================================================
-      // SHARED
-      // =========================================================================
+    // ===========================================================================
+    // SCOPES
+    //
+    // El Resolver decide cuántas resoluciones existen.
+    //
+    // El Flow no necesita saber si son:
+    // - shared
+    // - independent
+    // ===========================================================================
 
-      case AbilityTargetResolutionMode.shared:
-        final chanceResults = await _resolveChanceChecks(
-          context,
-          resolver: resolver,
-          prepared: prepared,
-          critical: critical,
-          diceMode: diceMode,
-        );
+    final scopes = resolver.preparedResolutionScopes(prepared);
 
-        if (chanceResults == null || !context.mounted) {
-          return null;
-        }
+    // ===========================================================================
+    // CHANCE CHECKS
+    // ===========================================================================
 
-        final successfulChanceIds = resolver.successfulChanceCheckIds(
-          chanceResults,
-        );
+    final chanceResultsByScopeId = <String, List<ActionChanceResult>>{};
 
-        // =========================================================================
-        // REQUEST ÚNICO
-        //
-        // A partir de aquí físico y digital usan exactamente
-        // la misma descripción mecánica de los dados.
-        // =========================================================================
-
-        final request = resolver.buildPreparedDiceRequest(
-          prepared: prepared,
-          attackResult: attackResult,
-          successfulChanceCheckIds: successfulChanceIds,
-        );
-
-        ActionDiceResult diceResult;
-
-        switch (diceMode) {
-          // -----------------------------------------------------------------------
-          // DIGITAL
-          // -----------------------------------------------------------------------
-
-          case ActionDiceMode.digital:
-            diceResult = const ActionDiceResolver().rollDigital(request);
-
-            break;
-
-          // -----------------------------------------------------------------------
-          // FÍSICO
-          // -----------------------------------------------------------------------
-
-          case ActionDiceMode.physical:
-            final rolled = await showPhysicalDiceDialog(
-              context,
-              sections: [
-                PhysicalDiceSection(
-                  id: 'shared',
-                  title: prepared.ability.name,
-                  request: request,
-                ),
-              ],
-            );
-
-            if (rolled == null) {
-              return null;
-            }
-
-            final resolved = rolled['shared'];
-
-            if (resolved == null) {
-              return null;
-            }
-
-            diceResult = resolved;
-
-            break;
-        }
-
-        // =========================================================================
-        // MISMO RESULTADO FINAL
-        //
-        // Ya no existe un camino de resolución distinto para digital.
-        // =========================================================================
-
-        return resolver.buildPreparedSharedResolution(
-          prepared: prepared,
-          diceResult: diceResult,
-          attackResult: attackResult,
-          attackResultsByTargetId: attackResultsByTargetId,
-          chanceResults: chanceResults,
-          savingThrowResults: savingThrowResults,
-        );
-
-      // =========================================================================
-      // INDEPENDENT
-      // =========================================================================
-
-      case AbilityTargetResolutionMode.independent:
-        final chanceResultsByTarget = await _resolveIndependentChanceChecks(
-          context,
-          resolver: resolver,
-          prepared: prepared,
-          critical: critical,
-          diceMode: diceMode,
-        );
-
-        if (chanceResultsByTarget == null || !context.mounted) {
-          return null;
-        }
-
-        final successfulChanceIdsByTargetId = <String, Set<String>>{
-          for (final entry in chanceResultsByTarget.entries)
-            entry.key: resolver.successfulChanceCheckIds(entry.value),
-        };
-
-        // =========================================================================
-        // REQUESTS POR TARGET
-        //
-        // Cada target obtiene su request una única vez.
-        // Físico y digital consumen exactamente ese mismo request.
-        // =========================================================================
-
-        final requestsByTargetId = <String, ActionDiceRequest>{};
-
-        for (final target in prepared.context.targets) {
-          final targetAttackResult = attackResultsByTargetId[target.id];
-
-          final successfulChanceIds =
-              successfulChanceIdsByTargetId[target.id] ?? const <String>{};
-
-          final request = resolver.buildPreparedDiceRequest(
-            prepared: prepared,
-            attackResult: attackResult,
-            targetAttackResult: targetAttackResult,
-            target: target,
-            successfulChanceCheckIds: successfulChanceIds,
-          );
-
-          requestsByTargetId[target.id] = request;
-        }
-
-        // =========================================================================
-        // RESOLVER DADOS
-        // =========================================================================
-
-        final diceResultsByTargetId = <String, ActionDiceResult>{};
-
-        switch (diceMode) {
-          // -----------------------------------------------------------------------
-          // DIGITAL
-          // -----------------------------------------------------------------------
-
-          case ActionDiceMode.digital:
-            const diceResolver = ActionDiceResolver();
-
-            for (final entry in requestsByTargetId.entries) {
-              diceResultsByTargetId[entry.key] = diceResolver.rollDigital(
-                entry.value,
-              );
-            }
-
-            break;
-
-          // -----------------------------------------------------------------------
-          // FÍSICO
-          // -----------------------------------------------------------------------
-
-          case ActionDiceMode.physical:
-            final immediate = <String, ActionDiceResult>{};
-
-            final sections = <PhysicalDiceSection>[];
-
-            for (final target in prepared.context.targets) {
-              final request = requestsByTargetId[target.id];
-
-              if (request == null) {
-                continue;
-              }
-
-              // No hay dados reales que introducir.
-              //
-              // Ejemplo:
-              // crítico potenciado completamente automático.
-              if (!request.parts.any((part) => part.requiresRoll)) {
-                immediate[target.id] = const ActionDiceResolver()
-                    .resolvePhysical(request: request, inputs: const []);
-
-                continue;
-              }
-
-              sections.add(
-                PhysicalDiceSection(
-                  id: target.id,
-                  title: target.isSelf ? selfLabel : target.label ?? 'Objetivo',
-                  request: request,
-                ),
-              );
-            }
-
-            if (sections.isNotEmpty) {
-              final rolled = await showPhysicalDiceDialog(
-                context,
-                sections: sections,
-              );
-
-              if (rolled == null) {
-                return null;
-              }
-
-              diceResultsByTargetId.addAll(rolled);
-            }
-
-            diceResultsByTargetId.addAll(immediate);
-
-            break;
-        }
-
-        // =========================================================================
-        // RESULTADO FINAL
-        // =========================================================================
-
-        return resolver.buildPreparedIndependentResolution(
-          prepared: prepared,
-          diceResultsByTargetId: Map<String, ActionDiceResult>.unmodifiable(
-            diceResultsByTargetId,
-          ),
-          attackResult: attackResult,
-          attackResultsByTargetId: attackResultsByTargetId,
-          chanceResultsByTargetId: chanceResultsByTarget,
-          savingThrowResults: savingThrowResults,
-        );
-    }
-  }
-
-  // ===========================================================================
-  // FÍSICO INDEPENDIENTE
-  // ===========================================================================
-
-  Future<Map<String, List<ActionChanceResult>>?>
-  _resolveIndependentChanceChecks(
-    BuildContext context, {
-    required ActionResolver resolver,
-    required PreparedActionResolution prepared,
-    required bool critical,
-    required ActionDiceMode diceMode,
-  }) async {
-    final results = <String, List<ActionChanceResult>>{};
-
-    for (final target in prepared.context.targets) {
-      final checks = resolver.collectCriticalChanceChecks(
+    for (final scope in scopes) {
+      final checks = resolver.collectPreparedCriticalChanceChecksForScope(
+        prepared: prepared,
         critical: critical,
-        context: prepared.context,
-        target: target,
+        scope: scope,
+        attackResultsByTargetId: attackResultsByTargetId,
       );
 
       if (checks.isEmpty) {
-        results[target.id] = const [];
+        chanceResultsByScopeId[scope.id] = const [];
 
         continue;
       }
 
       switch (diceMode) {
+        // -----------------------------------------------------------------------
+        // DIGITAL
+        // -----------------------------------------------------------------------
+
         case ActionDiceMode.digital:
-          results[target.id] = resolver.resolveChanceChecksDigital(
-            checks: checks,
-          );
+          chanceResultsByScopeId[scope.id] = resolver
+              .resolveChanceChecksDigital(checks: checks);
 
           break;
+
+        // -----------------------------------------------------------------------
+        // FÍSICO
+        // -----------------------------------------------------------------------
 
         case ActionDiceMode.physical:
           final inputs = await showPhysicalChanceChecksDialog(
@@ -911,14 +1856,154 @@ class ActionResolutionFlow {
             for (final input in inputs) input.checkId: input.roll,
           };
 
-          results[target.id] = resolver.resolveChanceChecksPhysical(
-            checks: checks,
-            rollsByCheckId: rollsByCheckId,
-          );
+          chanceResultsByScopeId[scope.id] = resolver
+              .resolveChanceChecksPhysical(
+                checks: checks,
+                rollsByCheckId: rollsByCheckId,
+              );
+
+          break;
       }
     }
 
-    return Map<String, List<ActionChanceResult>>.unmodifiable(results);
+    // ===========================================================================
+    // REQUESTS
+    // ===========================================================================
+
+    final requestsByScopeId = <String, ActionDiceRequest>{};
+
+    for (final scope in scopes) {
+      final chanceResults =
+          chanceResultsByScopeId[scope.id] ?? const <ActionChanceResult>[];
+
+      final successfulChanceIds = resolver.successfulChanceCheckIds(
+        chanceResults,
+      );
+
+      requestsByScopeId[scope.id] = resolver.buildPreparedDiceRequestForScope(
+        prepared: prepared,
+        scope: scope,
+        attackResult: attackResult,
+        attackResultsByTargetId: attackResultsByTargetId,
+        successfulChanceCheckIds: successfulChanceIds,
+      );
+    }
+
+    // ===========================================================================
+    // DADOS
+    // ===========================================================================
+
+    final diceResultsByScopeId = <String, ActionDiceResult>{};
+
+    switch (diceMode) {
+      // =========================================================================
+      // DIGITAL
+      // =========================================================================
+
+      case ActionDiceMode.digital:
+        for (final scope in scopes) {
+          final request = requestsByScopeId[scope.id];
+
+          if (request == null) {
+            continue;
+          }
+
+          diceResultsByScopeId[scope.id] = resolver.resolvePreparedDiceDigital(
+            request: request,
+          );
+        }
+
+        break;
+
+      // =========================================================================
+      // FÍSICO
+      // =========================================================================
+
+      case ActionDiceMode.physical:
+        final sections = <PhysicalDiceSection>[];
+
+        for (final scope in scopes) {
+          final request = requestsByScopeId[scope.id];
+
+          if (request == null) {
+            continue;
+          }
+
+          // No pedimos dados cuyo valor ya sea automático.
+          if (!request.parts.any((part) => part.requiresRoll)) {
+            continue;
+          }
+
+          final target = scope.target;
+
+          sections.add(
+            PhysicalDiceSection(
+              id: scope.id,
+              title: target == null
+                  ? prepared.ability.name
+                  : target.isSelf
+                  ? selfLabel
+                  : target.label ?? 'Objetivo',
+              request: request,
+            ),
+          );
+        }
+
+        Map<String, List<ActionPhysicalDiceInput>> physicalInputsByScopeId =
+            const {};
+
+        if (sections.isNotEmpty) {
+          final physicalInputs = await showPhysicalDiceDialog(
+            context,
+            sections: sections,
+          );
+
+          if (physicalInputs == null || !context.mounted) {
+            return null;
+          }
+
+          physicalInputsByScopeId = physicalInputs;
+        }
+
+        for (final scope in scopes) {
+          final request = requestsByScopeId[scope.id];
+
+          if (request == null) {
+            continue;
+          }
+
+          final inputs =
+              physicalInputsByScopeId[scope.id] ??
+              const <ActionPhysicalDiceInput>[];
+
+          diceResultsByScopeId[scope.id] = resolver.resolvePreparedDicePhysical(
+            request: request,
+            inputs: inputs,
+          );
+        }
+
+        break;
+    }
+
+    // ===========================================================================
+    // RESULTADO
+    //
+    // A partir de aquí el Flow ya no conoce la estrategia de resolución.
+    // ===========================================================================
+
+    return resolver.buildPreparedResolutionFromScopes(
+      prepared: prepared,
+      diceResultsByScopeId: Map<String, ActionDiceResult>.unmodifiable(
+        diceResultsByScopeId,
+      ),
+      attackResult: attackResult,
+      attackResultsByTargetId: attackResultsByTargetId,
+      chanceResultsByScopeId:
+          Map<String, List<ActionChanceResult>>.unmodifiable(
+            chanceResultsByScopeId,
+          ),
+      savingThrowResults: savingThrowResults,
+    );
   }
 
   // ===========================================================================
@@ -1026,58 +2111,7 @@ class ActionResolutionFlow {
       results,
     );
 
-    await showSavingThrowResultsDialog(context, results: immutableResults);
-
-    if (!context.mounted) {
-      return null;
-    }
-
     return immutableResults;
-  }
-
-  // ===========================================================================
-  // CRITICAL CHANCE
-  // ===========================================================================
-
-  Future<List<ActionChanceResult>?> _resolveChanceChecks(
-    BuildContext context, {
-    required ActionResolver resolver,
-    required PreparedActionResolution prepared,
-    required bool critical,
-    required ActionDiceMode diceMode,
-  }) async {
-    final checks = resolver.collectCriticalChanceChecks(
-      critical: critical,
-      context: prepared.context,
-    );
-
-    if (checks.isEmpty) {
-      return const [];
-    }
-
-    switch (diceMode) {
-      case ActionDiceMode.digital:
-        return resolver.resolveChanceChecksDigital(checks: checks);
-
-      case ActionDiceMode.physical:
-        final inputs = await showPhysicalChanceChecksDialog(
-          context,
-          checks: checks,
-        );
-
-        if (inputs == null || !context.mounted) {
-          return null;
-        }
-
-        final rollsByCheckId = {
-          for (final input in inputs) input.checkId: input.roll,
-        };
-
-        return resolver.resolveChanceChecksPhysical(
-          checks: checks,
-          rollsByCheckId: rollsByCheckId,
-        );
-    }
   }
 
   // ===========================================================================
@@ -1090,32 +2124,31 @@ class ActionResolutionFlow {
     required CharacterAbility ability,
     required ActionResolutionContext actionContext,
   }) async {
-    final requirements = resolver.orderedExternalRequirements(ability: ability);
-
-    if (requirements.isEmpty) {
-      return true;
-    }
+    // ===========================================================================
+    // REQUIREMENTS PRE-RESOLUTION POR TARGET
+    //
+    // El Resolver decide:
+    // - qué requirements existen,
+    // - cuáles ya conoce,
+    // - cuáles puede inferir,
+    // - cuáles realmente necesitan pregunta.
+    //
+    // El Flow únicamente muestra UI y registra la respuesta.
+    // ===========================================================================
 
     for (final target in actionContext.targets) {
+      final requirements = resolver
+          .orderedPreResolutionExternalRequirementsForTarget(
+            ability: ability,
+            context: actionContext,
+            target: target,
+          );
+
+      if (requirements.isEmpty) {
+        continue;
+      }
+
       for (final requirement in requirements) {
-        // =====================================================================
-        // EL RESOLVER DECIDE SI YA PUEDE RESPONDER
-        // =====================================================================
-
-        final resolved = resolver.tryResolveKnownExternalRequirement(
-          context: actionContext,
-          target: target,
-          requirement: requirement,
-        );
-
-        if (resolved) {
-          continue;
-        }
-
-        // =====================================================================
-        // EL FLOW SOLO PREGUNTA
-        // =====================================================================
-
         final answers = await showExternalRequirementsDialog(
           context,
           targetLabel: target.isSelf ? selfLabel : target.label ?? 'Objetivo',
@@ -1132,10 +2165,6 @@ class ActionResolutionFlow {
         if (answer == null) {
           continue;
         }
-
-        // =====================================================================
-        // EL RESOLVER INTERPRETA / REGISTRA
-        // =====================================================================
 
         resolver.applyExternalRequirementAnswer(
           context: actionContext,
@@ -1190,29 +2219,19 @@ class ActionResolutionFlow {
   }) async {
     final entries = <OptionalChoiceEntry>[];
 
-    switch (plan.ability.targetResolutionMode) {
-      case AbilityTargetResolutionMode.shared:
-        _appendOptionalEntries(
-          entries: entries,
-          resolver: resolver,
-          plan: plan,
-          actionContext: actionContext,
-        );
+    final scopes = resolver.resolutionScopes(
+      plan: plan,
+      context: actionContext,
+    );
 
-        break;
-
-      case AbilityTargetResolutionMode.independent:
-        for (final target in actionContext.targets) {
-          _appendOptionalEntries(
-            entries: entries,
-            resolver: resolver,
-            plan: plan,
-            actionContext: actionContext,
-            target: target,
-          );
-        }
-
-        break;
+    for (final scope in scopes) {
+      _appendOptionalEntries(
+        entries: entries,
+        resolver: resolver,
+        plan: plan,
+        actionContext: actionContext,
+        target: scope.target,
+      );
     }
 
     if (entries.isEmpty) {
@@ -1225,7 +2244,7 @@ class ActionResolutionFlow {
       selfLabel: selfLabel,
     );
 
-    if (selections == null) {
+    if (selections == null || !context.mounted) {
       return false;
     }
 
@@ -1236,13 +2255,15 @@ class ActionResolutionFlow {
 
       if (target == null) {
         actionContext.setOptionalGroupSelected(entry.group.id, selected);
-      } else {
-        actionContext.setOptionalGroupSelectedForTarget(
-          target.id,
-          entry.group.id,
-          selected,
-        );
+
+        continue;
       }
+
+      actionContext.setOptionalGroupSelectedForTarget(
+        target.id,
+        entry.group.id,
+        selected,
+      );
     }
 
     return true;
@@ -1251,14 +2272,111 @@ class ActionResolutionFlow {
   // ===========================================================================
   // COMMIT
   // ===========================================================================
+  void _dispatchTargetTriggers({
+    required ActionResolver resolver,
+    required ActionTargetResult targetResult,
+    required bool critical,
+  }) {
+    final events = resolver.postResolutionEventsForTarget(
+      targetResult,
+      critical: critical,
+    );
+
+    if (events.isEmpty) {
+      return;
+    }
+
+    final target = targetResult.target;
+
+    final variables = <String, double>{
+      'damage': targetResult.damage.toDouble(),
+      'healing': targetResult.healing.toDouble(),
+    };
+
+    for (final event in events) {
+      character.dispatchPassiveTrigger(
+        event,
+
+        eventVariables: variables,
+
+        actionContext: ActionTriggerContext(
+          targetId: target.id,
+          targetLabel: target.label,
+        ),
+      );
+    }
+  }
+
+  void _dispatchPostResolutionTriggers({
+    required ActionResolver resolver,
+    required ActionResolutionResult resolution,
+  }) {
+    final critical =
+        resolution.attackResult?.critical ??
+        resolution.criticalProfile.forcedCritical;
+
+    for (final targetResult in resolution.externalTargetResults) {
+      _dispatchTargetTriggers(
+        resolver: resolver,
+        targetResult: targetResult,
+        critical: critical,
+      );
+    }
+  }
 
   ActionExecutionResult? _commitResolution({
     required BuildContext context,
     required ActionResolver resolver,
     required ActionResolutionResult resolution,
+
+    List<PassiveTriggerExternalResult> triggeredResults = const [],
+
+    List<CharacterEffectTriggerExternalResult> effectTriggeredResults =
+        const [],
   }) {
     try {
-      return resolver.commitResolution(resolution);
+      var execution = resolver.commitResolution(resolution);
+
+      // =========================================================================
+      // CONSUMIR USOS DE TRIGGERS EXTERNOS
+      //
+      // Solo llegamos aquí después de un commit exitoso.
+      // =========================================================================
+
+      final triggerEngine = PassiveTriggerEngine(character: character);
+
+      for (final result in triggeredResults) {
+        triggerEngine.consumeExternalTriggerResult(result);
+      }
+
+      final effectTriggerEngine = CharacterEffectTriggerEngine(
+        character: character,
+      );
+
+      for (final result in effectTriggeredResults) {
+        effectTriggerEngine.consumeExternalTriggerResult(result);
+      }
+
+      // =========================================================================
+      // FUSIONAR RESULTADOS
+      // =========================================================================
+
+      execution = _mergePassiveTriggeredResults(
+        execution: execution,
+        triggeredResults: triggeredResults,
+      );
+
+      execution = _mergeEffectTriggeredResults(
+        execution: execution,
+        triggeredResults: effectTriggeredResults,
+      );
+
+      _dispatchPostResolutionTriggers(
+        resolver: resolver,
+        resolution: execution.resolution,
+      );
+
+      return execution;
     } on StateError catch (error) {
       _showError(context, error.message.toString());
 

@@ -59,22 +59,22 @@ class ActionExternalRequirement {
     required String label,
     required double threshold,
   }) : this(
-    variableName: variableName,
-    type: ActionExternalRequirementType.percentageAbove,
-    label: label,
-    threshold: threshold,
-  );
+         variableName: variableName,
+         type: ActionExternalRequirementType.percentageAbove,
+         label: label,
+         threshold: threshold,
+       );
 
   const ActionExternalRequirement.percentageAtOrAbove({
     required String variableName,
     required String label,
     required double threshold,
   }) : this(
-    variableName: variableName,
-    type: ActionExternalRequirementType.percentageAtOrAbove,
-    label: label,
-    threshold: threshold,
-  );
+         variableName: variableName,
+         type: ActionExternalRequirementType.percentageAtOrAbove,
+         label: label,
+         threshold: threshold,
+       );
 
   String get normalizedVariableName {
     final normalized = variableName.trim().toLowerCase();
@@ -147,13 +147,14 @@ class ActionExternalRequirement {
   }
 
   static ActionExternalRequirement? tryParsePercentageVariable(
-      String variableName,
-      ) {
-    final normalized =
-    variableName.trim().toLowerCase();
+    String variableName,
+  ) {
+    final normalized = variableName.trim().toLowerCase();
 
     final match = RegExp(
-      r'^(.*)_(lt|lte|gt|gte)_(-?\d+(?:\.\d+)?)$',
+      r'^(target_health_percent|target_health_percent_before)_'
+      r'(lt|lte|gt|gte)_'
+      r'(\d+(?:\.\d+)?)$',
     ).firstMatch(normalized);
 
     if (match == null) {
@@ -161,49 +162,64 @@ class ActionExternalRequirement {
     }
 
     final baseVariable = match.group(1);
+
     final operatorName = match.group(2);
-    final rawThreshold = match.group(3);
 
-    if (baseVariable == null ||
-        baseVariable.isEmpty ||
-        operatorName == null ||
-        rawThreshold == null) {
+    final threshold = double.tryParse(match.group(3) ?? '');
+
+    if (baseVariable == null || operatorName == null || threshold == null) {
       return null;
     }
 
-    final threshold =
-    double.tryParse(rawThreshold);
+    final safeThreshold = threshold.clamp(0.0, 100.0).toDouble();
 
-    if (threshold == null) {
-      return null;
+    final thresholdText = safeThreshold == safeThreshold.roundToDouble()
+        ? safeThreshold.toInt().toString()
+        : safeThreshold.toString();
+
+    final before = baseVariable == 'target_health_percent_before';
+
+    final labelPrefix = before ? '¿El objetivo estaba' : '¿El objetivo está';
+
+    switch (operatorName) {
+      case 'lt':
+        return ActionExternalRequirement.percentageBelow(
+          variableName: baseVariable,
+          threshold: safeThreshold,
+          label:
+              '$labelPrefix por debajo del '
+              '$thresholdText% de vida?',
+        );
+
+      case 'lte':
+        return ActionExternalRequirement.percentageAtOrBelow(
+          variableName: baseVariable,
+          threshold: safeThreshold,
+          label:
+              '$labelPrefix al '
+              '$thresholdText% de vida o por debajo?',
+        );
+
+      case 'gt':
+        return ActionExternalRequirement.percentageAbove(
+          variableName: baseVariable,
+          threshold: safeThreshold,
+          label:
+              '$labelPrefix por encima del '
+              '$thresholdText% de vida?',
+        );
+
+      case 'gte':
+        return ActionExternalRequirement.percentageAtOrAbove(
+          variableName: baseVariable,
+          threshold: safeThreshold,
+          label:
+              '$labelPrefix al '
+              '$thresholdText% de vida o por encima?',
+        );
     }
 
-    final type = switch (operatorName) {
-      'lt' =>
-      ActionExternalRequirementType.percentageBelow,
-
-      'lte' =>
-      ActionExternalRequirementType.percentageAtOrBelow,
-
-      'gt' =>
-      ActionExternalRequirementType.percentageAbove,
-
-      'gte' =>
-      ActionExternalRequirementType.percentageAtOrAbove,
-
-      _ => null,
-    };
-
-    if (type == null) {
-      return null;
-    }
-
-    return ActionExternalRequirement(
-      variableName: baseVariable,
-      type: type,
-      label: '',
-      threshold: threshold,
-    );
+    return null;
   }
 
   Map<String, dynamic> toMap() {

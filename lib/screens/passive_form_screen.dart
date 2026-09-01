@@ -522,16 +522,25 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
   Future<void> addTrigger() async {
     final trigger = PassiveTrigger(
       id: '${DateTime.now().microsecondsSinceEpoch}_trigger',
+
       event: PassiveTriggerEvent.enemyKilled,
-      actionType: PassiveTriggerActionType.incrementCounter,
-      valueFormula: CharacterFormula(expression: '1'),
+
+      target: PassiveTriggerTarget.self,
+
+      usageLimit: TriggerUsageLimit.unlimited,
+
+      mode: PassiveTriggerMode.once,
+
+      actions: [],
     );
 
     final result = await showPassiveTriggerEditorDialog(
       context,
+
       trigger: trigger,
+
       character: widget.character,
-      passive: widget.passive,
+
       linkedEffects: linkedEffects,
     );
 
@@ -551,9 +560,11 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
     final result = await showPassiveTriggerEditorDialog(
       context,
+
       trigger: PassiveTrigger.fromMap(triggers[index].toMap()),
+
       character: widget.character,
-      passive: widget.passive,
+
       linkedEffects: linkedEffects,
     );
 

@@ -148,50 +148,68 @@ class PassiveDisplayFormatter {
   }) {
     final pieces = <String>[];
 
-    // -------------------------------------------------------------------------
+    // ===========================================================================
     // EVENTO
-    // -------------------------------------------------------------------------
+    // ===========================================================================
 
     pieces.add(trigger.event.label);
 
-    // -------------------------------------------------------------------------
-    // ACCIÓN
-    // -------------------------------------------------------------------------
+    // ===========================================================================
+    // DESTINO
+    // ===========================================================================
 
-    pieces.add(trigger.actionType.label);
+    pieces.add(
+      trigger.target == PassiveTriggerTarget.self
+          ? 'Objetivo: propio personaje'
+          : 'Objetivo: objetivo de la acción',
+    );
 
-    // -------------------------------------------------------------------------
-    // TARGET DE LA ACCIÓN
-    // -------------------------------------------------------------------------
+    // ===========================================================================
+    // LÍMITE
+    // ===========================================================================
 
-    final targetId = trigger.targetId?.trim();
+    switch (trigger.usageLimit) {
+      case TriggerUsageLimit.unlimited:
+        break;
 
-    if (targetId != null && targetId.isNotEmpty) {
-      final targetName = _triggerTargetName(
-        trigger,
-        targetId: targetId,
-        character: character,
-        linkedEffects: linkedEffects,
+      case TriggerUsageLimit.oncePerTurn:
+        pieces.add('Una vez por turno');
+        break;
+
+      case TriggerUsageLimit.oncePerRound:
+        pieces.add('Una vez por ronda');
+        break;
+    }
+
+    // ===========================================================================
+    // SALVACIÓN
+    // ===========================================================================
+
+    final savingThrow = trigger.savingThrow;
+
+    if (savingThrow != null && savingThrow.dc > 0) {
+      pieces.add(
+        'Salvación ${savingThrow.ability.shortLabel} · CD ${savingThrow.dc}',
       );
-
-      pieces.add(targetName);
     }
 
-    // -------------------------------------------------------------------------
-    // VALOR
-    // -------------------------------------------------------------------------
+    // ===========================================================================
+    // ACCIONES
+    // ===========================================================================
 
-    final valueExpression = trigger.valueFormula?.expression.trim();
-
-    if (valueExpression != null && valueExpression.isNotEmpty) {
-      final value = FormulaDisplayFormatter.format(valueExpression, character);
-
-      pieces.add('Valor: $value');
+    for (final action in trigger.actions) {
+      pieces.add(
+        _triggerActionText(
+          action,
+          character: character,
+          linkedEffects: linkedEffects,
+        ),
+      );
     }
 
-    // -------------------------------------------------------------------------
+    // ===========================================================================
     // CONDICIÓN
-    // -------------------------------------------------------------------------
+    // ===========================================================================
 
     final conditionExpression = trigger.condition?.expression.trim();
 
@@ -204,17 +222,17 @@ class PassiveDisplayFormatter {
       pieces.add('Si: $condition');
     }
 
-    // -------------------------------------------------------------------------
+    // ===========================================================================
     // MODO
-    // -------------------------------------------------------------------------
+    // ===========================================================================
 
     if (trigger.mode == PassiveTriggerMode.whileCondition) {
       pieces.add('Mientras se cumpla');
     }
 
-    // -------------------------------------------------------------------------
+    // ===========================================================================
     // CUSTOM EVENT
-    // -------------------------------------------------------------------------
+    // ===========================================================================
 
     if (trigger.event == PassiveTriggerEvent.custom) {
       final customEvent = trigger.customEvent?.trim();
@@ -231,16 +249,16 @@ class PassiveDisplayFormatter {
   // TRIGGER TARGET
   // ===========================================================================
 
-  static String _triggerTargetName(
-    PassiveTrigger trigger, {
+  static String _triggerActionTargetName(
+    PassiveTriggerAction action, {
     required String targetId,
     required Character? character,
     required List<CharacterEffect> linkedEffects,
   }) {
-    switch (trigger.actionType) {
-      // -----------------------------------------------------------------------
+    switch (action.type) {
+      // =========================================================================
       // RESOURCE
-      // -----------------------------------------------------------------------
+      // =========================================================================
 
       case PassiveTriggerActionType.addResource:
       case PassiveTriggerActionType.subtractResource:
@@ -257,9 +275,9 @@ class PassiveDisplayFormatter {
 
         return targetId;
 
-      // -----------------------------------------------------------------------
+      // =========================================================================
       // COUNTER
-      // -----------------------------------------------------------------------
+      // =========================================================================
 
       case PassiveTriggerActionType.incrementCounter:
       case PassiveTriggerActionType.setCounter:
@@ -277,9 +295,9 @@ class PassiveDisplayFormatter {
 
         return targetId;
 
-      // -----------------------------------------------------------------------
+      // =========================================================================
       // EFFECT
-      // -----------------------------------------------------------------------
+      // =========================================================================
 
       case PassiveTriggerActionType.applyEffect:
       case PassiveTriggerActionType.removeEffect:
@@ -303,9 +321,9 @@ class PassiveDisplayFormatter {
 
         return targetId;
 
-      // -----------------------------------------------------------------------
-      // ACCIONES SIN TARGET ID ESPECIAL
-      // -----------------------------------------------------------------------
+      // =========================================================================
+      // SIN TARGET ID ESPECIAL
+      // =========================================================================
 
       case PassiveTriggerActionType.addCharge:
       case PassiveTriggerActionType.subtractCharge:
@@ -313,6 +331,63 @@ class PassiveDisplayFormatter {
       case PassiveTriggerActionType.heal:
         return targetId;
     }
+  }
+
+  static String _triggerActionText(
+    PassiveTriggerAction action, {
+    required Character? character,
+    required List<CharacterEffect> linkedEffects,
+  }) {
+    final pieces = <String>[];
+
+    pieces.add(action.type.label);
+
+    // ===========================================================================
+    // TARGET ID ESPECÍFICO
+    // ===========================================================================
+
+    final targetId = action.targetId?.trim();
+
+    if (targetId != null && targetId.isNotEmpty) {
+      pieces.add(
+        _triggerActionTargetName(
+          action,
+          targetId: targetId,
+          character: character,
+          linkedEffects: linkedEffects,
+        ),
+      );
+    }
+
+    // ===========================================================================
+    // DADOS
+    // ===========================================================================
+
+    if (action.hasDice) {
+      pieces.add(action.diceNotation);
+    }
+
+    // ===========================================================================
+    // VALOR / FÓRMULA
+    // ===========================================================================
+
+    final valueExpression = action.valueFormula?.expression.trim();
+
+    if (valueExpression != null && valueExpression.isNotEmpty) {
+      final value = FormulaDisplayFormatter.format(valueExpression, character);
+
+      pieces.add('Valor: $value');
+    }
+
+    // ===========================================================================
+    // TIPO DE DAÑO
+    // ===========================================================================
+
+    if (action.hasDamageType) {
+      pieces.add(action.damageType.trim());
+    }
+
+    return pieces.join(' · ');
   }
 
   // ===========================================================================

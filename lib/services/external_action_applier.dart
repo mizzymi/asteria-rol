@@ -19,29 +19,17 @@ class ExternalActionApplier {
     // DAÑO
     // =========================================================================
 
-    var damageApplied = 0;
+    final damageResult = _applyDamage(outcome.damage);
 
-    if (outcome.damage > 0) {
-      final before = character.currentHealth;
+    final damageApplied = damageResult.applied;
 
-      character.takeDamage(outcome.damage, dispatchTriggers: true);
-
-      damageApplied = before - character.currentHealth;
-    }
+    final killed = damageResult.killed;
 
     // =========================================================================
     // CURACIÓN
     // =========================================================================
 
-    var healingApplied = 0;
-
-    if (outcome.healing > 0) {
-      final before = character.currentHealth;
-
-      character.heal(outcome.healing, dispatchTriggers: true);
-
-      healingApplied = character.currentHealth - before;
-    }
+    final healingApplied = _applyHealing(outcome.healing);
 
     // =========================================================================
     // EFECTOS
@@ -66,7 +54,11 @@ class ExternalActionApplier {
 
       effect.resetDuration();
 
-      character.addEffect(effect, refreshTriggers: false);
+      character.addEffect(
+        effect,
+        refreshTriggers: false,
+        dispatchHealthTriggers: false,
+      );
 
       appliedEffectIds.add(templateId);
 
@@ -83,6 +75,44 @@ class ExternalActionApplier {
       );
     }
 
+    for (final template in outcome.passiveEffects) {
+      final templateId = template.id.trim();
+
+      if (templateId.isEmpty) {
+        continue;
+      }
+
+      final effect = CharacterEffect.fromMap(template.toMap());
+
+      effect.id = _newAppliedEffectId(templateId);
+
+      effect.enabled = true;
+      effect.resetDuration();
+
+      character.addEffect(
+        effect,
+        refreshTriggers: false,
+        dispatchHealthTriggers: false,
+      );
+
+      appliedEffectIds.add(templateId);
+
+      character.dispatchPassiveTrigger(
+        PassiveTriggerEvent.effectReceived,
+        eventVariables: {
+          ActionEventVariables.effectReceived: 1,
+
+          ActionEventVariables.effectApplied: 1,
+
+          ActionEventVariables.effectResolved: 1,
+
+          ActionEventVariables.effectConfirmed: 1,
+
+          'effect_$templateId': 1,
+        },
+      );
+    }
+
     // =========================================================================
     // RESULTADO REAL
     // =========================================================================
@@ -91,14 +121,162 @@ class ExternalActionApplier {
 
     return ExternalActionOutcome(
       targetId: outcome.targetId,
+
       damageApplied: damageApplied,
+
       healingApplied: healingApplied,
-      effectsApplied: appliedEffectIds.length,
+
       appliedEffectIds: Set<String>.unmodifiable(appliedEffectIds),
-      killed: healthBefore > 0 && healthAfter <= 0,
+
+      killed: killed,
+
       healthBefore: healthBefore,
+
       healthAfter: healthAfter,
     );
+  }
+
+  // ===========================================================================
+  // DAÑO RECIBIDO
+  // ===========================================================================
+
+  ({int applied, bool killed}) _applyDamage(int amount) {
+    if (amount <= 0) {
+      return (applied: 0, killed: false);
+    }
+
+    final before = character.currentHealth;
+
+    character.takeDamage(amount, dispatchTriggers: false);
+
+    final after = character.currentHealth;
+
+    final applied = before - after;
+
+    if (applied <= 0) {
+      return (applied: 0, killed: false);
+    }
+
+    final killed = before > 0 && after <= 0;
+
+    final healthVariables = <String, double>{
+      ActionEventVariables.healthBefore: before.toDouble(),
+
+      ActionEventVariables.healthAfter: after.toDouble(),
+    };
+
+    // ===========================================================================
+    // DAÑO RECIBIDO
+    // ===========================================================================
+
+    character.dispatchPassiveTrigger(
+      PassiveTriggerEvent.damageReceived,
+      eventVariables: {
+        ...healthVariables,
+
+        ActionEventVariables.damage: applied.toDouble(),
+
+        ActionEventVariables.damageApplied: applied.toDouble(),
+
+        ActionEventVariables.damageConfirmed: 1,
+      },
+    );
+
+    // ===========================================================================
+    // CAMBIO DE VIDA
+    // ===========================================================================
+
+    character.dispatchPassiveTrigger(
+      PassiveTriggerEvent.healthChanged,
+      eventVariables: {
+        ...healthVariables,
+
+        ActionEventVariables.healthChange: (-applied).toDouble(),
+      },
+    );
+
+    // ===========================================================================
+    // MUERTE
+    // ===========================================================================
+
+    if (killed) {
+      character.dispatchPassiveTrigger(
+        PassiveTriggerEvent.characterDied,
+        eventVariables: {
+          ...healthVariables,
+
+          ActionEventVariables.damage: applied.toDouble(),
+
+          ActionEventVariables.death: 1,
+
+          ActionEventVariables.round: character.combatRound.toDouble(),
+
+          ActionEventVariables.turnActive: character.turnActive ? 1 : 0,
+        },
+      );
+    }
+
+    return (applied: applied, killed: killed);
+  }
+
+  // ===========================================================================
+  // CURACIÓN RECIBIDA
+  // ===========================================================================
+
+  int _applyHealing(int amount) {
+    if (amount <= 0) {
+      return 0;
+    }
+
+    final before = character.currentHealth;
+
+    character.heal(amount, dispatchTriggers: false);
+
+    final after = character.currentHealth;
+
+    final applied = after - before;
+
+    if (applied <= 0) {
+      return 0;
+    }
+
+    final healthVariables = <String, double>{
+      ActionEventVariables.healthBefore: before.toDouble(),
+
+      ActionEventVariables.healthAfter: after.toDouble(),
+    };
+
+    // =========================================================================
+    // CURACIÓN RECIBIDA
+    // =========================================================================
+
+    character.dispatchPassiveTrigger(
+      PassiveTriggerEvent.healingReceived,
+      eventVariables: {
+        ...healthVariables,
+
+        ActionEventVariables.healing: applied.toDouble(),
+
+        ActionEventVariables.healingApplied: applied.toDouble(),
+
+        ActionEventVariables.healingConfirmed: 1,
+      },
+    );
+
+    // =========================================================================
+    // CAMBIO DE VIDA
+    // =========================================================================
+
+    character.dispatchPassiveTrigger(
+      PassiveTriggerEvent.healthChanged,
+      eventVariables: {
+        ...healthVariables,
+
+        ActionEventVariables.healthChange: applied.toDouble(),
+      },
+    );
+
+    return applied;
   }
 
   String _newAppliedEffectId(String templateId) {

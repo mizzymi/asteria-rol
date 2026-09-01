@@ -107,22 +107,51 @@ class ActionDiceRequestPart {
 
   final List<DicePool> dicePools;
 
-  /// Modificador añadido al resultado de los dados.
+  /// Modificador FINAL utilizado por el cálculo.
   ///
   /// Ejemplo:
   ///
-  /// 2d6 + 5
+  /// normal:
+  /// +4 SAB
   ///
-  /// modifier = 5
+  /// crítico:
+  /// modifier = 8
   final int modifier;
 
-  /// Cantidad fija añadida al total sin necesidad de tirada.
+  /// Modificador original antes de transformaciones de crítico.
   ///
-  /// Se utiliza especialmente para mecánicas como:
+  /// Ejemplo:
   ///
-  /// crítico potenciado
-  /// → máximo automático + tirada
+  /// baseModifier = 4
+  /// modifier = 8
+  ///
+  /// Permite mostrar:
+  ///
+  /// +4 SAB ×2
+  final int? baseModifier;
+
+  /// Procedencia visual del modificador.
+  ///
+  /// Ejemplos:
+  /// SAB
+  /// INT
+  /// FUE
+  /// Competencia
+  final String modifierLabel;
+
+  /// Valor fijo añadido sin tirada.
+  ///
+  /// Ejemplos:
+  /// máximo automático de crítico,
+  /// crítico potenciado, etc.
   final int automaticValue;
+
+  /// Procedencia visual del valor automático.
+  ///
+  /// Ejemplos:
+  /// Crítico
+  /// Crítico potenciado
+  final String automaticValueLabel;
 
   final ActionDicePartKind kind;
 
@@ -173,9 +202,16 @@ class ActionDiceRequestPart {
     required this.dicePools,
     required this.modifier,
     required this.hitBehavior,
+
+    this.baseModifier,
+    this.modifierLabel = '',
+
     this.abilityPart,
     this.kind = ActionDicePartKind.normal,
+
     this.automaticValue = 0,
+    this.automaticValueLabel = '',
+
     this.sourceType = ActionDiceSourceType.ability,
     this.sourceId = '',
     this.sourceName = '',
@@ -245,34 +281,37 @@ class ActionDiceRequestPart {
   String get calculationText {
     final pieces = <String>[];
 
-    if (diceNotation.isNotEmpty) {
-      pieces.add(diceNotation);
-    }
-
     if (modifier != 0) {
-      if (pieces.isEmpty) {
-        pieces.add('$modifier');
-      } else {
-        pieces.add(modifier > 0 ? '+ $modifier' : '- ${modifier.abs()}');
-      }
+      final sign = modifier > 0 ? '+' : '-';
+      final value = modifier.abs();
+
+      final label = modifierLabel.trim();
+
+      pieces.add(label.isNotEmpty ? '$sign$value $label' : '$sign$value');
     }
 
     if (automaticValue != 0) {
-      if (pieces.isEmpty) {
-        pieces.add('$automaticValue');
-      } else {
-        pieces.add(
-          automaticValue > 0
-              ? '+ $automaticValue'
-              : '- ${automaticValue.abs()}',
-        );
-      }
+      final sign = automaticValue > 0 ? '+' : '-';
+      final value = automaticValue.abs();
+
+      final label = automaticValueLabel.trim();
+
+      pieces.add(
+        label.isNotEmpty ? '$sign$value $label' : '$sign$value automático',
+      );
     }
 
-    if (pieces.isEmpty) {
-      return '0';
-    }
-
-    return pieces.join(' ');
+    return pieces.join(' · ');
   }
+}
+
+class ActionPhysicalDiceInput {
+  final String requestPartId;
+
+  final List<List<int>> rolls;
+
+  const ActionPhysicalDiceInput({
+    required this.requestPartId,
+    required this.rolls,
+  });
 }

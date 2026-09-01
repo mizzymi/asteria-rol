@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../models/action_attack_result.dart';
 import '../../../models/action_attack_roll_mode.dart';
 
 import '../common/action_dialog_scaffold.dart';
 import '../common/numeric_dice_field.dart';
 
-typedef PhysicalAttackRolls = ({int firstRoll, int? secondRoll});
-
-Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
+Future<ActionAttackRolls?> showPhysicalAttackRollDialog(
   BuildContext context, {
   required AttackRollMode mode,
 }) async {
@@ -19,7 +18,7 @@ Future<PhysicalAttackRolls?> showPhysicalAttackRollDialog(
 
   final needsSecondRoll = mode != AttackRollMode.normal;
 
-  return showDialog<PhysicalAttackRolls>(
+  return showDialog<ActionAttackRolls>(
     context: context,
     barrierDismissible: true,
     builder: (dialogContext) {
