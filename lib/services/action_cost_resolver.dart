@@ -30,7 +30,7 @@ class ActionCostResolver {
     // RECURSO
     // -------------------------------------------------------------------------
 
-    if (includeResource && ability.usesResource) {
+    if (includeResource && ability.usesResource && ability.resourceCost > 0) {
       final resourceId = ability.resourceId?.trim();
 
       if (resourceId != null && resourceId.isNotEmpty) {
@@ -38,6 +38,7 @@ class ActionCostResolver {
           ActionCost.resource(
             resourceId: resourceId,
             amount: ability.resourceCost,
+            label: character.resourceById(resourceId)?.name,
           ),
         );
       }
@@ -65,8 +66,14 @@ class ActionCostResolver {
   // ===========================================================================
 
   CharacterAbility? _abilityById(String id) {
+    final normalizedId = id.trim();
+
+    if (normalizedId.isEmpty) {
+      return null;
+    }
+
     for (final ability in character.availableAbilities) {
-      if (ability.id == id) {
+      if (ability.id == normalizedId) {
         return ability;
       }
     }
@@ -421,7 +428,7 @@ class ActionCostResolver {
   // ===========================================================================
 
   ActionCostValidationResult _validateAbilityUseCost(ActionCost cost) {
-    final ability = character.characterAbilityById(cost.sourceId);
+    final ability = _abilityById(cost.sourceId);
 
     if (ability == null) {
       return ActionCostValidationResult.failure(
@@ -437,7 +444,8 @@ class ActionCostResolver {
 
     if (!character.canSpendAbilityUses(ability, cost.amount)) {
       return ActionCostValidationResult.failure(
-        'No quedan suficientes usos de ${ability.name}. '
+        'No quedan suficientes usos de '
+        '${ability.name}. '
         'Necesitas ${cost.amount}.',
       );
     }

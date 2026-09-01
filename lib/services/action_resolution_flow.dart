@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/action_definition.dart';
+import '../models/action_source.dart';
+import '../models/weapon_attack_resolution.dart';
 import '../models/healing_bonus.dart';
 import '../models/character_effect_triggered_external_outcome.dart';
 import '../models/character_effect_trigger_external_result.dart';
@@ -12,7 +15,6 @@ import '../models/character_effect.dart';
 import '../models/passive_triggered_external_outcome.dart';
 import '../models/action_trigger_context.dart';
 import '../models/action_target_result.dart';
-import '../models/action_cost.dart';
 import '../models/action_attack_roll_mode.dart';
 import '../models/ability.dart';
 import '../models/action_attack_result.dart';
@@ -29,8 +31,6 @@ import '../models/character.dart';
 import '../models/prepared_action_resolution.dart';
 import '../models/action_dice_request.dart';
 import '../models/weapon.dart';
-import '../models/action_critical_profile.dart';
-import '../models/weapon_attack_resolution.dart';
 import '../models/passive.dart';
 import '../models/passive_roll_resolution.dart';
 
@@ -51,6 +51,7 @@ import 'action_dice_resolver.dart';
 import 'passive_action_resolver.dart';
 import 'weapon_action_resolver.dart';
 import 'action_resolver.dart';
+import 'action_cost_resolver.dart';
 
 class ActionResolutionFlow {
   final Character character;
@@ -68,11 +69,20 @@ class ActionResolutionFlow {
     required ActionResolutionContext actionContext,
     required List<PassiveTriggeredExternalOutcome> outcomes,
     required ActionDiceMode diceMode,
+    required String resolutionId,
   }) async {
     final results = <PassiveTriggerExternalResult>[];
 
-    for (final outcome in outcomes) {
+    for (var outcomeIndex = 0; outcomeIndex < outcomes.length; outcomeIndex++) {
+      final outcome = outcomes[outcomeIndex];
       CharacterPassive? passive;
+
+      final externalResultId =
+          '$resolutionId:passive:'
+          '${outcome.passiveId}:'
+          '${outcome.triggerId}:'
+          '${outcome.targetId}:'
+          '$outcomeIndex';
 
       for (final candidate in character.enabledPassives) {
         if (candidate.id == outcome.passiveId) {
@@ -142,16 +152,12 @@ class ActionResolutionFlow {
           results.add(
             PassiveTriggerExternalResult(
               passiveId: outcome.passiveId,
-
               passiveName: outcome.passiveName,
-
               triggerId: outcome.triggerId,
-
               targetId: outcome.targetId,
-
               targetLabel: outcome.targetLabel,
-
               saved: true,
+              resolutionId: externalResultId,
             ),
           );
 
@@ -275,22 +281,15 @@ class ActionResolutionFlow {
       results.add(
         PassiveTriggerExternalResult(
           passiveId: outcome.passiveId,
-
           passiveName: outcome.passiveName,
-
           triggerId: outcome.triggerId,
-
           targetId: outcome.targetId,
-
           targetLabel: outcome.targetLabel,
-
           saved: saved,
-
           damage: damage,
-
           healing: healing,
-
           effects: List<CharacterEffect>.unmodifiable(effects),
+          resolutionId: externalResultId,
         ),
       );
     }
@@ -472,91 +471,111 @@ class ActionResolutionFlow {
     }
   }
 
-  Future<WeaponAttackResolution?> resolveWeaponAttack(
-    BuildContext context, {
-    required Weapon weapon,
-  }) async {
-    final weaponResolver = WeaponActionResolver(character: character);
-
-    // ===========================================================================
-    // MODO DE DADOS
-    // ===========================================================================
-
-    final diceMode = await showActionDiceModeSheet(context);
-
-    if (diceMode == null || !context.mounted) {
-      return null;
-    }
-
-    // ===========================================================================
-    // NORMAL / VENTAJA / DESVENTAJA
-    // ===========================================================================
-
-    final attackMode = await showAttackRollModeSheet(context);
-
-    if (attackMode == null || !context.mounted) {
-      return null;
-    }
-
-    // ===========================================================================
-    // D20
-    // ===========================================================================
-
-    switch (diceMode) {
-      case ActionDiceMode.digital:
-        return weaponResolver.rollAttackDigital(
-          weapon: weapon,
-          mode: attackMode,
-        );
-
-      case ActionDiceMode.physical:
-        final rolls = await showPhysicalAttackRollDialog(
-          context,
-          mode: attackMode,
-        );
-
-        if (rolls == null || !context.mounted) {
-          return null;
-        }
-
-        return weaponResolver.resolveAttackPhysical(
-          weapon: weapon,
-          mode: attackMode,
-          firstRoll: rolls.firstRoll,
-          secondRoll: rolls.secondRoll,
-        );
-    }
+  CharacterAbility _weaponActionAbility(Weapon weapon) {
+    return CharacterAbility(
+      id: 'weapon:${weapon.id}',
+      name: weapon.name,
+      abilityType: weapon.attackAbility,
+      requiresAttackRoll: true,
+      targetType: AbilityTargetType.external,
+      targetResolutionMode: AbilityTargetResolutionMode.shared,
+      effects: const [],
+    );
   }
 
-  Future<ActionDiceResult?> resolveWeaponDamage(
+  Future<ActionExecutionResult?> resolveWeapon(
     BuildContext context, {
     required Weapon weapon,
-    required ActionDiceMode diceMode,
-    ActionCriticalType criticalType = ActionCriticalType.none,
   }) async {
     final weaponResolver = WeaponActionResolver(character: character);
 
     final actionResolver = ActionResolver(character: character);
 
     // ===========================================================================
-    // CONTEXTO
-    //
-    // El arma de momento resuelve daño contra un objetivo externo genérico.
-    // Más adelante podremos pasar targets reales igual que las habilidades.
+    // 1. TARGET
     // ===========================================================================
+
+    final targets = await showActionTargetSelector(
+      context,
+      targetType: AbilityTargetType.external,
+      selfLabel: selfLabel,
+    );
+
+    if (targets == null || !context.mounted) {
+      return null;
+    }
+
+    if (targets.isEmpty) {
+      return null;
+    }
+
+    // ===========================================================================
+    // IMPORTANTE
+    //
+    // WeaponActionResolver todavía evalúa fórmulas/condiciones contra
+    // _targetForContext(), es decir, el primer target.
+    //
+    // Hasta completar 7B no permitimos resolución multi-target de armas.
+    // ===========================================================================
+
+    if (targets.length != 1) {
+      _showError(
+        context,
+        'Los ataques de arma todavía requieren un único objetivo.',
+      );
+
+      return null;
+    }
+
+    final target = targets.first;
 
     final actionContext = ActionResolutionContext(
       character: character,
-      targets: const [
-        ActionTarget(
-          id: 'weapon_target',
-          kind: ActionTargetKind.external,
-          label: 'Objetivo',
-        ),
-      ],
+      targets: [target],
     );
 
     actionContext.populateKnownTargetVariables();
+
+    // ===========================================================================
+    // 2. REQUIREMENTS
+    // ===========================================================================
+
+    final requirements = weaponResolver
+        .orderedPreResolutionExternalRequirementsForTarget(
+          weapon: weapon,
+          context: actionContext,
+          target: target,
+        );
+
+    for (final requirement in requirements) {
+      final answers = await showExternalRequirementsDialog(
+        context,
+        targetLabel: target.label ?? 'Objetivo',
+        requirements: [requirement],
+        knownAnswers: const {},
+      );
+
+      if (answers == null || !context.mounted) {
+        return null;
+      }
+
+      final answer = answers[requirement.normalizedVariableName];
+
+      if (answer == null) {
+        continue;
+      }
+
+      actionResolver.applyExternalRequirementAnswer(
+        context: actionContext,
+        target: target,
+        requirement: requirement,
+        answer: answer,
+      );
+    }
+
+    // ===========================================================================
+    // 3. OPCIONALES
+    // ===========================================================================
 
     final optionalGroups = weaponResolver.availableOptionalGroups(
       weapon: weapon,
@@ -569,7 +588,9 @@ class ActionResolutionFlow {
           OptionalChoiceEntry(
             group: group,
             target: null,
-            validation: const ActionCostValidationResult.success(),
+            validation: ActionCostResolver(
+              character: character,
+            ).validate(group.costs),
           ),
       ];
 
@@ -592,7 +613,135 @@ class ActionResolutionFlow {
     }
 
     // ===========================================================================
-    // CHANCE DE CRÍTICOS ADICIONALES
+    // COSTES POTENCIALES
+    //
+    // Todavía no sabemos hit/miss.
+    // Validamos que el personaje podría pagar todos los bonuses seleccionados.
+    // ===========================================================================
+
+    final potentialCosts = weaponResolver.collectPotentialDamageBonusCosts(
+      context: actionContext,
+    );
+
+    final costResolver = ActionCostResolver(character: character);
+
+    final costValidation = costResolver.validate(potentialCosts);
+
+    if (!costValidation.valid) {
+      _showError(
+        context,
+        costValidation.error ?? 'No puedes pagar los costes de este ataque.',
+      );
+
+      return null;
+    }
+
+    // ===========================================================================
+    // 4. MODO DE DADOS
+    // ===========================================================================
+
+    final diceMode = await showActionDiceModeSheet(context);
+
+    if (diceMode == null || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 5. VENTAJA / DESVENTAJA
+    // ===========================================================================
+
+    final attackMode = await showAttackRollModeSheet(context);
+
+    if (attackMode == null || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 6. ATAQUE
+    // ===========================================================================
+
+    final WeaponAttackResolution weaponAttack;
+
+    switch (diceMode) {
+      case ActionDiceMode.digital:
+        weaponAttack = weaponResolver.rollAttackDigital(
+          weapon: weapon,
+          mode: attackMode,
+        );
+
+        break;
+
+      case ActionDiceMode.physical:
+        final rolls = await showPhysicalAttackRollDialog(
+          context,
+          mode: attackMode,
+        );
+
+        if (rolls == null || !context.mounted) {
+          return null;
+        }
+
+        weaponAttack = weaponResolver.resolveAttackPhysical(
+          weapon: weapon,
+          mode: attackMode,
+          firstRoll: rolls.firstRoll,
+          secondRoll: rolls.secondRoll,
+        );
+
+        break;
+    }
+
+    final attackResult = weaponAttack.attackResult;
+
+    // ===========================================================================
+    // 7. HIT / MISS DEL TARGET
+    // ===========================================================================
+
+    final attackResults = await showAttackTargetsDialog(
+      context,
+      targets: [target],
+      attackResult: attackResult,
+      selfLabel: selfLabel,
+      ability: weapon.attackAbility,
+    );
+
+    if (attackResults == null || !context.mounted) {
+      return null;
+    }
+
+    final targetAttackResult = attackResults[target.id];
+
+    if (targetAttackResult == null) {
+      return null;
+    }
+
+    final resolvedCosts = weaponResolver.collectResolvedDamageBonusCosts(
+      context: actionContext,
+      hit: targetAttackResult.hit,
+    );
+
+    final finalCostValidation = ActionCostResolver(
+      character: character,
+    ).validate(resolvedCosts);
+
+    if (!finalCostValidation.valid) {
+      _showError(
+        context,
+        finalCostValidation.error ??
+            'Ya no puedes pagar los costes de este ataque.',
+      );
+
+      return null;
+    }
+
+    // ===========================================================================
+    // 8. TIPO DE CRÍTICO
+    // ===========================================================================
+
+    final criticalType = attackResult.criticalType;
+
+    // ===========================================================================
+    // 9. CHANCE CHECKS DE CRÍTICO
     // ===========================================================================
 
     final chanceChecks = weaponResolver.collectCriticalChanceChecks(
@@ -603,18 +752,16 @@ class ActionResolutionFlow {
 
     List<ActionChanceResult> chanceResults = const [];
 
-    switch (diceMode) {
-      case ActionDiceMode.digital:
-        if (chanceChecks.isNotEmpty) {
+    if (chanceChecks.isNotEmpty) {
+      switch (diceMode) {
+        case ActionDiceMode.digital:
           chanceResults = actionResolver.resolveChanceChecksDigital(
             checks: chanceChecks,
           );
-        }
 
-        break;
+          break;
 
-      case ActionDiceMode.physical:
-        if (chanceChecks.isNotEmpty) {
+        case ActionDiceMode.physical:
           final inputs = await showPhysicalChanceChecksDialog(
             context,
             checks: chanceChecks,
@@ -632,9 +779,9 @@ class ActionResolutionFlow {
             checks: chanceChecks,
             rollsByCheckId: rollsByCheckId,
           );
-        }
 
-        break;
+          break;
+      }
     }
 
     final successfulChanceIds = actionResolver.successfulChanceCheckIds(
@@ -642,7 +789,7 @@ class ActionResolutionFlow {
     );
 
     // ===========================================================================
-    // REQUEST DE DAÑO
+    // 10. REQUEST DE DAÑO
     // ===========================================================================
 
     final request = weaponResolver.buildDamageRequest(
@@ -653,48 +800,142 @@ class ActionResolutionFlow {
     );
 
     // ===========================================================================
-    // RESOLVER DADOS
+    // 11. DADOS
     // ===========================================================================
 
+    final ActionDiceResult diceResult;
+
     switch (diceMode) {
-      // ===========================================================================
-      // DIGITAL
-      // ===========================================================================
-
       case ActionDiceMode.digital:
-        return weaponResolver.resolveDamageDigitalRequest(request);
+        diceResult = weaponResolver.resolveDamageDigitalRequest(request);
 
-      // ===========================================================================
-      // FÍSICO
-      // ===========================================================================
+        break;
 
       case ActionDiceMode.physical:
-        final inputsBySection = await showPhysicalDiceDialog(
-          context,
-          sections: [
+        final sections = <PhysicalDiceSection>[];
+
+        if (request.parts.any((part) => part.requiresRoll)) {
+          sections.add(
             PhysicalDiceSection(
-              id: weapon.id,
+              id: 'weapon:${weapon.id}',
               title: weapon.name,
               request: request,
             ),
-          ],
-        );
-
-        if (inputsBySection == null || !context.mounted) {
-          return null;
+          );
         }
 
-        final inputs = inputsBySection[weapon.id];
+        Map<String, List<ActionPhysicalDiceInput>> inputsBySection = const {};
 
-        if (inputs == null) {
-          return null;
+        if (sections.isNotEmpty) {
+          final inputs = await showPhysicalDiceDialog(
+            context,
+            sections: sections,
+          );
+
+          if (inputs == null || !context.mounted) {
+            return null;
+          }
+
+          inputsBySection = inputs;
         }
 
-        return weaponResolver.resolveDamagePhysicalRequest(
+        diceResult = weaponResolver.resolveDamagePhysicalRequest(
           request: request,
-          inputs: inputs,
+          inputs: inputsBySection['weapon:${weapon.id}'] ?? const [],
         );
+
+        break;
     }
+
+    // ===========================================================================
+    // 12. HIT GATE
+    //
+    // El request puede contener componentes ignoreHit.
+    // Por tanto NO podemos simplemente poner daño 0 si falla.
+    // Filtramos cada parte según su propio hitBehavior.
+    // ===========================================================================
+
+    final syntheticAbility = _weaponActionAbility(weapon);
+
+    final targetResult = actionResolver.buildTargetResult(
+      ability: syntheticAbility,
+      target: target,
+      diceResult: diceResult,
+      attackResult: targetAttackResult,
+    );
+
+    // ===========================================================================
+    // 14. RESULTADO DEL ACTION ENGINE
+    // ===========================================================================
+
+    final source = ActionSource.weapon(weapon);
+
+    final definition = ActionDefinition.fromWeapon(weapon);
+
+    final resolution = actionResolver.buildDirectResolutionResult(
+      source: source,
+
+      ability: syntheticAbility,
+
+      targetResolutionMode: AbilityTargetResolutionMode.shared,
+
+      targetResults: [targetResult],
+
+      attackResult: attackResult,
+
+      criticalProfile: attackResult.criticalProfile,
+
+      chanceResults: chanceResults,
+
+      selectedOptionalGroupIds: actionContext.selectedOptionalGroupIds,
+
+      selectedOptionalGroupIdsByTargetId:
+          actionContext.selectedOptionalGroupIdsByTargetId,
+
+      preResolutionExternalVariablesByTargetId: actionContext
+          .snapshotTargetExternalVariables(),
+
+      externalVariablesByTargetId: actionContext
+          .snapshotTargetExternalVariables(),
+
+      costs: resolvedCosts,
+    );
+
+    // ===========================================================================
+    // 15. FINALIZACIÓN COMÚN
+    //
+    // No llamamos directamente commitResolution.
+    //
+    // Queremos:
+    // - triggers externos
+    // - consumo de usage limits
+    // - merge de outcomes
+    // - dispatch post-resolution
+    //
+    // exactamente igual que una habilidad.
+    // ===========================================================================
+
+    final prepared = actionResolver.prepareDirectAction(
+      source: source,
+
+      definition: definition,
+
+      ability: syntheticAbility,
+
+      context: actionContext,
+
+      criticalProfile: attackResult.criticalProfile,
+
+      costs: resolvedCosts,
+    );
+
+    return _finalizeResolution(
+      context,
+      resolver: actionResolver,
+      prepared: prepared,
+      resolution: resolution,
+      diceMode: diceMode,
+    );
   }
 
   // ===========================================================================
@@ -1154,12 +1395,15 @@ class ActionResolutionFlow {
       }
     }
 
+    final resolutionId = 'action-${DateTime.now().microsecondsSinceEpoch}';
+
     final triggeredResults = await _resolvePassiveTriggeredExternalOutcomes(
       context,
       resolver: resolver,
       actionContext: prepared.context,
       outcomes: triggeredOutcomes,
       diceMode: diceMode,
+      resolutionId: resolutionId,
     );
 
     if (triggeredResults == null || !context.mounted) {
@@ -1177,6 +1421,7 @@ class ActionResolutionFlow {
           actionContext: prepared.context,
           outcomes: effectTriggeredOutcomes,
           diceMode: diceMode,
+          resolutionId: resolutionId,
         );
 
     if (effectTriggeredResults == null || !context.mounted) {
@@ -1214,10 +1459,20 @@ class ActionResolutionFlow {
     required ActionResolutionContext actionContext,
     required List<CharacterEffectTriggeredExternalOutcome> outcomes,
     required ActionDiceMode diceMode,
+    required String resolutionId,
   }) async {
     final results = <CharacterEffectTriggerExternalResult>[];
 
-    for (final outcome in outcomes) {
+    for (var outcomeIndex = 0; outcomeIndex < outcomes.length; outcomeIndex++) {
+      final outcome = outcomes[outcomeIndex];
+
+      final externalResultId =
+          '$resolutionId:effect:'
+          '${outcome.sourceEffectId}:'
+          '${outcome.triggerId}:'
+          '${outcome.targetId}:'
+          '$outcomeIndex';
+
       ActionTarget? target;
 
       for (final candidate in actionContext.targets) {
@@ -1293,20 +1548,14 @@ class ActionResolutionFlow {
       results.add(
         CharacterEffectTriggerExternalResult(
           sourceEffectId: outcome.sourceEffectId,
-
           sourceEffectName: outcome.sourceEffectName,
-
           triggerId: outcome.triggerId,
-
           targetId: outcome.targetId,
-
           targetLabel: outcome.targetLabel,
-
           damage: damage,
-
           healing: healing,
-
           effects: List<CharacterEffect>.unmodifiable(effects),
+          resolutionId: externalResultId,
         ),
       );
     }

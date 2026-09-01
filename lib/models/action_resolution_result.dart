@@ -6,6 +6,7 @@ import 'action_critical_profile.dart';
 import 'action_resolution_context.dart';
 import 'action_target_result.dart';
 import 'action_event_variables.dart';
+import 'action_source.dart';
 
 class ActionResolutionResult {
   final CharacterAbility ability;
@@ -33,6 +34,8 @@ class ActionResolutionResult {
 
   final Map<String, Set<String>> selectedOptionalGroupIdsByTargetId;
 
+  final ActionSource source;
+
   const ActionResolutionResult({
     required this.ability,
     required this.targetResolutionMode,
@@ -46,6 +49,7 @@ class ActionResolutionResult {
     this.costs = const [],
     this.preResolutionExternalVariablesByTargetId = const {},
     this.externalVariablesByTargetId = const {},
+    required this.source,
   });
 
   Set<String> selectedOptionalGroupIdsForTargetId(String targetId) {
@@ -323,6 +327,7 @@ class ActionResolutionResult {
     Map<String, Map<String, double>>? externalVariablesByTargetId,
   }) {
     return ActionResolutionResult(
+      source: source,
       ability: ability,
       targetResolutionMode: targetResolutionMode,
       targetResults: targetResults,

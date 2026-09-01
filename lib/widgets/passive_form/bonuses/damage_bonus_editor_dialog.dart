@@ -10,20 +10,32 @@ import '../../forms/common/ability_multiplier_editor.dart';
 import '../../forms/common/dice_pools_editor.dart';
 import '../../forms/common/formula_input_section.dart';
 
+import 'action_costs_editor.dart';
+import 'passive_charge_scaling_editor.dart';
+
 Future<DamageBonus?> showDamageBonusEditorDialog(
   BuildContext context, {
   required DamageBonus bonus,
   Character? character,
   CharacterPassive? passive,
+  required String ownerPassiveId,
+  required bool ownerUsesCharges,
 }) {
   return showDialog<DamageBonus>(
     context: context,
     barrierDismissible: true,
+
     builder: (_) {
       return DamageBonusEditorDialog(
         bonus: bonus,
+
         character: character,
+
         passive: passive,
+
+        ownerPassiveId: ownerPassiveId,
+
+        ownerUsesCharges: ownerUsesCharges,
       );
     },
   );
@@ -36,11 +48,17 @@ class DamageBonusEditorDialog extends StatefulWidget {
 
   final CharacterPassive? passive;
 
+  final String ownerPassiveId;
+
+  final bool ownerUsesCharges;
+
   const DamageBonusEditorDialog({
     super.key,
     required this.bonus,
     this.character,
     this.passive,
+    required this.ownerPassiveId,
+    required this.ownerUsesCharges,
   });
 
   @override
@@ -52,8 +70,11 @@ class _DamageBonusEditorDialogState extends State<DamageBonusEditorDialog> {
   late DamageBonus bonus;
 
   late final TextEditingController nameController;
+
   late final TextEditingController typeController;
+
   late final TextEditingController flatController;
+
   late final TextEditingController formulaController;
 
   @override
@@ -106,13 +127,17 @@ class _DamageBonusEditorDialogState extends State<DamageBonusEditorDialog> {
 
       content: SizedBox(
         width: 560,
+
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+
             crossAxisAlignment: CrossAxisAlignment.stretch,
+
             children: [
               TextFormField(
                 controller: nameController,
+
                 decoration: const InputDecoration(labelText: 'Nombre'),
               ),
 
@@ -120,8 +145,10 @@ class _DamageBonusEditorDialogState extends State<DamageBonusEditorDialog> {
 
               TextFormField(
                 controller: typeController,
+
                 decoration: const InputDecoration(
                   labelText: 'Tipo de daño',
+
                   hintText: 'Fuego, radiante...',
                 ),
               ),
@@ -165,6 +192,7 @@ class _DamageBonusEditorDialogState extends State<DamageBonusEditorDialog> {
 
                 decoration: const InputDecoration(
                   labelText: 'Bonus fijo',
+
                   hintText: '0',
                 ),
               ),
@@ -184,6 +212,53 @@ class _DamageBonusEditorDialogState extends State<DamageBonusEditorDialog> {
 
                 description: 'Se suma al daño adicional.',
               ),
+
+              const SizedBox(height: 24),
+
+              const Divider(),
+
+              const SizedBox(height: 12),
+
+              Text(
+                'Escalado por cargas',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+
+              const SizedBox(height: 8),
+
+              PassiveChargeScalingEditor(
+                scaling: bonus.chargeScaling,
+
+                ownerUsesCharges: widget.ownerUsesCharges,
+
+                onChanged: (value) {
+                  setState(() {
+                    bonus.chargeScaling = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              const Divider(),
+
+              const SizedBox(height: 12),
+
+              ActionCostsEditor(
+                costs: bonus.costs,
+
+                character: widget.character,
+
+                ownerPassiveId: widget.ownerPassiveId,
+
+                ownerUsesCharges: widget.ownerUsesCharges,
+
+                onChanged: () {
+                  setState(() {});
+                },
+              ),
             ],
           ),
         ),
@@ -194,6 +269,7 @@ class _DamageBonusEditorDialogState extends State<DamageBonusEditorDialog> {
           onPressed: () {
             Navigator.pop(context);
           },
+
           child: const Text('Cancelar'),
         ),
 

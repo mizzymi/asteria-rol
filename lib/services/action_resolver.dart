@@ -30,6 +30,8 @@ import '../models/passive.dart';
 import '../models/action_hit_behavior.dart';
 import '../models/critical_damage_bonus.dart';
 import '../models/character_effect_triggered_external_outcome.dart';
+import '../models/action_source.dart';
+import '../models/action_definition.dart';
 
 import 'character_effect_trigger_engine.dart';
 import 'action_result_applier.dart';
@@ -62,7 +64,7 @@ class ActionResolver {
     // Si la habilidad requiere ataque, siempre necesitamos un d20.
     // ===========================================================================
 
-    if (prepared.ability.requiresAttackRoll) {
+    if (prepared.definition.requiresAttackRoll) {
       return true;
     }
 
@@ -157,6 +159,172 @@ class ActionResolver {
     return (firstRoll: firstRoll, secondRoll: secondRoll);
   }
 
+  bool _damageBonusSurvivesForTarget({
+    required ActionResolutionPlan plan,
+    required ActionResolutionContext context,
+    required DamageBonus bonus,
+    CharacterPassive? passive,
+    required ActionTarget target,
+    ActionTargetAttackResult? attackResult,
+  }) {
+    // ===========================================================================
+    // CONTENIDO
+    // ===========================================================================
+
+    if (!bonus.hasDamage) {
+      return false;
+    }
+
+    // ===========================================================================
+    // CONDICIÓN
+    // ===========================================================================
+
+    if (!_damageBonusConditionMet(
+      bonus: bonus,
+      context: context,
+      passive: passive,
+      target: target,
+    )) {
+      return false;
+    }
+
+    // ===========================================================================
+    // OPCIONAL
+    // ===========================================================================
+
+    if (!_damageBonusOptionalSelected(
+      plan: plan,
+      bonus: bonus,
+      context: context,
+      target: target,
+    )) {
+      return false;
+    }
+
+    // ===========================================================================
+    // HIT / MISS
+    // ===========================================================================
+
+    if (!_passesHitGate(
+      requiresAttackRoll: plan.ability.requiresAttackRoll,
+      behavior: bonus.hitBehavior,
+      attackResult: attackResult,
+      targetParticipatesInAttackRoll: target.participatesInAttackRoll,
+    )) {
+      return false;
+    }
+
+    return true;
+  }
+
+  List<ActionCost> collectSelectedBonusCosts({
+    required ActionResolutionPlan plan,
+    required ActionResolutionContext context,
+  }) {
+    final costs = <ActionCost>[];
+
+    // ===========================================================================
+    // DAMAGE BONUS
+    //
+    // Aquí todavía no existe resultado de ataque.
+    //
+    // `_passesHitGate(... attackResult: null)` no bloquea prematuramente,
+    // así que estos son costes POTENCIALES.
+    // ===========================================================================
+
+    for (final active in character.activeDamageBonuses) {
+      final bonus = active.bonus;
+      final passive = active.passive;
+
+      if (bonus.costs.isEmpty) {
+        continue;
+      }
+
+      switch (plan.ability.targetResolutionMode) {
+        // =======================================================================
+        // SHARED
+        //
+        // Basta con que el bonus sea viable para un target.
+        // Se cobra potencialmente una sola vez.
+        // =======================================================================
+
+        case AbilityTargetResolutionMode.shared:
+          var applies = false;
+
+          for (final target in context.targets) {
+            if (_damageBonusSurvivesForTarget(
+              plan: plan,
+              context: context,
+              bonus: bonus,
+              passive: passive,
+              target: target,
+              attackResult: null,
+            )) {
+              applies = true;
+              break;
+            }
+          }
+
+          if (applies) {
+            costs.addAll(bonus.costs);
+          }
+
+          break;
+
+        // =======================================================================
+        // INDEPENDENT
+        //
+        // Cada target puede generar su coste.
+        // =======================================================================
+
+        case AbilityTargetResolutionMode.independent:
+          for (final target in context.targets) {
+            if (!_damageBonusSurvivesForTarget(
+              plan: plan,
+              context: context,
+              bonus: bonus,
+              passive: passive,
+              target: target,
+              attackResult: null,
+            )) {
+              continue;
+            }
+
+            costs.addAll(bonus.costs);
+          }
+
+          break;
+      }
+    }
+
+    // ===========================================================================
+    // HEALING BONUS
+    //
+    // Actualmente HealingBonus:
+    // - no es opcional,
+    // - no tiene hitBehavior,
+    // - no tiene condition.
+    //
+    // Su coste es global por acción, no por target.
+    // ===========================================================================
+
+    if (_abilityHeals(plan.ability)) {
+      for (final active in character.activeHealingBonuses) {
+        final bonus = active.bonus;
+
+        if (!bonus.hasHealing || bonus.costs.isEmpty) {
+          continue;
+        }
+
+        costs.addAll(bonus.costs);
+      }
+    }
+
+    return List<ActionCost>.unmodifiable(
+      ActionCostResolver(character: character).combineCosts(costs),
+    );
+  }
+
   bool _damageBonusConditionMet({
     required DamageBonus bonus,
     required ActionResolutionContext context,
@@ -197,6 +365,260 @@ class ActionResolver {
   // GATING · HIT / MISS
   // ===========================================================================
 
+  ActionDiceResult resolveDiceResultForTarget({
+    required CharacterAbility ability,
+    required ActionTarget target,
+    required ActionDiceResult diceResult,
+    ActionTargetAttackResult? attackResult,
+  }) {
+    final survivingParts = diceResult.parts
+        .where((part) {
+          return _passesHitGate(
+            requiresAttackRoll: ability.requiresAttackRoll,
+            behavior: part.request.hitBehavior,
+            attackResult: attackResult,
+            targetParticipatesInAttackRoll: target.participatesInAttackRoll,
+          );
+        })
+        .toList(growable: false);
+
+    return ActionDiceResult(
+      parts: List<ActionDicePartResult>.unmodifiable(survivingParts),
+    );
+  }
+
+  ActionTargetResult buildTargetResult({
+    required CharacterAbility ability,
+    required ActionTarget target,
+    required ActionDiceResult diceResult,
+    ActionTargetAttackResult? attackResult,
+    List<ActionSavingThrowResult> savingThrows = const [],
+    List<ActionEffectResult> effects = const [],
+    bool auxiliary = false,
+  }) {
+    final resolvedDiceResult = resolveDiceResultForTarget(
+      ability: ability,
+      target: target,
+      diceResult: diceResult,
+      attackResult: attackResult,
+    );
+
+    final resolvedDamage = resolvedDiceResult.parts
+        .where((part) => part.request.effectType == AbilityEffectType.damage)
+        .fold<int>(0, (sum, part) => sum + part.total);
+
+    final resolvedHealing = resolvedDiceResult.parts
+        .where((part) => part.request.effectType == AbilityEffectType.healing)
+        .fold<int>(0, (sum, part) => sum + part.total);
+
+    return ActionTargetResult(
+      target: target,
+      diceResult: resolvedDiceResult,
+      attackResult: attackResult,
+      savingThrows: List.unmodifiable(savingThrows),
+      effects: List.unmodifiable(effects),
+      resolvedDamage: resolvedDamage,
+      resolvedHealing: resolvedHealing,
+      auxiliary: auxiliary,
+    );
+  }
+
+  ActionResolutionResult buildResolutionResult({
+    required ActionResolutionPlan plan,
+    required ActionResolutionContext context,
+    required ActionCriticalProfile criticalProfile,
+
+    ActionDiceResult? sharedDiceResult,
+
+    Map<String, ActionDiceResult>? independentDiceResults,
+
+    ActionAttackResult? attackResult,
+
+    List<ActionChanceResult> chanceResults = const [],
+
+    Map<String, List<ActionChanceResult>> chanceResultsByTargetId = const {},
+
+    List<ActionCost> costs = const [],
+
+    List<ActionSavingThrowResult> savingThrowResults = const [],
+
+    Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
+  }) {
+    switch (plan.ability.targetResolutionMode) {
+      // =========================================================================
+      // SHARED
+      // =========================================================================
+
+      case AbilityTargetResolutionMode.shared:
+        final diceResult = sharedDiceResult;
+
+        if (diceResult == null) {
+          throw StateError(
+            'Falta el resultado de dados '
+            'de la resolución compartida.',
+          );
+        }
+
+        return buildSharedResolutionResult(
+          plan: plan,
+          context: context,
+
+          diceResult: diceResult,
+
+          criticalProfile: criticalProfile,
+
+          attackResult: attackResult,
+
+          chanceResults: chanceResults,
+
+          costs: costs,
+
+          savingThrowResults: savingThrowResults,
+
+          attackResultsByTargetId: attackResultsByTargetId,
+        );
+
+      // =========================================================================
+      // INDEPENDENT
+      // =========================================================================
+
+      case AbilityTargetResolutionMode.independent:
+        final diceResults = independentDiceResults;
+
+        if (diceResults == null) {
+          throw StateError(
+            'Faltan los resultados de dados '
+            'de la resolución independiente.',
+          );
+        }
+
+        return buildIndependentResolutionResult(
+          plan: plan,
+          context: context,
+
+          diceResultsByTargetId: diceResults,
+
+          criticalProfile: criticalProfile,
+
+          attackResult: attackResult,
+
+          costs: costs,
+
+          savingThrowResults: savingThrowResults,
+
+          attackResultsByTargetId: attackResultsByTargetId,
+
+          chanceResultsByTargetId: chanceResultsByTargetId,
+        );
+    }
+  }
+
+  PreparedActionResolution prepareDirectAction({
+    required ActionSource source,
+
+    required ActionDefinition definition,
+
+    required CharacterAbility ability,
+
+    required ActionResolutionContext context,
+
+    required ActionCriticalProfile criticalProfile,
+
+    List<ActionCost> costs = const [],
+  }) {
+    final normalizedCosts = ActionCostResolver(
+      character: character,
+    ).combineCosts(costs);
+
+    final plan = ActionResolutionPlan(
+      ability: ability,
+      automaticParts: const [],
+      optionalParts: const [],
+      externalRequirements: const [],
+      costs: List<ActionCost>.unmodifiable(normalizedCosts),
+    );
+
+    return PreparedActionResolution(
+      source: source,
+
+      definition: definition,
+
+      ability: ability,
+
+      context: context,
+
+      plan: plan,
+
+      criticalProfile: criticalProfile,
+
+      costs: List<ActionCost>.unmodifiable(normalizedCosts),
+    );
+  }
+
+  ActionResolutionResult buildDirectResolutionResult({
+    required ActionSource source,
+
+    required CharacterAbility ability,
+
+    required AbilityTargetResolutionMode targetResolutionMode,
+
+    required List<ActionTargetResult> targetResults,
+
+    ActionAttackResult? attackResult,
+
+    required ActionCriticalProfile criticalProfile,
+
+    List<ActionChanceResult> chanceResults = const [],
+
+    Set<String> selectedOptionalGroupIds = const {},
+
+    Map<String, Set<String>> selectedOptionalGroupIdsByTargetId = const {},
+
+    Map<String, Map<String, double>> preResolutionExternalVariablesByTargetId =
+        const {},
+
+    Map<String, Map<String, double>> externalVariablesByTargetId = const {},
+
+    List<ActionCost> costs = const [],
+  }) {
+    return ActionResolutionResult(
+      source: source,
+
+      ability: ability,
+
+      targetResolutionMode: targetResolutionMode,
+
+      targetResults: List<ActionTargetResult>.unmodifiable(targetResults),
+
+      attackResult: attackResult,
+
+      criticalProfile: criticalProfile,
+
+      chanceResults: List<ActionChanceResult>.unmodifiable(chanceResults),
+
+      selectedOptionalGroupIds: Set<String>.unmodifiable(
+        selectedOptionalGroupIds,
+      ),
+
+      selectedOptionalGroupIdsByTargetId: {
+        for (final entry in selectedOptionalGroupIdsByTargetId.entries)
+          entry.key: Set<String>.unmodifiable(entry.value),
+      },
+
+      preResolutionExternalVariablesByTargetId: {
+        for (final entry in preResolutionExternalVariablesByTargetId.entries)
+          entry.key: Map<String, double>.unmodifiable(entry.value),
+      },
+
+      externalVariablesByTargetId: {
+        for (final entry in externalVariablesByTargetId.entries)
+          entry.key: Map<String, double>.unmodifiable(entry.value),
+      },
+
+      costs: List<ActionCost>.unmodifiable(costs),
+    );
+  }
+
   /// Decide si un componente sobrevive al resultado del ataque.
   ///
   /// IMPORTANTE:
@@ -213,12 +635,12 @@ class ActionResolver {
   /// - saves,
   /// - linked effects.
   bool _passesHitGate({
-    required CharacterAbility ability,
+    required bool requiresAttackRoll,
     required ActionHitBehavior behavior,
     ActionTargetAttackResult? attackResult,
     bool targetParticipatesInAttackRoll = true,
   }) {
-    if (!ability.requiresAttackRoll) {
+    if (!requiresAttackRoll) {
       return true;
     }
 
@@ -259,7 +681,7 @@ class ActionResolver {
 
     if (!auxiliarySelf) {
       return _passesHitGate(
-        ability: ability,
+        requiresAttackRoll: ability.requiresAttackRoll,
         behavior: behavior,
         attackResult: targetAttackResult,
         targetParticipatesInAttackRoll:
@@ -286,7 +708,7 @@ class ActionResolver {
           final request = partResult.request;
 
           if (!_passesHitGate(
-            ability: plan.ability,
+            requiresAttackRoll: plan.ability.requiresAttackRoll,
             behavior: request.hitBehavior,
             attackResult: attackResult,
             targetParticipatesInAttackRoll: target.participatesInAttackRoll,
@@ -412,7 +834,7 @@ class ActionResolver {
 
     if (hasExtra &&
         _passesHitGate(
-          ability: prepared.ability,
+          requiresAttackRoll: prepared.definition.requiresAttackRoll,
           behavior: ActionHitBehavior.requireHit,
           attackResult: attackResult,
           targetParticipatesInAttackRoll: target.participatesInAttackRoll,
@@ -825,27 +1247,33 @@ class ActionResolver {
 
     final costs = <ActionCost>[
       // =========================================================================
-      // VALIDACIÓN PREVIA
-      //
-      // Estos son costes POTENCIALES.
-      //
-      // Todavía no conocemos hit/miss, así que una parte requireHit seleccionada
-      // debe considerarse pagable antes de permitir continuar.
-      //
-      // El coste definitivo se recalcula después mediante
-      // collectResolvedActionCosts().
+      // COSTES BASE
       // =========================================================================
       ...plan.costs,
 
+      // =========================================================================
+      // PARTES SELECCIONADAS
+      // =========================================================================
       ...collectSelectedPartCosts(plan: plan, context: context),
+
+      // =========================================================================
+      // BONUSES ACTIVOS / SELECCIONADOS
+      // =========================================================================
+      ...collectSelectedBonusCosts(plan: plan, context: context),
     ];
 
+    final normalizedCosts = ActionCostResolver(
+      character: character,
+    ).combineCosts(costs);
+
     return PreparedActionResolution(
+      source: ActionSource.ability(ability),
+      definition: ActionDefinition.fromAbility(ability),
       ability: ability,
       context: context,
       plan: plan,
       criticalProfile: criticalProfile,
-      costs: List.unmodifiable(costs),
+      costs: List<ActionCost>.unmodifiable(normalizedCosts),
     );
   }
 
@@ -1176,6 +1604,7 @@ class ActionResolver {
     }
 
     return ActionResolutionResult(
+      source: ActionSource.ability(plan.ability),
       ability: plan.ability,
       targetResolutionMode: AbilityTargetResolutionMode.shared,
       targetResults: targetResults,
@@ -1278,10 +1707,16 @@ class ActionResolver {
     }
 
     return ActionResolutionResult(
+      source: ActionSource.ability(plan.ability),
+
       ability: plan.ability,
+
       targetResolutionMode: AbilityTargetResolutionMode.independent,
+
       targetResults: targetResults,
+
       attackResult: attackResult,
+
       criticalProfile: criticalProfile,
 
       chanceResults: const [],
@@ -1377,7 +1812,7 @@ class ActionResolver {
 
     if (_abilityHeals(ability)) {
       for (final bonus in character.activeHealingBonuses) {
-        final formula = bonus.formula;
+        final formula = bonus.bonus.formula;
 
         if (formula != null &&
             _externalRequirementsFromExpression(
@@ -1471,56 +1906,6 @@ class ActionResolver {
     }
 
     return false;
-  }
-
-  ActionResolutionResult buildResolutionResult({
-    required ActionResolutionPlan plan,
-    required ActionResolutionContext context,
-    required ActionCriticalProfile criticalProfile,
-    ActionDiceResult? sharedDiceResult,
-    Map<String, ActionDiceResult> independentDiceResults = const {},
-    ActionAttackResult? attackResult,
-    List<ActionChanceResult> chanceResults = const [],
-    Map<String, List<ActionChanceResult>> chanceResultsByTargetId = const {},
-    List<ActionCost> costs = const [],
-    List<ActionSavingThrowResult> savingThrowResults = const [],
-    Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
-  }) {
-    switch (plan.ability.targetResolutionMode) {
-      case AbilityTargetResolutionMode.shared:
-        final diceResult = sharedDiceResult;
-
-        if (diceResult == null) {
-          throw StateError(
-            'La resolución compartida necesita un ActionDiceResult.',
-          );
-        }
-
-        return buildSharedResolutionResult(
-          plan: plan,
-          context: context,
-          diceResult: diceResult,
-          criticalProfile: criticalProfile,
-          attackResult: attackResult,
-          chanceResults: chanceResults,
-          costs: costs,
-          savingThrowResults: savingThrowResults,
-          attackResultsByTargetId: attackResultsByTargetId,
-        );
-
-      case AbilityTargetResolutionMode.independent:
-        return buildIndependentResolutionResult(
-          plan: plan,
-          context: context,
-          diceResultsByTargetId: independentDiceResults,
-          criticalProfile: criticalProfile,
-          attackResult: attackResult,
-          chanceResultsByTargetId: chanceResultsByTargetId,
-          costs: costs,
-          savingThrowResults: savingThrowResults,
-          attackResultsByTargetId: attackResultsByTargetId,
-        );
-    }
   }
 
   // ===========================================================================
@@ -2200,37 +2585,63 @@ class ActionResolver {
 
       final modifierLabel = _damageBonusModifierLabel(bonus);
 
+      // =======================================================================
+      // DADOS BASE + ESCALADO POR CARGAS
+      // =======================================================================
+
+      final effectiveDicePools = <DicePool>[...bonus.dicePools];
+
+      if (passive != null && bonus.chargeScaling.hasScaling) {
+        effectiveDicePools.addAll(
+          bonus.chargeScaling.scaledDicePools(passive.currentCharges),
+        );
+      }
+
       final effectiveCriticalType = bonus.participatesInCritical
           ? criticalType
           : ActionCriticalType.none;
 
       final transformed = ActionCriticalDiceTransformer.transform(
-        dicePools: bonus.dicePools,
+        dicePools: effectiveDicePools,
         baseModifier: baseModifier,
         criticalType: effectiveCriticalType,
       );
 
       parts.add(
         ActionDiceRequestPart(
-          id: 'damage_bonus:${passive?.id ?? 'effect'}:${bonus.id}',
+          id:
+              'damage_bonus:'
+              '${passive?.id ?? 'effect'}:'
+              '${bonus.id}',
+
           hitBehavior: bonus.hitBehavior,
+
           effectId: 'damage_bonus',
+
           effectName: bonus.name.isNotEmpty ? bonus.name : 'Daño adicional',
+
           effectType: AbilityEffectType.damage,
 
           dicePools: transformed.dicePools,
+
           baseModifier: baseModifier,
+
           modifier: transformed.modifier,
+
           modifierLabel: modifierLabel,
+
           automaticValue: transformed.automaticValue,
+
           automaticValueLabel: transformed.automaticValue != 0
               ? _criticalAutomaticValueLabel(effectiveCriticalType)
               : '',
+
           sourceType: passive != null
               ? ActionDiceSourceType.passive
               : ActionDiceSourceType.effect,
 
           sourceId: passive?.id ?? bonus.id,
+
           sourceName: passive?.name ?? bonus.name,
 
           damageType: bonus.damageType,
@@ -2244,35 +2655,62 @@ class ActionResolver {
     required ActionResolutionContext context,
     ActionTarget? target,
   }) {
-    for (final bonus in character.activeHealingBonuses) {
+    for (final active in character.activeHealingBonuses) {
+      final bonus = active.bonus;
+      final passive = active.passive;
+
       if (!bonus.hasHealing) {
         continue;
       }
 
       final modifier = character.healingBonusModifier(
         bonus,
-        formulaContext: context.buildFormulaContext(target: target),
+        formulaContext: context.buildFormulaContext(
+          passive: passive,
+          target: target,
+        ),
       );
 
       final modifierLabel = _healingBonusModifierLabel(bonus);
 
+      final effectiveDicePools = <DicePool>[...bonus.dicePools];
+
+      if (passive != null && bonus.chargeScaling.hasScaling) {
+        effectiveDicePools.addAll(
+          bonus.chargeScaling.scaledDicePools(passive.currentCharges),
+        );
+      }
+
       parts.add(
         ActionDiceRequestPart(
-          id: 'healing_bonus:${bonus.id}',
+          id:
+              'healing_bonus:'
+              '${passive?.id ?? 'effect'}:'
+              '${bonus.id}',
+
           hitBehavior: ActionHitBehavior.ignoreHit,
+
           effectId: 'healing_bonus',
+
           effectName: bonus.name.isNotEmpty ? bonus.name : 'Curación adicional',
+
           effectType: AbilityEffectType.healing,
 
-          dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
+          dicePools: List<DicePool>.unmodifiable(effectiveDicePools),
 
           baseModifier: modifier,
+
           modifier: modifier,
+
           modifierLabel: modifierLabel,
 
-          sourceType: ActionDiceSourceType.effect,
-          sourceId: bonus.id,
-          sourceName: bonus.name,
+          sourceType: passive != null
+              ? ActionDiceSourceType.passive
+              : ActionDiceSourceType.effect,
+
+          sourceId: passive?.id ?? bonus.id,
+
+          sourceName: passive?.name ?? bonus.name,
         ),
       );
     }
@@ -3119,7 +3557,7 @@ class ActionResolver {
         // =======================================================================
 
         if (!_passesHitGate(
-          ability: plan.ability,
+          requiresAttackRoll: plan.ability.requiresAttackRoll,
           behavior: part.hitBehavior,
           attackResult: attackResult,
           targetParticipatesInAttackRoll:
@@ -3205,7 +3643,7 @@ class ActionResolver {
       attackResult: attackResult,
     );
 
-    switch (prepared.ability.targetResolutionMode) {
+    switch (prepared.definition.targetResolutionMode) {
       case AbilityTargetResolutionMode.shared:
         final chanceResults =
             preResolvedChanceResults ??
@@ -3762,6 +4200,8 @@ class ActionResolver {
     required ActionResolutionContext context,
     ActionTarget? target,
   }) {
+    final costsByGroup = <String, List<ActionCost>>{};
+
     final abilityPartsByGroup = <String, List<AbilityEffectPart>>{};
 
     final sourcesByGroup = <String, List<ActionOptionalSource>>{};
@@ -3790,6 +4230,10 @@ class ActionResolver {
         }
 
         final groupId = part.effectiveOptionalGroupId;
+
+        costsByGroup.putIfAbsent(groupId, () => <ActionCost>[]);
+
+        costsByGroup[groupId]!.addAll(part.costs);
 
         abilityPartsByGroup.putIfAbsent(groupId, () => <AbilityEffectPart>[]);
 
@@ -3836,6 +4280,10 @@ class ActionResolver {
       }
 
       final groupId = bonus.effectiveOptionalGroupId;
+
+      costsByGroup.putIfAbsent(groupId, () => <ActionCost>[]);
+
+      costsByGroup[groupId]!.addAll(bonus.costs);
 
       sourcesByGroup.putIfAbsent(groupId, () => <ActionOptionalSource>[]);
 
@@ -3910,15 +4358,7 @@ class ActionResolver {
 
       final sources = sourcesByGroup[groupId] ?? const <ActionOptionalSource>[];
 
-      final costs = <ActionCost>[];
-
-      // Por ahora los DamageBonus/CriticalDamageBonus
-      // no tienen costes propios.
-      //
-      // Los costes existentes vienen de AbilityEffectPart.
-      for (final part in parts) {
-        costs.addAll(part.costs);
-      }
+      final costs = costsByGroup[groupId] ?? const <ActionCost>[];
 
       result.add(
         ActionOptionalGroup(
@@ -3951,7 +4391,7 @@ class ActionResolver {
     final costs = <ActionCost>[...plan.costs];
 
     // ===========================================================================
-    // COSTES YA SELECCIONADOS
+    // PARTES YA SELECCIONADAS
     // ===========================================================================
 
     switch (plan.ability.targetResolutionMode) {
@@ -3993,10 +4433,13 @@ class ActionResolver {
     }
 
     // ===========================================================================
-    // GRUPO NUEVO
-    //
-    // Solo añadimos su coste si todavía no está seleccionado en el scope
-    // correspondiente.
+    // BONUSES YA SELECCIONADOS
+    // ===========================================================================
+
+    costs.addAll(collectSelectedBonusCosts(plan: plan, context: context));
+
+    // ===========================================================================
+    // NUEVO GRUPO
     // ===========================================================================
 
     final alreadySelected = target != null
@@ -4051,7 +4494,7 @@ class ActionResolver {
     // SIN ATAQUE
     // ===========================================================================
 
-    if (!prepared.ability.requiresAttackRoll) {
+    if (!prepared.definition.requiresAttackRoll) {
       return true;
     }
 
@@ -4212,7 +4655,7 @@ class ActionResolver {
     Map<String, List<ActionChanceResult>> chanceResultsByScopeId = const {},
     List<ActionSavingThrowResult> savingThrowResults = const [],
   }) {
-    switch (prepared.ability.targetResolutionMode) {
+    switch (prepared.definition.targetResolutionMode) {
       // =======================================================================
       // SHARED
       // =======================================================================
@@ -4433,6 +4876,103 @@ class ActionResolver {
         }
 
         break;
+    }
+    // ===========================================================================
+    // DAMAGE BONUS
+    //
+    // El coste definitivo se cobra únicamente si el bonus realmente sobrevivió.
+    //
+    // SHARED:
+    //   una vez si aplica a al menos un target.
+    //
+    // INDEPENDENT:
+    //   una vez por target donde aplica.
+    // ===========================================================================
+
+    for (final active in character.activeDamageBonuses) {
+      final bonus = active.bonus;
+      final passive = active.passive;
+
+      if (bonus.costs.isEmpty) {
+        continue;
+      }
+
+      switch (plan.ability.targetResolutionMode) {
+        // =========================================================================
+        // SHARED
+        // =========================================================================
+
+        case AbilityTargetResolutionMode.shared:
+          var survives = false;
+
+          for (final target in context.targets) {
+            final targetAttackResult = attackResultsByTargetId[target.id];
+
+            if (!_damageBonusSurvivesForTarget(
+              plan: plan,
+              context: context,
+              bonus: bonus,
+              passive: passive,
+              target: target,
+              attackResult: targetAttackResult,
+            )) {
+              continue;
+            }
+
+            survives = true;
+            break;
+          }
+
+          if (survives) {
+            costs.addAll(bonus.costs);
+          }
+
+          break;
+
+        // =========================================================================
+        // INDEPENDENT
+        // =========================================================================
+
+        case AbilityTargetResolutionMode.independent:
+          for (final target in context.targets) {
+            final targetAttackResult = attackResultsByTargetId[target.id];
+
+            if (!_damageBonusSurvivesForTarget(
+              plan: plan,
+              context: context,
+              bonus: bonus,
+              passive: passive,
+              target: target,
+              attackResult: targetAttackResult,
+            )) {
+              continue;
+            }
+
+            costs.addAll(bonus.costs);
+          }
+
+          break;
+      }
+    }
+    // ===========================================================================
+    // HEALING BONUS
+    //
+    // Actualmente es una contribución global a la acción.
+    //
+    // Por tanto su coste se paga una única vez por acción,
+    // independientemente del número de targets.
+    // ===========================================================================
+
+    if (_abilityHeals(plan.ability)) {
+      for (final active in character.activeHealingBonuses) {
+        final bonus = active.bonus;
+
+        if (!bonus.hasHealing || bonus.costs.isEmpty) {
+          continue;
+        }
+
+        costs.addAll(bonus.costs);
+      }
     }
 
     return List<ActionCost>.unmodifiable(

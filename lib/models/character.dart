@@ -142,18 +142,33 @@ class Character {
     return sources;
   }
 
-  List<HealingBonus> get activeHealingBonuses {
-    final result = <HealingBonus>[];
+  List<ActiveHealingBonus> get activeHealingBonuses {
+    final result = <ActiveHealingBonus>[];
 
     for (final passive in enabledPassives) {
-      result.addAll(passive.healingBonuses);
+      for (final bonus in passive.healingBonuses) {
+        result.add(
+          ActiveHealingBonus(
+            bonus: bonus,
+            passive: passive,
+          ),
+        );
+      }
     }
 
     for (final effect in enabledEffects) {
-      result.addAll(effect.healingBonuses);
+      for (final bonus in effect.healingBonuses) {
+        result.add(
+          ActiveHealingBonus(
+            bonus: bonus,
+          ),
+        );
+      }
     }
 
-    return result;
+    return List<ActiveHealingBonus>.unmodifiable(
+      result,
+    );
   }
 
   List<CharacterCounter> counters;
@@ -577,13 +592,9 @@ class Character {
   }
 
   void startTurn() {
-    if (turnActive) {
+    if (!combatActive || turnActive) {
       return;
     }
-
-    // ===========================================================================
-    // NUEVO TURNO
-    // ===========================================================================
 
     combatTurnSequence++;
 
@@ -635,6 +646,10 @@ class Character {
   }
 
   void startNextRound() {
+    if (!combatActive) {
+      return;
+    }
+
     // ===========================================================================
     // 1. CERRAR TURNO ACTIVO
     // ===========================================================================
@@ -652,8 +667,6 @@ class Character {
 
     // ===========================================================================
     // 2. EVENTO DE FIN DE RONDA
-    //
-    // Los efectos de ronda todavía existen durante roundEnded.
     // ===========================================================================
 
     dispatchPassiveTrigger(
@@ -662,7 +675,11 @@ class Character {
     );
 
     // ===========================================================================
-    // 3. EXPIRAR EFECTOS DE RONDA
+    // 3. AVANZAR EFECTOS DE RONDA
+    //
+    // Aquí avanzan:
+    // - rounds
+    // - minutes (10 rondas = 1 minuto)
     // ===========================================================================
 
     advanceRoundEffects();
@@ -675,8 +692,6 @@ class Character {
 
     // ===========================================================================
     // 5. INICIO DE NUEVA RONDA
-    //
-    // Los efectos que expiraron ya no participan aquí.
     // ===========================================================================
 
     dispatchPassiveTrigger(
@@ -3431,6 +3446,8 @@ class Character {
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
 
+      'combatActive': combatActive,
+
       'combatRound': combatRound,
 
       'turnActive': turnActive,
@@ -3776,6 +3793,8 @@ class Character {
       }
     }
 
+    final combatActive = map['combatActive'] == true;
+
     final combatRound = (map['combatRound'] as num?)?.toInt() ?? 1;
 
     final turnActive = map['turnActive'] == true;
@@ -3842,6 +3861,8 @@ class Character {
       resources: resources,
 
       effects: effects,
+
+      combatActive: combatActive,
 
       combatRound: combatRound,
 

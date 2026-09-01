@@ -8,8 +8,6 @@ import '../models/skill.dart';
 import '../models/character.dart';
 import '../models/item.dart';
 import '../models/ability.dart';
-import '../models/action_critical_profile.dart';
-import '../models/action_dice_mode.dart';
 
 import '../services/character_storage_service.dart';
 import '../services/item_library_service.dart';
@@ -18,9 +16,6 @@ import '../services/action_resolution_flow.dart';
 import '../utils/number_format.dart';
 
 import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
-import '../widgets/weapons/weapon_action_dice_result_dialog.dart';
-import '../widgets/weapons/weapon_attack_result_dialog.dart';
-import '../widgets/action_resolution/dice/dice_mode_sheet.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/section_header.dart';
 import '../widgets/items/item_card.dart';
@@ -299,12 +294,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
   // ===========================================================================
   // DAÑO DE ARMA
   // ===========================================================================
-
-  Future<void> rollWeaponDamage(
-    CharacterItem item, {
-    required ActionDiceMode diceMode,
-    ActionCriticalType criticalType = ActionCriticalType.none,
-  }) async {
+  Future<void> resolveWeapon(CharacterItem item) async {
     final weapon = item.weapon;
 
     if (weapon == null) {
@@ -323,105 +313,35 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
     final flow = ActionResolutionFlow(character: character);
 
-    final result = await flow.resolveWeaponDamage(
-      context,
-      weapon: weapon,
-      diceMode: diceMode,
-      criticalType: criticalType,
-    );
+    try {
+      final execution = await flow.resolveWeapon(context, weapon: weapon);
 
-    if (result == null || !mounted) {
-      return;
-    }
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return WeaponActionDiceResultDialog(
-          weapon: weapon,
-          result: result,
-          criticalType: criticalType,
-
-          onReroll: () {
-            Navigator.of(dialogContext).pop();
-
-            rollWeaponAttack(item);
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> editItemQuantityQuick(CharacterItem item) async {
-    final baseValue = item.quantity;
-
-    final result = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) {
-        return _ItemQuantityCalculatorDialog(
-          itemName: item.name,
-          baseValue: baseValue,
-        );
-      },
-    );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      item.quantity = result;
-
-      if (item.quantity <= 0) {
-        character.removeItem(item.id);
+      if (execution == null) {
+        return;
       }
-    });
 
-    await save();
-  }
+      await save();
 
-  Future<void> rollWeaponAttack(CharacterItem item) async {
-    final weapon = item.weapon;
+      if (!mounted) {
+        return;
+      }
 
-    if (weapon == null) {
-      return;
+      setState(() {});
+
+      await showActionResolutionResultDialog(
+        context,
+        character: character,
+        execution: execution,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se ha podido resolver el ataque: $error')),
+      );
     }
-
-    final flow = ActionResolutionFlow(character: character);
-
-    final result = await flow.resolveWeaponAttack(context, weapon: weapon);
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    await showWeaponAttackResultDialog(
-      context,
-      weapon: weapon,
-      result: result,
-
-      onReroll: () {
-        rollWeaponAttack(item);
-      },
-
-      onRollDamage: (criticalType) {
-        rollWeaponDamage(
-          item,
-          diceMode: result.diceMode,
-          criticalType: criticalType,
-        );
-      },
-    );
-  }
-
-  Future<void> rollStandaloneWeaponDamage(CharacterItem item) async {
-    final diceMode = await showActionDiceModeSheet(context);
-
-    if (diceMode == null || !mounted) {
-      return;
-    }
-
-    await rollWeaponDamage(item, diceMode: diceMode);
   }
 
   // ===========================================================================
@@ -522,6 +442,34 @@ class _ItemsScreenState extends State<ItemsScreen> {
       character: character,
       execution: execution,
     );
+  }
+
+  Future<void> editItemQuantityQuick(CharacterItem item) async {
+    final baseValue = item.quantity;
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return _ItemQuantityCalculatorDialog(
+          itemName: item.name,
+          baseValue: baseValue,
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      item.quantity = result;
+
+      if (item.quantity <= 0) {
+        character.removeItem(item.id);
+      }
+    });
+
+    await save();
   }
 
   // ===========================================================================
@@ -900,13 +848,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   onWeaponAttack: item.isWeapon && item.equipped
                       ? () {
                           Navigator.pop(sheetContext);
-                          rollWeaponAttack(item);
-                        }
-                      : null,
-
-                  onWeaponDamage: item.isWeapon
-                      ? () {
-                          rollStandaloneWeaponDamage(item);
+                          resolveWeapon(item);
                         }
                       : null,
 
@@ -1101,15 +1043,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
                               }
                             : null,
 
-                        onWeaponAttack: item.isWeapon
+                        onWeaponAttack: item.isWeapon && item.equipped
                             ? () {
-                                rollWeaponAttack(item);
-                              }
-                            : null,
-
-                        onWeaponDamage: item.isWeapon
-                            ? () {
-                                rollStandaloneWeaponDamage(item);
+                                resolveWeapon(item);
                               }
                             : null,
                       ),

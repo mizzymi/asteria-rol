@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/character.dart';
 import '../models/character_resource.dart';
-import '../models/action_critical_profile.dart';
-import '../models/action_dice_mode.dart';
 import '../models/item.dart';
 import '../models/ability.dart';
 import '../models/passive.dart';
@@ -16,9 +14,6 @@ import '../services/character_storage_service.dart';
 import '../widgets/combat/combat_content_folder_card.dart';
 import '../widgets/passives/passive_roll_dialog.dart';
 import '../widgets/combat/combat_passive_card.dart';
-import '../widgets/action_resolution/dice/dice_mode_sheet.dart';
-import '../widgets/weapons/weapon_action_dice_result_dialog.dart';
-import '../widgets/weapons/weapon_attack_result_dialog.dart';
 import '../widgets/combat/combat_weapon_card.dart';
 import '../widgets/combat/combat_health_card.dart';
 import '../widgets/combat/combat_empty_section.dart';
@@ -252,7 +247,7 @@ class _CombatScreenState extends State<CombatScreen> {
     await _save();
   }
 
-  Future<void> _rollWeaponAttack(CharacterItem item) async {
+  Future<void> _resolveWeapon(CharacterItem item) async {
     final weapon = item.weapon;
 
     if (weapon == null) {
@@ -261,97 +256,35 @@ class _CombatScreenState extends State<CombatScreen> {
 
     final flow = ActionResolutionFlow(character: character);
 
-    final result = await flow.resolveWeaponAttack(context, weapon: weapon);
+    try {
+      final execution = await flow.resolveWeapon(context, weapon: weapon);
 
-    if (result == null || !mounted) {
-      return;
+      if (execution == null) {
+        return;
+      }
+
+      await _save();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {});
+
+      await showActionResolutionResultDialog(
+        context,
+        character: character,
+        execution: execution,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se ha podido resolver el ataque: $error')),
+      );
     }
-
-    await showWeaponAttackResultDialog(
-      context,
-      weapon: weapon,
-      result: result,
-
-      onReroll: () {
-        _rollWeaponAttack(item);
-      },
-
-      onRollDamage: (criticalType) {
-        _rollWeaponDamage(
-          item,
-          diceMode: result.diceMode,
-          criticalType: criticalType,
-        );
-      },
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {});
-
-    await _save();
-  }
-
-  Future<void> _rollWeaponDamage(
-    CharacterItem item, {
-    required ActionDiceMode diceMode,
-    ActionCriticalType criticalType = ActionCriticalType.none,
-  }) async {
-    final weapon = item.weapon;
-
-    if (weapon == null) {
-      return;
-    }
-
-    final flow = ActionResolutionFlow(character: character);
-
-    final result = await flow.resolveWeaponDamage(
-      context,
-      weapon: weapon,
-      diceMode: diceMode,
-      criticalType: criticalType,
-    );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return WeaponActionDiceResultDialog(
-          weapon: weapon,
-          result: result,
-          criticalType: criticalType,
-
-          onReroll: () {
-            Navigator.of(dialogContext).pop();
-
-            _rollWeaponAttack(item);
-          },
-        );
-      },
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {});
-
-    await _save();
-  }
-
-  Future<void> _rollStandaloneWeaponDamage(CharacterItem item) async {
-    final diceMode = await showActionDiceModeSheet(context);
-
-    if (diceMode == null || !mounted) {
-      return;
-    }
-
-    await _rollWeaponDamage(item, diceMode: diceMode);
   }
 
   Future<void> _resolveAbility(CharacterAbility ability) async {
@@ -622,11 +555,7 @@ class _CombatScreenState extends State<CombatScreen> {
                   item: item,
 
                   onAttack: () {
-                    _rollWeaponAttack(item);
-                  },
-
-                  onDamage: () {
-                    _rollStandaloneWeaponDamage(item);
+                    _resolveWeapon(item);
                   },
                 ),
               ),

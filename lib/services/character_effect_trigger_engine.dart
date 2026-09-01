@@ -64,9 +64,21 @@ class CharacterEffectTriggerEngine {
     _runtime.activeTriggerKeys.remove(key);
   }
 
-  void consumeExternalTriggerResult(
+  bool consumeExternalTriggerResult(
     CharacterEffectTriggerExternalResult result,
   ) {
+    final resolutionId = result.resolutionId.trim();
+
+    if (resolutionId.isEmpty) {
+      return false;
+    }
+
+    final runtime = _runtime;
+
+    if (!runtime.consumedExternalResultIds.add(resolutionId)) {
+      return false;
+    }
+
     CharacterEffect? sourceEffect;
 
     for (final candidate in character.effects) {
@@ -77,7 +89,9 @@ class CharacterEffectTriggerEngine {
     }
 
     if (sourceEffect == null) {
-      return;
+      runtime.consumedExternalResultIds.remove(resolutionId);
+
+      return false;
     }
 
     CharacterEffectTrigger? trigger;
@@ -90,10 +104,14 @@ class CharacterEffectTriggerEngine {
     }
 
     if (trigger == null) {
-      return;
+      runtime.consumedExternalResultIds.remove(resolutionId);
+
+      return false;
     }
 
     consumeTriggerUsage(sourceEffect, trigger);
+
+    return true;
   }
 
   bool canUseTrigger(CharacterEffect effect, CharacterEffectTrigger trigger) {
@@ -192,6 +210,12 @@ class CharacterEffectTriggerEngine {
       }
     } finally {
       runtime.dispatchDepth--;
+
+      if (runtime.dispatchDepth == 0 && runtime.persistentRefreshPending) {
+        runtime.persistentRefreshPending = false;
+
+        refreshPersistentTriggers();
+      }
     }
   }
 
@@ -483,31 +507,76 @@ class CharacterEffectTriggerEngine {
   void refreshPersistentTriggers({
     Map<String, double> eventVariables = const {},
   }) {
-    final effects = character.effects
-        .where((effect) => effect.enabled && !effect.expired)
-        .toList(growable: false);
+    final runtime = _runtime;
 
-    for (final sourceEffect in effects) {
-      final triggers = List<CharacterEffectTrigger>.from(sourceEffect.triggers);
+    // ===========================================================================
+    // APLAZAR DURANTE DISPATCH
+    // ===========================================================================
 
-      for (final trigger in triggers) {
-        if (!trigger.maintainsWhileCondition) {
-          continue;
-        }
-
-        if (trigger.targetsActionTarget) {
-          continue;
-        }
-
-        _evaluatePersistentTrigger(
-          sourceEffect,
-          trigger,
-          eventVariables: eventVariables,
-        );
-      }
+    if (runtime.dispatchDepth > 0) {
+      runtime.persistentRefreshPending = true;
+      return;
     }
 
-    _cleanupOrphanPersistentState();
+    runtime.persistentRefreshPending = false;
+
+    // ===========================================================================
+    // CONVERGENCIA
+    // ===========================================================================
+
+    for (
+      var pass = 0;
+      pass < _CharacterEffectTriggerRuntime.maximumPersistentRefreshPasses;
+      pass++
+    ) {
+      final before = _persistentStateSignature();
+
+      final effects = character.effects
+          .where((effect) => effect.enabled && !effect.expired)
+          .toList(growable: false);
+
+      for (final sourceEffect in effects) {
+        final triggers = List<CharacterEffectTrigger>.from(
+          sourceEffect.triggers,
+        );
+
+        for (final trigger in triggers) {
+          if (!trigger.maintainsWhileCondition) {
+            continue;
+          }
+
+          if (trigger.targetsActionTarget) {
+            continue;
+          }
+
+          _evaluatePersistentTrigger(
+            sourceEffect,
+            trigger,
+            eventVariables: eventVariables,
+          );
+        }
+      }
+
+      _cleanupOrphanPersistentState();
+
+      final after = _persistentStateSignature();
+
+      if (before == after) {
+        return;
+      }
+    }
+  }
+
+  String _persistentStateSignature() {
+    final entries = _runtime.maintainedEffectIdsByTriggerKey.entries.map((
+      entry,
+    ) {
+      final ids = entry.value.toList()..sort();
+
+      return '${entry.key}:${ids.join(",")}';
+    }).toList()..sort();
+
+    return entries.join('|');
   }
 
   void _cleanupOrphanPersistentState() {
@@ -747,6 +816,8 @@ class CharacterEffectTriggerEngine {
 }
 
 class _CharacterEffectTriggerRuntime {
+  final Set<String> consumedExternalResultIds = <String>{};
+
   final Map<String, int> lastUsedTurnByTriggerKey = <String, int>{};
 
   final Map<String, int> lastUsedRoundByTriggerKey = <String, int>{};
@@ -758,5 +829,9 @@ class _CharacterEffectTriggerRuntime {
 
   int dispatchDepth = 0;
 
+  bool persistentRefreshPending = false;
+
   static const int maximumDispatchDepth = 16;
+
+  static const int maximumPersistentRefreshPasses = 32;
 }

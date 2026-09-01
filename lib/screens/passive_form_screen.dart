@@ -191,6 +191,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
   final Set<_PassiveFormSection> expandedSections = {};
 
+  late final String passiveId;
+
   bool get editing {
     return widget.passive != null;
   }
@@ -204,6 +206,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     super.initState();
 
     final passive = widget.passive;
+
+    passiveId = passive?.id ?? DateTime.now().microsecondsSinceEpoch.toString();
 
     // =========================================================================
     // IDENTIDAD
@@ -636,6 +640,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       ),
       character: widget.character,
       passive: widget.passive,
+      ownerPassiveId: passiveId,
+      ownerUsesCharges: hasCharges,
     );
 
     if (result == null || !mounted) {
@@ -657,6 +663,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       bonus: DamageBonus.fromMap(damageBonuses[index].toMap()),
       character: widget.character,
       passive: widget.passive,
+      ownerPassiveId: passiveId,
+      ownerUsesCharges: hasCharges,
     );
 
     if (result == null || !mounted) {
@@ -729,6 +737,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       ),
       character: widget.character,
       passive: widget.passive,
+      ownerPassiveId: passiveId,
+      ownerUsesCharges: hasCharges,
     );
 
     if (result == null || !mounted) {
@@ -750,6 +760,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       bonus: HealingBonus.fromMap(healingBonuses[index].toMap()),
       character: widget.character,
       passive: widget.passive,
+      ownerPassiveId: passiveId,
+      ownerUsesCharges: hasCharges,
     );
 
     if (result == null || !mounted) {
@@ -913,9 +925,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     // =========================================================================
 
     final passive = CharacterPassive(
-      id:
-          widget.passive?.id ??
-          DateTime.now().microsecondsSinceEpoch.toString(),
+      id: passiveId,
 
       name: nameController.text.trim(),
 
@@ -1359,8 +1369,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
                 icon: Icons.auto_awesome_rounded,
 
-                subtitle:
-                    'Bonificaciones automáticas al daño, críticos y curaciones.',
+                subtitle: 'Bonificaciones al daño, críticos y curaciones.',
               ),
 
               if (_sectionExpanded(_PassiveFormSection.extraEffects)) ...[

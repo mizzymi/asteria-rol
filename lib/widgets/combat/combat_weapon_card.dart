@@ -10,14 +10,12 @@ class CombatWeaponCard extends StatelessWidget {
   final CharacterItem item;
 
   final VoidCallback onAttack;
-  final VoidCallback onDamage;
 
   const CombatWeaponCard({
     super.key,
     required this.character,
     required this.item,
     required this.onAttack,
-    required this.onDamage,
   });
 
   @override
@@ -73,7 +71,11 @@ class CombatWeaponCard extends StatelessWidget {
                   color: iconBackground,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(Icons.gavel_rounded, color: color, size: 21),
+                child: Icon(
+                  Icons.gavel_rounded,
+                  color: color,
+                  size: 21,
+                ),
               ),
 
               const SizedBox(width: 11),
@@ -105,9 +107,12 @@ class CombatWeaponCard extends StatelessWidget {
               ),
 
               if (item.equipped)
-                Chip(
-                  avatar: const Icon(Icons.check_circle_rounded, size: 15),
-                  label: const Text('Equipado'),
+                const Chip(
+                  avatar: Icon(
+                    Icons.check_circle_rounded,
+                    size: 15,
+                  ),
+                  label: Text('Equipado'),
                 ),
             ],
           ),
@@ -116,14 +121,23 @@ class CombatWeaponCard extends StatelessWidget {
 
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
             decoration: BoxDecoration(
-              color: colors.surfaceContainerLow.withValues(alpha: 0.75),
+              color: colors.surfaceContainerLow.withValues(
+                alpha: 0.75,
+              ),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
               children: [
-                Icon(Icons.flash_on_rounded, size: 18, color: color),
+                Icon(
+                  Icons.flash_on_rounded,
+                  size: 18,
+                  color: color,
+                ),
 
                 const SizedBox(width: 8),
 
@@ -141,26 +155,19 @@ class CombatWeaponCard extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: item.equipped ? onAttack : null,
-                  icon: const Icon(Icons.sports_martial_arts_rounded),
-                  label: const Text('Atacar'),
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: item.equipped
+                  ? onAttack
+                  : null,
+              icon: const Icon(
+                Icons.sports_martial_arts_rounded,
               ),
-
-              const SizedBox(width: 8),
-
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onDamage,
-                  child: const Text('Daño'),
-                ),
+              label: const Text(
+                'Atacar',
               ),
-            ],
+            ),
           ),
         ],
       ),

@@ -8,6 +8,8 @@ import '../models/passive_resource_modifier.dart';
 import '../models/skill.dart';
 import '../models/dice_pool.dart';
 import '../models/formulas/formula_modifier.dart';
+import '../models/action_cost.dart';
+import '../models/passive_charge_dice_scaling.dart';
 
 import '../widgets/passive_form/triggers/passive_trigger_labels.dart';
 
@@ -21,19 +23,57 @@ class PassiveDisplayFormatter {
   // ===========================================================================
 
   static String damageBonus(DamageBonus bonus, {Character? character}) {
-    var result = _bonusValue(
-      dicePools: bonus.dicePools,
-      multipliers: bonus.abilityModifierMultipliers,
-      flat: bonus.flatBonus,
-      formula: bonus.formula?.expression,
-      character: character,
+    final pieces = <String>[];
+
+    // ===========================================================================
+    // VALOR BASE
+    // ===========================================================================
+
+    pieces.add(
+      _bonusValue(
+        dicePools: bonus.dicePools,
+        multipliers: bonus.abilityModifierMultipliers,
+        flat: bonus.flatBonus,
+        formula: bonus.formula?.expression,
+        character: character,
+      ),
     );
+
+    // ===========================================================================
+    // TIPO DE DAÑO
+    // ===========================================================================
 
     final damageType = bonus.damageType.trim();
 
     if (damageType.isNotEmpty) {
-      result += ' · $damageType';
+      pieces.add(damageType);
     }
+
+    // ===========================================================================
+    // ESCALADO POR CARGAS
+    // ===========================================================================
+
+    final scaling = _chargeScalingText(bonus.chargeScaling);
+
+    if (scaling.isNotEmpty) {
+      pieces.add(scaling);
+    }
+
+    // ===========================================================================
+    // COSTES
+    // ===========================================================================
+
+    final costs = _costsText(bonus.costs, character: character);
+
+    if (costs.isNotEmpty) {
+      pieces.add('Coste: $costs');
+    }
+
+    // ===========================================================================
+    // RESULTADO
+    // ===========================================================================
+
+    final result = pieces.join(' · ');
 
     final name = bonus.name.trim();
 
@@ -84,13 +124,47 @@ class PassiveDisplayFormatter {
   // ===========================================================================
 
   static String healingBonus(HealingBonus bonus, {Character? character}) {
-    final result = _bonusValue(
-      dicePools: bonus.dicePools,
-      multipliers: bonus.abilityModifierMultipliers,
-      flat: bonus.flatBonus,
-      formula: bonus.formula?.expression,
-      character: character,
+    final pieces = <String>[];
+
+    // ===========================================================================
+    // VALOR BASE
+    // ===========================================================================
+
+    pieces.add(
+      _bonusValue(
+        dicePools: bonus.dicePools,
+        multipliers: bonus.abilityModifierMultipliers,
+        flat: bonus.flatBonus,
+        formula: bonus.formula?.expression,
+        character: character,
+      ),
     );
+
+    // ===========================================================================
+    // ESCALADO POR CARGAS
+    // ===========================================================================
+
+    final scaling = _chargeScalingText(bonus.chargeScaling);
+
+    if (scaling.isNotEmpty) {
+      pieces.add(scaling);
+    }
+
+    // ===========================================================================
+    // COSTES
+    // ===========================================================================
+
+    final costs = _costsText(bonus.costs, character: character);
+
+    if (costs.isNotEmpty) {
+      pieces.add('Coste: $costs');
+    }
+
+    // ===========================================================================
+    // RESULTADO
+    // ===========================================================================
+
+    final result = pieces.join(' · ');
 
     final name = bonus.name.trim();
 
@@ -135,6 +209,92 @@ class PassiveDisplayFormatter {
         '$targetText · '
         '$operationText '
         '${expression.trim().isEmpty ? '0' : expression}';
+  }
+
+  static String _chargeScalingText(PassiveChargeDiceScaling scaling) {
+    if (!scaling.hasScaling) {
+      return '';
+    }
+
+    final dice = scaling.dicePoolsPerCharge
+        .where((pool) => pool.count > 0 && pool.sides > 0)
+        .map((pool) => pool.notation)
+        .join(' + ');
+
+    if (dice.isEmpty) {
+      return '';
+    }
+
+    final pieces = <String>['+$dice por carga'];
+
+    if (scaling.minimumCharges > 1) {
+      pieces.add('mín. ${scaling.minimumCharges}');
+    }
+
+    if (scaling.maxCharges > 0) {
+      pieces.add('máx. ${scaling.maxCharges}');
+    }
+
+    return pieces.join(' · ');
+  }
+
+  static String _costsText(List<ActionCost> costs, {Character? character}) {
+    if (costs.isEmpty) {
+      return '';
+    }
+
+    final pieces = <String>[];
+
+    for (final cost in costs) {
+      switch (cost.type) {
+        // =======================================================================
+        // RECURSO
+        // =======================================================================
+
+        case ActionCostType.resource:
+          final resource = character?.resourceById(cost.sourceId);
+
+          final label = resource?.name.trim().isNotEmpty == true
+              ? resource!.name.trim()
+              : cost.label?.trim().isNotEmpty == true
+              ? cost.label!.trim()
+              : 'Recurso';
+
+          pieces.add('${cost.amount} $label');
+
+          break;
+
+        // =======================================================================
+        // CARGAS
+        // =======================================================================
+
+        case ActionCostType.passiveCharge:
+          pieces.add(cost.amount == 1 ? '1 carga' : '${cost.amount} cargas');
+
+          break;
+
+        // =======================================================================
+        // USOS
+        // =======================================================================
+
+        case ActionCostType.abilityUse:
+          final label = cost.label?.trim();
+
+          if (label != null && label.isNotEmpty) {
+            pieces.add(
+              cost.amount == 1
+                  ? '1 uso de $label'
+                  : '${cost.amount} usos de $label',
+            );
+          } else {
+            pieces.add(cost.amount == 1 ? '1 uso' : '${cost.amount} usos');
+          }
+
+          break;
+      }
+    }
+
+    return pieces.join(' + ');
   }
 
   // ===========================================================================

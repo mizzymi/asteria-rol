@@ -17,6 +17,8 @@ class CharacterEffectTriggerExternalResult {
 
   final List<CharacterEffect> effects;
 
+  final String resolutionId;
+
   const CharacterEffectTriggerExternalResult({
     required this.sourceEffectId,
     required this.sourceEffectName,
@@ -26,6 +28,7 @@ class CharacterEffectTriggerExternalResult {
     this.damage = 0,
     this.healing = 0,
     this.effects = const [],
+    required this.resolutionId,
   });
 
   bool get changedAnything {
@@ -53,6 +56,8 @@ class CharacterEffectTriggerExternalResult {
       'healing': healing,
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
+
+      'resolutionId': resolutionId,
     };
   }
 
@@ -95,6 +100,8 @@ class CharacterEffectTriggerExternalResult {
       healing: (map['healing'] as num?)?.toInt() ?? 0,
 
       effects: List<CharacterEffect>.unmodifiable(effects),
+
+      resolutionId: map['resolutionId']?.toString() ?? '',
     );
   }
 }

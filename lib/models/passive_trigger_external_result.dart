@@ -16,6 +16,8 @@ class PassiveTriggerExternalResult {
 
   final List<CharacterEffect> effects;
 
+  final String resolutionId;
+
   const PassiveTriggerExternalResult({
     required this.passiveId,
     required this.passiveName,
@@ -26,6 +28,7 @@ class PassiveTriggerExternalResult {
     this.damage = 0,
     this.healing = 0,
     this.effects = const [],
+    required this.resolutionId,
   });
 
   bool get changedAnything {
@@ -51,6 +54,7 @@ class PassiveTriggerExternalResult {
       'healing': healing,
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
+      'resolutionId': resolutionId,
     };
   }
 
@@ -93,6 +97,8 @@ class PassiveTriggerExternalResult {
       healing: (map['healing'] as num?)?.toInt() ?? 0,
 
       effects: List<CharacterEffect>.unmodifiable(effects),
+
+      resolutionId: map['resolutionId']?.toString() ?? '',
     );
   }
 }

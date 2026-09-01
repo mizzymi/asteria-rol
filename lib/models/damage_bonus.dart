@@ -2,6 +2,8 @@ import 'dice_pool.dart';
 import 'skill.dart';
 import 'formulas/character_formula.dart';
 import 'action_hit_behavior.dart';
+import 'passive_charge_dice_scaling.dart';
+import 'action_cost.dart';
 
 class DamageBonus {
   String id;
@@ -34,6 +36,10 @@ class DamageBonus {
   /// pero no se duplica/maximiza por crítico.
   bool participatesInCritical;
 
+  PassiveChargeDiceScaling chargeScaling;
+
+  List<ActionCost> costs;
+
   DamageBonus({
     required this.id,
     this.name = '',
@@ -48,8 +54,11 @@ class DamageBonus {
     this.optionalLabel = '',
     this.hitBehavior = ActionHitBehavior.requireHit,
     this.participatesInCritical = true,
+    this.chargeScaling = const PassiveChargeDiceScaling(),
+    List<ActionCost>? costs,
   }) : dicePools = dicePools ?? [],
-       abilityModifierMultipliers = abilityModifierMultipliers ?? {};
+       abilityModifierMultipliers = abilityModifierMultipliers ?? {},
+       costs = costs ?? [];
 
   bool get hasCondition {
     return condition != null &&
@@ -85,7 +94,8 @@ class DamageBonus {
     return dicePools.isNotEmpty ||
         flatBonus != 0 ||
         abilityModifierMultipliers.values.any((value) => value != 0) ||
-        hasFormula;
+        hasFormula ||
+        chargeScaling.hasScaling;
   }
 
   bool get hasFormula {
@@ -127,6 +137,10 @@ class DamageBonus {
       'hitBehavior': hitBehavior.name,
 
       'participatesInCritical': participatesInCritical,
+
+      'chargeScaling': chargeScaling.toMap(),
+
+      'costs': costs.map((cost) => cost.toMap()).toList(),
     };
   }
 
@@ -177,6 +191,24 @@ class DamageBonus {
         ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawCondition))
         : null;
 
+    final costs = <ActionCost>[];
+
+    final rawCosts = map['costs'];
+
+    if (rawCosts is List) {
+      for (final rawCost in rawCosts) {
+        if (rawCost is! Map) {
+          continue;
+        }
+
+        final cost = ActionCost.fromMap(Map<dynamic, dynamic>.from(rawCost));
+
+        if (cost.isValid) {
+          costs.add(cost);
+        }
+      }
+    }
+
     return DamageBonus(
       id: map['id']?.toString() ?? '',
 
@@ -206,6 +238,14 @@ class DamageBonus {
       ),
 
       participatesInCritical: map['participatesInCritical'] as bool? ?? true,
+
+      chargeScaling: map['chargeScaling'] is Map
+          ? PassiveChargeDiceScaling.fromMap(
+              Map<dynamic, dynamic>.from(map['chargeScaling']),
+            )
+          : const PassiveChargeDiceScaling(),
+
+      costs: costs,
     );
   }
 }

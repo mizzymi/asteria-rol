@@ -19,7 +19,6 @@ class ItemExtendedContent extends StatelessWidget {
   final VoidCallback onEquip;
 
   final VoidCallback? onWeaponAttack;
-  final VoidCallback? onWeaponDamage;
   final VoidCallback? onConsumableUse;
 
   final EdgeInsetsGeometry padding;
@@ -30,7 +29,6 @@ class ItemExtendedContent extends StatelessWidget {
     required this.character,
     required this.onEquip,
     this.onWeaponAttack,
-    this.onWeaponDamage,
     this.onConsumableUse,
     this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 16),
   });
@@ -413,31 +411,16 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // ACCIONES DEL ARMA
           // ===================================================================
-          if (item.isWeapon &&
-              item.equipped &&
-              (onWeaponAttack != null || onWeaponDamage != null)) ...[
+          if (item.isWeapon && item.equipped && onWeaponAttack != null) ...[
             const SizedBox(height: 14),
 
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onWeaponAttack,
-                    icon: const Icon(Icons.gps_fixed_rounded),
-                    label: const Text('Atacar'),
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    onPressed: onWeaponDamage,
-                    icon: const Icon(Icons.casino_rounded),
-                    label: const Text('Daño'),
-                  ),
-                ),
-              ],
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onWeaponAttack,
+                icon: const Icon(Icons.sports_martial_arts_rounded),
+                label: const Text('Atacar'),
+              ),
             ),
           ],
 

@@ -24,7 +24,6 @@ class ItemCard extends StatefulWidget {
   final VoidCallback onSaveToLibrary;
 
   final VoidCallback? onWeaponAttack;
-  final VoidCallback? onWeaponDamage;
   final VoidCallback? onConsumableUse;
   final VoidCallback? onQuickQuantityEdit;
 
@@ -38,7 +37,6 @@ class ItemCard extends StatefulWidget {
     required this.onExport,
     required this.onSaveToLibrary,
     this.onWeaponAttack,
-    this.onWeaponDamage,
     this.onConsumableUse,
     this.onQuickQuantityEdit,
   });
@@ -102,7 +100,6 @@ class _ItemCardState extends State<ItemCard> {
               character: widget.character,
               onEquip: widget.onEquip,
               onWeaponAttack: widget.onWeaponAttack,
-              onWeaponDamage: widget.onWeaponDamage,
               onConsumableUse: widget.onConsumableUse,
             ),
           ),
@@ -185,9 +182,6 @@ class _ItemHeader extends StatelessWidget {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      // =======================================================
-                      // TIPO
-                      // =======================================================
                       InfoBadge(
                         icon: ItemTypeColors.icon(item.type),
                         text: item.type.label,
@@ -195,9 +189,6 @@ class _ItemHeader extends StatelessWidget {
                         highlighted: true,
                       ),
 
-                      // =======================================================
-                      // CANTIDAD
-                      // =======================================================
                       if (item.quantity > 1 || item.calculable)
                         InkWell(
                           borderRadius: BorderRadius.circular(20),
@@ -210,9 +201,6 @@ class _ItemHeader extends StatelessWidget {
                           ),
                         ),
 
-                      // =======================================================
-                      // EQUIPADO
-                      // =======================================================
                       if (item.equipped)
                         InfoBadge(
                           icon: Icons.check_circle_rounded,
@@ -221,18 +209,12 @@ class _ItemHeader extends StatelessWidget {
                           highlighted: true,
                         ),
 
-                      // =======================================================
-                      // PASIVAS
-                      // =======================================================
                       if (item.passives.isNotEmpty)
                         InfoBadge(
                           icon: Icons.auto_awesome_rounded,
                           text: '${item.passives.length}',
                         ),
 
-                      // =======================================================
-                      // HABILIDADES
-                      // =======================================================
                       if (item.abilities.isNotEmpty)
                         InfoBadge(
                           icon: Icons.flash_on_rounded,
@@ -241,9 +223,6 @@ class _ItemHeader extends StatelessWidget {
                     ],
                   ),
 
-                  // ===========================================================
-                  // DESCRIPCIÓN
-                  // ===========================================================
                   if (item.description.isNotEmpty) ...[
                     const SizedBox(height: 8),
 

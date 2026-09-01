@@ -1,4 +1,3 @@
-import '../models/passive_triggered_external_outcome.dart';
 import '../models/character.dart';
 import '../models/passive.dart';
 import '../models/character_effect.dart';
@@ -101,6 +100,33 @@ class PassiveTriggerEngine {
   String _usageKey(CharacterPassive passive, PassiveTrigger trigger) {
     return '${passive.id}:${trigger.id}';
   }
+
+  bool _isTriggerActive(CharacterPassive passive, PassiveTrigger trigger) {
+    final key = _usageKey(passive, trigger);
+
+    return _runtime.activeTriggerKeys.contains(key);
+  }
+
+  bool _beginTriggerExecution(
+    CharacterPassive passive,
+    PassiveTrigger trigger,
+  ) {
+    final key = _usageKey(passive, trigger);
+
+    if (_runtime.activeTriggerKeys.contains(key)) {
+      return false;
+    }
+
+    _runtime.activeTriggerKeys.add(key);
+
+    return true;
+  }
+
+  void _endTriggerExecution(CharacterPassive passive, PassiveTrigger trigger) {
+    final key = _usageKey(passive, trigger);
+
+    _runtime.activeTriggerKeys.remove(key);
+  }
   // ===========================================================================
   // DISPATCH
   // ===========================================================================
@@ -194,6 +220,10 @@ class PassiveTriggerEngine {
       return;
     }
 
+    if (_isTriggerActive(passive, trigger)) {
+      return;
+    }
+
     // ===========================================================================
     // PERSISTENTES
     // ===========================================================================
@@ -232,21 +262,37 @@ class PassiveTriggerEngine {
     // ACCIONES SELF
     // ===========================================================================
 
-    _executeTriggerActions(
-      passive,
-      trigger,
-      eventVariables: eventVariables,
-      actionContext: actionContext,
-    );
+    if (!_beginTriggerExecution(passive, trigger)) {
+      return;
+    }
 
-    // ===========================================================================
-    // CONSUMIR
-    // ===========================================================================
+    try {
+      _executeTriggerActions(
+        passive,
+        trigger,
+        eventVariables: eventVariables,
+        actionContext: actionContext,
+      );
 
-    consumeTriggerUsage(passive, trigger);
+      consumeTriggerUsage(passive, trigger);
+    } finally {
+      _endTriggerExecution(passive, trigger);
+    }
   }
 
-  void consumeExternalTriggerResult(PassiveTriggerExternalResult result) {
+  bool consumeExternalTriggerResult(PassiveTriggerExternalResult result) {
+    final resolutionId = result.resolutionId.trim();
+
+    if (resolutionId.isEmpty) {
+      return false;
+    }
+
+    final runtime = _runtime;
+
+    if (!runtime.consumedExternalResultIds.add(resolutionId)) {
+      return false;
+    }
+
     CharacterPassive? passive;
 
     for (final candidate in character.enabledPassives) {
@@ -257,7 +303,9 @@ class PassiveTriggerEngine {
     }
 
     if (passive == null) {
-      return;
+      runtime.consumedExternalResultIds.remove(resolutionId);
+
+      return false;
     }
 
     PassiveTrigger? trigger;
@@ -270,11 +318,16 @@ class PassiveTriggerEngine {
     }
 
     if (trigger == null) {
-      return;
+      runtime.consumedExternalResultIds.remove(resolutionId);
+
+      return false;
     }
 
     consumeTriggerUsage(passive, trigger);
+
+    return true;
   }
+
   // ===========================================================================
   // REEVALUAR TRIGGERS PERSISTENTES
   // ===========================================================================
@@ -465,28 +518,6 @@ class PassiveTriggerEngine {
     ActionTriggerContext? actionContext,
   }) {
     // ===========================================================================
-    // TARGET EXTERNO
-    // ===========================================================================
-
-    if (trigger.targetsActionTarget) {
-      final targetId = actionContext?.targetId?.trim();
-
-      if (targetId == null || targetId.isEmpty) {
-        return;
-      }
-
-      _queueExternalTrigger(
-        passive: passive,
-        trigger: trigger,
-        targetId: targetId,
-        targetLabel: actionContext?.targetLabel,
-        eventVariables: eventVariables,
-      );
-
-      return;
-    }
-
-    // ===========================================================================
     // SELF
     // ===========================================================================
 
@@ -498,54 +529,6 @@ class PassiveTriggerEngine {
         eventVariables: eventVariables,
       );
     }
-  }
-
-  void _queueExternalTrigger({
-    required CharacterPassive passive,
-    required PassiveTrigger trigger,
-    required String targetId,
-    String? targetLabel,
-    Map<String, double> eventVariables = const {},
-  }) {
-    if (trigger.actions.isEmpty) {
-      return;
-    }
-
-    _runtime.pendingExternalOutcomes.add(
-      PassiveTriggeredExternalOutcome(
-        passiveId: passive.id,
-
-        passiveName: passive.name,
-
-        triggerId: trigger.id,
-
-        targetId: targetId,
-
-        targetLabel: targetLabel,
-
-        savingThrow: trigger.savingThrow,
-
-        actions: trigger.actions
-            .map((action) => PassiveTriggerAction.fromMap(action.toMap()))
-            .toList(),
-      ),
-    );
-  }
-
-  List<PassiveTriggeredExternalOutcome> takePendingExternalOutcomes() {
-    final runtime = _runtime;
-
-    if (runtime.pendingExternalOutcomes.isEmpty) {
-      return const [];
-    }
-
-    final result = List<PassiveTriggeredExternalOutcome>.unmodifiable(
-      runtime.pendingExternalOutcomes,
-    );
-
-    runtime.pendingExternalOutcomes.clear();
-
-    return result;
   }
 
   void _executeSelfAction(
@@ -983,8 +966,8 @@ class PassiveTriggerEngine {
 }
 
 class _PassiveTriggerRuntime {
-  final List<PassiveTriggeredExternalOutcome> pendingExternalOutcomes =
-      <PassiveTriggeredExternalOutcome>[];
+  final Set<String> consumedExternalResultIds = <String>{};
+
   // ===========================================================================
   // TRIGGERS ACTIVOS
   // ===========================================================================

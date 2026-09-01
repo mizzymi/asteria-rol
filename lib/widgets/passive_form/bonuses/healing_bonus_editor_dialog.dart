@@ -4,17 +4,23 @@ import '../../../models/character.dart';
 import '../../../models/dice_pool.dart';
 import '../../../models/healing_bonus.dart';
 import '../../../models/passive.dart';
+import '../../../models/passive_charge_dice_scaling.dart';
 import '../../../models/formulas/character_formula.dart';
 
 import '../../forms/common/ability_multiplier_editor.dart';
 import '../../forms/common/dice_pools_editor.dart';
 import '../../forms/common/formula_input_section.dart';
 
+import 'action_costs_editor.dart';
+import 'passive_charge_scaling_editor.dart';
+
 Future<HealingBonus?> showHealingBonusEditorDialog(
   BuildContext context, {
   required HealingBonus bonus,
   Character? character,
   CharacterPassive? passive,
+  required String ownerPassiveId,
+  required bool ownerUsesCharges,
 }) {
   return showDialog<HealingBonus>(
     context: context,
@@ -24,6 +30,8 @@ Future<HealingBonus?> showHealingBonusEditorDialog(
         bonus: bonus,
         character: character,
         passive: passive,
+        ownerPassiveId: ownerPassiveId,
+        ownerUsesCharges: ownerUsesCharges,
       );
     },
   );
@@ -36,11 +44,17 @@ class HealingBonusEditorDialog extends StatefulWidget {
 
   final CharacterPassive? passive;
 
+  final String ownerPassiveId;
+
+  final bool ownerUsesCharges;
+
   const HealingBonusEditorDialog({
     super.key,
     required this.bonus,
     this.character,
     this.passive,
+    required this.ownerPassiveId,
+    required this.ownerUsesCharges,
   });
 
   @override
@@ -52,7 +66,9 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
   late HealingBonus bonus;
 
   late final TextEditingController nameController;
+
   late final TextEditingController flatController;
+
   late final TextEditingController formulaController;
 
   @override
@@ -100,13 +116,17 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
 
       content: SizedBox(
         width: 560,
+
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+
             crossAxisAlignment: CrossAxisAlignment.stretch,
+
             children: [
               TextFormField(
                 controller: nameController,
+
                 decoration: const InputDecoration(labelText: 'Nombre'),
               ),
 
@@ -142,9 +162,11 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
 
               TextFormField(
                 controller: flatController,
+
                 keyboardType: const TextInputType.numberWithOptions(
                   signed: true,
                 ),
+
                 decoration: const InputDecoration(labelText: 'Bonus fijo'),
               ),
 
@@ -162,6 +184,53 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
                 hint: 'SAB_MOD * 2',
 
                 description: 'Se suma a la curación.',
+              ),
+
+              const SizedBox(height: 24),
+
+              const Divider(),
+
+              const SizedBox(height: 12),
+
+              Text(
+                'Escalado por cargas',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+
+              const SizedBox(height: 8),
+
+              PassiveChargeScalingEditor(
+                scaling: bonus.chargeScaling,
+
+                ownerUsesCharges: widget.ownerUsesCharges,
+
+                onChanged: (value) {
+                  setState(() {
+                    bonus.chargeScaling = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              const Divider(),
+
+              const SizedBox(height: 12),
+
+              ActionCostsEditor(
+                costs: bonus.costs,
+
+                character: widget.character,
+
+                ownerPassiveId: widget.ownerPassiveId,
+
+                ownerUsesCharges: widget.ownerUsesCharges,
+
+                onChanged: () {
+                  setState(() {});
+                },
               ),
             ],
           ),

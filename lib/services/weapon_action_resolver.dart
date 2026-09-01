@@ -15,6 +15,8 @@ import '../models/action_chance_check.dart';
 import '../models/action_resolution_context.dart';
 import '../models/action_dice_mode.dart';
 import '../models/action_optional_group.dart';
+import '../models/action_cost.dart';
+import 'action_cost_resolver.dart';
 
 import 'action_chance_resolver.dart';
 import 'action_critical_dice_transformer.dart';
@@ -450,6 +452,7 @@ class WeaponActionResolver {
     required Weapon weapon,
     required ActionResolutionContext context,
   }) {
+    final costsByGroup = <String, List<ActionCost>>{};
     final sourcesByGroup = <String, List<ActionOptionalSource>>{};
     final labelsByGroup = <String, String>{};
 
@@ -474,6 +477,10 @@ class WeaponActionResolver {
       }
 
       final groupId = bonus.effectiveOptionalGroupId;
+
+      costsByGroup.putIfAbsent(groupId, () => <ActionCost>[]);
+
+      costsByGroup[groupId]!.addAll(bonus.costs);
 
       sourcesByGroup.putIfAbsent(groupId, () => <ActionOptionalSource>[]);
 
@@ -537,12 +544,114 @@ class WeaponActionResolver {
           label: labelsByGroup[entry.key] ?? 'Componente opcional',
           parts: const [],
           sources: List<ActionOptionalSource>.unmodifiable(entry.value),
-          costs: const [],
+          costs: List<ActionCost>.unmodifiable(
+            ActionCostResolver(
+              character: character,
+            ).combineCosts(costsByGroup[entry.key] ?? const <ActionCost>[]),
+          ),
         ),
       );
     }
 
     return List<ActionOptionalGroup>.unmodifiable(result);
+  }
+
+  bool _damageBonusSurvives({
+    required ActionResolutionContext context,
+    required DamageBonus bonus,
+    CharacterPassive? passive,
+    bool? hit,
+  }) {
+    if (!bonus.hasDamage) {
+      return false;
+    }
+
+    if (!_damageBonusConditionMet(
+      context: context,
+      bonus: bonus,
+      passive: passive,
+    )) {
+      return false;
+    }
+
+    if (!_damageBonusSelected(context: context, bonus: bonus)) {
+      return false;
+    }
+
+    switch (bonus.hitBehavior) {
+      case ActionHitBehavior.ignoreHit:
+        return true;
+
+      case ActionHitBehavior.requireHit:
+        // Antes de resolver el ataque:
+        // todavía puede llegar a aplicarse.
+        if (hit == null) {
+          return true;
+        }
+
+        return hit;
+    }
+  }
+
+  List<ActionCost> collectPotentialDamageBonusCosts({
+    required ActionResolutionContext context,
+  }) {
+    final costs = <ActionCost>[];
+
+    for (final active in character.activeDamageBonuses) {
+      final bonus = active.bonus;
+      final passive = active.passive;
+
+      if (bonus.costs.isEmpty) {
+        continue;
+      }
+
+      if (!_damageBonusSurvives(
+        context: context,
+        bonus: bonus,
+        passive: passive,
+        hit: null,
+      )) {
+        continue;
+      }
+
+      costs.addAll(bonus.costs);
+    }
+
+    return List<ActionCost>.unmodifiable(
+      ActionCostResolver(character: character).combineCosts(costs),
+    );
+  }
+
+  List<ActionCost> collectResolvedDamageBonusCosts({
+    required ActionResolutionContext context,
+    required bool hit,
+  }) {
+    final costs = <ActionCost>[];
+
+    for (final active in character.activeDamageBonuses) {
+      final bonus = active.bonus;
+      final passive = active.passive;
+
+      if (bonus.costs.isEmpty) {
+        continue;
+      }
+
+      if (!_damageBonusSurvives(
+        context: context,
+        bonus: bonus,
+        passive: passive,
+        hit: hit,
+      )) {
+        continue;
+      }
+
+      costs.addAll(bonus.costs);
+    }
+
+    return List<ActionCost>.unmodifiable(
+      ActionCostResolver(character: character).combineCosts(costs),
+    );
   }
 
   void _appendCriticalDamageBonuses({
@@ -781,6 +890,14 @@ class WeaponActionResolver {
           continue;
         }
 
+        final effectiveDicePools = <DicePool>[...bonus.dicePools];
+
+        if (passive != null && bonus.chargeScaling.hasScaling) {
+          effectiveDicePools.addAll(
+            bonus.chargeScaling.scaledDicePools(passive.currentCharges),
+          );
+        }
+
         final baseModifier = character.damageBonusModifier(
           bonus,
           passive: passive,
@@ -795,7 +912,7 @@ class WeaponActionResolver {
             : ActionCriticalType.none;
 
         final transformed = ActionCriticalDiceTransformer.transform(
-          dicePools: bonus.dicePools,
+          dicePools: effectiveDicePools,
           baseModifier: baseModifier,
           criticalType: effectiveCriticalType,
         );
@@ -803,29 +920,18 @@ class WeaponActionResolver {
         parts.add(
           ActionDiceRequestPart(
             id: 'weapon_bonus:${weapon.id}:${bonus.id}',
-
             effectId: bonus.id,
-
             effectName: bonus.name.isNotEmpty ? bonus.name : 'Daño adicional',
-
             effectType: AbilityEffectType.damage,
-
             dicePools: transformed.dicePools,
-
             modifier: transformed.modifier,
-
             automaticValue: transformed.automaticValue,
-
             sourceType: passive != null
                 ? ActionDiceSourceType.passive
                 : ActionDiceSourceType.effect,
-
             sourceId: passive?.id ?? bonus.id,
-
             sourceName: passive?.name ?? bonus.name,
-
             damageType: bonus.damageType,
-
             hitBehavior: bonus.hitBehavior,
           ),
         );

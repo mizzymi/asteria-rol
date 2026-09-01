@@ -1,6 +1,9 @@
 import 'dice_pool.dart';
 import 'skill.dart';
+import 'passive.dart';
 import 'formulas/character_formula.dart';
+import 'passive_charge_dice_scaling.dart';
+import 'action_cost.dart';
 
 class HealingBonus {
   String id;
@@ -15,6 +18,10 @@ class HealingBonus {
 
   CharacterFormula? formula;
 
+  PassiveChargeDiceScaling chargeScaling;
+
+  List<ActionCost> costs;
+
   HealingBonus({
     required this.id,
     this.name = '',
@@ -22,14 +29,18 @@ class HealingBonus {
     Map<AbilityType, int>? abilityModifierMultipliers,
     this.flatBonus = 0,
     this.formula,
+    this.chargeScaling = const PassiveChargeDiceScaling(),
+    List<ActionCost>? costs,
   }) : dicePools = dicePools ?? [],
-       abilityModifierMultipliers = abilityModifierMultipliers ?? {};
+       abilityModifierMultipliers = abilityModifierMultipliers ?? {},
+       costs = costs ?? [];
 
   bool get hasHealing {
     return dicePools.isNotEmpty ||
         flatBonus != 0 ||
         abilityModifierMultipliers.values.any((value) => value != 0) ||
-        hasFormula;
+        hasFormula ||
+        chargeScaling.hasScaling;
   }
 
   bool get hasFormula {
@@ -57,6 +68,10 @@ class HealingBonus {
       'flatBonus': flatBonus,
 
       'formula': formula?.toMap(),
+
+      'chargeScaling': chargeScaling.toMap(),
+
+      'costs': costs.map((cost) => cost.toMap()).toList(),
     };
   }
 
@@ -97,6 +112,24 @@ class HealingBonus {
 
     final rawFormula = map['formula'];
 
+    final costs = <ActionCost>[];
+
+    final rawCosts = map['costs'];
+
+    if (rawCosts is List) {
+      for (final rawCost in rawCosts) {
+        if (rawCost is! Map) {
+          continue;
+        }
+
+        final cost = ActionCost.fromMap(Map<dynamic, dynamic>.from(rawCost));
+
+        if (cost.isValid) {
+          costs.add(cost);
+        }
+      }
+    }
+
     return HealingBonus(
       id: map['id']?.toString() ?? '',
 
@@ -111,6 +144,21 @@ class HealingBonus {
       formula: rawFormula is Map
           ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawFormula))
           : null,
+
+      chargeScaling: map['chargeScaling'] is Map
+          ? PassiveChargeDiceScaling.fromMap(
+              Map<dynamic, dynamic>.from(map['chargeScaling']),
+            )
+          : const PassiveChargeDiceScaling(),
+
+      costs: costs,
     );
   }
+}
+
+class ActiveHealingBonus {
+  final HealingBonus bonus;
+  final CharacterPassive? passive;
+
+  const ActiveHealingBonus({required this.bonus, this.passive});
 }
