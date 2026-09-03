@@ -4,7 +4,6 @@ import '../../../models/character.dart';
 import '../../../models/dice_pool.dart';
 import '../../../models/healing_bonus.dart';
 import '../../../models/passive.dart';
-import '../../../models/passive_charge_dice_scaling.dart';
 import '../../../models/formulas/character_formula.dart';
 
 import '../../forms/common/ability_multiplier_editor.dart';

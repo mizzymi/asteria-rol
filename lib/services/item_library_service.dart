@@ -3,8 +3,9 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
-import '../models/item.dart';
+import '../models/item_definition.dart';
 import '../models/item_library_entry.dart';
+import '../models/inventory_item.dart';
 
 class ItemLibraryService {
   const ItemLibraryService._();
@@ -45,13 +46,58 @@ class ItemLibraryService {
         return [];
       }
 
-      return decoded
-          .whereType<Map>()
-          .map(
-            (entry) =>
-                ItemLibraryEntry.fromMap(Map<dynamic, dynamic>.from(entry)),
-          )
-          .toList();
+      final entries = <ItemLibraryEntry>[];
+
+      var migratedLegacyEntry = false;
+
+      for (final rawEntry in decoded) {
+        if (rawEntry is! Map) {
+          continue;
+        }
+
+        final map = Map<dynamic, dynamic>.from(rawEntry);
+
+        // =====================================================================
+        // DETECTAR FORMATO LEGACY
+        //
+        // Antes:
+        //
+        // {
+        //   "item": CharacterItem
+        // }
+        //
+        // Ahora:
+        //
+        // {
+        //   "definition": ItemDefinition
+        // }
+        // =====================================================================
+
+        if (map['definition'] == null && map['item'] is Map) {
+          migratedLegacyEntry = true;
+        }
+
+        try {
+          entries.add(ItemLibraryEntry.fromMap(map));
+        } catch (_) {
+          // Una entrada corrupta no debe impedir
+          // cargar toda la biblioteca.
+          continue;
+        }
+      }
+
+      // =======================================================================
+      // MIGRACIÓN AUTOMÁTICA
+      //
+      // Si hemos leído entradas antiguas correctamente,
+      // las persistimos ya con el formato nuevo.
+      // =======================================================================
+
+      if (migratedLegacyEntry) {
+        await saveLibrary(entries);
+      }
+
+      return entries;
     } catch (_) {
       return [];
     }
@@ -64,32 +110,40 @@ class ItemLibraryService {
   static Future<void> saveLibrary(List<ItemLibraryEntry> entries) async {
     final file = await _libraryFile();
 
-    final encoded = jsonEncode(entries.map((entry) => entry.toMap()).toList());
+    final payload = entries.map((entry) => entry.toMap()).toList();
+
+    final encoded = jsonEncode(payload);
 
     await file.writeAsString(encoded, flush: true);
   }
 
   // ===========================================================================
-  // AÑADIR
+  // AÑADIR DEFINITION
   // ===========================================================================
 
-  static Future<ItemLibraryEntry> addItem(CharacterItem item) async {
+  static Future<ItemLibraryEntry> addDefinition(
+    ItemDefinition definition,
+  ) async {
     final library = await loadLibrary();
 
     final now = DateTime.now();
 
-    final copy = CharacterItem.fromMap(item.toMap());
+    // =======================================================================
+    // COPIA PROFUNDA
+    //
+    // La biblioteca no comparte referencias mutables
+    // con formularios ni otras capas.
+    // =======================================================================
 
-    /*
-     * Una plantilla de biblioteca nunca
-     * debería guardarse como equipada.
-     */
-    copy.equipped = false;
+    final definitionCopy = ItemDefinition.fromMap(definition.toMap());
 
     final entry = ItemLibraryEntry(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      item: copy,
+      id: _newEntryId(),
+
+      definition: definitionCopy,
+
       createdAt: now,
+
       updatedAt: now,
     );
 
@@ -101,37 +155,38 @@ class ItemLibraryService {
   }
 
   // ===========================================================================
-  // ACTUALIZAR
+  // ACTUALIZAR DEFINITION
   // ===========================================================================
 
-  static Future<void> updateItem(ItemLibraryEntry entry) async {
+  static Future<ItemLibraryEntry?> updateDefinition({
+    required String entryId,
+    required ItemDefinition definition,
+  }) async {
     final library = await loadLibrary();
 
-    final index = library.indexWhere((value) => value.id == entry.id);
+    final index = library.indexWhere((entry) => entry.id == entryId);
 
     if (index < 0) {
-      return;
+      return null;
     }
 
-    /*
-     * Copiamos también el item para
-     * mantener la biblioteca aislada
-     * de referencias externas.
-     */
-    final updatedItem = CharacterItem.fromMap(entry.item.toMap());
+    final previous = library[index];
 
-    updatedItem.equipped = false;
+    final updated = ItemLibraryEntry(
+      id: previous.id,
 
-    final updatedEntry = ItemLibraryEntry(
-      id: entry.id,
-      item: updatedItem,
-      createdAt: entry.createdAt,
+      definition: ItemDefinition.fromMap(definition.toMap()),
+
+      createdAt: previous.createdAt,
+
       updatedAt: DateTime.now(),
     );
 
-    library[index] = updatedEntry;
+    library[index] = updated;
 
     await saveLibrary(library);
+
+    return updated;
   }
 
   // ===========================================================================
@@ -147,35 +202,93 @@ class ItemLibraryService {
   }
 
   // ===========================================================================
-  // CREAR COPIA PARA INVENTARIO
+  // BUSCAR POR ENTRY ID
   // ===========================================================================
 
-  static Future<CharacterItem> createInventoryCopy(
-    ItemLibraryEntry entry,
-  ) async {
-    final copy = CharacterItem.fromMap(entry.item.toMap());
+  static Future<ItemLibraryEntry?> findEntry(String entryId) async {
+    final library = await loadLibrary();
 
-    /*
-     * El objeto importado debe ser
-     * una instancia nueva.
-     */
-    copy.id = DateTime.now().microsecondsSinceEpoch.toString();
-
-    copy.equipped = false;
-
-    /*
-     * Regeneramos IDs internos para
-     * evitar colisiones si el mismo objeto
-     * se añade varias veces.
-     */
-    for (var i = 0; i < copy.passives.length; i++) {
-      copy.passives[i].id = '${copy.id}_passive_$i';
+    for (final entry in library) {
+      if (entry.id == entryId) {
+        return entry;
+      }
     }
 
-    for (var i = 0; i < copy.abilities.length; i++) {
-      copy.abilities[i].id = '${copy.id}_ability_$i';
+    return null;
+  }
+
+  // ===========================================================================
+  // BUSCAR POR ITEM ID
+  //
+  // Importante:
+  // ItemLibraryEntry.id identifica la entrada de biblioteca.
+  // ItemDefinition.id identifica el objeto real.
+  // ===========================================================================
+
+  static Future<ItemLibraryEntry?> findByItemId(String itemId) async {
+    final normalized = itemId.trim();
+
+    if (normalized.isEmpty) {
+      return null;
     }
 
-    return copy;
+    final library = await loadLibrary();
+
+    for (final entry in library) {
+      if (entry.definition.id == normalized) {
+        return entry;
+      }
+    }
+
+    return null;
+  }
+
+  // ===========================================================================
+  // CREAR INVENTORY ITEM NUEVO
+  //
+  // Este será el camino definitivo cuando Character abandone CharacterItem.
+  // ===========================================================================
+
+  static InventoryItem createInventoryEntry(
+    ItemLibraryEntry entry, {
+    int quantity = 1,
+  }) {
+    final safeQuantity = quantity < 1 ? 1 : quantity;
+
+    return InventoryItem(
+      id: _newInventoryId(),
+
+      itemId: entry.definition.id,
+
+      quantity: safeQuantity,
+
+      equipped: false,
+
+      equippedSlotId: null,
+    );
+  }
+
+  // ===========================================================================
+  // CLONAR DEFINITION
+  //
+  // Útil para formularios de edición.
+  // ===========================================================================
+
+  static ItemDefinition copyDefinition(ItemLibraryEntry entry) {
+    return ItemDefinition.fromMap(entry.definition.toMap());
+  }
+
+  // ===========================================================================
+  // IDS
+  // ===========================================================================
+
+  static String _newEntryId() {
+    return 'item_library_'
+        '${DateTime.now().microsecondsSinceEpoch}';
+  }
+
+  static String _newInventoryId() {
+    return 'inventory_item_'
+        '${DateTime.now().microsecondsSinceEpoch}';
   }
 }

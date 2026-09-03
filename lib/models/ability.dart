@@ -1,5 +1,4 @@
 import 'character_effect.dart';
-import 'action_resolution_context.dart';
 import 'action_linked_effect.dart';
 import 'dice_pool.dart';
 import 'skill.dart';

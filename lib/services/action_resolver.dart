@@ -1,3 +1,4 @@
+import '../models/weapon.dart';
 import '../models/character_effect.dart';
 import '../models/passive_triggered_external_outcome.dart';
 import '../models/healing_bonus.dart';
@@ -517,40 +518,56 @@ class ActionResolver {
 
   PreparedActionResolution prepareDirectAction({
     required ActionSource source,
-
     required ActionDefinition definition,
-
     required ActionResolutionContext context,
-
     required ActionCriticalProfile criticalProfile,
-
+    ActionContent content = const ActionContent.empty(),
     List<ActionCost> costs = const [],
   }) {
-    final normalizedCosts = ActionCostResolver(
-      character: character,
-    ).combineCosts(costs);
+    final costResolver = ActionCostResolver(character: character);
+
+    // =========================================================================
+    // COSTES BASE
+    // =========================================================================
+
+    final normalizedBaseCosts = costResolver.combineCosts(costs);
 
     final plan = ActionResolutionPlan(
+      source: source,
       definition: definition,
-      content: const ActionContent.empty(),
+      content: content,
       automaticParts: const [],
       optionalParts: const [],
-      externalRequirements: const [],
-      costs: List<ActionCost>.unmodifiable(normalizedCosts),
+      externalRequirements: collectPreResolutionExternalRequirements(
+        source: source,
+        definition: definition,
+        content: content,
+      ),
+      costs: List<ActionCost>.unmodifiable(normalizedBaseCosts),
     );
+
+    // =========================================================================
+    // COSTES POTENCIALES
+    //
+    // Aquí todavía no conocemos hit/miss.
+    // Sirven para validar que la selección actual podría pagarse.
+    //
+    // El coste definitivo se calcula posteriormente mediante
+    // collectResolvedActionCosts().
+    // =========================================================================
+
+    final potentialCosts = costResolver.combineCosts([
+      ...normalizedBaseCosts,
+      ...collectSelectedBonusCosts(plan: plan, context: context),
+    ]);
 
     return PreparedActionResolution(
       source: source,
-
       definition: definition,
-
       context: context,
-
       plan: plan,
-
       criticalProfile: criticalProfile,
-
-      costs: List<ActionCost>.unmodifiable(normalizedCosts),
+      costs: List<ActionCost>.unmodifiable(potentialCosts),
     );
   }
 
@@ -1226,7 +1243,7 @@ class ActionResolver {
 
     final checks = <ActionChanceCheck>[];
 
-    final activeBonuses = bonuses ?? character.activeCriticalDamageBonuses();
+    final activeBonuses = bonuses ?? _activeCriticalDamageBonusesForPlan(plan);
 
     for (final bonus in activeBonuses) {
       if (!bonus.canTrigger) {
@@ -1387,12 +1404,14 @@ class ActionResolver {
 
   List<ActionExternalRequirement>
   orderedPreResolutionExternalRequirementsForTarget({
+    required ActionSource source,
     required ActionDefinition definition,
     required ActionContent content,
     required ActionResolutionContext context,
     required ActionTarget target,
   }) {
     final requirements = orderedPreResolutionExternalRequirements(
+      source: source,
       definition: definition,
       content: content,
     );
@@ -1431,8 +1450,6 @@ class ActionResolver {
     List<ActionSavingThrowResult> savingThrowResults = const [],
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
   }) {
-    final ability = plan.requireAbility;
-
     final targetResults = <ActionTargetResult>[];
 
     for (final target in context.targets) {
@@ -1498,8 +1515,7 @@ class ActionResolver {
     }
 
     return ActionResolutionResult(
-      source: ActionSource.ability(ability),
-      ability: ability,
+      source: plan.source,
       targetResolutionMode: AbilityTargetResolutionMode.shared,
       targetResults: targetResults,
       attackResult: attackResult,
@@ -1532,8 +1548,6 @@ class ActionResolver {
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
     Map<String, List<ActionChanceResult>> chanceResultsByTargetId = const {},
   }) {
-    final ability = plan.requireAbility;
-
     final targetResults = <ActionTargetResult>[];
 
     for (final target in context.targets) {
@@ -1605,9 +1619,7 @@ class ActionResolver {
     }
 
     return ActionResolutionResult(
-      source: ActionSource.ability(ability),
-
-      ability: ability,
+      source: plan.source,
 
       targetResolutionMode: AbilityTargetResolutionMode.independent,
 
@@ -1662,7 +1674,7 @@ class ActionResolver {
     }
 
     if (plan.definition.requiresAttackRoll) {
-      for (final bonus in character.activeCriticalDamageBonuses()) {
+      for (final bonus in _activeCriticalDamageBonusesForPlan(plan)) {
         final condition = bonus.condition;
         if (condition != null &&
             _externalRequirementsFromExpression(
@@ -1803,7 +1815,7 @@ class ActionResolver {
       return;
     }
 
-    final activeBonuses = bonuses ?? character.activeCriticalDamageBonuses();
+    final activeBonuses = bonuses ?? _activeCriticalDamageBonusesForPlan(plan);
 
     for (final bonus in activeBonuses) {
       if (!bonus.canTrigger) {
@@ -2044,6 +2056,111 @@ class ActionResolver {
       criticalType = criticalProfile.empowered
           ? ActionCriticalType.empowered
           : ActionCriticalType.normal;
+    }
+
+    // ===========================================================================
+    // DAMAGE COMPONENTS
+    // ===========================================================================
+
+    for (final damage in plan.content.damageComponents) {
+      final abilityModifier = character.calculateAbilityMultipliers(
+        damage.abilityModifierMultipliers,
+      );
+
+      final baseModifier = damage.flatBonus + abilityModifier;
+
+      final effectiveCriticalType = damage.participatesInCritical
+          ? criticalType
+          : ActionCriticalType.none;
+
+      final transformed = ActionCriticalDiceTransformer.transform(
+        dicePools: damage.dicePools,
+
+        baseModifier: baseModifier,
+
+        criticalType: effectiveCriticalType,
+      );
+
+      parts.add(
+        ActionDiceRequestPart(
+          id: 'damage:${plan.source.id}:${damage.id}',
+
+          effectId: damage.id,
+
+          effectName: damage.name.isNotEmpty ? damage.name : 'Daño',
+
+          effectType: AbilityEffectType.damage,
+
+          dicePools: transformed.dicePools,
+
+          baseModifier: baseModifier,
+
+          modifier: transformed.modifier,
+
+          modifierLabel: _abilityModifierMultipliersLabel(
+            damage.abilityModifierMultipliers,
+          ),
+
+          automaticValue: transformed.automaticValue,
+
+          automaticValueLabel: transformed.automaticValue != 0
+              ? _criticalAutomaticValueLabel(effectiveCriticalType)
+              : '',
+
+          sourceType: plan.source.isWeapon
+              ? ActionDiceSourceType.weapon
+              : ActionDiceSourceType.effect,
+
+          sourceId: plan.source.id,
+
+          sourceName: plan.source.name,
+
+          damageType: damage.damageType,
+
+          hitBehavior: damage.hitBehavior,
+        ),
+      );
+
+      // =========================================================================
+      // DADOS EXCLUSIVOS DE CRÍTICO
+      // =========================================================================
+
+      if (critical && damage.criticalDicePools.isNotEmpty) {
+        parts.add(
+          ActionDiceRequestPart(
+            id:
+                'damage_critical:'
+                '${plan.source.id}:'
+                '${damage.id}',
+
+            effectId: damage.id,
+
+            effectName: damage.name.isNotEmpty
+                ? '${damage.name} · crítico'
+                : 'Daño crítico',
+
+            effectType: AbilityEffectType.damage,
+
+            dicePools: List<DicePool>.unmodifiable(damage.criticalDicePools),
+
+            baseModifier: 0,
+
+            modifier: 0,
+
+            kind: ActionDicePartKind.criticalExtra,
+
+            sourceType: ActionDiceSourceType.criticalBonus,
+
+            sourceId: damage.id,
+
+            sourceName: damage.name,
+
+            damageType: damage.damageType,
+
+            hitBehavior: damage.hitBehavior,
+          ),
+        );
+      }
     }
 
     for (final effect in plan.content.effects) {
@@ -2390,12 +2507,6 @@ class ActionResolver {
     return List<ActionChanceResult>.unmodifiable(results);
   }
 
-  bool _abilityDealsDamage(CharacterAbility ability) {
-    return ability.effects.any(
-      (effect) => effect.effectType == AbilityEffectType.damage,
-    );
-  }
-
   ActionStatResolver get statResolver {
     return ActionStatResolver(character: character);
   }
@@ -2602,21 +2713,25 @@ class ActionResolver {
   // ===========================================================================
 
   List<ActionExternalRequirement> orderedExternalRequirements({
+    required ActionSource source,
     required ActionDefinition definition,
     required ActionContent content,
   }) {
     return orderedPreResolutionExternalRequirements(
+      source: source,
       definition: definition,
       content: content,
     );
   }
 
   List<ActionExternalRequirement> orderedPreResolutionExternalRequirements({
+    required ActionSource source,
     required ActionDefinition definition,
     required ActionContent content,
   }) {
     return _orderExternalRequirements(
       collectPreResolutionExternalRequirements(
+        source: source,
         definition: definition,
         content: content,
       ),
@@ -3066,6 +3181,7 @@ class ActionResolver {
   }
 
   List<ActionExternalRequirement> collectPreResolutionExternalRequirements({
+    required ActionSource source,
     required ActionDefinition definition,
     required ActionContent content,
   }) {
@@ -3102,8 +3218,20 @@ class ActionResolver {
         }
       }
 
+      final criticalBonuses = _activeCriticalDamageBonusesForPlan(
+        ActionResolutionPlan(
+          source: source,
+          definition: definition,
+          content: content,
+        ),
+      );
+
       if (definition.requiresAttackRoll) {
-        for (final bonus in character.activeCriticalDamageBonuses()) {
+        for (final bonus in criticalBonuses) {
+          if (!bonus.canTrigger) {
+            continue;
+          }
+
           if (bonus.hasCondition) {
             requirements.addAll(
               _externalRequirementsFromExpression(bonus.condition!.expression),
@@ -3370,13 +3498,16 @@ class ActionResolver {
 
     final content = ActionContent.fromAbility(ability);
 
+    final source = ActionSource.ability(ability);
+
     return ActionResolutionPlan(
-      ability: ability,
+      source: source,
       definition: definition,
       content: content,
       automaticParts: automaticParts,
       optionalParts: optionalParts,
       externalRequirements: collectPreResolutionExternalRequirements(
+        source: source,
         definition: definition,
         content: content,
       ),
@@ -3679,6 +3810,22 @@ class ActionResolver {
   }
 
   bool hasTargetSpecificConditions(CharacterAbility ability) {
+    final source = ActionSource.ability(ability);
+
+    final definition = ActionDefinition.fromAbility(ability);
+
+    final content = ActionContent.fromAbility(ability);
+
+    final plan = ActionResolutionPlan(
+      source: source,
+      definition: definition,
+      content: content,
+    );
+
+    // ===========================================================================
+    // PARTES DE LA HABILIDAD
+    // ===========================================================================
+
     final abilityHasTargetConditions = ability.effects.any(
       (effect) =>
           effect.parts.any((part) => part.externalRequirements.isNotEmpty),
@@ -3688,9 +3835,13 @@ class ActionResolver {
       return true;
     }
 
-    if (!_abilityDealsDamage(ability)) {
+    if (!content.dealsDamage) {
       return false;
     }
+
+    // ===========================================================================
+    // DAMAGE BONUSES GLOBALES
+    // ===========================================================================
 
     for (final active in character.activeDamageBonuses) {
       final bonus = active.bonus;
@@ -3712,8 +3863,12 @@ class ActionResolver {
       }
     }
 
-    if (ability.requiresAttackRoll) {
-      for (final bonus in character.activeCriticalDamageBonuses()) {
+    // ===========================================================================
+    // CRITICAL DAMAGE BONUSES
+    // ===========================================================================
+
+    if (definition.requiresAttackRoll) {
+      for (final bonus in _activeCriticalDamageBonusesForPlan(plan)) {
         final condition = bonus.condition;
 
         if (condition != null &&
@@ -4170,7 +4325,7 @@ class ActionResolver {
     // crítico + condición + chance.
     // ===========================================================================
 
-    for (final bonus in character.activeCriticalDamageBonuses()) {
+    for (final bonus in _activeCriticalDamageBonusesForPlan(plan)) {
       if (!bonus.optional) {
         continue;
       }
@@ -4330,6 +4485,18 @@ class ActionResolver {
     );
   }
 
+  ActionCriticalProfile buildCriticalProfileForWeapon(
+    Weapon weapon, {
+    bool forcedCritical = false,
+    bool? empowered,
+  }) {
+    return buildCriticalProfile(
+      minimumRollSources: character.criticalMinimumRollSourcesForWeapon(weapon),
+      forcedCritical: forcedCritical,
+      empowered: empowered ?? character.empoweredCriticalForWeapon(weapon),
+    );
+  }
+
   // ===========================================================================
   // RESOLUTION SCOPES
   //
@@ -4403,6 +4570,32 @@ class ActionResolver {
     }
 
     return false;
+  }
+
+  List<CriticalDamageBonus> _activeCriticalDamageBonusesForPlan(
+    ActionResolutionPlan plan,
+  ) {
+    // =========================================================================
+    // CONTENIDO INTRÍNSECO
+    //
+    // Para armas, los críticos propios ya fueron capturados por
+    // ActionContent.fromWeapon(). El Resolver no vuelve a consultar Weapon.
+    // =========================================================================
+
+    final intrinsicBonuses = plan.content.criticalDamageBonuses;
+
+    // =========================================================================
+    // MODIFICADORES GLOBALES DEL PERSONAJE
+    //
+    // Pasivas y efectos activos se combinan con el contenido de la acción.
+    // =========================================================================
+
+    final globalBonuses = character.activeGlobalCriticalDamageBonuses;
+
+    return List<CriticalDamageBonus>.unmodifiable([
+      ...intrinsicBonuses,
+      ...globalBonuses,
+    ]);
   }
 
   ActionDiceRequest _filterPreparedDiceRequestForScope({

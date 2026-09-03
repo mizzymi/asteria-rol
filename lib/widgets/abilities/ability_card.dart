@@ -20,7 +20,7 @@ import '../common/section_header.dart';
 class AbilityCard extends StatefulWidget {
   final CharacterAbility ability;
   final Character character;
-  final CharacterItem? sourceItem;
+  final ItemDefinition? sourceItem;
 
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -99,7 +99,7 @@ class _AbilityCardState extends State<AbilityCard> {
 
 class _CompactAbilityHeader extends StatelessWidget {
   final CharacterAbility ability;
-  final CharacterItem? sourceItem;
+  final ItemDefinition? sourceItem;
 
   final bool expanded;
   final VoidCallback onTap;

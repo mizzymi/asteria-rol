@@ -46,14 +46,14 @@ class _CombatScreenState extends State<CombatScreen> {
     return character.contentFolderById(_currentContentFolderId);
   }
 
-  CharacterItem? get _currentContentItem {
+  ItemDefinition? get _currentContentItem {
     final itemId = _currentContentItemId;
 
     if (itemId == null) {
       return null;
     }
 
-    return character.itemById(itemId);
+    return character.itemDefinitionById(itemId);
   }
 
   bool get _contentCanGoBack {
@@ -102,7 +102,7 @@ class _CombatScreenState extends State<CombatScreen> {
     });
   }
 
-  void _openContentItem(CharacterItem item) {
+  void _openContentItem(ItemDefinition item) {
     setState(() {
       _currentContentFolderId = null;
 
@@ -247,7 +247,7 @@ class _CombatScreenState extends State<CombatScreen> {
     await _save();
   }
 
-  Future<void> _resolveWeapon(CharacterItem item) async {
+  Future<void> _resolveWeapon(ItemDefinition item) async {
     final weapon = item.weapon;
 
     if (weapon == null) {
@@ -380,9 +380,27 @@ class _CombatScreenState extends State<CombatScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final equippedWeapons = character.items
-        .where((item) => item.equipped && item.isWeapon && item.weapon != null)
-        .toList(growable: false);
+    final equippedWeapons =
+        <({InventoryItem inventory, ItemDefinition definition})>[];
+
+    for (final inventoryItem in character.equippedInventoryItems) {
+      final definition = character.definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
+        continue;
+      }
+
+      if (definition.type != ItemType.weapon) {
+        continue;
+      }
+
+      if (definition.weapon == null) {
+        continue;
+      }
+
+      equippedWeapons.add((inventory: inventoryItem, definition: definition));
+    }
+
     final currentContentItem = _currentContentItem;
 
     final contentFolders =
@@ -409,7 +427,7 @@ class _CombatScreenState extends State<CombatScreen> {
 
     final itemFolders = _showingContentItemsRoot
         ? character.equippedContentItems
-        : const <CharacterItem>[];
+        : const <ItemDefinition>[];
 
     final showObjectsFolder =
         _currentContentFolderId == null &&
@@ -550,12 +568,12 @@ class _CombatScreenState extends State<CombatScreen> {
               )
             else
               ...equippedWeapons.map(
-                (item) => CombatWeaponCard(
+                (entry) => CombatWeaponCard(
                   character: character,
-                  item: item,
-
+                  item: entry.definition,
+                  inventoryItem: entry.inventory,
                   onAttack: () {
-                    _resolveWeapon(item);
+                    _resolveWeapon(entry.definition);
                   },
                 ),
               ),

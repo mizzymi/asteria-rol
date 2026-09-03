@@ -52,14 +52,14 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     return character.contentFolderById(_currentFolderId);
   }
 
-  CharacterItem? get _currentItem {
+  ItemDefinition? get _currentItem {
     final id = _currentItemId;
 
     if (id == null) {
       return null;
     }
 
-    return character.itemById(id);
+    return character.itemDefinitionById(id);
   }
 
   void _openFolder(String folderId) {
@@ -82,7 +82,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     });
   }
 
-  void _openItemFolder(CharacterItem item) {
+  void _openItemFolder(ItemDefinition item) {
     setState(() {
       _currentFolderId = null;
 
@@ -1082,7 +1082,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
     final itemFolders = _showingItemsRoot
         ? character.equippedContentItems
-        : const <CharacterItem>[];
+        : const <ItemDefinition>[];
 
     final showObjectsFolder =
         _currentFolderId == null &&

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../models/item.dart';
+import '../models/item_definition.dart';
 import '../models/item_library_entry.dart';
-import '../models/ability.dart';
-import '../models/skill.dart';
 
 import '../services/item_import_export_service.dart';
 import '../services/item_library_service.dart';
@@ -27,7 +25,9 @@ class ItemLibraryScreen extends StatefulWidget {
   }
 
   @override
-  State<ItemLibraryScreen> createState() => _ItemLibraryScreenState();
+  State<ItemLibraryScreen> createState() {
+    return _ItemLibraryScreenState();
+  }
 }
 
 class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
@@ -49,7 +49,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
   }
 
   // ===========================================================================
-  // CARGAR
+  // LOAD
   // ===========================================================================
 
   Future<void> loadLibrary() async {
@@ -66,7 +66,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
   }
 
   // ===========================================================================
-  // FILTRO
+  // SEARCH
   // ===========================================================================
 
   List<ItemLibraryEntry> get filteredEntries {
@@ -77,7 +77,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
     }
 
     return entries.where((entry) {
-      final item = entry.item;
+      final item = entry.definition;
 
       final searchable = <String>[
         item.name,
@@ -85,9 +85,9 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
         item.type.label,
         item.notes,
 
-        // =========================================================
-        // ARMA
-        // =========================================================
+        // =====================================================================
+        // WEAPON
+        // =====================================================================
         if (item.weapon != null) ...[
           item.weapon!.name,
           item.weapon!.attackAbility.name,
@@ -98,29 +98,29 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
           ),
         ],
 
-        // =========================================================
-        // CONSUMIBLE
-        // =========================================================
+        // =====================================================================
+        // CONSUMABLE
+        // =====================================================================
         if (item.consumable != null) ...[
           item.consumable!.useText,
 
           ...item.consumable!.effects.expand(
             (effect) => [
               effect.name,
-              effect.effectType.label,
+              effect.effectType.name,
               effect.diceNotation,
               effect.effectTypeName,
 
               ...effect.abilityModifierMultipliers.entries.map(
-                (entry) => '${entry.value} ${entry.key.label}',
+                (entry) => '${entry.value} ${entry.key.name}',
               ),
             ],
           ),
         ],
 
-        // =========================================================
-        // PASIVAS / HABILIDADES
-        // =========================================================
+        // =====================================================================
+        // PASSIVES / ABILITIES
+        // =====================================================================
         ...item.passives.expand(
           (passive) => [passive.name, passive.description],
         ),
@@ -135,22 +135,24 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
   }
 
   // ===========================================================================
-  // CREAR
+  // CREATE
+  //
+  // TEMPORAL:
+  // ItemFormScreen todavía devuelve CharacterItem.
+  // Lo convertimos inmediatamente a ItemDefinition.
   // ===========================================================================
 
   Future<void> createEntry() async {
-    final item = await Navigator.push<CharacterItem>(
+    final definition = await Navigator.push<ItemDefinition>(
       context,
       MaterialPageRoute(builder: (_) => const ItemFormScreen()),
     );
 
-    if (item == null || !mounted) {
+    if (definition == null || !mounted) {
       return;
     }
 
-    item.equipped = false;
-
-    await ItemLibraryService.addItem(item);
+    await ItemLibraryService.addDefinition(definition);
 
     await loadLibrary();
 
@@ -159,40 +161,40 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${item.name} añadido a la biblioteca.')),
+      SnackBar(content: Text('${definition.name} añadido a la biblioteca.')),
     );
   }
 
   // ===========================================================================
-  // EDITAR
+  // EDIT
+  //
+  // TEMPORAL:
+  // El formulario sigue trabajando con CharacterItem.
   // ===========================================================================
 
   Future<void> editEntry(ItemLibraryEntry entry) async {
-    /*
-     * Hacemos copia profunda para que cancelar
-     * el formulario no modifique la plantilla.
-     */
-    final copy = CharacterItem.fromMap(entry.item.toMap());
-
-    final result = await Navigator.push<CharacterItem>(
+    final definition = await Navigator.push<ItemDefinition>(
       context,
-      MaterialPageRoute(builder: (_) => ItemFormScreen(item: copy)),
+      MaterialPageRoute(
+        builder: (_) => ItemFormScreen(
+          definition: ItemDefinition.fromMap(entry.definition.toMap()),
+        ),
+      ),
     );
 
-    if (result == null || !mounted) {
+    if (definition == null || !mounted) {
       return;
     }
 
-    result.equipped = false;
-
-    final updatedEntry = ItemLibraryEntry(
-      id: entry.id,
-      item: result,
-      createdAt: entry.createdAt,
-      updatedAt: DateTime.now(),
+    final normalizedDefinition = _definitionWithId(
+      definition,
+      entry.definition.id,
     );
 
-    await ItemLibraryService.updateItem(updatedEntry);
+    await ItemLibraryService.updateDefinition(
+      entryId: entry.id,
+      definition: normalizedDefinition,
+    );
 
     await loadLibrary();
 
@@ -200,32 +202,42 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('${result.name} actualizado.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${normalizedDefinition.name} actualizado.')),
+    );
   }
 
   // ===========================================================================
-  // AÑADIR AL PERSONAJE
+  // ADD TO CHARACTER
+  //
+  // TEMPORAL:
+  // El caller todavía espera CharacterItem.
+  //
+  // Cuando Character utilice InventoryItem directamente,
+  // este Navigator devolverá InventoryItem.
   // ===========================================================================
 
   Future<void> addToCharacter(ItemLibraryEntry entry) async {
-    final item = await ItemLibraryService.createInventoryCopy(entry);
-
     if (!mounted) {
       return;
     }
 
-    Navigator.pop<CharacterItem>(context, item);
+    Navigator.pop<ItemDefinition>(
+      context,
+      ItemDefinition.fromMap(entry.definition.toMap()),
+    );
   }
 
   // ===========================================================================
-  // COMPARTIR
+  // SHARE
+  //
+  // TEMPORAL:
+  // ItemImportExportService todavía trabaja con CharacterItem.
   // ===========================================================================
 
   Future<void> shareEntry(ItemLibraryEntry entry) async {
     try {
-      await ItemImportExportService.shareItem(entry.item);
+      await ItemImportExportService.shareDefinition(entry.definition);
     } catch (_) {
       if (!mounted) {
         return;
@@ -238,7 +250,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
   }
 
   // ===========================================================================
-  // ELIMINAR
+  // DELETE
   // ===========================================================================
 
   Future<void> deleteEntry(ItemLibraryEntry entry) async {
@@ -247,9 +259,13 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Eliminar de biblioteca'),
+
           content: Text(
-            '¿Quieres eliminar "${entry.item.name}" de la biblioteca?',
+            '¿Quieres eliminar '
+            '"${entry.definition.name}" '
+            'de la biblioteca?',
           ),
+
           actions: [
             TextButton(
               onPressed: () {
@@ -279,62 +295,68 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
   }
 
   // ===========================================================================
-  // IMPORTAR
+  // IMPORT
+  //
+  // TEMPORAL:
+  // ItemImportExportService todavía devuelve CharacterItem.
   // ===========================================================================
 
   Future<void> importToLibrary() async {
     try {
-      final item = await ItemImportExportService.pickAndImportItem();
+      final definition =
+          await ItemImportExportService.pickAndImportDefinition();
 
-      if (item == null || !mounted) {
+      if (definition == null || !mounted) {
         return;
       }
-
-      item.equipped = false;
 
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
           return AlertDialog(
             title: const Text('Guardar en biblioteca'),
+
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.name,
+                  definition.name,
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
 
-                if (item.description.isNotEmpty) ...[
+                if (definition.description.isNotEmpty) ...[
                   const SizedBox(height: 8),
 
-                  Text(item.description),
+                  Text(definition.description),
                 ],
 
                 const SizedBox(height: 10),
 
-                Text(item.type.label),
+                Text(definition.type.label),
 
-                if (item.passives.isNotEmpty) ...[
+                if (definition.passives.isNotEmpty) ...[
                   const SizedBox(height: 4),
 
                   Text(
-                    '${item.passives.length} ${item.passives.length == 1 ? 'pasiva' : 'pasivas'}',
+                    '${definition.passives.length} '
+                    '${definition.passives.length == 1 ? 'pasiva' : 'pasivas'}',
                   ),
                 ],
 
-                if (item.abilities.isNotEmpty) ...[
+                if (definition.abilities.isNotEmpty) ...[
                   const SizedBox(height: 4),
 
                   Text(
-                    '${item.abilities.length} ${item.abilities.length == 1 ? 'habilidad' : 'habilidades'}',
+                    '${definition.abilities.length} '
+                    '${definition.abilities.length == 1 ? 'habilidad' : 'habilidades'}',
                   ),
                 ],
               ],
             ),
+
             actions: [
               TextButton(
                 onPressed: () {
@@ -359,7 +381,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
         return;
       }
 
-      await ItemLibraryService.addItem(item);
+      await ItemLibraryService.addDefinition(definition);
 
       await loadLibrary();
 
@@ -368,7 +390,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${item.name} añadido a la biblioteca.')),
+        SnackBar(content: Text('${definition.name} añadido a la biblioteca.')),
       );
     } on FormatException catch (error) {
       if (!mounted) {
@@ -400,6 +422,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Biblioteca de objetos'),
+
         actions: [
           ImportItemButton(onPressed: importToLibrary),
 
@@ -418,9 +441,6 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
           : SafeArea(
               child: Column(
                 children: [
-                  // =======================================================
-                  // BUSCADOR
-                  // =======================================================
                   Padding(
                     padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
                     child: TextField(
@@ -436,16 +456,14 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
                     ),
                   ),
 
-                  // =======================================================
-                  // CABECERA
-                  // =======================================================
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: SectionHeader(
                       icon: Icons.local_library_rounded,
                       title: 'Objetos guardados',
                       subtitle:
-                          '${filtered.length} ${filtered.length == 1 ? 'objeto' : 'objetos'}',
+                          '${filtered.length} '
+                          '${filtered.length == 1 ? 'objeto' : 'objetos'}',
                       trailing: IconButton.filledTonal(
                         tooltip: 'Crear objeto',
                         onPressed: createEntry,
@@ -456,9 +474,6 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
 
                   const SizedBox(height: 12),
 
-                  // =======================================================
-                  // LISTA
-                  // =======================================================
                   Expanded(
                     child: filtered.isEmpty
                         ? Center(
@@ -523,14 +538,27 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
       ),
     );
   }
+
+  // ===========================================================================
+  // DEFINITION COPY WITH STABLE ID
+  // ===========================================================================
+
+  ItemDefinition _definitionWithId(ItemDefinition definition, String id) {
+    final map = definition.toMap();
+
+    map['id'] = id;
+
+    return ItemDefinition.fromMap(map);
+  }
 }
 
 // =============================================================================
-// BIBLIOTECA VACÍA
+// EMPTY
 // =============================================================================
 
 class _EmptyLibrary extends StatelessWidget {
   final VoidCallback onCreate;
+
   final VoidCallback onImport;
 
   const _EmptyLibrary({required this.onCreate, required this.onImport});
@@ -570,7 +598,8 @@ class _EmptyLibrary extends StatelessWidget {
             const SizedBox(height: 8),
 
             Text(
-              'Crea objetos reutilizables o importa los que te hayan compartido.',
+              'Crea objetos reutilizables o '
+              'importa los que te hayan compartido.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,

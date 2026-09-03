@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../models/item.dart';
-import 'item_type_colors.dart';
+import '../../theme/item_type_colors.dart';
 
 class ItemImage extends StatelessWidget {
-  final CharacterItem item;
+  final ItemDefinition definition;
 
   /// Tamaño fijo del widget.
   ///
@@ -16,14 +16,20 @@ class ItemImage extends StatelessWidget {
 
   final VoidCallback? onTap;
 
-  const ItemImage({super.key, required this.item, this.size = 58, this.onTap});
+  const ItemImage({
+    super.key,
+    required this.definition,
+    this.size = 58,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = ItemTypeColors.color(item.type);
+    final color = ItemTypeColors.of(definition.type);
 
     final hasImage =
-        item.imagePath.isNotEmpty && File(item.imagePath).existsSync();
+        definition.imagePath.isNotEmpty &&
+        File(definition.imagePath).existsSync();
 
     final expanded = !size.isFinite;
 
@@ -42,20 +48,24 @@ class ItemImage extends StatelessWidget {
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: ItemTypeColors.background(context, item.type, strength: 0.22),
+          color: ItemTypeColors.background(
+            context,
+            definition.type,
+            strength: 0.22,
+          ),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         clipBehavior: Clip.antiAlias,
         child: hasImage
             ? Image.file(
-                File(item.imagePath),
+                File(definition.imagePath),
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
                 errorBuilder: (context, error, stackTrace) {
                   return Center(
                     child: Icon(
-                      ItemTypeColors.icon(item.type),
+                      ItemTypeColors.icon(definition.type),
                       color: color,
                       size: iconSize,
                     ),
@@ -64,7 +74,7 @@ class ItemImage extends StatelessWidget {
               )
             : Center(
                 child: Icon(
-                  ItemTypeColors.icon(item.type),
+                  ItemTypeColors.icon(definition.type),
                   color: color,
                   size: iconSize,
                 ),
@@ -98,7 +108,7 @@ class ItemImage extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Hero(tag: 'item-image-${item.id}', child: child),
+      child: Hero(tag: 'item-image-${definition.id}', child: child),
     );
   }
 }

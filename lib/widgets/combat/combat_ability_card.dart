@@ -9,7 +9,7 @@ import '../character_home/character_home_colors.dart';
 class CombatAbilityCard extends StatelessWidget {
   final Character character;
   final CharacterAbility ability;
-  final CharacterItem? sourceItem;
+  final ItemDefinition? sourceItem;
 
   final VoidCallback onUse;
 
@@ -171,7 +171,7 @@ class CombatAbilityCard extends StatelessWidget {
   static String _subtitle(
     Character character,
     CharacterAbility ability,
-    CharacterItem? sourceItem,
+    ItemDefinition? sourceItem,
   ) {
     if (sourceItem != null) {
       return 'Objeto · ${sourceItem.name}';

@@ -9,7 +9,7 @@ import '../character_home/character_home_colors.dart';
 class CombatPassiveCard extends StatelessWidget {
   final Character character;
   final CharacterPassive passive;
-  final CharacterItem? sourceItem;
+  final ItemDefinition? sourceItem;
 
   final VoidCallback? onRoll;
   final VoidCallback? onApplyLinkedEffects;

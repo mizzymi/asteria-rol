@@ -3,29 +3,35 @@ import 'package:flutter/material.dart';
 import '../../models/ability.dart';
 import '../../models/skill.dart';
 import '../../models/character.dart';
+import '../../models/inventory_item.dart';
 import '../../models/item.dart';
 
 import '../common/section_header.dart';
 
 import 'item_ability_preview.dart';
 import 'item_passive_preview.dart';
-import 'item_type_colors.dart';
+
+import '../../theme/item_type_colors.dart';
 
 class ItemExtendedContent extends StatelessWidget {
-  final CharacterItem item;
+  final InventoryItem inventoryItem;
+
+  final ItemDefinition definition;
 
   final Character character;
 
   final VoidCallback onEquip;
 
   final VoidCallback? onWeaponAttack;
+
   final VoidCallback? onConsumableUse;
 
   final EdgeInsetsGeometry padding;
 
   const ItemExtendedContent({
     super.key,
-    required this.item,
+    required this.inventoryItem,
+    required this.definition,
     required this.character,
     required this.onEquip,
     this.onWeaponAttack,
@@ -37,7 +43,13 @@ class ItemExtendedContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = ItemTypeColors.color(item.type);
+    final color = ItemTypeColors.of(definition.type);
+
+    final weapon = definition.weapon;
+
+    final armor = definition.armor;
+
+    final consumable = definition.consumable;
 
     return Padding(
       padding: padding,
@@ -49,7 +61,7 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // INFORMACIÓN DEL ARMA
           // ===================================================================
-          if (item.type == ItemType.weapon && item.weapon != null) ...[
+          if (definition.type == ItemType.weapon && weapon != null) ...[
             const SizedBox(height: 16),
 
             Container(
@@ -88,7 +100,7 @@ class ItemExtendedContent extends StatelessWidget {
 
                         const SizedBox(height: 8),
 
-                        ...item.weapon!.damages.map((damage) {
+                        ...weapon.damages.map((damage) {
                           final parts = <String>[];
 
                           // ===============================================
@@ -223,7 +235,7 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // ARMADURA
           // ===================================================================
-          if (item.type == ItemType.armor && item.armorCategory != null) ...[
+          if (definition.type == ItemType.armor && armor != null) ...[
             const SizedBox(height: 16),
 
             Container(
@@ -253,7 +265,7 @@ class ItemExtendedContent extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Armadura ${item.armorCategory!.label.toLowerCase()}',
+                          'Armadura ${armor.category.label.toLowerCase()}',
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w800,
                           ),
@@ -262,7 +274,7 @@ class ItemExtendedContent extends StatelessWidget {
                         const SizedBox(height: 2),
 
                         Text(
-                          'CA base ${item.armorBaseClass}',
+                          'CA base ${armor.baseArmorClass}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -278,7 +290,7 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // CONSUMIBLE
           // ===================================================================
-          if (item.type == ItemType.consumable && item.consumable != null) ...[
+          if (definition.type == ItemType.consumable && consumable != null) ...[
             const SizedBox(height: 16),
 
             Container(
@@ -318,16 +330,17 @@ class ItemExtendedContent extends StatelessWidget {
                         const SizedBox(height: 5),
 
                         Text(
-                          '${item.quantity} ${item.quantity == 1 ? 'unidad' : 'unidades'}',
+                          '${inventoryItem.quantity} '
+                          '${inventoryItem.quantity == 1 ? 'unidad' : 'unidades'}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
 
-                        if (item.consumable!.effects.isNotEmpty) ...[
+                        if (consumable.effects.isNotEmpty) ...[
                           const SizedBox(height: 8),
 
-                          ...item.consumable!.effects.map((effect) {
+                          ...consumable.effects.map((effect) {
                             final pieces = <String>[];
 
                             if (effect.diceNotation.isNotEmpty) {
@@ -402,16 +415,19 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // CALCULADORA
           // ===================================================================
-          if (item.calculable && item.calculationCosts.isNotEmpty) ...[
+          if (definition.calculable &&
+              definition.calculationCosts.isNotEmpty) ...[
             const SizedBox(height: 16),
 
-            _CalculationPreview(item: item, character: character),
+            _CalculationPreview(definition: definition, character: character),
           ],
 
           // ===================================================================
           // ACCIONES DEL ARMA
           // ===================================================================
-          if (item.isWeapon && item.equipped && onWeaponAttack != null) ...[
+          if (definition.isWeapon &&
+              inventoryItem.equipped &&
+              onWeaponAttack != null) ...[
             const SizedBox(height: 14),
 
             SizedBox(
@@ -427,21 +443,21 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // ACCIONES DEL CONSUMIBLE
           // ===================================================================
-          if (item.type == ItemType.consumable &&
-              item.consumable != null &&
+          if (definition.type == ItemType.consumable &&
+              consumable != null &&
               onConsumableUse != null) ...[
             const SizedBox(height: 14),
 
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: item.quantity > 0 ? onConsumableUse : null,
+                onPressed: inventoryItem.quantity > 0 ? onConsumableUse : null,
                 icon: const Icon(Icons.science_rounded),
                 label: Text(
-                  item.quantity <= 0
+                  inventoryItem.quantity <= 0
                       ? 'Agotado'
-                      : item.consumable!.useText.trim().isNotEmpty
-                      ? item.consumable!.useText
+                      : consumable.useText.trim().isNotEmpty
+                      ? consumable.useText
                       : 'Usar',
                 ),
               ),
@@ -451,18 +467,18 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // PASIVAS
           // ===================================================================
-          if (item.passives.isNotEmpty) ...[
+          if (definition.passives.isNotEmpty) ...[
             const SizedBox(height: 18),
 
             SectionHeader(
               icon: Icons.auto_awesome_rounded,
-              title: item.passives.length == 1 ? 'Pasiva' : 'Pasivas',
+              title: definition.passives.length == 1 ? 'Pasiva' : 'Pasivas',
               subtitle: 'Bonificaciones mientras el objeto esté equipado',
             ),
 
             const SizedBox(height: 10),
 
-            ...item.passives.map(
+            ...definition.passives.map(
               (passive) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: ItemPassivePreview(passive: passive),
@@ -473,18 +489,20 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // HABILIDADES
           // ===================================================================
-          if (item.abilities.isNotEmpty) ...[
+          if (definition.abilities.isNotEmpty) ...[
             const SizedBox(height: 18),
 
             SectionHeader(
               icon: Icons.flash_on_rounded,
-              title: item.abilities.length == 1 ? 'Habilidad' : 'Habilidades',
+              title: definition.abilities.length == 1
+                  ? 'Habilidad'
+                  : 'Habilidades',
               subtitle: 'Disponibles mientras el objeto esté equipado',
             ),
 
             const SizedBox(height: 10),
 
-            ...item.abilities.map(
+            ...definition.abilities.map(
               (ability) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: ItemAbilityPreview(ability: ability),
@@ -495,7 +513,7 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // NOTAS
           // ===================================================================
-          if (item.notes.isNotEmpty) ...[
+          if (definition.notes.isNotEmpty) ...[
             const SizedBox(height: 14),
 
             Container(
@@ -518,7 +536,7 @@ class ItemExtendedContent extends StatelessWidget {
 
                   const SizedBox(width: 8),
 
-                  Expanded(child: Text(item.notes)),
+                  Expanded(child: Text(definition.notes)),
                 ],
               ),
             ),
@@ -527,12 +545,12 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // EQUIPAR
           // ===================================================================
-          if (item.type.isEquipable) ...[
+          if (definition.type.isEquipable) ...[
             const SizedBox(height: 18),
 
             SizedBox(
               width: double.infinity,
-              child: item.equipped
+              child: inventoryItem.equipped
                   ? FilledButton.tonalIcon(
                       onPressed: onEquip,
                       icon: const Icon(Icons.check_circle_rounded),
@@ -556,46 +574,50 @@ class ItemExtendedContent extends StatelessWidget {
 // =============================================================================
 
 class _CalculationPreview extends StatelessWidget {
-  final CharacterItem item;
+  final ItemDefinition definition;
 
   final Character character;
 
-  const _CalculationPreview({required this.item, required this.character});
+  const _CalculationPreview({
+    required this.definition,
+    required this.character,
+  });
 
-  CharacterItem? _findItem(String templateId) {
-    for (final candidate in character.items) {
-      final key = candidate.templateId.trim().isNotEmpty
-          ? candidate.templateId
-          : candidate.id;
+  // ===========================================================================
+  // DEFINICIÓN DEL OBJETO DE COSTE
+  // ===========================================================================
 
-      if (key == templateId) {
-        return candidate;
-      }
-    }
-
-    return null;
+  ItemDefinition? _findDefinition(String itemId) {
+    return character.itemDefinitionById(itemId);
   }
 
-  int _available(String templateId) {
+  // ===========================================================================
+  // CANTIDAD DISPONIBLE
+  //
+  // Sumamos todas las instancias del mismo ItemDefinition.
+  // ===========================================================================
+  int _available(String itemId) {
     var total = 0;
 
-    for (final candidate in character.items) {
-      final key = candidate.templateId.trim().isNotEmpty
-          ? candidate.templateId
-          : candidate.id;
-
-      if (key == templateId) {
-        total += candidate.quantity;
+    for (final inventory in character.inventoryItems) {
+      if (inventory.itemId != itemId) {
+        continue;
       }
+
+      total += inventory.quantity;
     }
 
     return total;
   }
 
+  // ===========================================================================
+  // MÁXIMO CALCULABLE
+  // ===========================================================================
+
   int get maximum {
     int? result;
 
-    for (final cost in item.calculationCosts) {
+    for (final cost in definition.calculationCosts) {
       if (cost.quantityPerUnit <= 0) {
         continue;
       }
@@ -616,7 +638,7 @@ class _CalculationPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = ItemTypeColors.color(item.type);
+    final color = ItemTypeColors.of(definition.type);
 
     return Container(
       width: double.infinity,
@@ -670,8 +692,8 @@ class _CalculationPreview extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          ...item.calculationCosts.map((cost) {
-            final costItem = _findItem(cost.itemId);
+          ...definition.calculationCosts.map((cost) {
+            final costDefinition = _findDefinition(cost.itemId);
 
             final available = _available(cost.itemId);
 
@@ -698,7 +720,7 @@ class _CalculationPreview extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          costItem?.name ?? 'Objeto no disponible',
+                          costDefinition?.name ?? 'Objeto no disponible',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
 
@@ -751,7 +773,8 @@ class _CalculationPreview extends StatelessWidget {
                     const SizedBox(height: 2),
 
                     Text(
-                      '$maximum ${maximum == 1 ? 'unidad' : 'unidades'}',
+                      '$maximum '
+                      '${maximum == 1 ? 'unidad' : 'unidades'}',
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: color,

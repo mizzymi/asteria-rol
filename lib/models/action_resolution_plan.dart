@@ -1,16 +1,17 @@
-import 'ability.dart';
 import 'ability_effect_part.dart';
 import 'action_cost.dart';
 import 'action_definition.dart';
 import 'action_external_requirement.dart';
 import 'action_content.dart';
+import 'action_source.dart';
 
 class ActionResolutionPlan {
-  /// TEMPORAL.
+  /// Fuente real de la acción.
   ///
-  /// Lo conservamos mientras queden APIs antiguas que
-  /// necesitan CharacterAbility completa.
-  final CharacterAbility? ability;
+  /// El plan ya no necesita almacenar CharacterAbility.
+  /// Si alguna compatibilidad legacy necesita acceder a la habilidad,
+  /// puede hacerlo a través de [source.ability].
+  final ActionSource source;
 
   final ActionDefinition definition;
 
@@ -25,7 +26,7 @@ class ActionResolutionPlan {
   final List<ActionCost> costs;
 
   const ActionResolutionPlan({
-    this.ability,
+    required this.source,
     required this.definition,
     required this.content,
     this.automaticParts = const [],
@@ -34,15 +35,7 @@ class ActionResolutionPlan {
     this.costs = const [],
   });
 
-  bool get hasAbility => ability != null;
+  bool get isAbility => source.isAbility;
 
-  CharacterAbility get requireAbility {
-    final value = ability;
-
-    if (value == null) {
-      throw StateError('Este plan no procede de una habilidad.');
-    }
-
-    return value;
-  }
+  bool get isWeapon => source.isWeapon;
 }

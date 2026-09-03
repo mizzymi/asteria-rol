@@ -1,10 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'action_effect_result.dart';
-import 'character_effect.dart';
-import 'passive_trigger_external_result.dart';
-import 'character_effect_trigger_external_result.dart';
 import 'action_apply_result.dart';
 import 'external_action_outcome.dart';
 

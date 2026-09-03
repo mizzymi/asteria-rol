@@ -5,6 +5,8 @@ import '../services/formula_evaluator.dart';
 import '../services/passive_trigger_engine.dart';
 import '../services/character_effect_trigger_engine.dart';
 
+import 'inventory_item.dart';
+import 'item_definition.dart';
 import 'formulas/formula_bonus.dart';
 import 'character_content_folder.dart';
 import 'formulas/character_formula_context.dart';
@@ -77,6 +79,10 @@ class Character {
 
   List<CharacterItem> items;
 
+  List<ItemDefinition> itemDefinitions;
+
+  List<InventoryItem> inventoryItems;
+
   List<CharacterResource> resources;
 
   List<CharacterEffect> effects;
@@ -107,25 +113,26 @@ class Character {
     return result;
   }
 
-  List<CriticalDamageBonus> activeCriticalDamageBonuses([Weapon? weapon]) {
-    final result = <CriticalDamageBonus>[];
+  /// Bonos críticos globales activos del personaje.
+  ///
+  /// Incluye únicamente modificadores procedentes del personaje:
+  /// - pasivas
+  /// - efectos activos
+  ///
+  /// Los CriticalDamageBonus propios de un arma NO se incluyen aquí.
+  /// Esos forman parte de ActionContent.
+  List<CriticalDamageBonus> get activeGlobalCriticalDamageBonuses {
+    final bonuses = <CriticalDamageBonus>[];
 
-    // Bonus exclusivos del arma.
-    if (weapon != null) {
-      result.addAll(weapon.criticalDamageBonuses);
-    }
-
-    // Bonus globales de pasivas.
     for (final passive in enabledPassives) {
-      result.addAll(passive.criticalDamageBonuses);
+      bonuses.addAll(passive.criticalDamageBonuses);
     }
 
-    // Bonus globales de estados/efectos.
     for (final effect in enabledEffects) {
-      result.addAll(effect.criticalDamageBonuses);
+      bonuses.addAll(effect.criticalDamageBonuses);
     }
 
-    return result;
+    return List<CriticalDamageBonus>.unmodifiable(bonuses);
   }
 
   List<int> get criticalMinimumRollSources {
@@ -201,6 +208,8 @@ class Character {
     List<JournalEntry>? journalEntries,
     List<DiceHistoryEntry>? diceHistory,
     List<CharacterItem>? items,
+    List<ItemDefinition>? itemDefinitions,
+    List<InventoryItem>? inventoryItems,
     List<CharacterResource>? resources,
     List<CharacterEffect>? effects,
     this.combatActive = false,
@@ -226,6 +235,8 @@ class Character {
        journalEntries = journalEntries ?? [],
        diceHistory = diceHistory ?? [],
        items = items ?? [],
+       itemDefinitions = itemDefinitions ?? [],
+       inventoryItems = inventoryItems ?? [],
        resources = resources ?? [],
        effects = effects ?? [],
        counters = List<CharacterCounter>.from(counters ?? []),
@@ -355,17 +366,27 @@ class Character {
         passivesInFolder(folderId).length;
   }
 
-  List<CharacterItem> get equippedContentItems {
-    return items
-        .where(
-          (item) =>
-              item.equipped &&
-              (item.abilities.isNotEmpty || item.passives.isNotEmpty),
-        )
-        .toList(growable: false);
+  List<ItemDefinition> get equippedContentItems {
+    final result = <ItemDefinition>[];
+
+    for (final inventoryItem in equippedInventoryItems) {
+      final definition = definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
+        continue;
+      }
+
+      if (definition.abilities.isEmpty && definition.passives.isEmpty) {
+        continue;
+      }
+
+      result.add(definition);
+    }
+
+    return List<ItemDefinition>.unmodifiable(result);
   }
 
-  int itemContentCount(CharacterItem item) {
+  int itemContentCount(ItemDefinition item) {
     return item.abilities.length + item.passives.length;
   }
 
@@ -1472,12 +1493,16 @@ class Character {
       }
     }
 
-    for (final item in items) {
-      if (item.equipped) {
-        for (final passive in item.passives) {
-          if (passive.id == passiveId) {
-            return passive;
-          }
+    for (final inventoryItem in equippedInventoryItems) {
+      final definition = definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
+        continue;
+      }
+
+      for (final passive in definition.passives) {
+        if (passive.id == passiveId) {
+          return passive;
         }
       }
     }
@@ -1826,23 +1851,25 @@ class Character {
   }
 
   int get calculatedArmorClass {
-    final armor = equippedArmor;
+    final armorItem = equippedArmor;
 
-    if (armor == null || armor.armorCategory == null) {
+    if (armorItem == null || armorItem.armor == null) {
       return 10 + dexterityModifier + totalArmorClassBonus;
     }
 
-    switch (armor.armorCategory!) {
+    final armor = armorItem.armor!;
+
+    switch (armor.category) {
       case ArmorCategory.light:
-        return armor.armorBaseClass + dexterityModifier + totalArmorClassBonus;
+        return armor.baseArmorClass + dexterityModifier + totalArmorClassBonus;
 
       case ArmorCategory.medium:
         final dexBonus = dexterityModifier > 2 ? 2 : dexterityModifier;
 
-        return armor.armorBaseClass + dexBonus + totalArmorClassBonus;
+        return armor.baseArmorClass + dexBonus + totalArmorClassBonus;
 
       case ArmorCategory.heavy:
-        return armor.armorBaseClass + totalArmorClassBonus;
+        return armor.baseArmorClass + totalArmorClassBonus;
     }
   }
 
@@ -2361,16 +2388,229 @@ class Character {
     _refreshAfterEquipmentChange();
   }
 
-  CharacterItem? itemForPassive(CharacterPassive passive) {
-    for (final item in items) {
-      for (final itemPassive in item.passives) {
-        if (itemPassive.id == passive.id) {
-          return item;
-        }
+  ItemDefinition? itemForPassive(CharacterPassive passive) {
+    for (final inventoryItem in inventoryItems) {
+      final definition = definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
+        continue;
+      }
+
+      final containsPassive = definition.passives.any(
+        (itemPassive) => itemPassive.id == passive.id,
+      );
+
+      if (containsPassive) {
+        return definition;
       }
     }
 
     return null;
+  }
+
+  ItemDefinition? itemForAbility(CharacterAbility ability) {
+    for (final inventoryItem in inventoryItems) {
+      final definition = definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
+        continue;
+      }
+
+      final containsAbility = definition.abilities.any(
+        (itemAbility) => itemAbility.id == ability.id,
+      );
+
+      if (containsAbility) {
+        return definition;
+      }
+    }
+
+    return null;
+  }
+
+  ItemDefinition? itemDefinitionById(String itemId) {
+    final normalized = itemId.trim();
+
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    for (final definition in itemDefinitions) {
+      if (definition.id == normalized) {
+        return definition;
+      }
+    }
+
+    return null;
+  }
+
+  InventoryItem? inventoryItemById(String inventoryId) {
+    final normalized = inventoryId.trim();
+
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    for (final item in inventoryItems) {
+      if (item.id == normalized) {
+        return item;
+      }
+    }
+
+    return null;
+  }
+
+  ItemDefinition? definitionForInventoryItem(InventoryItem item) {
+    return itemDefinitionById(item.itemId);
+  }
+
+  List<InventoryItem> get equippedInventoryItems {
+    return inventoryItems
+        .where((item) => item.equipped)
+        .toList(growable: false);
+  }
+
+  void registerItemDefinition(ItemDefinition definition) {
+    final index = itemDefinitions.indexWhere(
+      (current) => current.id == definition.id,
+    );
+
+    final copy = ItemDefinition.fromMap(definition.toMap());
+
+    if (index < 0) {
+      itemDefinitions.add(copy);
+      return;
+    }
+
+    itemDefinitions[index] = copy;
+  }
+
+  void addInventoryItem({
+    required ItemDefinition definition,
+    int quantity = 1,
+  }) {
+    registerItemDefinition(definition);
+
+    final safeQuantity = quantity < 1 ? 1 : quantity;
+
+    // ===========================================================================
+    // STACK
+    // ===========================================================================
+
+    if (definition.stackable) {
+      for (final item in inventoryItems) {
+        if (item.itemId != definition.id) {
+          continue;
+        }
+
+        if (item.equipped) {
+          continue;
+        }
+
+        item.quantity += safeQuantity;
+
+        return;
+      }
+    }
+
+    // ===========================================================================
+    // NUEVA INSTANCIA
+    // ===========================================================================
+
+    inventoryItems.add(
+      InventoryItem(
+        id:
+            'inventory_item_'
+            '${DateTime.now().microsecondsSinceEpoch}_'
+            '${inventoryItems.length}',
+        itemId: definition.id,
+        quantity: safeQuantity,
+        equipped: false,
+        equippedSlotId: null,
+      ),
+    );
+  }
+
+  void equipInventoryItem(InventoryItem item, {String? slotId}) {
+    final definition = definitionForInventoryItem(item);
+
+    if (definition == null) {
+      return;
+    }
+
+    if (!definition.type.isEquipable) {
+      return;
+    }
+
+    final effectiveSlotId =
+        slotId ??
+        (definition.equipmentSlotIds.isNotEmpty
+            ? definition.equipmentSlotIds.first
+            : null);
+
+    if (definition.type.exclusiveSlot) {
+      for (final other in inventoryItems) {
+        if (other.id == item.id) {
+          continue;
+        }
+
+        if (!other.equipped) {
+          continue;
+        }
+
+        final otherDefinition = definitionForInventoryItem(other);
+
+        if (otherDefinition == null) {
+          continue;
+        }
+
+        if (otherDefinition.type == definition.type) {
+          other.equipped = false;
+          other.equippedSlotId = null;
+        }
+      }
+    }
+
+    if (effectiveSlotId != null) {
+      for (final other in inventoryItems) {
+        if (other.id == item.id) {
+          continue;
+        }
+
+        if (!other.equipped) {
+          continue;
+        }
+
+        if (other.equippedSlotId == effectiveSlotId) {
+          other.equipped = false;
+          other.equippedSlotId = null;
+        }
+      }
+    }
+
+    item.equipped = true;
+    item.equippedSlotId = effectiveSlotId;
+
+    _refreshAfterEquipmentChange();
+  }
+
+  void unequipInventoryItem(InventoryItem item) {
+    if (!item.equipped) {
+      return;
+    }
+
+    item.equipped = false;
+    item.equippedSlotId = null;
+
+    _refreshAfterEquipmentChange();
+  }
+
+  ItemDefinition? definitionForPassive(CharacterPassive passive) {
+    return itemForPassive(passive);
+  }
+
+  ItemDefinition? definitionForAbility(CharacterAbility ability) {
+    return itemForAbility(ability);
   }
 
   void _refreshAfterEquipmentChange() {
@@ -2893,10 +3133,16 @@ class Character {
     characterAbilities.removeWhere((ability) => ability.id == id);
   }
 
-  CharacterItem? get equippedArmor {
-    for (final item in items) {
-      if (item.equipped && item.type == ItemType.armor) {
-        return item;
+  ItemDefinition? get equippedArmor {
+    for (final inventoryItem in equippedInventoryItems) {
+      final definition = definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
+        continue;
+      }
+
+      if (definition.type == ItemType.armor && definition.armor != null) {
+        return definition;
       }
     }
 
@@ -3001,10 +3247,19 @@ class Character {
   Iterable<CharacterPassive> get enabledPassives {
     final normalPassives = passives.where((passive) => passive.enabled);
 
-    final itemPassives = items
-        .where((item) => item.equipped)
-        .expand((item) => item.passives)
-        .where((passive) => passive.enabled);
+    final itemPassives = <CharacterPassive>[];
+
+    for (final inventoryItem in equippedInventoryItems) {
+      final definition = definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
+        continue;
+      }
+
+      itemPassives.addAll(
+        definition.passives.where((passive) => passive.enabled),
+      );
+    }
 
     return [...normalPassives, ...itemPassives];
   }
@@ -3012,27 +3267,17 @@ class Character {
   List<CharacterAbility> get availableAbilities {
     final result = <CharacterAbility>[...characterAbilities];
 
-    for (final item in items) {
-      if (!item.equipped) {
+    for (final inventoryItem in equippedInventoryItems) {
+      final definition = definitionForInventoryItem(inventoryItem);
+
+      if (definition == null) {
         continue;
       }
 
-      result.addAll(item.abilities);
+      result.addAll(definition.abilities);
     }
 
     return result;
-  }
-
-  CharacterItem? itemForAbility(CharacterAbility ability) {
-    for (final item in items) {
-      for (final itemAbility in item.abilities) {
-        if (itemAbility.id == ability.id) {
-          return item;
-        }
-      }
-    }
-
-    return null;
   }
 
   int get passiveArmorClassBonus {
@@ -3431,6 +3676,12 @@ class Character {
 
       'items': items.map((item) => item.toMap()).toList(),
 
+      'itemDefinitions': itemDefinitions
+          .map((definition) => definition.toMap())
+          .toList(),
+
+      'inventoryItems': inventoryItems.map((item) => item.toMap()).toList(),
+
       'resources': resources.map((resource) => resource.toMap()).toList(),
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
@@ -3450,23 +3701,172 @@ class Character {
   }
 
   factory Character.fromMap(Map<dynamic, dynamic> map) {
+    // ===========================================================================
+    // ITEMS · NUEVO SISTEMA
+    //
+    // ItemDefinition:
+    //   define qué es el objeto.
+    //
+    // InventoryItem:
+    //   define la instancia dentro del inventario:
+    //   cantidad, equipado, slot, etc.
+    // ===========================================================================
+
+    final itemDefinitions = <ItemDefinition>[];
+
+    final inventoryItems = <InventoryItem>[];
+
+    // ===========================================================================
+    // DEFINICIONES MODERNAS
+    // ===========================================================================
+
+    final rawItemDefinitions = map['itemDefinitions'];
+
+    if (rawItemDefinitions is List) {
+      for (final rawDefinition in rawItemDefinitions) {
+        if (rawDefinition is! Map) {
+          continue;
+        }
+
+        try {
+          final definition = ItemDefinition.fromMap(
+            Map<dynamic, dynamic>.from(rawDefinition),
+          );
+
+          if (definition.id.trim().isEmpty) {
+            continue;
+          }
+
+          if (itemDefinitions.any((current) => current.id == definition.id)) {
+            continue;
+          }
+
+          itemDefinitions.add(definition);
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // ===========================================================================
+    // INVENTARIO MODERNO
+    // ===========================================================================
+
+    final rawInventoryItems = map['inventoryItems'];
+
+    if (rawInventoryItems is List) {
+      for (final rawInventoryItem in rawInventoryItems) {
+        if (rawInventoryItem is! Map) {
+          continue;
+        }
+
+        try {
+          final inventoryItem = InventoryItem.fromMap(
+            Map<dynamic, dynamic>.from(rawInventoryItem),
+          );
+
+          if (inventoryItem.id.trim().isEmpty ||
+              inventoryItem.itemId.trim().isEmpty) {
+            continue;
+          }
+
+          inventoryItems.add(inventoryItem);
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // ===========================================================================
+    // ITEMS LEGACY
+    //
+    // Se mantienen temporalmente porque todavía hay pantallas y métodos
+    // trabajando con CharacterItem.
+    //
+    // Si el personaje todavía no tiene el nuevo sistema persistido,
+    // aprovechamos estos objetos antiguos para crear automáticamente:
+    //
+    // CharacterItem
+    //       ↓
+    // ItemDefinition + InventoryItem
+    // ===========================================================================
+
     final items = <CharacterItem>[];
 
     final rawItems = map['items'];
 
     if (rawItems is List) {
       for (final rawItem in rawItems) {
-        if (rawItem == null) {
+        if (rawItem is! Map) {
           continue;
         }
 
         try {
-          items.add(CharacterItem.fromMap(Map<dynamic, dynamic>.from(rawItem)));
+          final legacyItem = CharacterItem.fromMap(
+            Map<dynamic, dynamic>.from(rawItem),
+          );
+
+          items.add(legacyItem);
+
+          // =====================================================================
+          // MIGRAR SOLAMENTE SI TODAVÍA NO EXISTE ESA DEFINICIÓN
+          // =====================================================================
+
+          final definition = legacyItem.toDefinition();
+
+          if (definition.id.trim().isNotEmpty &&
+              !itemDefinitions.any((current) => current.id == definition.id)) {
+            itemDefinitions.add(definition);
+          }
+
+          // =====================================================================
+          // MIGRAR INVENTORY ITEM
+          //
+          // Evitamos duplicarlo si ya fue cargado desde inventoryItems.
+          // =====================================================================
+
+          if (definition.id.trim().isNotEmpty) {
+            final alreadyMigrated = inventoryItems.any(
+              (current) =>
+                  current.id == legacyItem.id ||
+                  (current.itemId == definition.id &&
+                      current.quantity == legacyItem.quantity &&
+                      current.equipped == legacyItem.equipped),
+            );
+
+            if (!alreadyMigrated) {
+              final inventoryId = legacyItem.id.trim().isNotEmpty
+                  ? legacyItem.id
+                  : 'inventory_item_'
+                        '${DateTime.now().microsecondsSinceEpoch}_'
+                        '${inventoryItems.length}';
+
+              inventoryItems.add(
+                InventoryItem(
+                  id: inventoryId,
+                  itemId: definition.id,
+                  quantity: legacyItem.quantity < 1 ? 1 : legacyItem.quantity,
+                  equipped: legacyItem.equipped,
+                  equippedSlotId: null,
+                ),
+              );
+            }
+          }
         } catch (_) {
           continue;
         }
       }
     }
+
+    // ===========================================================================
+    // LIMPIAR REFERENCIAS INVÁLIDAS DEL INVENTARIO MODERNO
+    // ===========================================================================
+
+    inventoryItems.removeWhere(
+      (inventoryItem) => !itemDefinitions.any(
+        (definition) => definition.id == inventoryItem.itemId,
+      ),
+    );
 
     final counters = <CharacterCounter>[];
 
@@ -3846,6 +4246,10 @@ class Character {
       diceHistory: diceHistory,
 
       items: items,
+
+      itemDefinitions: itemDefinitions,
+
+      inventoryItems: inventoryItems,
 
       resources: resources,
 

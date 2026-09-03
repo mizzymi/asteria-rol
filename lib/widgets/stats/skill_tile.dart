@@ -28,8 +28,6 @@ class SkillTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     final ability = skill.ability;
 
     final color = StatsColors.abilityColor(ability);

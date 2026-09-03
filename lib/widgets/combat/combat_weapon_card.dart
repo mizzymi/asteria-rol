@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../models/character.dart';
+import '../../models/inventory_item.dart';
 import '../../models/item.dart';
 
 import '../character_home/character_home_colors.dart';
 
 class CombatWeaponCard extends StatelessWidget {
   final Character character;
-  final CharacterItem item;
+
+  final ItemDefinition item;
+
+  final InventoryItem inventoryItem;
 
   final VoidCallback onAttack;
 
@@ -15,12 +19,14 @@ class CombatWeaponCard extends StatelessWidget {
     super.key,
     required this.character,
     required this.item,
+    required this.inventoryItem,
     required this.onAttack,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colors = theme.colorScheme;
 
     final weapon = item.weapon;
@@ -102,7 +108,7 @@ class CombatWeaponCard extends StatelessWidget {
                 ),
               ),
 
-              if (item.equipped)
+              if (inventoryItem.equipped)
                 const Chip(
                   avatar: Icon(Icons.check_circle_rounded, size: 15),
                   label: Text('Equipado'),
@@ -142,7 +148,7 @@ class CombatWeaponCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: item.equipped ? onAttack : null,
+              onPressed: inventoryItem.equipped ? onAttack : null,
               icon: const Icon(Icons.sports_martial_arts_rounded),
               label: const Text('Atacar'),
             ),

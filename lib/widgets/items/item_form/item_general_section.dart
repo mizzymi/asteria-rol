@@ -1,29 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/item.dart';
+import '../../../models/item_definition.dart';
+
 import '../../common/app_card.dart';
 import '../../common/section_header.dart';
 
 class ItemGeneralSection extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController descriptionController;
-  final TextEditingController quantityController;
 
   final ItemType itemType;
-  final bool equipped;
 
   final ValueChanged<ItemType> onTypeChanged;
-  final ValueChanged<bool> onEquippedChanged;
 
   const ItemGeneralSection({
     super.key,
     required this.nameController,
     required this.descriptionController,
-    required this.quantityController,
     required this.itemType,
-    required this.equipped,
     required this.onTypeChanged,
-    required this.onEquippedChanged,
   });
 
   @override
@@ -78,7 +73,7 @@ class ItemGeneralSection extends StatelessWidget {
                 ),
                 items: ItemType.values
                     .map(
-                      (type) => DropdownMenuItem(
+                      (type) => DropdownMenuItem<ItemType>(
                         value: type,
                         child: Text(type.label),
                       ),
@@ -91,47 +86,67 @@ class ItemGeneralSection extends StatelessWidget {
                 },
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
 
-              TextFormField(
-                controller: quantityController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad',
-                  prefixIcon: Icon(Icons.layers_rounded),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _typeDescription(itemType),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                validator: (value) {
-                  final quantity = int.tryParse(value ?? '');
-
-                  if (quantity == null || quantity < 1) {
-                    return 'Mínimo 1';
-                  }
-
-                  return null;
-                },
               ),
-
-              if (itemType.isEquipable) ...[
-                const SizedBox(height: 6),
-
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: equipped,
-                  title: const Text('Equipado'),
-                  subtitle: itemType.exclusiveSlot
-                      ? Text(
-                          'Al equiparlo sustituirá cualquier ${itemType.label.toLowerCase()} equipado.',
-                        )
-                      : const Text(
-                          'Sus pasivas y habilidades estarán disponibles mientras esté equipado.',
-                        ),
-                  onChanged: onEquippedChanged,
-                ),
-              ],
             ],
           ),
         ),
       ],
     );
+  }
+
+  String _typeDescription(ItemType type) {
+    switch (type) {
+      case ItemType.armor:
+        return 'Armadura corporal con configuración de CA.';
+
+      case ItemType.helmet:
+        return 'Objeto pensado para el slot de cabeza.';
+
+      case ItemType.gloves:
+        return 'Objeto pensado para el slot de manos.';
+
+      case ItemType.boots:
+        return 'Objeto pensado para el slot de pies.';
+
+      case ItemType.ring:
+        return 'Anillo equipable.';
+
+      case ItemType.amulet:
+        return 'Amuleto equipable.';
+
+      case ItemType.weapon:
+        return 'Arma que puede utilizar el Action Engine.';
+
+      case ItemType.accessory:
+        return 'Objeto equipable de propósito general.';
+
+      case ItemType.consumable:
+        return 'Objeto que puede consumirse al utilizarlo.';
+
+      case ItemType.tool:
+        return 'Herramienta; no necesita habilidades ni pasivas.';
+
+      case ItemType.material:
+        return 'Material almacenado normalmente en cantidades.';
+
+      case ItemType.book:
+        return 'Libro o fuente de conocimiento.';
+
+      case ItemType.special:
+        return 'Objeto especial con comportamiento personalizado.';
+
+      case ItemType.other:
+        return 'Objeto sin una categoría específica.';
+    }
   }
 }

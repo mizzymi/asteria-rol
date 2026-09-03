@@ -1,186 +1,134 @@
-import 'consumable.dart';
 import 'ability.dart';
+import 'consumable.dart';
+import 'inventory_item.dart';
+import 'item_definition.dart';
 import 'passive.dart';
 import 'weapon.dart';
 
-enum ItemType {
-  armor,
-  helmet,
-  gloves,
-  boots,
-  ring,
-  amulet,
-  weapon,
-  accessory,
-  consumable,
-  other,
-}
+// =============================================================================
+// EXPORTS
+//
+// Permite que los archivos que históricamente hacían:
+//
+// import '../../models/item.dart';
+//
+// sigan viendo ItemType, ArmorCategory, ItemCalculationCost,
+// ItemDefinition e InventoryItem.
+// =============================================================================
 
-enum ArmorCategory { light, medium, heavy }
+export 'consumable.dart';
+export 'inventory_item.dart';
+export 'item_definition.dart';
 
-extension ArmorCategoryData on ArmorCategory {
-  String get label {
-    switch (this) {
-      case ArmorCategory.light:
-        return 'Ligera';
-
-      case ArmorCategory.medium:
-        return 'Media';
-
-      case ArmorCategory.heavy:
-        return 'Pesada';
-    }
-  }
-}
-
-extension ItemTypeData on ItemType {
-  String get label {
-    switch (this) {
-      case ItemType.armor:
-        return 'Armadura';
-
-      case ItemType.helmet:
-        return 'Casco';
-
-      case ItemType.gloves:
-        return 'Guantes';
-
-      case ItemType.boots:
-        return 'Botas';
-
-      case ItemType.ring:
-        return 'Anillo';
-
-      case ItemType.amulet:
-        return 'Amuleto';
-
-      case ItemType.weapon:
-        return 'Arma';
-
-      case ItemType.accessory:
-        return 'Accesorio';
-
-      case ItemType.consumable:
-        return 'Consumible';
-
-      case ItemType.other:
-        return 'Otro';
-    }
-  }
-
-  bool get isEquipable {
-    return this != ItemType.consumable;
-  }
-
-  bool get exclusiveSlot {
-    switch (this) {
-      case ItemType.armor:
-      case ItemType.helmet:
-      case ItemType.gloves:
-      case ItemType.boots:
-      case ItemType.amulet:
-        return true;
-
-      case ItemType.ring:
-      case ItemType.weapon:
-      case ItemType.accessory:
-      case ItemType.consumable:
-      case ItemType.other:
-        return false;
-    }
-  }
-}
+// =============================================================================
+// CHARACTER ITEM · LEGACY BRIDGE
+//
+// TEMPORAL.
+//
+// Este modelo existe mientras Character, ItemsScreen y widgets antiguos
+// todavía trabajan con una entidad que mezcla:
+//
+// - definición del objeto,
+// - cantidad,
+// - equipamiento.
+//
+// El destino final es:
+//
+// ItemDefinition + InventoryItem.
+// =============================================================================
 
 class CharacterItem {
+  // ===========================================================================
+  // INVENTORY ENTRY ID
+  // ===========================================================================
+
   String id;
+
+  // ===========================================================================
+  // DEFINITION ID LEGACY
+  //
+  // Equivale al futuro InventoryItem.itemId.
+  // ===========================================================================
+
+  String templateId;
+
+  // ===========================================================================
+  // DEFINITION DATA · LEGACY COPY
+  // ===========================================================================
 
   String name;
 
   String description;
 
+  String imagePath;
+
+  ItemType type;
+
+  String notes;
+
   bool calculable;
 
   List<ItemCalculationCost> calculationCosts;
 
-  String templateId;
-
   // ===========================================================================
-  // IMAGEN
+  // EQUIPMENT STATE
   // ===========================================================================
-
-  /// Ruta local persistente de la imagen del objeto.
-  ///
-  /// Si está vacío, el objeto utilizará su icono por defecto.
-  String imagePath;
-
-  // ===========================================================================
-  // TIPO / EQUIPAMIENTO
-  // ===========================================================================
-
-  ItemType type;
 
   bool equipped;
+
+  // ===========================================================================
+  // ARMOR
+  // ===========================================================================
 
   ArmorCategory? armorCategory;
 
   int armorBaseClass;
 
   // ===========================================================================
-  // ARMA
+  // WEAPON
   // ===========================================================================
 
   Weapon? weapon;
 
   // ===========================================================================
-  // CONTENIDO
+  // CONTENT
   // ===========================================================================
 
   List<CharacterPassive> passives;
 
   List<CharacterAbility> abilities;
 
+  Consumable? consumable;
+
   // ===========================================================================
-  // INVENTARIO
+  // INVENTORY
   // ===========================================================================
 
   int quantity;
-
-  String notes;
-
-  Consumable? consumable;
 
   CharacterItem({
     required this.id,
     required this.name,
     this.description = '',
+    String? templateId,
+    this.imagePath = '',
+    this.type = ItemType.other,
+    this.notes = '',
     this.calculable = false,
     List<ItemCalculationCost>? calculationCosts,
-    String? templateId,
-    // Imagen
-    this.imagePath = '',
-
-    // Tipo
-    this.type = ItemType.other,
     this.equipped = false,
-
-    // Armadura
     this.armorCategory,
     this.armorBaseClass = 10,
-
-    //Arma
     this.weapon,
-
-    // Contenido
     List<CharacterPassive>? passives,
     List<CharacterAbility>? abilities,
-
-    // Inventario
-    this.quantity = 1,
-    this.notes = '',
     this.consumable,
-  }) : passives = passives ?? [],
+    this.quantity = 1,
+  }) : templateId = templateId?.trim().isNotEmpty == true
+           ? templateId!.trim()
+           : id,
        calculationCosts = calculationCosts ?? [],
-       templateId = templateId?.trim().isNotEmpty == true ? templateId! : id,
+       passives = passives ?? [],
        abilities = abilities ?? [];
 
   // ===========================================================================
@@ -207,49 +155,225 @@ class CharacterItem {
     return type == ItemType.consumable && consumable != null;
   }
 
+  bool get isEquipable {
+    return type.isEquipable;
+  }
+
+  String get definitionId {
+    final value = templateId.trim();
+
+    if (value.isNotEmpty) {
+      return value;
+    }
+
+    return id;
+  }
+
   // ===========================================================================
-  // SERIALIZACIÓN
+  // CHARACTER ITEM → ITEM DEFINITION
+  // ===========================================================================
+
+  ItemDefinition toDefinition() {
+    return ItemDefinition(
+      id: definitionId,
+
+      name: name,
+
+      description: description,
+
+      type: type,
+
+      imagePath: imagePath,
+
+      notes: notes,
+
+      stackable: type.stackableByDefault,
+
+      calculable: calculable,
+
+      calculationCosts: calculationCosts
+          .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
+          .toList(),
+
+      equipmentSlotIds: type.defaultEquipmentSlotIds,
+
+      armor: armorCategory == null
+          ? null
+          : ItemArmorDefinition(
+              category: armorCategory!,
+              baseArmorClass: armorBaseClass,
+            ),
+
+      weapon: weapon == null ? null : Weapon.fromMap(weapon!.toMap()),
+
+      consumable: consumable == null
+          ? null
+          : Consumable.fromMap(consumable!.toMap()),
+
+      passives: passives
+          .map((passive) => CharacterPassive.fromMap(passive.toMap()))
+          .toList(),
+
+      abilities: abilities
+          .map((ability) => CharacterAbility.fromMap(ability.toMap()))
+          .toList(),
+    );
+  }
+
+  // ===========================================================================
+  // CHARACTER ITEM → INVENTORY ITEM
+  // ===========================================================================
+
+  InventoryItem toInventoryItem() {
+    return InventoryItem(
+      id: id,
+
+      itemId: definitionId,
+
+      quantity: quantity < 0 ? 0 : quantity,
+
+      equipped: equipped,
+
+      equippedSlotId: equipped ? type.defaultEquipmentSlotId : null,
+    );
+  }
+
+  // ===========================================================================
+  // ITEM DEFINITION → CHARACTER ITEM
+  //
+  // Compatibilidad temporal.
+  // ===========================================================================
+
+  factory CharacterItem.fromDefinition(
+    ItemDefinition definition, {
+    String? inventoryId,
+    int quantity = 1,
+    bool equipped = false,
+    String? equippedSlotId,
+  }) {
+    return CharacterItem(
+      id: inventoryId ?? DateTime.now().microsecondsSinceEpoch.toString(),
+
+      templateId: definition.id,
+
+      name: definition.name,
+
+      description: definition.description,
+
+      imagePath: definition.imagePath,
+
+      type: definition.type,
+
+      notes: definition.notes,
+
+      calculable: definition.calculable,
+
+      calculationCosts: definition.calculationCosts
+          .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
+          .toList(),
+
+      equipped: equipped,
+
+      armorCategory: definition.armor?.category,
+
+      armorBaseClass: definition.armor?.baseArmorClass ?? 10,
+
+      weapon: definition.weapon == null
+          ? null
+          : Weapon.fromMap(definition.weapon!.toMap()),
+
+      consumable: definition.consumable == null
+          ? null
+          : Consumable.fromMap(definition.consumable!.toMap()),
+
+      passives: definition.passives
+          .map((passive) => CharacterPassive.fromMap(passive.toMap()))
+          .toList(),
+
+      abilities: definition.abilities
+          .map((ability) => CharacterAbility.fromMap(ability.toMap()))
+          .toList(),
+
+      quantity: quantity < 0 ? 0 : quantity,
+    );
+  }
+
+  // ===========================================================================
+  // ITEM DEFINITION + INVENTORY ITEM → CHARACTER ITEM
+  // ===========================================================================
+
+  factory CharacterItem.fromDefinitionAndInventory({
+    required ItemDefinition definition,
+    required InventoryItem inventory,
+  }) {
+    if (inventory.itemId != definition.id) {
+      throw ArgumentError(
+        'InventoryItem "${inventory.id}" referencia '
+        '"${inventory.itemId}", pero la definición recibida es '
+        '"${definition.id}".',
+      );
+    }
+
+    return CharacterItem.fromDefinition(
+      definition,
+      inventoryId: inventory.id,
+      quantity: inventory.quantity,
+      equipped: inventory.equipped,
+      equippedSlotId: inventory.equippedSlotId,
+    );
+  }
+
+  // ===========================================================================
+  // SERIALIZATION · LEGACY
+  //
+  // Se conserva mientras Character todavía persista CharacterItem.
   // ===========================================================================
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+
+      'templateId': templateId,
+
       'name': name,
+
       'description': description,
+
+      'imagePath': imagePath,
+
+      'type': type.name,
+
+      'notes': notes,
+
       'calculable': calculable,
 
       'calculationCosts': calculationCosts.map((cost) => cost.toMap()).toList(),
-      'templateId': templateId,
-      // Imagen
-      'imagePath': imagePath,
 
-      // Tipo / equipamiento
-      'type': type.name,
       'equipped': equipped,
 
-      // Pasivas
-      'passives': passives.map((passive) => passive.toMap()).toList(),
-
-      // Habilidades
-      'abilities': abilities.map((ability) => ability.toMap()).toList(),
-
-      // Inventario
-      'quantity': quantity,
-      'notes': notes,
-      'consumable': consumable?.toMap(),
-
-      // Armadura
       'armorCategory': armorCategory?.name,
+
       'armorBaseClass': armorBaseClass,
 
-      //Arma
       'weapon': weapon?.toMap(),
+
+      'passives': passives.map((passive) => passive.toMap()).toList(),
+
+      'abilities': abilities.map((ability) => ability.toMap()).toList(),
+
+      'consumable': consumable?.toMap(),
+
+      'quantity': quantity,
     };
   }
 
+  // ===========================================================================
+  // FROM MAP · LEGACY
+  // ===========================================================================
+
   factory CharacterItem.fromMap(Map<dynamic, dynamic> map) {
     // =========================================================================
-    // PASIVAS
+    // PASSIVES
     // =========================================================================
 
     final passives = <CharacterPassive>[];
@@ -258,7 +382,7 @@ class CharacterItem {
 
     if (rawPassives is List) {
       for (final rawPassive in rawPassives) {
-        if (rawPassive == null) {
+        if (rawPassive is! Map) {
           continue;
         }
 
@@ -271,6 +395,68 @@ class CharacterItem {
         }
       }
     }
+
+    // =========================================================================
+    // LEGACY SINGLE PASSIVE
+    // =========================================================================
+
+    if (passives.isEmpty) {
+      final rawPassive = map['passive'];
+
+      if (rawPassive is Map) {
+        try {
+          passives.add(
+            CharacterPassive.fromMap(Map<dynamic, dynamic>.from(rawPassive)),
+          );
+        } catch (_) {
+          // Ignorar.
+        }
+      }
+    }
+
+    // =========================================================================
+    // ABILITIES
+    // =========================================================================
+
+    final abilities = <CharacterAbility>[];
+
+    final rawAbilities = map['abilities'];
+
+    if (rawAbilities is List) {
+      for (final rawAbility in rawAbilities) {
+        if (rawAbility is! Map) {
+          continue;
+        }
+
+        try {
+          abilities.add(
+            CharacterAbility.fromMap(Map<dynamic, dynamic>.from(rawAbility)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
+    // WEAPON
+    // =========================================================================
+
+    Weapon? weapon;
+
+    final rawWeapon = map['weapon'];
+
+    if (rawWeapon is Map) {
+      try {
+        weapon = Weapon.fromMap(Map<dynamic, dynamic>.from(rawWeapon));
+      } catch (_) {
+        weapon = null;
+      }
+    }
+
+    // =========================================================================
+    // CONSUMABLE
+    // =========================================================================
 
     Consumable? consumable;
 
@@ -286,57 +472,9 @@ class CharacterItem {
       }
     }
 
-    /*
-     * Compatibilidad con el modelo antiguo,
-     * donde había una sola pasiva.
-     */
-    if (passives.isEmpty) {
-      final oldPassive = map['passive'];
-
-      if (oldPassive is Map) {
-        try {
-          passives.add(
-            CharacterPassive.fromMap(Map<dynamic, dynamic>.from(oldPassive)),
-          );
-        } catch (_) {}
-      }
-    }
-
     // =========================================================================
-    // HABILIDADES
+    // CALCULATION COSTS
     // =========================================================================
-
-    final abilities = <CharacterAbility>[];
-
-    final rawAbilities = map['abilities'];
-
-    if (rawAbilities is List) {
-      for (final rawAbility in rawAbilities) {
-        if (rawAbility == null) {
-          continue;
-        }
-
-        try {
-          abilities.add(
-            CharacterAbility.fromMap(Map<dynamic, dynamic>.from(rawAbility)),
-          );
-        } catch (_) {
-          continue;
-        }
-      }
-    }
-
-    Weapon? weapon;
-
-    final rawWeapon = map['weapon'];
-
-    if (rawWeapon is Map) {
-      try {
-        weapon = Weapon.fromMap(Map<dynamic, dynamic>.from(rawWeapon));
-      } catch (_) {
-        weapon = null;
-      }
-    }
 
     final calculationCosts = <ItemCalculationCost>[];
 
@@ -357,76 +495,77 @@ class CharacterItem {
         }
       }
     }
+
     // =========================================================================
-    // OBJETO
+    // TYPE
+    // =========================================================================
+
+    final type = ItemType.values.firstWhere(
+      (value) => value.name == map['type']?.toString(),
+      orElse: () => ItemType.other,
+    );
+
+    // =========================================================================
+    // ARMOR
+    // =========================================================================
+
+    ArmorCategory? armorCategory;
+
+    final rawArmorCategory = map['armorCategory']?.toString();
+
+    if (rawArmorCategory != null && rawArmorCategory.isNotEmpty) {
+      armorCategory = ArmorCategory.values.firstWhere(
+        (value) => value.name == rawArmorCategory,
+        orElse: () => ArmorCategory.light,
+      );
+    }
+
+    // =========================================================================
+    // ID
+    // =========================================================================
+
+    final id = map['id']?.toString() ?? '';
+
+    final templateId = map['templateId']?.toString().trim() ?? '';
+
+    // =========================================================================
+    // RESULT
     // =========================================================================
 
     return CharacterItem(
-      id: map['id']?.toString() ?? '',
+      id: id,
+
+      templateId: templateId.isNotEmpty ? templateId : id,
 
       name: map['name']?.toString() ?? '',
 
       description: map['description']?.toString() ?? '',
 
-      calculable: map['calculable'] as bool? ?? false,
-
-      calculationCosts: calculationCosts,
-
-      templateId: map['templateId']?.toString() ?? map['id']?.toString() ?? '',
-      // Imagen
       imagePath: map['imagePath']?.toString() ?? '',
 
-      // Tipo
-      type: ItemType.values.firstWhere(
-        (item) => item.name == map['type']?.toString(),
-        orElse: () => ItemType.other,
-      ),
-
-      equipped: map['equipped'] == true,
-
-      // Pasivas
-      passives: passives,
-
-      // Habilidades
-      abilities: abilities,
-
-      // Inventario
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      type: type,
 
       notes: map['notes']?.toString() ?? '',
 
-      // Armadura
-      armorCategory: map['armorCategory'] == null
-          ? null
-          : ArmorCategory.values.firstWhere(
-              (value) => value.name == map['armorCategory']?.toString(),
-              orElse: () => ArmorCategory.light,
-            ),
+      calculable: map['calculable'] as bool? ?? calculationCosts.isNotEmpty,
+
+      calculationCosts: calculationCosts,
+
+      equipped: map['equipped'] == true,
+
+      armorCategory: armorCategory,
 
       armorBaseClass: (map['armorBaseClass'] as num?)?.toInt() ?? 10,
 
       weapon: weapon,
 
+      passives: passives,
+
+      abilities: abilities,
+
       consumable: consumable,
-    );
-  }
-}
 
-class ItemCalculationCost {
-  String itemId;
-
-  int quantityPerUnit;
-
-  ItemCalculationCost({required this.itemId, this.quantityPerUnit = 1});
-
-  Map<String, dynamic> toMap() {
-    return {'itemId': itemId, 'quantityPerUnit': quantityPerUnit};
-  }
-
-  factory ItemCalculationCost.fromMap(Map<dynamic, dynamic> map) {
-    return ItemCalculationCost(
-      itemId: map['itemId']?.toString() ?? '',
-      quantityPerUnit: (map['quantityPerUnit'] as num?)?.toInt() ?? 1,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
     );
   }
 }

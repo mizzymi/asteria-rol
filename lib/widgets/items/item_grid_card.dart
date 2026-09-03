@@ -1,23 +1,33 @@
 import 'package:flutter/material.dart';
 
-import '../../utils/number_format.dart';
-
+import '../../models/inventory_item.dart';
 import '../../models/item.dart';
 
+import '../../utils/number_format.dart';
+
+import '../../theme/item_type_colors.dart';
+
 import 'item_image.dart';
-import 'item_type_colors.dart';
 
 class ItemGridCard extends StatelessWidget {
-  final CharacterItem item;
+  final InventoryItem inventoryItem;
+
+  final ItemDefinition definition;
+
   final VoidCallback onTap;
 
-  const ItemGridCard({super.key, required this.item, required this.onTap});
+  const ItemGridCard({
+    super.key,
+    required this.inventoryItem,
+    required this.definition,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = ItemTypeColors.color(item.type);
+    final color = ItemTypeColors.of(definition.type);
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
@@ -28,7 +38,7 @@ class ItemGridCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ItemImage(item: item, size: double.infinity),
+            ItemImage(definition: definition, size: double.infinity),
 
             Positioned(
               left: 0,
@@ -61,7 +71,7 @@ class ItemGridCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  '×${formatThousands(item.quantity)}',
+                  '×${formatThousands(inventoryItem.quantity)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -70,7 +80,7 @@ class ItemGridCard extends StatelessWidget {
               ),
             ),
 
-            if (item.equipped)
+            if (inventoryItem.equipped)
               Positioned(
                 left: 8,
                 top: 8,

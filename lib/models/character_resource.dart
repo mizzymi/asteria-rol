@@ -60,7 +60,6 @@ class CharacterResource {
   }
 
   void normalize() {
-    // Recurso sin máximo.
     if (!hasMaximum) {
       maxValue = 0;
 
@@ -71,7 +70,6 @@ class CharacterResource {
       return;
     }
 
-    // El máximo BASE mínimo es 1.
     if (maxValue < 1) {
       maxValue = 1;
     }
@@ -79,16 +77,40 @@ class CharacterResource {
     if (currentValue < 0) {
       currentValue = 0;
     }
-
-    // IMPORTANTE:
-    // No limitar currentValue contra maxValue aquí.
-    //
-    // maxValue es el máximo BASE.
-    // El máximo real puede ser superior debido a pasivas.
-    //
-    // El límite contra el máximo EFECTIVO
-    // se hará desde Character.normalizeResource().
   }
+
+  // ===========================================================================
+  // ICONOS
+  // ===========================================================================
+
+  static const Map<String, IconData> _icons = {
+    'bolt': Icons.bolt_rounded,
+    'favorite': Icons.favorite_rounded,
+    'water': Icons.water_drop_rounded,
+    'shield': Icons.shield_rounded,
+    'fire': Icons.local_fire_department_rounded,
+    'star': Icons.star_rounded,
+    'magic': Icons.auto_awesome_rounded,
+    'energy': Icons.flash_on_rounded,
+  };
+
+  static IconData iconFromId(String? id) {
+    return _icons[id] ?? Icons.bolt_rounded;
+  }
+
+  static String iconIdFromIcon(IconData icon) {
+    for (final entry in _icons.entries) {
+      if (entry.value == icon) {
+        return entry.key;
+      }
+    }
+
+    return 'bolt';
+  }
+
+  // ===========================================================================
+  // SERIALIZACIÓN
+  // ===========================================================================
 
   Map<String, dynamic> toMap() {
     return {
@@ -97,7 +119,13 @@ class CharacterResource {
       'currentValue': currentValue,
       'maxValue': maxValue,
       'hasMaximum': hasMaximum,
+
+      // Nuevo sistema.
+      'iconId': iconIdFromIcon(icon),
+
+      // Lo dejamos temporalmente para compatibilidad de lectura antigua.
       'iconCodePoint': icon.codePoint,
+
       'colorValue': colorValue,
       'visible': visible,
       'spendable': spendable,
@@ -105,6 +133,8 @@ class CharacterResource {
   }
 
   factory CharacterResource.fromMap(Map<dynamic, dynamic> map) {
+    final iconId = map['iconId']?.toString();
+
     final resource = CharacterResource(
       id: map['id']?.toString() ?? '',
 
@@ -114,14 +144,9 @@ class CharacterResource {
 
       maxValue: (map['maxValue'] as num?)?.toInt() ?? 0,
 
-      // Los recursos antiguos no tenían este campo,
-      // así que siguen teniendo máximo.
       hasMaximum: map['hasMaximum'] as bool? ?? true,
 
-      icon: IconData(
-        (map['iconCodePoint'] as num?)?.toInt() ?? Icons.bolt_rounded.codePoint,
-        fontFamily: 'MaterialIcons',
-      ),
+      icon: iconFromId(iconId),
 
       colorValue: (map['colorValue'] as num?)?.toInt() ?? 0xFF8B5CF6,
 

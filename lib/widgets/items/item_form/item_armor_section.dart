@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/item.dart';
+import '../../../models/item_definition.dart';
 import '../../common/app_card.dart';
 import '../../common/section_header.dart';
 

@@ -1,38 +1,53 @@
 import 'package:flutter/material.dart';
 
 import '../models/ability.dart';
-import '../models/item.dart';
+import '../models/character.dart';
+import '../models/consumable.dart';
+import '../models/critical_damage_bonus.dart';
+import '../models/dice_pool.dart';
+import '../models/item_definition.dart';
 import '../models/passive.dart';
 import '../models/skill.dart';
 import '../models/weapon.dart';
 import '../models/weapon_damage.dart';
-import '../models/dice_pool.dart';
-import '../models/consumable.dart';
-import '../models/character.dart';
 
-import '../widgets/items/item_form/item_consumable_section.dart';
-import '../widgets/items/item_form/item_weapon_section.dart';
-import '../widgets/items/item_form/item_image_section.dart';
-import '../widgets/items/item_form/item_general_section.dart';
-import '../widgets/items/item_form/item_armor_section.dart';
-import '../widgets/items/item_form/item_passives_section.dart';
 import '../widgets/items/item_form/item_abilities_section.dart';
-import '../widgets/items/item_form/item_notes_section.dart';
+import '../widgets/items/item_form/item_armor_section.dart';
 import '../widgets/items/item_form/item_calculation_section.dart';
+import '../widgets/items/item_form/item_consumable_section.dart';
+import '../widgets/items/item_form/item_general_section.dart';
+import '../widgets/items/item_form/item_image_section.dart';
+import '../widgets/items/item_form/item_notes_section.dart';
+import '../widgets/items/item_form/item_passives_section.dart';
+import '../widgets/items/item_form/item_weapon_section.dart';
 
 import 'ability_form_screen.dart';
 import 'passive_form_screen.dart';
 
 class ItemFormScreen extends StatefulWidget {
-  final CharacterItem? item;
+  final ItemDefinition? definition;
 
-  /// Personaje al que pertenece el objeto.
+  /// Personaje usado únicamente como contexto.
   ///
-  /// Puede ser null cuando editamos un objeto
-  /// directamente desde la biblioteca.
+  /// Permite:
+  /// - mostrar recursos al editar efectos de consumibles;
+  /// - utilizar objetos del inventario como candidatos de calculadora.
+  ///
+  /// La definición NO guarda estado del inventario.
   final Character? character;
 
-  const ItemFormScreen({super.key, this.item, this.character});
+  /// Definiciones externas disponibles para la calculadora.
+  ///
+  /// Esto permite reutilizar el formulario desde biblioteca,
+  /// Master, tiendas, etc. sin depender de CharacterItem.
+  final List<ItemDefinition> availableDefinitions;
+
+  const ItemFormScreen({
+    super.key,
+    this.definition,
+    this.character,
+    this.availableDefinitions = const [],
+  });
 
   @override
   State<ItemFormScreen> createState() => _ItemFormScreenState();
@@ -49,33 +64,33 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   late final TextEditingController descriptionController;
 
-  late final TextEditingController quantityController;
-
   late final TextEditingController notesController;
 
   late final TextEditingController armorBaseClassController;
 
+  late final TextEditingController magicBonusController;
+
   // ===========================================================================
-  // ESTADO
+  // ESTADO GENERAL
   // ===========================================================================
 
   late ItemType itemType;
 
-  late ArmorCategory armorCategory;
-
-  bool equipped = false;
-
   late String imagePath;
 
-  late List<CharacterPassive> passives;
+  late bool calculable;
 
-  late List<CharacterAbility> abilities;
+  late List<ItemCalculationCost> calculationCosts;
 
-  bool get editing {
-    return widget.item != null;
-  }
+  // ===========================================================================
+  // ARMADURA
+  // ===========================================================================
 
-  late final TextEditingController magicBonusController;
+  late ArmorCategory armorCategory;
+
+  // ===========================================================================
+  // ARMA
+  // ===========================================================================
 
   late AbilityType weaponAttackAbility;
 
@@ -83,13 +98,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   late bool weaponEmpoweredCritical;
 
-  bool weaponProficient = true;
+  late bool weaponProficient;
 
   late List<WeaponDamage> weaponDamages;
-
-  late bool calculable;
-
-  late List<ItemCalculationCost> calculationCosts;
 
   // ===========================================================================
   // CONSUMIBLE
@@ -100,6 +111,86 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   late List<AbilityEffect> consumableEffects;
 
   // ===========================================================================
+  // PASIVAS / HABILIDADES
+  // ===========================================================================
+
+  late List<CharacterPassive> passives;
+
+  late List<CharacterAbility> abilities;
+
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
+
+  bool get editing {
+    return widget.definition != null;
+  }
+
+  /// Definiciones utilizables por la calculadora.
+  ///
+  /// Combina:
+  /// - definiciones proporcionadas externamente;
+  /// - objetos legacy que todavía viven en Character.items.
+  ///
+  /// Siempre deduplicamos mediante ItemDefinition.id.
+  List<ItemDefinition> get availableCalculationItems {
+    final resultById = <String, ItemDefinition>{};
+
+    final currentDefinitionId = widget.definition?.id.trim();
+
+    // =========================================================================
+    // DEFINICIONES EXTERNAS
+    // =========================================================================
+
+    for (final definition in widget.availableDefinitions) {
+      final id = definition.id.trim();
+
+      if (id.isEmpty) {
+        continue;
+      }
+
+      if (currentDefinitionId != null &&
+          currentDefinitionId.isNotEmpty &&
+          id == currentDefinitionId) {
+        continue;
+      }
+
+      resultById.putIfAbsent(
+        id,
+        () => ItemDefinition.fromMap(definition.toMap()),
+      );
+    }
+
+    // =========================================================================
+    // INVENTARIO LEGACY DEL PERSONAJE
+    // =========================================================================
+
+    final characterItems = widget.character?.items;
+
+    if (characterItems != null) {
+      for (final item in characterItems) {
+        final definition = item.toDefinition();
+
+        final id = definition.id.trim();
+
+        if (id.isEmpty) {
+          continue;
+        }
+
+        if (currentDefinitionId != null &&
+            currentDefinitionId.isNotEmpty &&
+            id == currentDefinitionId) {
+          continue;
+        }
+
+        resultById.putIfAbsent(id, () => definition);
+      }
+    }
+
+    return List<ItemDefinition>.unmodifiable(resultById.values);
+  }
+
+  // ===========================================================================
   // INIT
   // ===========================================================================
 
@@ -107,7 +198,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   void initState() {
     super.initState();
 
-    final item = widget.item;
+    final item = widget.definition;
 
     nameController = TextEditingController(text: item?.name ?? '');
 
@@ -115,15 +206,19 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       text: item?.description ?? '',
     );
 
-    quantityController = TextEditingController(text: '${item?.quantity ?? 1}');
-
     notesController = TextEditingController(text: item?.notes ?? '');
 
     armorBaseClassController = TextEditingController(
-      text: '${item?.armorBaseClass ?? 11}',
+      text: '${item?.armor?.baseArmorClass ?? 11}',
     );
 
     itemType = item?.type ?? ItemType.other;
+
+    imagePath = item?.imagePath ?? '';
+
+    // =========================================================================
+    // CALCULADORA
+    // =========================================================================
 
     calculable = item?.calculable ?? false;
 
@@ -131,9 +226,17 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         item?.calculationCosts
             .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
             .toList() ??
-        [];
+        <ItemCalculationCost>[];
 
-    armorCategory = item?.armorCategory ?? ArmorCategory.light;
+    // =========================================================================
+    // ARMADURA
+    // =========================================================================
+
+    armorCategory = item?.armor?.category ?? ArmorCategory.light;
+
+    // =========================================================================
+    // ARMA
+    // =========================================================================
 
     final weapon = item?.weapon;
 
@@ -153,7 +256,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         weapon?.damages
             .map((damage) => WeaponDamage.fromMap(damage.toMap()))
             .toList() ??
-        [];
+        <WeaponDamage>[];
+
+    // =========================================================================
+    // CONSUMIBLE
+    // =========================================================================
 
     final consumable = item?.consumable;
 
@@ -162,34 +269,28 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         : 'Usar';
 
     consumableEffects =
-        consumable?.effects
-            .map<AbilityEffect>((effect) => _cloneConsumableEffect(effect))
-            .toList() ??
+        consumable?.effects.map(_cloneConsumableEffect).toList() ??
         <AbilityEffect>[];
 
-    equipped = item?.equipped ?? false;
-
-    imagePath = item?.imagePath ?? '';
-
     // =========================================================================
-    // COPIA PROFUNDA DE PASIVAS
+    // PASIVAS
     // =========================================================================
 
     passives =
         item?.passives
             .map((passive) => CharacterPassive.fromMap(passive.toMap()))
             .toList() ??
-        [];
+        <CharacterPassive>[];
 
     // =========================================================================
-    // COPIA PROFUNDA DE HABILIDADES
+    // HABILIDADES
     // =========================================================================
 
     abilities =
         item?.abilities
             .map((ability) => CharacterAbility.fromMap(ability.toMap()))
             .toList() ??
-        [];
+        <CharacterAbility>[];
   }
 
   // ===========================================================================
@@ -200,20 +301,15 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     setState(() {
       consumableEffects.add(
         AbilityEffect(
-          id: '${DateTime.now().microsecondsSinceEpoch}_consumable_effect',
-
+          id:
+              '${DateTime.now().microsecondsSinceEpoch}'
+              '_consumable_effect',
           name: '',
-
           effectType: AbilityEffectType.healing,
-
           dicePools: [DicePool(count: 1, sides: 4)],
-
           abilityModifierMultipliers: {},
-
           legacyAddAbilityModifier: false,
-
           effectBonus: 0,
-
           saveSuccessEffect: SaveSuccessEffect.half,
         ),
       );
@@ -264,6 +360,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     });
   }
 
+  AbilityEffect _cloneConsumableEffect(AbilityEffect effect) {
+    return AbilityEffect.fromMap(effect.toMap());
+  }
+
   // ===========================================================================
   // PASIVAS
   // ===========================================================================
@@ -278,48 +378,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
-    /*
-     * Las pasivas creadas desde un objeto
-     * siempre se marcan como procedentes
-     * de un objeto.
-     */
     passive.sourceType = PassiveSourceType.item;
 
     setState(() {
       passives.add(passive);
     });
-  }
-
-  AbilityEffect _cloneConsumableEffect(AbilityEffect effect) {
-    return AbilityEffect(
-      id: effect.id,
-
-      name: effect.name,
-
-      effectType: effect.effectType,
-
-      dicePools: effect.dicePools
-          .map((pool) => DicePool(count: pool.count, sides: pool.sides))
-          .toList(),
-
-      abilityModifierMultipliers: Map<AbilityType, int>.from(
-        effect.abilityModifierMultipliers,
-      ),
-
-      legacyAddAbilityModifier: effect.legacyAddAbilityModifier,
-
-      effectBonus: effect.effectBonus,
-
-      effectTypeName: effect.effectTypeName,
-
-      usesSavingThrow: effect.usesSavingThrow,
-
-      savingThrowAbility: effect.savingThrowAbility,
-
-      saveDcBonus: effect.saveDcBonus,
-
-      saveSuccessEffect: effect.saveSuccessEffect,
-    );
   }
 
   Future<void> editPassive(int index) async {
@@ -365,7 +428,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               },
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -446,7 +508,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               },
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -468,6 +529,36 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   // ===========================================================================
+  // RESOLUCIÓN DE PROPIEDADES DE DEFINICIÓN
+  // ===========================================================================
+
+  bool _resolvedStackable() {
+    final original = widget.definition;
+
+    if (original != null && original.type == itemType) {
+      return original.stackable;
+    }
+
+    return itemType.stackableByDefault;
+  }
+
+  List<String> _resolvedEquipmentSlotIds() {
+    if (!itemType.isEquipable) {
+      return const [];
+    }
+
+    final original = widget.definition;
+
+    if (original != null &&
+        original.type == itemType &&
+        original.equipmentSlotIds.isNotEmpty) {
+      return List<String>.from(original.equipmentSlotIds);
+    }
+
+    return List<String>.from(itemType.defaultEquipmentSlotIds);
+  }
+
+  // ===========================================================================
   // GUARDAR
   // ===========================================================================
 
@@ -475,6 +566,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    // =========================================================================
+    // VALIDAR ARMA
+    // =========================================================================
 
     if (itemType == ItemType.weapon && weaponDamages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -486,6 +581,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
+    // =========================================================================
+    // ARMA
+    // =========================================================================
+
     Weapon? weapon;
 
     if (itemType == ItemType.weapon) {
@@ -493,38 +592,41 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           ? weaponDamages.first
           : null;
 
+      final existingWeapon = widget.definition?.weapon;
+
       weapon = Weapon(
         id:
-            widget.item?.weapon?.id ??
+            existingWeapon?.id ??
             DateTime.now().microsecondsSinceEpoch.toString(),
-
         name: nameController.text.trim(),
-
         attackAbility: weaponAttackAbility,
-
         proficient: weaponProficient,
-
         magicBonus: int.tryParse(magicBonusController.text) ?? 0,
-
         criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
-
         empoweredCritical: weaponEmpoweredCritical,
 
-        // =========================================================
-        // LEGACY
-        // =========================================================
+        // Legacy
         damageDice: primaryDamage?.diceNotation ?? '1d6',
-
         damageType: primaryDamage?.damageType ?? 'Cortante',
 
-        // =========================================================
-        // NUEVO SISTEMA
-        // =========================================================
+        // Sistema actual
         damages: weaponDamages
             .map((damage) => WeaponDamage.fromMap(damage.toMap()))
             .toList(),
+
+        // Conservamos bonuses intrínsecos
+        // que todavía no tienen editor aquí.
+        criticalDamageBonuses:
+            existingWeapon?.criticalDamageBonuses
+                .map((bonus) => CriticalDamageBonus.fromMap(bonus.toMap()))
+                .toList() ??
+            <CriticalDamageBonus>[],
       );
     }
+
+    // =========================================================================
+    // CONSUMIBLE
+    // =========================================================================
 
     Consumable? consumable;
 
@@ -533,63 +635,66 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         useText: consumableUseText.trim().isEmpty
             ? 'Usar'
             : consumableUseText.trim(),
-
         effects: consumableEffects.map(_cloneConsumableEffect).toList(),
       );
     }
 
-    final quantity = int.tryParse(quantityController.text) ?? 1;
+    // =========================================================================
+    // ARMADURA
+    // =========================================================================
 
     final armorBaseClass = int.tryParse(armorBaseClassController.text) ?? 10;
 
-    final item = CharacterItem(
-      id: widget.item?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+    // =========================================================================
+    // DEFINICIÓN
+    // =========================================================================
 
-      calculable: calculable,
+    final definition = ItemDefinition(
+      id:
+          widget.definition?.id ??
+          DateTime.now().microsecondsSinceEpoch.toString(),
 
-      calculationCosts: calculationCosts
-          .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
-          .toList(),
-      // Imagen
-      imagePath: imagePath,
-
-      // Datos generales
       name: nameController.text.trim(),
 
       description: descriptionController.text.trim(),
 
       type: itemType,
 
-      quantity: quantity,
+      imagePath: imagePath,
 
       notes: notesController.text.trim(),
 
-      // Equipamiento
-      equipped: itemType.isEquipable ? equipped : false,
+      stackable: _resolvedStackable(),
 
-      // Armadura
-      armorCategory: itemType == ItemType.armor ? armorCategory : null,
+      calculable: calculable,
 
-      armorBaseClass: itemType == ItemType.armor ? armorBaseClass : 10,
+      calculationCosts: calculationCosts
+          .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
+          .toList(),
 
-      //Arma
+      equipmentSlotIds: _resolvedEquipmentSlotIds(),
+
+      armor: itemType == ItemType.armor
+          ? ItemArmorDefinition(
+              category: armorCategory,
+              baseArmorClass: armorBaseClass,
+            )
+          : null,
+
       weapon: weapon,
 
-      // Consumible
       consumable: consumable,
 
-      // Pasivas
       passives: passives
           .map((passive) => CharacterPassive.fromMap(passive.toMap()))
           .toList(),
 
-      // Habilidades
       abilities: abilities
           .map((ability) => CharacterAbility.fromMap(ability.toMap()))
           .toList(),
     );
 
-    Navigator.pop(context, item);
+    Navigator.pop<ItemDefinition>(context, definition);
   }
 
   // ===========================================================================
@@ -650,7 +755,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               },
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
               onPressed: () {
                 Navigator.pop(dialogContext, true);
@@ -685,7 +789,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Dados extra de crítico'),
-
           content: TextFormField(
             initialValue: diceText,
             autofocus: true,
@@ -699,7 +802,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               diceText = value;
             },
           ),
-
           actions: [
             TextButton(
               onPressed: () {
@@ -707,13 +809,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               },
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
               onPressed: () {
                 final text = diceText.trim();
 
-                // Vacío = eliminar los dados
-                // extra de crítico.
+                // Vacío = eliminar dados extra.
                 if (text.isEmpty) {
                   Navigator.pop(dialogContext, <DicePool>[]);
 
@@ -726,7 +826,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Usa un formato válido, por ejemplo 2d6 o 1d6 + 1d4.',
+                        'Usa un formato válido, por ejemplo '
+                        '2d6 o 1d6 + 1d4.',
                       ),
                     ),
                   );
@@ -759,7 +860,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       text: damage?.diceNotation ?? '1d8',
     );
 
-    final nameController = TextEditingController(text: damage?.name ?? '');
+    final damageNameController = TextEditingController(
+      text: damage?.name ?? '',
+    );
 
     final damageTypeController = TextEditingController(
       text: damage?.damageType ?? 'Cortante',
@@ -769,9 +872,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       text: '${damage?.bonus ?? 0}',
     );
 
-    bool addAbilityModifier = damage?.addAbilityModifier ?? true;
+    var addAbilityModifier = damage?.addAbilityModifier ?? true;
 
-    AbilityType abilityType = damage?.abilityType ?? weaponAttackAbility;
+    var abilityType = damage?.abilityType ?? weaponAttackAbility;
 
     final result = await showDialog<WeaponDamage>(
       context: context,
@@ -785,7 +888,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
-                      controller: nameController,
+                      controller: damageNameController,
                       decoration: const InputDecoration(
                         labelText: 'Nombre',
                         hintText: 'Daño principal',
@@ -846,17 +949,19 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                           labelText: 'Atributo',
                         ),
                         items: AbilityType.values.map((ability) {
-                          return DropdownMenuItem(
+                          return DropdownMenuItem<AbilityType>(
                             value: ability,
                             child: Text(ability.label),
                           );
                         }).toList(),
                         onChanged: (value) {
-                          if (value != null) {
-                            setDialogState(() {
-                              abilityType = value;
-                            });
+                          if (value == null) {
+                            return;
                           }
+
+                          setDialogState(() {
+                            abilityType = value;
+                          });
                         },
                       ),
                   ],
@@ -875,10 +980,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                     final pools = _parseWeaponDice(diceController.text);
 
                     if (pools == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Usa un formato de dados válido, por ejemplo 1d8 o 2d6.',
+                            'Usa un formato de dados válido, '
+                            'por ejemplo 1d8 o 2d6.',
                           ),
                         ),
                       );
@@ -892,12 +998,15 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         id:
                             damage?.id ??
                             DateTime.now().microsecondsSinceEpoch.toString(),
-                        name: nameController.text.trim(),
+                        name: damageNameController.text.trim(),
                         dicePools: pools,
                         addAbilityModifier: addAbilityModifier,
                         abilityType: abilityType,
                         bonus: int.tryParse(bonusController.text) ?? 0,
                         damageType: damageTypeController.text.trim(),
+
+                        // Conservamos la configuración
+                        // de crítico existente.
                         criticalDicePools:
                             damage?.criticalDicePools
                                 .map(
@@ -907,7 +1016,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                                   ),
                                 )
                                 .toList() ??
-                            [],
+                            <DicePool>[],
+
+                        participatesInCritical:
+                            damage?.participatesInCritical ?? true,
                       ),
                     );
                   },
@@ -921,7 +1033,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     );
 
     diceController.dispose();
-    nameController.dispose();
+    damageNameController.dispose();
     damageTypeController.dispose();
     bonusController.dispose();
 
@@ -965,33 +1077,33 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     return pools;
   }
 
+  // ===========================================================================
+  // CALCULADORA
+  // ===========================================================================
+
   void addCalculationCost() {
-    final candidates = widget.character?.items ?? [];
+    ItemDefinition? candidate;
 
-    CharacterItem? candidate;
+    for (final item in availableCalculationItems) {
+      final alreadyUsed = calculationCosts.any(
+        (cost) => cost.itemId == item.id,
+      );
 
-    for (final item in candidates) {
-      final key = item.templateId.isNotEmpty ? item.templateId : item.id;
-
-      final alreadyUsed = calculationCosts.any((cost) => cost.itemId == key);
-
-      if (!alreadyUsed) {
-        candidate = item;
-        break;
+      if (alreadyUsed) {
+        continue;
       }
+
+      candidate = item;
+      break;
     }
 
     if (candidate == null) {
       return;
     }
 
-    final key = candidate.templateId.isNotEmpty
-        ? candidate.templateId
-        : candidate.id;
-
     setState(() {
       calculationCosts.add(
-        ItemCalculationCost(itemId: key, quantityPerUnit: 1),
+        ItemCalculationCost(itemId: candidate!.id, quantityPerUnit: 1),
       );
     });
   }
@@ -1039,8 +1151,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     nameController.dispose();
 
     descriptionController.dispose();
-
-    quantityController.dispose();
 
     notesController.dispose();
 
@@ -1097,40 +1207,24 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
                 descriptionController: descriptionController,
 
-                quantityController: quantityController,
-
                 itemType: itemType,
-
-                equipped: equipped,
 
                 onTypeChanged: (value) {
                   setState(() {
                     itemType = value;
-
-                    /*
-                     * Consumibles no pueden
-                     * estar equipados.
-                     */
-                    if (!itemType.isEquipable) {
-                      equipped = false;
-                    }
-                  });
-                },
-
-                onEquippedChanged: (value) {
-                  setState(() {
-                    equipped = value;
                   });
                 },
               ),
 
               const SizedBox(height: 28),
 
+              // ===============================================================
+              // CALCULADORA
+              // ===============================================================
               ItemCalculationSection(
                 calculable: calculable,
 
-                availableItems:
-                    widget.character?.items ?? const <CharacterItem>[],
+                availableItems: availableCalculationItems,
 
                 costs: calculationCosts,
 
@@ -1168,6 +1262,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 ),
               ],
 
+              // ===============================================================
+              // ARMA
+              // ===============================================================
               if (itemType == ItemType.weapon) ...[
                 const SizedBox(height: 28),
 
@@ -1222,6 +1319,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 ),
               ],
 
+              // ===============================================================
+              // CONSUMIBLE
+              // ===============================================================
               if (itemType == ItemType.consumable) ...[
                 const SizedBox(height: 28),
 

@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 
-import '../../utils/number_format.dart';
-
 import '../../models/character.dart';
+import '../../models/inventory_item.dart';
 import '../../models/item.dart';
+
+import '../../utils/number_format.dart';
 
 import '../common/app_card.dart';
 import '../common/info_badge.dart';
 
+import '../../theme/item_type_colors.dart';
+
 import 'item_extended_content.dart';
 import 'item_image.dart';
 import 'item_image_viewer.dart';
-import 'item_type_colors.dart';
 
 class ItemCard extends StatefulWidget {
-  final CharacterItem item;
+  final InventoryItem inventoryItem;
+
+  final ItemDefinition definition;
+
   final Character character;
 
   final VoidCallback onEquip;
@@ -29,7 +34,8 @@ class ItemCard extends StatefulWidget {
 
   const ItemCard({
     super.key,
-    required this.item,
+    required this.inventoryItem,
+    required this.definition,
     required this.character,
     required this.onEquip,
     required this.onEdit,
@@ -48,25 +54,28 @@ class ItemCard extends StatefulWidget {
 class _ItemCardState extends State<ItemCard> {
   bool expanded = false;
 
-  CharacterItem get item => widget.item;
+  InventoryItem get inventoryItem => widget.inventoryItem;
+
+  ItemDefinition get definition => widget.definition;
 
   @override
   Widget build(BuildContext context) {
-    final color = ItemTypeColors.color(item.type);
+    final color = ItemTypeColors.of(definition.type);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 14),
       padding: EdgeInsets.zero,
       accentColor: color,
-      showAccentBar: item.equipped,
-      emphasized: item.equipped,
+      showAccentBar: inventoryItem.equipped,
+      emphasized: inventoryItem.equipped,
       child: Column(
         children: [
           // ===================================================================
           // CABECERA
           // ===================================================================
           _ItemHeader(
-            item: item,
+            inventoryItem: inventoryItem,
+            definition: definition,
             expanded: expanded,
             color: color,
             onTap: () {
@@ -74,9 +83,9 @@ class _ItemCardState extends State<ItemCard> {
                 expanded = !expanded;
               });
             },
-            onImageTap: item.hasImage
+            onImageTap: definition.hasImage
                 ? () {
-                    ItemImageViewer.show(context, item);
+                    ItemImageViewer.show(context, definition);
                   }
                 : null,
             onEdit: widget.onEdit,
@@ -96,7 +105,8 @@ class _ItemCardState extends State<ItemCard> {
                 : CrossFadeState.showFirst,
             firstChild: const SizedBox(width: double.infinity),
             secondChild: ItemExtendedContent(
-              item: item,
+              inventoryItem: inventoryItem,
+              definition: definition,
               character: widget.character,
               onEquip: widget.onEquip,
               onWeaponAttack: widget.onWeaponAttack,
@@ -114,7 +124,9 @@ class _ItemCardState extends State<ItemCard> {
 // =============================================================================
 
 class _ItemHeader extends StatelessWidget {
-  final CharacterItem item;
+  final InventoryItem inventoryItem;
+
+  final ItemDefinition definition;
 
   final bool expanded;
 
@@ -132,7 +144,8 @@ class _ItemHeader extends StatelessWidget {
   final VoidCallback? onQuickQuantityEdit;
 
   const _ItemHeader({
-    required this.item,
+    required this.inventoryItem,
+    required this.definition,
     required this.expanded,
     required this.color,
     required this.onTap,
@@ -158,7 +171,7 @@ class _ItemHeader extends StatelessWidget {
             // =================================================================
             // IMAGEN
             // =================================================================
-            ItemImage(item: item, size: 62, onTap: onImageTap),
+            ItemImage(definition: definition, size: 62, onTap: onImageTap),
 
             const SizedBox(width: 12),
 
@@ -170,7 +183,7 @@ class _ItemHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.name,
+                    definition.name,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -183,25 +196,27 @@ class _ItemHeader extends StatelessWidget {
                     runSpacing: 6,
                     children: [
                       InfoBadge(
-                        icon: ItemTypeColors.icon(item.type),
-                        text: item.type.label,
+                        icon: ItemTypeColors.icon(definition.type),
+                        text: definition.type.label,
                         color: color,
                         highlighted: true,
                       ),
 
-                      if (item.quantity > 1 || item.calculable)
+                      if (inventoryItem.quantity > 1 || definition.calculable)
                         InkWell(
                           borderRadius: BorderRadius.circular(20),
-                          onTap: item.calculable ? onQuickQuantityEdit : null,
+                          onTap: definition.calculable
+                              ? onQuickQuantityEdit
+                              : null,
                           child: InfoBadge(
                             icon: Icons.layers_rounded,
-                            text: '×${formatThousands(item.quantity)}',
-                            color: item.calculable ? color : null,
-                            highlighted: item.calculable,
+                            text: '×${formatThousands(inventoryItem.quantity)}',
+                            color: definition.calculable ? color : null,
+                            highlighted: definition.calculable,
                           ),
                         ),
 
-                      if (item.equipped)
+                      if (inventoryItem.equipped)
                         InfoBadge(
                           icon: Icons.check_circle_rounded,
                           text: 'Equipado',
@@ -209,25 +224,25 @@ class _ItemHeader extends StatelessWidget {
                           highlighted: true,
                         ),
 
-                      if (item.passives.isNotEmpty)
+                      if (definition.passives.isNotEmpty)
                         InfoBadge(
                           icon: Icons.auto_awesome_rounded,
-                          text: '${item.passives.length}',
+                          text: '${definition.passives.length}',
                         ),
 
-                      if (item.abilities.isNotEmpty)
+                      if (definition.abilities.isNotEmpty)
                         InfoBadge(
                           icon: Icons.flash_on_rounded,
-                          text: '${item.abilities.length}',
+                          text: '${definition.abilities.length}',
                         ),
                     ],
                   ),
 
-                  if (item.description.isNotEmpty) ...[
+                  if (definition.description.isNotEmpty) ...[
                     const SizedBox(height: 8),
 
                     Text(
-                      item.description,
+                      definition.description,
                       maxLines: expanded ? null : 2,
                       overflow: expanded ? null : TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(

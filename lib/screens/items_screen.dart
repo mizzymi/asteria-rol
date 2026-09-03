@@ -1,13 +1,11 @@
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/skill.dart';
 import '../models/character.dart';
 import '../models/item.dart';
-import '../models/ability.dart';
+import '../models/inventory_item.dart';
 
 import '../services/character_storage_service.dart';
 import '../services/item_library_service.dart';
@@ -23,11 +21,17 @@ import '../widgets/items/item_grid_card.dart';
 import '../widgets/items/item_extended_content.dart';
 import '../widgets/items/item_image.dart';
 import '../widgets/items/item_image_viewer.dart';
-import '../widgets/items/item_type_colors.dart';
 import '../services/item_import_export_service.dart';
+
+import '../theme/item_type_colors.dart';
 
 import 'item_library_screen.dart';
 import 'item_form_screen.dart';
+
+typedef InventoryItemView = ({
+  InventoryItem inventory,
+  ItemDefinition definition,
+});
 
 class ItemsScreen extends StatefulWidget {
   final Character character;
@@ -60,17 +64,17 @@ class _ItemsScreenState extends State<ItemsScreen> {
   // ===========================================================================
 
   Future<void> createItem() async {
-    final result = await Navigator.push<CharacterItem>(
+    final definition = await Navigator.push<ItemDefinition>(
       context,
-      MaterialPageRoute(builder: (_) => const ItemFormScreen()),
+      MaterialPageRoute(builder: (_) => ItemFormScreen(character: character)),
     );
 
-    if (result == null) {
+    if (definition == null || !mounted) {
       return;
     }
 
     setState(() {
-      _addOrStackItem(result);
+      character.addInventoryItem(definition: definition, quantity: 1);
 
       character.normalizeHealth();
     });
@@ -78,80 +82,63 @@ class _ItemsScreenState extends State<ItemsScreen> {
     await save();
   }
 
-  // ===========================================================================
-  // STACK / CANTIDADES
-  // ===========================================================================
-
-  String _itemStackKey(CharacterItem item) {
-    final map = Map<String, dynamic>.from(item.toMap());
-
-    /*
-   * Campos que NO determinan si dos objetos
-   * son el mismo tipo de objeto.
-   */
-    map.remove('id');
-    map.remove('quantity');
-    map.remove('equipped');
-    map.remove('imagePath');
-
-    /*
-   * Los IDs de pasivas/habilidades cambian
-   * cuando hacemos copias desde la biblioteca,
-   * así que también los ignoramos.
-   */
-    void cleanIds(dynamic value) {
-      if (value is Map) {
-        value.remove('id');
-
-        for (final child in value.values) {
-          cleanIds(child);
-        }
-      } else if (value is List) {
-        for (final child in value) {
-          cleanIds(child);
-        }
-      }
-    }
-
-    cleanIds(map);
-
-    return jsonEncode(map);
+  ItemDefinition? _definitionFor(InventoryItem inventory) {
+    return character.definitionForInventoryItem(inventory);
   }
 
-  bool _sameStackableItem(CharacterItem a, CharacterItem b) {
-    return _itemStackKey(a) == _itemStackKey(b);
+  List<InventoryItemView> get _resolvedInventory {
+    final result = <InventoryItemView>[];
+
+    for (final inventory in character.inventoryItems) {
+      final definition = _definitionFor(inventory);
+
+      if (definition == null) {
+        continue;
+      }
+
+      result.add((inventory: inventory, definition: definition));
+    }
+
+    return List<InventoryItemView>.unmodifiable(result);
   }
 
   // ===========================================================================
   // EDITAR
   // ===========================================================================
 
-  Future<void> editItem(CharacterItem item) async {
-    final result = await Navigator.push<CharacterItem>(
+  Future<void> editItem(
+    InventoryItem inventory,
+    ItemDefinition definition,
+  ) async {
+    final updatedDefinition = await Navigator.push<ItemDefinition>(
       context,
-      MaterialPageRoute(builder: (_) => ItemFormScreen(item: item)),
+      MaterialPageRoute(
+        builder: (_) => ItemFormScreen(
+          definition: ItemDefinition.fromMap(definition.toMap()),
+          character: character,
+        ),
+      ),
     );
 
-    if (result == null) {
-      return;
-    }
-
-    final index = character.items.indexWhere((value) => value.id == result.id);
-
-    if (index < 0) {
+    if (updatedDefinition == null || !mounted) {
       return;
     }
 
     setState(() {
-      character.updateItem(result);
+      // El ID es identidad estable.
+      final normalized = ItemDefinition.fromMap(updatedDefinition.toMap());
 
-      /*
-       * Si sigue equipado, volvemos a aplicar
-       * la lógica de equipamiento por si cambió
-       * el tipo o el slot.
-       */
-      if (result.equipped) {
-        character.equipItem(result);
+      final map = normalized.toMap();
+
+      map['id'] = definition.id;
+
+      character.registerItemDefinition(ItemDefinition.fromMap(map));
+
+      if (inventory.equipped) {
+        character.equipInventoryItem(
+          inventory,
+          slotId: inventory.equippedSlotId,
+        );
       }
 
       character.normalizeHealth();
@@ -164,13 +151,16 @@ class _ItemsScreenState extends State<ItemsScreen> {
   // ELIMINAR
   // ===========================================================================
 
-  Future<void> deleteItem(CharacterItem item) async {
+  Future<void> deleteItem(
+    InventoryItem inventory,
+    ItemDefinition definition,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Eliminar objeto'),
-          content: Text('¿Quieres eliminar "${item.name}"?'),
+          content: Text('¿Quieres eliminar "${definition.name}"?'),
           actions: [
             TextButton(
               onPressed: () {
@@ -178,7 +168,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
               },
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -190,12 +179,12 @@ class _ItemsScreenState extends State<ItemsScreen> {
       },
     );
 
-    if (confirmed != true) {
+    if (confirmed != true || !mounted) {
       return;
     }
 
     setState(() {
-      character.removeItem(item.id);
+      character.inventoryItems.removeWhere((item) => item.id == inventory.id);
 
       character.normalizeHealth();
     });
@@ -207,23 +196,23 @@ class _ItemsScreenState extends State<ItemsScreen> {
   // EQUIPAR / DESEQUIPAR
   // ===========================================================================
 
-  Future<void> toggleEquip(CharacterItem item) async {
+  Future<void> toggleEquip(
+    InventoryItem inventory,
+    ItemDefinition definition,
+  ) async {
+    if (!definition.type.isEquipable) {
+      return;
+    }
+
     setState(() {
       // =======================================================================
       // DESEQUIPAR
       // =======================================================================
 
-      if (item.equipped) {
-        character.unequipItem(item);
+      if (inventory.equipped) {
+        character.unequipInventoryItem(inventory);
 
-        item.equipped = false;
-        item.quantity = 1;
-
-        /*
-       * Al volver al inventario se fusionará
-       * con otra pila del mismo objeto.
-       */
-        _mergeInventoryStacks();
+        _mergeInventoryItemStacks(definition.id);
 
         character.normalizeHealth();
 
@@ -231,59 +220,28 @@ class _ItemsScreenState extends State<ItemsScreen> {
       }
 
       // =======================================================================
-      // EQUIPAR
+      // EQUIPAR UNA UNIDAD DE UNA PILA
       // =======================================================================
 
-      /*
-     * Si tenemos varias unidades:
-     *
-     * Espada x4
-     *
-     * se convierte en:
-     *
-     * Inventario → Espada x3
-     * Equipado   → Espada x1
-     */
-      if (item.quantity > 1) {
-        item.quantity -= 1;
+      if (inventory.quantity > 1) {
+        inventory.quantity -= 1;
 
-        final equippedCopy = CharacterItem.fromMap(item.toMap());
+        final equippedInventory = InventoryItem(
+          id:
+              'inventory_item_'
+              '${DateTime.now().microsecondsSinceEpoch}',
+          itemId: inventory.itemId,
+          quantity: 1,
+          equipped: false,
+          equippedSlotId: null,
+        );
 
-        equippedCopy.id = DateTime.now().microsecondsSinceEpoch.toString();
+        character.inventoryItems.add(equippedInventory);
 
-        equippedCopy.quantity = 1;
-        equippedCopy.equipped = false;
-
-        /*
-       * Regeneramos también IDs internos.
-       */
-        for (var i = 0; i < equippedCopy.passives.length; i++) {
-          equippedCopy.passives[i].id = '${equippedCopy.id}_passive_$i';
-        }
-
-        for (var i = 0; i < equippedCopy.abilities.length; i++) {
-          equippedCopy.abilities[i].id = '${equippedCopy.id}_ability_$i';
-        }
-
-        character.addItem(equippedCopy);
-
-        character.equipItem(equippedCopy);
+        character.equipInventoryItem(equippedInventory);
       } else {
-        /*
-       * Solo hay una unidad:
-       * simplemente equipamos esa misma.
-       */
-        item.quantity = 1;
-
-        character.equipItem(item);
+        character.equipInventoryItem(inventory);
       }
-
-      /*
-     * Si equipItem ha desequipado automáticamente
-     * otro objeto por ocupar un slot exclusivo,
-     * lo fusionamos con su pila del inventario.
-     */
-      _mergeInventoryStacks();
 
       character.normalizeHealth();
     });
@@ -291,11 +249,44 @@ class _ItemsScreenState extends State<ItemsScreen> {
     await save();
   }
 
+  void _mergeInventoryItemStacks(String itemId) {
+    final definition = character.itemDefinitionById(itemId);
+
+    if (definition == null || !definition.stackable) {
+      return;
+    }
+
+    InventoryItem? destination;
+
+    final duplicates = <InventoryItem>[];
+
+    for (final inventory in character.inventoryItems) {
+      if (inventory.itemId != itemId || inventory.equipped) {
+        continue;
+      }
+
+      if (destination == null) {
+        destination = inventory;
+        continue;
+      }
+
+      destination.quantity += inventory.quantity;
+
+      duplicates.add(inventory);
+    }
+
+    final duplicateIds = duplicates.map((item) => item.id).toSet();
+
+    character.inventoryItems.removeWhere(
+      (item) => duplicateIds.contains(item.id),
+    );
+  }
+
   // ===========================================================================
   // DAÑO DE ARMA
   // ===========================================================================
-  Future<void> resolveWeapon(CharacterItem item) async {
-    final weapon = item.weapon;
+  Future<void> resolveWeapon(ItemDefinition definition) async {
+    final weapon = definition.weapon;
 
     if (weapon == null) {
       if (!mounted) {
@@ -348,14 +339,17 @@ class _ItemsScreenState extends State<ItemsScreen> {
   // USAR CONSUMIBLE
   // ===========================================================================
 
-  Future<void> useConsumable(CharacterItem item) async {
-    final consumable = item.consumable;
+  Future<void> useConsumable(
+    InventoryItem inventory,
+    ItemDefinition definition,
+  ) async {
+    final consumable = definition.consumable;
 
     if (consumable == null) {
       return;
     }
 
-    if (item.quantity <= 0) {
+    if (inventory.quantity <= 0) {
       if (!mounted) {
         return;
       }
@@ -381,78 +375,61 @@ class _ItemsScreenState extends State<ItemsScreen> {
       return;
     }
 
-    // ===========================================================================
-    // HABILIDAD TEMPORAL
-    //
-    // El consumible reutiliza exactamente el mismo motor de resolución
-    // que una habilidad normal.
-    // ===========================================================================
-
-    final consumableAbility = CharacterAbility(
-      id: '${item.id}_consumable',
-      name: item.name,
-
-      abilityType: AbilityType.strength,
-
-      targetType: AbilityTargetType.self,
-
-      requiresAttackRoll: false,
-
-      effects: consumable.effects
-          .map((effect) => AbilityEffect.fromMap(effect.toMap()))
-          .toList(),
-    );
-
     final flow = ActionResolutionFlow(character: character);
 
-    final execution = await flow.resolveAbility(
-      context,
-      ability: consumableAbility,
-    );
+    try {
+      final execution = await flow.resolveConsumable(context, item: definition);
 
-    if (execution == null || !mounted) {
-      return;
-    }
-
-    // ===========================================================================
-    // CONSUMIR UNIDAD
-    //
-    // ActionResolutionFlow ya hizo commit de daño/curación/efectos.
-    // Aquí solamente consumimos físicamente el objeto.
-    // ===========================================================================
-
-    setState(() {
-      item.quantity -= 1;
-
-      if (item.quantity <= 0) {
-        character.removeItem(item.id);
+      // Cancelado / fallo:
+      // no consumimos nada.
+      if (execution == null || !mounted) {
+        return;
       }
 
-      character.normalizeHealth();
-    });
+      setState(() {
+        inventory.quantity -= 1;
 
-    await save();
+        if (inventory.quantity <= 0) {
+          character.inventoryItems.removeWhere(
+            (item) => item.id == inventory.id,
+          );
+        }
 
-    if (!mounted) {
-      return;
+        character.normalizeHealth();
+      });
+
+      await save();
+
+      if (!mounted) {
+        return;
+      }
+
+      await showActionResolutionResultDialog(
+        context,
+        character: character,
+        execution: execution,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se ha podido usar el consumible: $error')),
+      );
     }
-
-    await showActionResolutionResultDialog(
-      context,
-      character: character,
-      execution: execution,
-    );
   }
 
-  Future<void> editItemQuantityQuick(CharacterItem item) async {
-    final baseValue = item.quantity;
-
+  Future<void> editItemQuantityQuick(
+    InventoryItem inventory,
+    ItemDefinition definition,
+  ) async {
     final result = await showDialog<int>(
       context: context,
       builder: (dialogContext) {
         return _ItemQuantityCalculatorDialog(
-          itemName: item.name,
-          baseValue: baseValue,
+          itemName: definition.name,
+          baseValue: inventory.quantity,
         );
       },
     );
@@ -462,10 +439,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     setState(() {
-      item.quantity = result;
+      inventory.quantity = result;
 
-      if (item.quantity <= 0) {
-        character.removeItem(item.id);
+      if (inventory.quantity <= 0) {
+        character.inventoryItems.removeWhere((item) => item.id == inventory.id);
       }
     });
 
@@ -476,9 +453,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
   // IMPORTAR / EXPORTAR
   // ===========================================================================
 
-  Future<void> saveItemToLibrary(CharacterItem item) async {
+  Future<void> saveItemToLibrary(ItemDefinition definition) async {
     try {
-      await ItemLibraryService.addItem(item);
+      await ItemLibraryService.addDefinition(definition);
 
       if (!mounted) {
         return;
@@ -486,13 +463,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${item.name} guardado en la biblioteca.'),
-          action: SnackBarAction(
-            label: 'Abrir',
-            onPressed: () {
-              openLibrary();
-            },
-          ),
+          content: Text('${definition.name} guardado en la biblioteca.'),
+          action: SnackBarAction(label: 'Abrir', onPressed: openLibrary),
         ),
       );
     } catch (_) {
@@ -510,7 +482,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
   Future<void> importItem() async {
     try {
-      final item = await ItemImportExportService.pickAndImportItem();
+      final item = await ItemImportExportService.pickAndImportDefinition();
 
       if (item == null || !mounted) {
         return;
@@ -578,7 +550,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
       }
 
       setState(() {
-        _addOrStackItem(item);
+        character.addInventoryItem(definition: item, quantity: 1);
 
         character.normalizeHealth();
       });
@@ -611,9 +583,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
   }
 
-  Future<void> exportItem(CharacterItem item) async {
+  Future<void> exportItem(ItemDefinition definition) async {
     try {
-      await ItemImportExportService.shareItem(item);
+      await ItemImportExportService.shareDefinition(definition);
     } catch (_) {
       if (!mounted) {
         return;
@@ -626,19 +598,19 @@ class _ItemsScreenState extends State<ItemsScreen> {
   }
 
   Future<void> openLibrary() async {
-    final item = await Navigator.push<CharacterItem>(
+    final definition = await Navigator.push<ItemDefinition>(
       context,
       MaterialPageRoute(
         builder: (_) => const ItemLibraryScreen(mode: ItemLibraryMode.select),
       ),
     );
 
-    if (item == null || !mounted) {
+    if (definition == null || !mounted) {
       return;
     }
 
     setState(() {
-      _addOrStackItem(item);
+      character.addInventoryItem(definition: definition, quantity: 1);
 
       character.normalizeHealth();
     });
@@ -650,67 +622,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${item.name} añadido al inventario.')),
+      SnackBar(content: Text('${definition.name} añadido al inventario.')),
     );
   }
 
-  void _addOrStackItem(CharacterItem item) {
-    /*
-   * Un objeto equipado siempre debe existir
-   * como una unidad independiente.
-   */
-    if (item.equipped) {
-      item.quantity = 1;
-
-      character.addItem(item);
-
-      character.equipItem(item);
-
-      return;
-    }
-
-    /*
-   * Buscamos únicamente entre objetos
-   * NO equipados.
-   */
-    final existingIndex = character.items.indexWhere(
-      (existing) => !existing.equipped && _sameStackableItem(existing, item),
-    );
-
-    if (existingIndex >= 0) {
-      character.items[existingIndex].quantity += item.quantity;
-    } else {
-      character.addItem(item);
-    }
-  }
-
-  void _mergeInventoryStacks() {
-    final inventory = character.items.where((item) => !item.equipped).toList();
-
-    final processed = <CharacterItem>[];
-
-    for (final item in inventory) {
-      CharacterItem? existing;
-
-      for (final candidate in processed) {
-        if (_sameStackableItem(candidate, item)) {
-          existing = candidate;
-          break;
-        }
-      }
-
-      if (existing == null) {
-        processed.add(item);
-        continue;
-      }
-
-      existing.quantity += item.quantity;
-
-      character.removeItem(item.id);
-    }
-  }
-
-  Future<void> openItemFromGrid(CharacterItem item) async {
+  Future<void> openItemFromGrid(
+    InventoryItem inventory,
+    ItemDefinition definition,
+  ) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -718,7 +637,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
       useSafeArea: true,
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
-        final color = ItemTypeColors.color(item.type);
+
+        final color = ItemTypeColors.of(definition.type);
 
         return FractionallySizedBox(
           heightFactor: 0.92,
@@ -730,19 +650,22 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 // ===============================================================
                 // IMAGEN
                 // ===============================================================
-                if (item.hasImage) ...[
+                if (definition.hasImage) ...[
                   Material(
                     color: Colors.transparent,
                     borderRadius: BorderRadius.circular(22),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: () {
-                        ItemImageViewer.show(sheetContext, item);
+                        ItemImageViewer.show(sheetContext, definition);
                       },
                       child: SizedBox(
                         width: double.infinity,
                         height: 240,
-                        child: ItemImage(item: item, size: double.infinity),
+                        child: ItemImage(
+                          definition: definition,
+                          size: double.infinity,
+                        ),
                       ),
                     ),
                   ),
@@ -757,7 +680,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: Icon(
-                      ItemTypeColors.icon(item.type),
+                      ItemTypeColors.icon(definition.type),
                       size: 54,
                       color: color,
                     ),
@@ -774,7 +697,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        item.name,
+                        definition.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
@@ -785,7 +708,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       tooltip: 'Editar',
                       onPressed: () {
                         Navigator.pop(sheetContext);
-                        editItem(item);
+
+                        editItem(inventory, definition);
                       },
                       icon: const Icon(Icons.edit_rounded),
                     ),
@@ -801,19 +725,19 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   children: [
                     Chip(
                       avatar: Icon(
-                        ItemTypeColors.icon(item.type),
+                        ItemTypeColors.icon(definition.type),
                         size: 17,
                         color: color,
                       ),
-                      label: Text(item.type.label),
+                      label: Text(definition.type.label),
                     ),
 
                     Chip(
                       avatar: const Icon(Icons.layers_rounded, size: 17),
-                      label: Text('×${formatThousands(item.quantity)}'),
+                      label: Text('×${formatThousands(inventory.quantity)}'),
                     ),
 
-                    if (item.equipped)
+                    if (inventory.equipped)
                       const Chip(
                         avatar: Icon(Icons.check_circle_rounded, size: 17),
                         label: Text('Equipado'),
@@ -824,10 +748,13 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 // ===============================================================
                 // DESCRIPCIÓN
                 // ===============================================================
-                if (item.description.trim().isNotEmpty) ...[
+                if (definition.description.trim().isNotEmpty) ...[
                   const SizedBox(height: 14),
 
-                  Text(item.description, style: theme.textTheme.bodyMedium),
+                  Text(
+                    definition.description,
+                    style: theme.textTheme.bodyMedium,
+                  ),
                 ],
 
                 const SizedBox(height: 18),
@@ -836,28 +763,32 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 // CONTENIDO EXTENDIDO
                 // ===============================================================
                 ItemExtendedContent(
-                  item: item,
+                  inventoryItem: inventory,
+                  definition: definition,
                   character: character,
                   padding: EdgeInsets.zero,
 
                   onEquip: () {
                     Navigator.pop(sheetContext);
-                    toggleEquip(item);
+
+                    toggleEquip(inventory, definition);
                   },
 
-                  onWeaponAttack: item.isWeapon && item.equipped
+                  onWeaponAttack: definition.isWeapon && inventory.equipped
                       ? () {
                           Navigator.pop(sheetContext);
-                          resolveWeapon(item);
+
+                          resolveWeapon(definition);
                         }
                       : null,
 
                   onConsumableUse:
-                      item.type == ItemType.consumable &&
-                          item.consumable != null
+                      definition.type == ItemType.consumable &&
+                          definition.consumable != null
                       ? () {
                           Navigator.pop(sheetContext);
-                          useConsumable(item);
+
+                          useConsumable(inventory, definition);
                         }
                       : null,
                 ),
@@ -877,7 +808,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
     setState(() {});
   }
 
-  Widget buildItemGrid(List<CharacterItem> items) {
+  Widget buildItemGrid(List<InventoryItemView> items) {
     return LayoutBuilder(
       builder: (context, constraints) {
         var columns = 3;
@@ -899,12 +830,13 @@ class _ItemsScreenState extends State<ItemsScreen> {
             childAspectRatio: 1,
           ),
           itemBuilder: (context, index) {
-            final item = items[index];
+            final entry = items[index];
 
             return ItemGridCard(
-              item: item,
+              inventoryItem: entry.inventory,
+              definition: entry.definition,
               onTap: () {
-                openItemFromGrid(item);
+                openItemFromGrid(entry.inventory, entry.definition);
               },
             );
           },
@@ -952,9 +884,15 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final equipped = character.items.where((item) => item.equipped).toList();
+    final allItems = _resolvedInventory;
 
-    final inventory = character.items.where((item) => !item.equipped).toList();
+    final equipped = allItems
+        .where((entry) => entry.inventory.equipped)
+        .toList(growable: false);
+
+    final inventory = allItems
+        .where((entry) => !entry.inventory.equipped)
+        .toList(growable: false);
 
     return Scaffold(
       appBar: AppBar(
@@ -984,7 +922,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
       body: !viewPreferenceLoaded
           ? const Center(child: CircularProgressIndicator())
-          : character.items.isEmpty
+          : character.inventoryItems.isEmpty
           ? EmptyState(
               icon: Icons.inventory_2_rounded,
               title: 'Inventario vacío',
@@ -1012,44 +950,53 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   if (gridView)
                     buildItemGrid(equipped)
                   else
-                    ...equipped.map(
-                      (item) => ItemCard(
-                        item: item,
+                    ...equipped.map((entry) {
+                      final inventoryItem = entry.inventory;
+
+                      final definition = entry.definition;
+
+                      return ItemCard(
+                        inventoryItem: inventoryItem,
+                        definition: definition,
                         character: character,
 
                         onEquip: () {
-                          toggleEquip(item);
+                          toggleEquip(inventoryItem, definition);
                         },
 
                         onEdit: () {
-                          editItem(item);
+                          editItem(inventoryItem, definition);
                         },
 
                         onDelete: () {
-                          deleteItem(item);
+                          deleteItem(inventoryItem, definition);
                         },
 
                         onExport: () {
-                          exportItem(item);
+                          exportItem(definition);
                         },
 
                         onSaveToLibrary: () {
-                          saveItemToLibrary(item);
+                          saveItemToLibrary(definition);
                         },
 
-                        onQuickQuantityEdit: item.calculable
+                        onQuickQuantityEdit: definition.calculable
                             ? () {
-                                editItemQuantityQuick(item);
+                                editItemQuantityQuick(
+                                  inventoryItem,
+                                  definition,
+                                );
                               }
                             : null,
 
-                        onWeaponAttack: item.isWeapon && item.equipped
+                        onWeaponAttack:
+                            definition.isWeapon && inventoryItem.equipped
                             ? () {
-                                resolveWeapon(item);
+                                resolveWeapon(definition);
                               }
                             : null,
-                      ),
-                    ),
+                      );
+                    }),
 
                   const SizedBox(height: 24),
                 ],
@@ -1106,47 +1053,51 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 else if (gridView)
                   buildItemGrid(inventory)
                 else
-                  ...inventory.map(
-                    (item) => ItemCard(
-                      item: item,
+                  ...inventory.map((entry) {
+                    final inventoryItem = entry.inventory;
 
+                    final definition = entry.definition;
+
+                    return ItemCard(
+                      inventoryItem: inventoryItem,
+                      definition: definition,
                       character: character,
 
                       onEquip: () {
-                        toggleEquip(item);
+                        toggleEquip(inventoryItem, definition);
                       },
 
                       onEdit: () {
-                        editItem(item);
+                        editItem(inventoryItem, definition);
                       },
 
                       onDelete: () {
-                        deleteItem(item);
+                        deleteItem(inventoryItem, definition);
                       },
 
                       onExport: () {
-                        exportItem(item);
+                        exportItem(definition);
                       },
 
                       onSaveToLibrary: () {
-                        saveItemToLibrary(item);
+                        saveItemToLibrary(definition);
                       },
 
-                      onQuickQuantityEdit: item.calculable
+                      onQuickQuantityEdit: definition.calculable
                           ? () {
-                              editItemQuantityQuick(item);
+                              editItemQuantityQuick(inventoryItem, definition);
                             }
                           : null,
 
                       onConsumableUse:
-                          item.type == ItemType.consumable &&
-                              item.consumable != null
+                          definition.type == ItemType.consumable &&
+                              definition.consumable != null
                           ? () {
-                              useConsumable(item);
+                              useConsumable(inventoryItem, definition);
                             }
                           : null,
-                    ),
-                  ),
+                    );
+                  }),
               ],
             ),
 

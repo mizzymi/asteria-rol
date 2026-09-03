@@ -20,14 +20,6 @@ class AbilityEffectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final modifier = character.abilityEffectModifier(ability, effect);
-
-    final dc = effect.usesSavingThrow
-        ? character.abilityEffectSaveDc(ability, effect)
-        : null;
-
     final color = AbilityColors.effectColor(context, effect);
 
     return Container(
@@ -115,7 +107,8 @@ class AbilityEffectCard extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Theme.of(context)
+                        color: Theme
+                            .of(context)
                             .colorScheme
                             .surfaceContainerHighest
                             .withValues(alpha: 0.4),
@@ -137,7 +130,9 @@ class AbilityEffectCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  part.typeName.trim().isNotEmpty
+                                  part.typeName
+                                      .trim()
+                                      .isNotEmpty
                                       ? part.typeName
                                       : effect.effectType.label,
                                   style: const TextStyle(
@@ -162,50 +157,5 @@ class AbilityEffectCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _diceText(int modifier) {
-    var result = effect.diceNotation;
-
-    if (modifier > 0) {
-      result += ' + $modifier';
-    } else if (modifier < 0) {
-      result += ' - ${modifier.abs()}';
-    }
-
-    return result;
-  }
-
-  String get _title {
-    if (effect.name.isNotEmpty) {
-      return effect.name;
-    }
-
-    if (effect.effectTypeName.isNotEmpty) {
-      return effect.effectTypeName;
-    }
-
-    if (effect.heals) {
-      return 'Curación';
-    }
-
-    if (effect.dealsDamage) {
-      return 'Daño';
-    }
-
-    return 'Efecto';
-  }
-
-  String _saveText(SaveSuccessEffect value) {
-    switch (value) {
-      case SaveSuccessEffect.full:
-        return 'Éxito: completo';
-
-      case SaveSuccessEffect.half:
-        return 'Éxito: mitad';
-
-      case SaveSuccessEffect.none:
-        return 'Éxito: sin efecto';
-    }
   }
 }

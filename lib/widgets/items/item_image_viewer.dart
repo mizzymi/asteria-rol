@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import '../../models/item.dart';
 
 class ItemImageViewer extends StatelessWidget {
-  final CharacterItem item;
+  final ItemDefinition definition;
 
-  const ItemImageViewer({super.key, required this.item});
+  const ItemImageViewer({super.key, required this.definition});
 
-  static Future<void> show(BuildContext context, CharacterItem item) {
-    if (item.imagePath.isEmpty) {
+  static Future<void> show(BuildContext context, ItemDefinition definition) {
+    if (definition.imagePath.isEmpty) {
       return Future.value();
     }
 
@@ -20,7 +20,7 @@ class ItemImageViewer extends StatelessWidget {
         opaque: false,
         barrierColor: Colors.black.withValues(alpha: 0.92),
         pageBuilder: (_, _, _) {
-          return ItemImageViewer(item: item);
+          return ItemImageViewer(definition: definition);
         },
       ),
     );
@@ -43,10 +43,21 @@ class ItemImageViewer extends StatelessWidget {
                   maxScale: 5,
                   child: Center(
                     child: Hero(
-                      tag: 'item-image-${item.id}',
+                      tag: 'item-image-${definition.id}',
                       child: Image.file(
-                        File(item.imagePath),
+                        File(definition.imagePath),
                         fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Icon(
+                              Icons.broken_image_rounded,
+                              size: 64,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -70,7 +81,7 @@ class ItemImageViewer extends StatelessWidget {
               right: 20,
               bottom: 20,
               child: Text(
-                item.name,
+                definition.name,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,

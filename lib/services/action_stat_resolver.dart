@@ -7,37 +7,18 @@ class ActionStatResolver {
 
   const ActionStatResolver({required this.character});
 
-  // ===========================================================================
-  // EFFECT MODIFIER
-  // ===========================================================================
-
   int effectModifier({
     required ActionResolutionPlan plan,
     required AbilityEffect effect,
   }) {
-    final ability = plan.ability;
-
-    // -------------------------------------------------------------------------
-    // HABILIDAD LEGACY
-    // -------------------------------------------------------------------------
+    final ability = plan.source.ability;
 
     if (ability != null) {
       return character.abilityEffectModifier(ability, effect);
     }
 
-    // -------------------------------------------------------------------------
-    // ACCIÓN GENÉRICA
-    //
-    // De momento una acción genérica sin CharacterAbility no posee
-    // modificador específico de AbilityEffect.
-    // -------------------------------------------------------------------------
-
     return 0;
   }
-
-  // ===========================================================================
-  // SAVE DC
-  // ===========================================================================
 
   int effectSaveDc({
     required ActionResolutionPlan plan,
@@ -45,19 +26,11 @@ class ActionStatResolver {
   }) {
     final fixedSaveDc = plan.definition.fixedSaveDc;
 
-    // -------------------------------------------------------------------------
-    // CD DEFINIDA POR LA ACCIÓN
-    // -------------------------------------------------------------------------
-
     if (fixedSaveDc != null) {
       return fixedSaveDc;
     }
 
-    // -------------------------------------------------------------------------
-    // HABILIDAD LEGACY
-    // -------------------------------------------------------------------------
-
-    final ability = plan.ability;
+    final ability = plan.source.ability;
 
     if (ability != null) {
       return character.abilityEffectSaveDc(ability, effect);
@@ -69,24 +42,18 @@ class ActionStatResolver {
     );
   }
 
-  // ===========================================================================
-  // ATTACK MODIFIER
-  // ===========================================================================
-
   int attackModifier(ActionResolutionPlan plan) {
-    // -------------------------------------------------------------------------
-    // HABILIDAD LEGACY
-    // -------------------------------------------------------------------------
+    final weapon = plan.source.weapon;
 
-    final ability = plan.ability;
+    if (weapon != null) {
+      return character.attackBonus(weapon);
+    }
+
+    final ability = plan.source.ability;
 
     if (ability != null) {
       return character.characterAbilityAttackBonus(ability);
     }
-
-    // -------------------------------------------------------------------------
-    // ACCIÓN GENÉRICA
-    // -------------------------------------------------------------------------
 
     return plan.definition.attackBonus;
   }

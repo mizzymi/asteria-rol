@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/item.dart';
+import '../../../models/item_definition.dart';
 
 class ItemCalculationSection extends StatelessWidget {
   final bool calculable;
 
-  /// Objetos que pueden utilizarse como coste.
+  /// Definiciones que pueden utilizarse como coste.
   ///
-  /// En el inventario serán normalmente los objetos del personaje.
-  /// En biblioteca pueden ser las plantillas disponibles.
-  final List<CharacterItem> availableItems;
+  /// ItemCalculationCost.itemId siempre referencia ItemDefinition.id.
+  final List<ItemDefinition> availableItems;
 
   final List<ItemCalculationCost> costs;
 
@@ -86,7 +85,8 @@ class ItemCalculationSection extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           subtitle: const Text(
-            'Permite calcular cuántas unidades pueden obtenerse según otros objetos.',
+            'Permite calcular cuántas unidades pueden obtenerse '
+            'según otros objetos.',
           ),
         ),
 
@@ -154,8 +154,7 @@ class ItemCalculationSection extends StatelessWidget {
               final cost = costs[index];
 
               final selectedExists = availableItems.any(
-                (item) =>
-                    item.templateId == cost.itemId || item.id == cost.itemId,
+                (item) => item.id == cost.itemId,
               );
 
               return Container(
@@ -180,38 +179,28 @@ class ItemCalculationSection extends StatelessWidget {
                         ),
                         items: availableItems
                             .where((item) {
-                              final key = item.templateId.isNotEmpty
-                                  ? item.templateId
-                                  : item.id;
-
                               final usedElsewhere = costs.asMap().entries.any(
                                 (entry) =>
                                     entry.key != index &&
-                                    entry.value.itemId == key,
+                                    entry.value.itemId == item.id,
                               );
 
-                              return !usedElsewhere;
+                              return !usedElsewhere || item.id == cost.itemId;
                             })
-                            .map((item) {
-                              final key = item.templateId.isNotEmpty
-                                  ? item.templateId
-                                  : item.id;
-
-                              return DropdownMenuItem<String>(
-                                value: key,
+                            .map(
+                              (item) => DropdownMenuItem<String>(
+                                value: item.id,
                                 child: Text(
                                   item.name,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                              );
-                            })
+                              ),
+                            )
                             .toList(),
                         onChanged: (value) {
-                          if (value == null) {
-                            return;
+                          if (value != null) {
+                            onCostItemChanged(index, value);
                           }
-
-                          onCostItemChanged(index, value);
                         },
                       ),
                     ),

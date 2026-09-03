@@ -9,11 +9,6 @@ import 'action_event_variables.dart';
 import 'action_source.dart';
 
 class ActionResolutionResult {
-  /// Habilidad origen cuando la acción procede de CharacterAbility.
-  ///
-  /// Es null para armas y otras fuentes que no sean habilidades.
-  final CharacterAbility? ability;
-
   final AbilityTargetResolutionMode targetResolutionMode;
 
   final List<ActionTargetResult> targetResults;
@@ -41,7 +36,6 @@ class ActionResolutionResult {
 
   const ActionResolutionResult({
     required this.source,
-    this.ability,
     required this.targetResolutionMode,
     required this.targetResults,
     required this.criticalProfile,
@@ -55,10 +49,16 @@ class ActionResolutionResult {
     this.externalVariablesByTargetId = const {},
   });
 
-  bool get hasAbility => ability != null;
+  /// Compatibilidad de lectura.
+  ///
+  /// La habilidad ya no se almacena duplicada en el resultado.
+  /// Se deriva de la fuente real de la acción.
+  CharacterAbility? get ability => source.ability;
+
+  bool get hasAbility => source.ability != null;
 
   CharacterAbility get requireAbility {
-    final value = ability;
+    final value = source.ability;
 
     if (value == null) {
       throw StateError('Este resultado no procede de una habilidad.');
@@ -343,7 +343,6 @@ class ActionResolutionResult {
   }) {
     return ActionResolutionResult(
       source: source,
-      ability: ability,
       targetResolutionMode: targetResolutionMode,
       targetResults: targetResults,
       attackResult: attackResult,

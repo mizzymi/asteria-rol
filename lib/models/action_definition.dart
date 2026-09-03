@@ -1,6 +1,7 @@
 import 'ability.dart';
 import 'skill.dart';
 import 'weapon.dart';
+import 'item_definition.dart';
 
 class ActionDefinition {
   final String id;
@@ -71,12 +72,26 @@ class ActionDefinition {
 
       targetResolutionMode: AbilityTargetResolutionMode.shared,
 
-      // IMPORTANTE:
-      // WeaponActionResolver ya calcula el magicBonus.
-      // No lo duplicamos aquí todavía.
       attackBonus: 0,
 
       fixedSaveDc: null,
+    );
+  }
+
+  factory ActionDefinition.fromConsumableItem(ItemDefinition item) {
+    return ActionDefinition(
+      id: item.id,
+      name: item.name,
+
+      targetType: AbilityTargetType.self,
+
+      targetResolutionMode: AbilityTargetResolutionMode.shared,
+
+      requiresAttackRoll: false,
+
+      abilityType: AbilityType.strength,
+
+      attackBonus: 0,
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/action_content.dart';
 import '../models/action_definition.dart';
 import '../models/action_source.dart';
-import '../models/weapon_attack_resolution.dart';
 import '../models/healing_bonus.dart';
 import '../models/character_effect_triggered_external_outcome.dart';
 import '../models/character_effect_trigger_external_result.dart';
@@ -34,6 +33,7 @@ import '../models/action_dice_request.dart';
 import '../models/weapon.dart';
 import '../models/passive.dart';
 import '../models/passive_roll_resolution.dart';
+import '../models/item_definition.dart';
 
 import '../widgets/abilities/attack_roll_sheet.dart';
 import '../widgets/action_resolution/dice/dice_mode_sheet.dart';
@@ -50,9 +50,7 @@ import 'character_effect_trigger_engine.dart';
 import 'passive_trigger_engine.dart';
 import 'action_dice_resolver.dart';
 import 'passive_action_resolver.dart';
-import 'weapon_action_resolver.dart';
 import 'action_resolver.dart';
-import 'action_cost_resolver.dart';
 
 class ActionResolutionFlow {
   final Character character;
@@ -476,17 +474,40 @@ class ActionResolutionFlow {
     BuildContext context, {
     required Weapon weapon,
   }) async {
-    final weaponResolver = WeaponActionResolver(character: character);
-
-    final actionResolver = ActionResolver(character: character);
+    final resolver = ActionResolver(character: character);
 
     // ===========================================================================
-    // 1. TARGET
+    // SOURCE / DEFINITION / CONTENT
+    // ===========================================================================
+
+    final source = ActionSource.weapon(weapon);
+
+    final definition = ActionDefinition.fromWeapon(weapon);
+
+    final content = ActionContent.fromWeapon(weapon);
+
+    // ===========================================================================
+    // 1. VALIDACIÓN ESTRUCTURAL
+    // ===========================================================================
+
+    try {
+      resolver.validatePassiveTriggerTargetScopes(
+        definition: definition,
+        content: content,
+      );
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+
+      return null;
+    }
+
+    // ===========================================================================
+    // 2. TARGETS
     // ===========================================================================
 
     final targets = await showActionTargetSelector(
       context,
-      targetType: AbilityTargetType.external,
+      targetType: definition.targetType,
       selfLabel: selfLabel,
     );
 
@@ -499,424 +520,366 @@ class ActionResolutionFlow {
     }
 
     // ===========================================================================
-    // IMPORTANTE
+    // RESTRICCIÓN ACTUAL DE ARMAS
     //
-    // WeaponActionResolver todavía evalúa fórmulas/condiciones contra
-    // _targetForContext(), es decir, el primer target.
-    //
-    // Hasta completar 7B no permitimos resolución multi-target de armas.
+    // El Action Engine ya soporta resolución genérica.
+    // Por ahora mantenemos las armas como ataque contra un único target.
+    // Esto puede ampliarse más adelante sin crear otro resolver.
     // ===========================================================================
 
     if (targets.length != 1) {
-      _showError(
-        context,
-        'Los ataques de arma todavía requieren un único objetivo.',
-      );
+      _showError(context, 'Los ataques de arma requieren un único objetivo.');
 
       return null;
     }
 
-    final target = targets.first;
+    // ===========================================================================
+    // 3. CONTEXTO
+    // ===========================================================================
 
     final actionContext = ActionResolutionContext(
       character: character,
-      targets: [target],
+      targets: targets,
     );
 
     actionContext.populateKnownTargetVariables();
 
     // ===========================================================================
-    // 2. REQUIREMENTS
+    // 4. REQUIREMENTS PRE-RESOLUTION
     // ===========================================================================
 
-    final requirements = weaponResolver
-        .orderedPreResolutionExternalRequirementsForTarget(
-          weapon: weapon,
-          context: actionContext,
-          target: target,
-        );
+    final requirementsCompleted = await _collectExternalRequirements(
+      context,
+      resolver: resolver,
+      source: source,
+      definition: definition,
+      content: content,
+      actionContext: actionContext,
+    );
 
-    for (final requirement in requirements) {
-      final answers = await showExternalRequirementsDialog(
+    if (!requirementsCompleted || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 5. PERFIL CRÍTICO
+    // ===========================================================================
+
+    final criticalProfile = resolver.buildCriticalProfileForWeapon(weapon);
+
+    // ===========================================================================
+    // 6. PLAN INICIAL
+    //
+    // Todavía no resolvemos nada.
+    // Lo utilizamos para descubrir opcionales.
+    // ===========================================================================
+
+    final initialPrepared = resolver.prepareDirectAction(
+      source: source,
+      definition: definition,
+      content: content,
+      context: actionContext,
+      criticalProfile: criticalProfile,
+    );
+
+    // ===========================================================================
+    // 7. OPCIONALES
+    // ===========================================================================
+
+    final optionalCompleted = await _collectOptionalChoices(
+      context,
+      resolver: resolver,
+      plan: initialPrepared.plan,
+      actionContext: actionContext,
+    );
+
+    if (!optionalCompleted || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 8. PREPARED DEFINITIVO
+    //
+    // Se vuelve a preparar después de que el usuario haya seleccionado
+    // opcionales porque esas selecciones forman parte del contexto.
+    // ===========================================================================
+
+    final prepared = resolver.prepareDirectAction(
+      source: source,
+      definition: definition,
+      content: content,
+      context: actionContext,
+      criticalProfile: criticalProfile,
+    );
+
+    // ===========================================================================
+    // 9. VALIDACIÓN DE RESOLUCIÓN
+    // ===========================================================================
+
+    try {
+      resolver.validatePreparedTargetResolution(prepared);
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+
+      return null;
+    }
+
+    // ===========================================================================
+    // 10. VALIDACIÓN DE COSTES
+    // ===========================================================================
+
+    final validation = resolver.validatePreparedActionCosts(prepared);
+
+    if (!validation.valid) {
+      _showError(
         context,
-        targetLabel: target.label ?? 'Objetivo',
-        requirements: [requirement],
-        knownAnswers: const {},
+        validation.error ?? 'No puedes pagar los costes de este ataque.',
       );
 
-      if (answers == null || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 11. MODO DE DADOS
+    // ===========================================================================
+
+    ActionDiceMode diceMode = ActionDiceMode.digital;
+
+    final requiresDiceMode = resolver.preparedActionRequiresDiceMode(prepared);
+
+    if (requiresDiceMode) {
+      final selectedDiceMode = await showActionDiceModeSheet(context);
+
+      if (selectedDiceMode == null || !context.mounted) {
         return null;
       }
 
-      final answer = answers[requirement.normalizedVariableName];
-
-      if (answer == null) {
-        continue;
-      }
-
-      actionResolver.applyExternalRequirementAnswer(
-        context: actionContext,
-        target: target,
-        requirement: requirement,
-        answer: answer,
-      );
+      diceMode = selectedDiceMode;
     }
 
     // ===========================================================================
-    // 3. OPCIONALES
+    // 12. ACTION ENGINE
     // ===========================================================================
 
-    final optionalGroups = weaponResolver.availableOptionalGroups(
-      weapon: weapon,
-      context: actionContext,
-    );
-
-    if (optionalGroups.isNotEmpty) {
-      final entries = [
-        for (final group in optionalGroups)
-          OptionalChoiceEntry(
-            group: group,
-            target: null,
-            validation: ActionCostResolver(
-              character: character,
-            ).validate(group.costs),
-          ),
-      ];
-
-      final selections = await showOptionalChoicesDialog(
+    if (prepared.definition.requiresAttackRoll) {
+      return _resolveAttack(
         context,
-        entries: entries,
-        selfLabel: selfLabel,
+        resolver: resolver,
+        prepared: prepared,
+        diceMode: diceMode,
       );
-
-      if (selections == null || !context.mounted) {
-        return null;
-      }
-
-      for (final entry in entries) {
-        actionContext.setOptionalGroupSelected(
-          entry.group.id,
-          selections[entry.key] ?? false,
-        );
-      }
     }
 
-    // ===========================================================================
-    // COSTES POTENCIALES
-    //
-    // Todavía no sabemos hit/miss.
-    // Validamos que el personaje podría pagar todos los bonuses seleccionados.
-    // ===========================================================================
-
-    final potentialCosts = weaponResolver.collectPotentialDamageBonusCosts(
-      context: actionContext,
-    );
-
-    final costResolver = ActionCostResolver(character: character);
-
-    final costValidation = costResolver.validate(potentialCosts);
-
-    if (!costValidation.valid) {
-      _showError(
-        context,
-        costValidation.error ?? 'No puedes pagar los costes de este ataque.',
-      );
-
-      return null;
-    }
-
-    // ===========================================================================
-    // 4. MODO DE DADOS
-    // ===========================================================================
-
-    final diceMode = await showActionDiceModeSheet(context);
-
-    if (diceMode == null || !context.mounted) {
-      return null;
-    }
-
-    // ===========================================================================
-    // 5. VENTAJA / DESVENTAJA
-    // ===========================================================================
-
-    final attackMode = await showAttackRollModeSheet(context);
-
-    if (attackMode == null || !context.mounted) {
-      return null;
-    }
-
-    // ===========================================================================
-    // 6. ATAQUE
-    // ===========================================================================
-
-    final WeaponAttackResolution weaponAttack;
-
-    switch (diceMode) {
-      case ActionDiceMode.digital:
-        weaponAttack = weaponResolver.rollAttackDigital(
-          weapon: weapon,
-          mode: attackMode,
-        );
-
-        break;
-
-      case ActionDiceMode.physical:
-        final rolls = await showPhysicalAttackRollDialog(
-          context,
-          mode: attackMode,
-        );
-
-        if (rolls == null || !context.mounted) {
-          return null;
-        }
-
-        weaponAttack = weaponResolver.resolveAttackPhysical(
-          weapon: weapon,
-          mode: attackMode,
-          firstRoll: rolls.firstRoll,
-          secondRoll: rolls.secondRoll,
-        );
-
-        break;
-    }
-
-    final attackResult = weaponAttack.attackResult;
-
-    // ===========================================================================
-    // 7. HIT / MISS DEL TARGET
-    // ===========================================================================
-
-    final attackResults = await showAttackTargetsDialog(
+    return _resolveWithoutAttack(
       context,
-      targets: [target],
-      attackResult: attackResult,
-      selfLabel: selfLabel,
-      ability: weapon.attackAbility,
-    );
-
-    if (attackResults == null || !context.mounted) {
-      return null;
-    }
-
-    final targetAttackResult = attackResults[target.id];
-
-    if (targetAttackResult == null) {
-      return null;
-    }
-
-    final resolvedCosts = weaponResolver.collectResolvedDamageBonusCosts(
-      context: actionContext,
-      hit: targetAttackResult.hit,
-    );
-
-    final finalCostValidation = ActionCostResolver(
-      character: character,
-    ).validate(resolvedCosts);
-
-    if (!finalCostValidation.valid) {
-      _showError(
-        context,
-        finalCostValidation.error ??
-            'Ya no puedes pagar los costes de este ataque.',
-      );
-
-      return null;
-    }
-
-    // ===========================================================================
-    // 8. TIPO DE CRÍTICO
-    // ===========================================================================
-
-    final criticalType = attackResult.criticalType;
-
-    // ===========================================================================
-    // 9. CHANCE CHECKS DE CRÍTICO
-    // ===========================================================================
-
-    final chanceChecks = weaponResolver.collectCriticalChanceChecks(
-      weapon: weapon,
-      criticalType: criticalType,
-      context: actionContext,
-    );
-
-    List<ActionChanceResult> chanceResults = const [];
-
-    if (chanceChecks.isNotEmpty) {
-      switch (diceMode) {
-        case ActionDiceMode.digital:
-          chanceResults = actionResolver.resolveChanceChecksDigital(
-            checks: chanceChecks,
-          );
-
-          break;
-
-        case ActionDiceMode.physical:
-          final inputs = await showPhysicalChanceChecksDialog(
-            context,
-            checks: chanceChecks,
-          );
-
-          if (inputs == null || !context.mounted) {
-            return null;
-          }
-
-          final rollsByCheckId = {
-            for (final input in inputs) input.checkId: input.roll,
-          };
-
-          chanceResults = actionResolver.resolveChanceChecksPhysical(
-            checks: chanceChecks,
-            rollsByCheckId: rollsByCheckId,
-          );
-
-          break;
-      }
-    }
-
-    final successfulChanceIds = actionResolver.successfulChanceCheckIds(
-      chanceResults,
-    );
-
-    // ===========================================================================
-    // 10. REQUEST DE DAÑO
-    // ===========================================================================
-
-    final request = weaponResolver.buildDamageRequest(
-      weapon: weapon,
-      criticalType: criticalType,
-      context: actionContext,
-      successfulChanceCheckIds: successfulChanceIds,
-    );
-
-    // ===========================================================================
-    // 11. DADOS
-    // ===========================================================================
-
-    final ActionDiceResult diceResult;
-
-    switch (diceMode) {
-      case ActionDiceMode.digital:
-        diceResult = weaponResolver.resolveDamageDigitalRequest(request);
-
-        break;
-
-      case ActionDiceMode.physical:
-        final sections = <PhysicalDiceSection>[];
-
-        if (request.parts.any((part) => part.requiresRoll)) {
-          sections.add(
-            PhysicalDiceSection(
-              id: 'weapon:${weapon.id}',
-              title: weapon.name,
-              request: request,
-            ),
-          );
-        }
-
-        Map<String, List<ActionPhysicalDiceInput>> inputsBySection = const {};
-
-        if (sections.isNotEmpty) {
-          final inputs = await showPhysicalDiceDialog(
-            context,
-            sections: sections,
-          );
-
-          if (inputs == null || !context.mounted) {
-            return null;
-          }
-
-          inputsBySection = inputs;
-        }
-
-        diceResult = weaponResolver.resolveDamagePhysicalRequest(
-          request: request,
-          inputs: inputsBySection['weapon:${weapon.id}'] ?? const [],
-        );
-
-        break;
-    }
-
-    // ===========================================================================
-    // 12. HIT GATE
-    //
-    // El request puede contener componentes ignoreHit.
-    // Por tanto NO podemos simplemente poner daño 0 si falla.
-    // Filtramos cada parte según su propio hitBehavior.
-    // ===========================================================================
-
-    final source = ActionSource.weapon(weapon);
-
-    final definition = ActionDefinition.fromWeapon(weapon);
-
-    final targetResult = actionResolver.buildTargetResult(
-      definition: definition,
-      target: target,
-      diceResult: diceResult,
-      attackResult: targetAttackResult,
-    );
-
-    // ===========================================================================
-    // 14. RESULTADO DEL ACTION ENGINE
-    // ===========================================================================
-
-    final resolution = actionResolver.buildDirectResolutionResult(
-      source: source,
-
-      targetResolutionMode: AbilityTargetResolutionMode.shared,
-
-      targetResults: [targetResult],
-
-      attackResult: attackResult,
-
-      criticalProfile: attackResult.criticalProfile,
-
-      chanceResults: chanceResults,
-
-      selectedOptionalGroupIds: actionContext.selectedOptionalGroupIds,
-
-      selectedOptionalGroupIdsByTargetId:
-          actionContext.selectedOptionalGroupIdsByTargetId,
-
-      preResolutionExternalVariablesByTargetId: actionContext
-          .snapshotTargetExternalVariables(),
-
-      externalVariablesByTargetId: actionContext
-          .snapshotTargetExternalVariables(),
-
-      costs: resolvedCosts,
-    );
-
-    // ===========================================================================
-    // 15. FINALIZACIÓN COMÚN
-    //
-    // No llamamos directamente commitResolution.
-    //
-    // Queremos:
-    // - triggers externos
-    // - consumo de usage limits
-    // - merge de outcomes
-    // - dispatch post-resolution
-    //
-    // exactamente igual que una habilidad.
-    // ===========================================================================
-
-    final prepared = actionResolver.prepareDirectAction(
-      source: source,
-
-      definition: definition,
-
-      context: actionContext,
-
-      criticalProfile: attackResult.criticalProfile,
-
-      costs: resolvedCosts,
-    );
-
-    return _finalizeResolution(
-      context,
-      resolver: actionResolver,
+      resolver: resolver,
       prepared: prepared,
-      resolution: resolution,
+      diceMode: diceMode,
+    );
+  }
+
+  Future<ActionExecutionResult?> resolveConsumable(
+    BuildContext context, {
+    required ItemDefinition item,
+  }) async {
+    final consumable = item.consumable;
+
+    if (consumable == null) {
+      _showError(context, 'Este objeto no es un consumible.');
+
+      return null;
+    }
+
+    if (consumable.effects.isEmpty) {
+      _showError(context, 'Este consumible no tiene efectos configurados.');
+
+      return null;
+    }
+
+    final resolver = ActionResolver(character: character);
+
+    // ===========================================================================
+    // SOURCE / DEFINITION / CONTENT
+    // ===========================================================================
+
+    final source = ActionSource.item(item);
+
+    final definition = ActionDefinition.fromConsumableItem(item);
+
+    final content = ActionContent.fromConsumableItem(item);
+
+    // ===========================================================================
+    // 1. VALIDACIÓN ESTRUCTURAL
+    // ===========================================================================
+
+    try {
+      resolver.validatePassiveTriggerTargetScopes(
+        definition: definition,
+        content: content,
+      );
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+
+      return null;
+    }
+
+    // ===========================================================================
+    // 2. TARGETS
+    // ===========================================================================
+
+    final targets = await showActionTargetSelector(
+      context,
+      targetType: definition.targetType,
+      selfLabel: selfLabel,
+    );
+
+    if (targets == null || !context.mounted) {
+      return null;
+    }
+
+    if (targets.isEmpty) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 3. CONTEXTO
+    // ===========================================================================
+
+    final actionContext = ActionResolutionContext(
+      character: character,
+      targets: targets,
+    );
+
+    actionContext.populateKnownTargetVariables();
+
+    // ===========================================================================
+    // 4. REQUIREMENTS PRE-RESOLUTION
+    // ===========================================================================
+
+    final requirementsCompleted = await _collectExternalRequirements(
+      context,
+      resolver: resolver,
+      source: source,
+      definition: definition,
+      content: content,
+      actionContext: actionContext,
+    );
+
+    if (!requirementsCompleted || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 5. PERFIL CRÍTICO
+    //
+    // Un consumible normal no realiza tirada de ataque.
+    // ===========================================================================
+
+    final criticalProfile = resolver.buildCriticalProfile();
+
+    // ===========================================================================
+    // 6. PLAN INICIAL
+    // ===========================================================================
+
+    final initialPrepared = resolver.prepareDirectAction(
+      source: source,
+      definition: definition,
+      content: content,
+      context: actionContext,
+      criticalProfile: criticalProfile,
+    );
+
+    // ===========================================================================
+    // 7. OPCIONALES
+    // ===========================================================================
+
+    final optionalCompleted = await _collectOptionalChoices(
+      context,
+      resolver: resolver,
+      plan: initialPrepared.plan,
+      actionContext: actionContext,
+    );
+
+    if (!optionalCompleted || !context.mounted) {
+      return null;
+    }
+
+    // ===========================================================================
+    // 8. PREPARED DEFINITIVO
+    // ===========================================================================
+
+    final prepared = resolver.prepareDirectAction(
+      source: source,
+      definition: definition,
+      content: content,
+      context: actionContext,
+      criticalProfile: criticalProfile,
+    );
+
+    // ===========================================================================
+    // 9. VALIDACIÓN DE RESOLUCIÓN
+    // ===========================================================================
+
+    try {
+      resolver.validatePreparedTargetResolution(prepared);
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+
+      return null;
+    }
+
+    // ===========================================================================
+    // 10. VALIDACIÓN DE COSTES
+    // ===========================================================================
+
+    final validation = resolver.validatePreparedActionCosts(prepared);
+
+    if (!validation.valid) {
+      _showError(
+        context,
+        validation.error ?? 'No puedes pagar los costes de este consumible.',
+      );
+
+      return null;
+    }
+
+    // ===========================================================================
+    // 11. MODO DE DADOS
+    // ===========================================================================
+
+    ActionDiceMode diceMode = ActionDiceMode.digital;
+
+    final requiresDiceMode = resolver.preparedActionRequiresDiceMode(prepared);
+
+    if (requiresDiceMode) {
+      final selectedDiceMode = await showActionDiceModeSheet(context);
+
+      if (selectedDiceMode == null || !context.mounted) {
+        return null;
+      }
+
+      diceMode = selectedDiceMode;
+    }
+
+    // ===========================================================================
+    // 12. ACTION ENGINE
+    //
+    // Un consumible no necesita una ruta mecánica paralela.
+    // ===========================================================================
+
+    if (prepared.definition.requiresAttackRoll) {
+      return _resolveAttack(
+        context,
+        resolver: resolver,
+        prepared: prepared,
+        diceMode: diceMode,
+      );
+    }
+
+    return _resolveWithoutAttack(
+      context,
+      resolver: resolver,
+      prepared: prepared,
       diceMode: diceMode,
     );
   }
@@ -930,7 +893,7 @@ class ActionResolutionFlow {
     required CharacterAbility ability,
   }) async {
     final resolver = ActionResolver(character: character);
-
+    final source = ActionSource.ability(ability);
     final definition = ActionDefinition.fromAbility(ability);
     final content = ActionContent.fromAbility(ability);
 
@@ -973,6 +936,7 @@ class ActionResolutionFlow {
     final requirementsCompleted = await _collectExternalRequirements(
       context,
       resolver: resolver,
+      source: source,
       definition: definition,
       content: content,
       actionContext: actionContext,
@@ -2329,6 +2293,7 @@ class ActionResolutionFlow {
   Future<bool> _collectExternalRequirements(
     BuildContext context, {
     required ActionResolver resolver,
+    required ActionSource source,
     required ActionDefinition definition,
     required ActionContent content,
     required ActionResolutionContext actionContext,
@@ -2348,6 +2313,7 @@ class ActionResolutionFlow {
     for (final target in actionContext.targets) {
       final requirements = resolver
           .orderedPreResolutionExternalRequirementsForTarget(
+            source: source,
             definition: definition,
             content: content,
             context: actionContext,

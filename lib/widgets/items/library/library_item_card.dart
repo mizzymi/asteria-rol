@@ -1,30 +1,28 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
-import '../../../models/ability.dart';
-import '../../../models/skill.dart';
+import '../../../models/item_definition.dart';
 import '../../../models/item_library_entry.dart';
-import '../../../models/item.dart';
 
 import '../../common/app_card.dart';
 import '../../common/info_badge.dart';
 
 import '../item_ability_preview.dart';
-import '../item_image.dart';
-import '../item_image_viewer.dart';
 import '../item_passive_preview.dart';
-import '../item_type_colors.dart';
+import '../../../theme/item_type_colors.dart';
 
 import 'export_item_button.dart';
 
 class LibraryItemCard extends StatefulWidget {
   final ItemLibraryEntry entry;
 
-  /// Solo existe cuando la biblioteca se abre
-  /// para seleccionar un objeto para un personaje.
   final VoidCallback? onAdd;
 
   final VoidCallback onEdit;
+
   final VoidCallback onShare;
+
   final VoidCallback onDelete;
 
   const LibraryItemCard({
@@ -37,21 +35,19 @@ class LibraryItemCard extends StatefulWidget {
   });
 
   @override
-  State<LibraryItemCard> createState() => _LibraryItemCardState();
+  State<LibraryItemCard> createState() {
+    return _LibraryItemCardState();
+  }
 }
 
 class _LibraryItemCardState extends State<LibraryItemCard> {
   bool expanded = false;
 
-  // ===========================================================================
-  // BUILD
-  // ===========================================================================
-
   @override
   Widget build(BuildContext context) {
-    final item = widget.entry.item;
+    final item = widget.entry.definition;
 
-    final color = ItemTypeColors.color(item.type);
+    final color = ItemTypeColors.of(item.type);
 
     final theme = Theme.of(context);
 
@@ -61,9 +57,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
       accentColor: color,
       child: Column(
         children: [
-          // ===================================================================
-          // HEADER
-          // ===================================================================
           InkWell(
             onTap: () {
               setState(() {
@@ -75,24 +68,10 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ===========================================================
-                  // IMAGEN
-                  // ===========================================================
-                  ItemImage(
-                    item: item,
-                    size: 62,
-                    onTap: item.hasImage
-                        ? () {
-                            ItemImageViewer.show(context, item);
-                          }
-                        : null,
-                  ),
+                  _DefinitionImage(definition: item, color: color),
 
                   const SizedBox(width: 12),
 
-                  // ===========================================================
-                  // INFORMACIÓN
-                  // ===========================================================
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,9 +89,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            // =================================================
-                            // TIPO
-                            // =================================================
                             InfoBadge(
                               icon: ItemTypeColors.icon(item.type),
                               text: item.type.label,
@@ -120,58 +96,44 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                               highlighted: true,
                             ),
 
-                            // =================================================
-                            // CANTIDAD
-                            // =================================================
-                            if (item.quantity > 1)
-                              InfoBadge(
-                                icon: Icons.layers_rounded,
-                                text: 'x${item.quantity}',
-                              ),
-
-                            // =================================================
-                            // ARMA
-                            // =================================================
                             if (item.weapon != null)
                               InfoBadge(
                                 icon: Icons.gavel_rounded,
                                 text:
-                                    '${item.weapon!.damages.length} daño${item.weapon!.damages.length == 1 ? '' : 's'}',
+                                    '${item.weapon!.damages.length} '
+                                    'daño'
+                                    '${item.weapon!.damages.length == 1 ? '' : 's'}',
                               ),
 
-                            // =================================================
-                            // CONSUMIBLE
-                            // =================================================
                             if (item.consumable != null)
                               InfoBadge(
                                 icon: Icons.science_rounded,
                                 text:
-                                    '${item.consumable!.effects.length} efecto${item.consumable!.effects.length == 1 ? '' : 's'}',
+                                    '${item.consumable!.effects.length} '
+                                    'efecto'
+                                    '${item.consumable!.effects.length == 1 ? '' : 's'}',
                               ),
 
-                            // =================================================
-                            // PASIVAS
-                            // =================================================
                             if (item.passives.isNotEmpty)
                               InfoBadge(
                                 icon: Icons.auto_awesome_rounded,
                                 text: '${item.passives.length}',
                               ),
 
-                            // =================================================
-                            // HABILIDADES
-                            // =================================================
                             if (item.abilities.isNotEmpty)
                               InfoBadge(
                                 icon: Icons.flash_on_rounded,
                                 text: '${item.abilities.length}',
                               ),
+
+                            if (item.stackable)
+                              const InfoBadge(
+                                icon: Icons.layers_rounded,
+                                text: 'Apilable',
+                              ),
                           ],
                         ),
 
-                        // =====================================================
-                        // DESCRIPCIÓN
-                        // =====================================================
                         if (item.description.isNotEmpty) ...[
                           const SizedBox(height: 8),
 
@@ -191,9 +153,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
                   const SizedBox(width: 4),
 
-                  // ===========================================================
-                  // OPCIONES
-                  // ===========================================================
                   Column(
                     children: [
                       PopupMenuButton<String>(
@@ -262,9 +221,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
             ),
           ),
 
-          // ===================================================================
-          // CONTENIDO EXPANDIDO
-          // ===================================================================
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
             crossFadeState: expanded
@@ -280,9 +236,68 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                 children: [
                   const Divider(height: 1),
 
-                  // ===========================================================
-                  // ARMA
-                  // ===========================================================
+                  // =============================================================
+                  // EQUIPMENT
+                  // =============================================================
+                  if (item.equipmentSlotIds.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+
+                    _SectionTitle(
+                      icon: Icons.checkroom_rounded,
+                      title: 'Equipamiento',
+                      color: color,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: item.equipmentSlotIds
+                          .map(
+                            (slot) => InfoBadge(
+                              icon: Icons.inventory_2_outlined,
+                              text: slot,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+
+                  // =============================================================
+                  // ARMOR
+                  // =============================================================
+                  if (item.armor != null) ...[
+                    const SizedBox(height: 16),
+
+                    _SectionTitle(
+                      icon: Icons.shield_rounded,
+                      title: 'Armadura',
+                      color: color,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        InfoBadge(
+                          icon: Icons.shield_outlined,
+                          text: 'CA ${item.armor!.baseArmorClass}',
+                        ),
+
+                        InfoBadge(
+                          icon: Icons.category_rounded,
+                          text: item.armor!.category.label,
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // =============================================================
+                  // WEAPON
+                  // =============================================================
                   if (item.type == ItemType.weapon && item.weapon != null) ...[
                     const SizedBox(height: 16),
 
@@ -294,12 +309,12 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
                     const SizedBox(height: 10),
 
-                    _WeaponLibraryPreview(item: item, color: color),
+                    _WeaponLibraryPreview(definition: item, color: color),
                   ],
 
-                  // ===========================================================
-                  // CONSUMIBLE
-                  // ===========================================================
+                  // =============================================================
+                  // CONSUMABLE
+                  // =============================================================
                   if (item.type == ItemType.consumable &&
                       item.consumable != null) ...[
                     const SizedBox(height: 16),
@@ -313,12 +328,12 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
                     const SizedBox(height: 10),
 
-                    _ConsumableLibraryPreview(item: item, color: color),
+                    _ConsumableLibraryPreview(definition: item, color: color),
                   ],
 
-                  // ===========================================================
-                  // PASIVAS
-                  // ===========================================================
+                  // =============================================================
+                  // PASSIVES
+                  // =============================================================
                   if (item.passives.isNotEmpty) ...[
                     const SizedBox(height: 16),
 
@@ -339,9 +354,9 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                     ),
                   ],
 
-                  // ===========================================================
-                  // HABILIDADES
-                  // ===========================================================
+                  // =============================================================
+                  // ABILITIES
+                  // =============================================================
                   if (item.abilities.isNotEmpty) ...[
                     const SizedBox(height: 16),
 
@@ -362,9 +377,42 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                     ),
                   ],
 
-                  // ===========================================================
-                  // NOTAS
-                  // ===========================================================
+                  // =============================================================
+                  // CALCULATOR
+                  // =============================================================
+                  if (item.calculable) ...[
+                    const SizedBox(height: 16),
+
+                    _SectionTitle(
+                      icon: Icons.calculate_rounded,
+                      title: 'Calculadora',
+                      count: item.calculationCosts.length,
+                      color: color,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    if (item.calculationCosts.isEmpty)
+                      Text(
+                        'Sin costes configurados.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    else
+                      ...item.calculationCosts.map(
+                        (cost) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '${cost.quantityPerUnit} × ${cost.itemId}',
+                          ),
+                        ),
+                      ),
+                  ],
+
+                  // =============================================================
+                  // NOTES
+                  // =============================================================
                   if (item.notes.trim().isNotEmpty) ...[
                     const SizedBox(height: 16),
 
@@ -392,9 +440,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
                   const SizedBox(height: 18),
 
-                  // ===========================================================
-                  // AÑADIR AL PERSONAJE
-                  // ===========================================================
                   if (widget.onAdd != null) ...[
                     SizedBox(
                       width: double.infinity,
@@ -408,9 +453,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
                     const SizedBox(height: 10),
                   ],
 
-                  // ===========================================================
-                  // EDITAR
-                  // ===========================================================
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -422,9 +464,6 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
                   const SizedBox(height: 8),
 
-                  // ===========================================================
-                  // COMPARTIR
-                  // ===========================================================
                   SizedBox(
                     width: double.infinity,
                     child: ExportItemButton(onPressed: widget.onShare),
@@ -440,20 +479,135 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 }
 
 // =============================================================================
-// PREVIEW ARMA
+// DEFINITION IMAGE
+// =============================================================================
+
+class _DefinitionImage extends StatelessWidget {
+  final ItemDefinition definition;
+
+  final Color color;
+
+  const _DefinitionImage({required this.definition, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage =
+        definition.imagePath.isNotEmpty &&
+        File(definition.imagePath).existsSync();
+
+    return GestureDetector(
+      onTap: hasImage
+          ? () {
+              _showImage(context);
+            }
+          : null,
+      child: Container(
+        width: 62,
+        height: 62,
+        decoration: BoxDecoration(
+          color: ItemTypeColors.background(
+            context,
+            definition.type,
+            strength: 0.22,
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: hasImage
+            ? Image.file(File(definition.imagePath), fit: BoxFit.cover)
+            : Icon(
+                ItemTypeColors.icon(definition.type),
+                color: color,
+                size: 30,
+              ),
+      ),
+    );
+  }
+
+  Future<void> _showImage(BuildContext context) {
+    if (definition.imagePath.isEmpty) {
+      return Future.value();
+    }
+
+    return Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.92),
+        pageBuilder: (_, _, _) {
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: SafeArea(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                      },
+                      child: InteractiveViewer(
+                        minScale: 0.8,
+                        maxScale: 5,
+                        child: Center(
+                          child: Image.file(
+                            File(definition.imagePath),
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton.filled(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ),
+
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: 20,
+                    child: Text(
+                      definition.name,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// WEAPON
 // =============================================================================
 
 class _WeaponLibraryPreview extends StatelessWidget {
-  final CharacterItem item;
+  final ItemDefinition definition;
+
   final Color color;
 
-  const _WeaponLibraryPreview({required this.item, required this.color});
+  const _WeaponLibraryPreview({required this.definition, required this.color});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final weapon = item.weapon;
+    final weapon = definition.weapon;
 
     if (weapon == null) {
       return const SizedBox.shrink();
@@ -507,7 +661,8 @@ class _WeaponLibraryPreview extends StatelessWidget {
                 InfoBadge(
                   icon: Icons.auto_awesome_rounded,
                   text:
-                      '${weapon.magicBonus > 0 ? '+' : ''}${weapon.magicBonus} mágico',
+                      '${weapon.magicBonus > 0 ? '+' : ''}'
+                      '${weapon.magicBonus} mágico',
                 ),
             ],
           ),
@@ -565,20 +720,24 @@ class _WeaponLibraryPreview extends StatelessWidget {
 }
 
 // =============================================================================
-// PREVIEW CONSUMIBLE
+// CONSUMABLE
 // =============================================================================
 
 class _ConsumableLibraryPreview extends StatelessWidget {
-  final CharacterItem item;
+  final ItemDefinition definition;
+
   final Color color;
 
-  const _ConsumableLibraryPreview({required this.item, required this.color});
+  const _ConsumableLibraryPreview({
+    required this.definition,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final consumable = item.consumable;
+    final consumable = definition.consumable;
 
     if (consumable == null) {
       return const SizedBox.shrink();
@@ -611,12 +770,6 @@ class _ConsumableLibraryPreview extends StatelessWidget {
                   ),
                 ),
               ),
-
-              if (item.quantity > 1)
-                Text(
-                  'x${item.quantity}',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
             ],
           ),
 
@@ -645,9 +798,12 @@ class _ConsumableLibraryPreview extends StatelessWidget {
                 }
 
                 if (entry.value == 1) {
-                  pieces.add(entry.key.shortLabel);
+                  pieces.add(entry.key.name);
                 } else {
-                  pieces.add('${entry.value}×${entry.key.shortLabel}');
+                  pieces.add(
+                    '${entry.value}×'
+                    '${entry.key.name}',
+                  );
                 }
               }
 
@@ -660,7 +816,7 @@ class _ConsumableLibraryPreview extends StatelessWidget {
               }
 
               final formula = pieces.isEmpty
-                  ? effect.effectType.label
+                  ? effect.effectType.name
                   : pieces.join(' + ');
 
               return Padding(
@@ -686,7 +842,8 @@ class _ConsumableLibraryPreview extends StatelessWidget {
                         children: [
                           Text(
                             effect.effectTypeName.trim().isNotEmpty
-                                ? '$formula · ${effect.effectTypeName}'
+                                ? '$formula · '
+                                      '${effect.effectTypeName}'
                                 : formula,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               fontWeight: FontWeight.w700,
@@ -718,7 +875,7 @@ class _ConsumableLibraryPreview extends StatelessWidget {
 }
 
 // =============================================================================
-// TÍTULO DE SECCIÓN
+// SECTION TITLE
 // =============================================================================
 
 class _SectionTitle extends StatelessWidget {

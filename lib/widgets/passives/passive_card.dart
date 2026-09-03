@@ -21,9 +21,7 @@ import 'passive_disabled_banner.dart';
 class PassiveCard extends StatefulWidget {
   final CharacterPassive passive;
 
-  /// True cuando esta pasiva procede de
-  /// un objeto equipado.
-  final CharacterItem? sourceItem;
+  final ItemDefinition? sourceItem;
 
   bool get isItemPassive => sourceItem != null;
 
@@ -136,7 +134,7 @@ class _PassiveHeader extends StatelessWidget {
 
   final bool expanded;
 
-  final CharacterItem? sourceItem;
+  final ItemDefinition? sourceItem;
 
   final bool showPassiveBadge;
 

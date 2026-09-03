@@ -266,42 +266,6 @@ class EffectResultCard extends StatelessWidget {
     return effect.heals ? 'Curación' : 'Daño';
   }
 
-  IconData get _icon {
-    if (effect.heals) {
-      return Icons.favorite_rounded;
-    }
-
-    if (effect.usesSavingThrow) {
-      return Icons.shield_rounded;
-    }
-
-    return Icons.flash_on_rounded;
-  }
-
-  Color _iconBackground(ThemeData theme) {
-    if (effect.heals) {
-      return theme.colorScheme.tertiaryContainer;
-    }
-
-    if (effect.usesSavingThrow) {
-      return theme.colorScheme.secondaryContainer;
-    }
-
-    return theme.colorScheme.primaryContainer;
-  }
-
-  Color _iconColor(ThemeData theme) {
-    if (effect.heals) {
-      return theme.colorScheme.onTertiaryContainer;
-    }
-
-    if (effect.usesSavingThrow) {
-      return theme.colorScheme.onSecondaryContainer;
-    }
-
-    return theme.colorScheme.primary;
-  }
-
   String get _saveText {
     if (!saved) {
       return 'Salvación fallida · efecto completo';

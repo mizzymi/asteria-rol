@@ -10,27 +10,21 @@ import '../models/item.dart';
 class ItemImportExportService {
   const ItemImportExportService._();
 
-  static const int formatVersion = 1;
+  static const int formatVersion = 2;
 
   static const String formatType = 'asteria-item';
 
   // ===========================================================================
-  // EXPORTAR
+  // EXPORTAR DEFINITION
   // ===========================================================================
 
-  static Future<File> createExportFile(CharacterItem item) async {
-    final exportItem = CharacterItem.fromMap(item.toMap());
-
-    /*
-     * No queremos que otro jugador
-     * lo importe automáticamente equipado.
-     */
-    exportItem.equipped = false;
+  static Future<File> createExportFile(ItemDefinition definition) async {
+    final exportDefinition = ItemDefinition.fromMap(definition.toMap());
 
     String? encodedImage;
 
-    if (item.imagePath.isNotEmpty) {
-      final imageFile = File(item.imagePath);
+    if (definition.imagePath.isNotEmpty) {
+      final imageFile = File(definition.imagePath);
 
       if (await imageFile.exists()) {
         final bytes = await imageFile.readAsBytes();
@@ -39,22 +33,29 @@ class ItemImportExportService {
       }
     }
 
-    /*
-     * La ruta local del dispositivo
-     * no tiene sentido para otro usuario.
-     */
-    exportItem.imagePath = '';
+    // =========================================================================
+    // LA RUTA LOCAL NO SE EXPORTA
+    // =========================================================================
+
+    exportDefinition.imagePath = '';
+
+    // =========================================================================
+    // PAYLOAD
+    // =========================================================================
 
     final payload = {
       'type': formatType,
+
       'version': formatVersion,
-      'item': exportItem.toMap(),
+
+      'definition': exportDefinition.toMap(),
+
       'image': encodedImage,
     };
 
     final tempDirectory = await getTemporaryDirectory();
 
-    final safeName = _safeFileName(item.name);
+    final safeName = _safeFileName(definition.name);
 
     final file = File('${tempDirectory.path}/$safeName.asteria-item');
 
@@ -63,21 +64,41 @@ class ItemImportExportService {
     return file;
   }
 
-  static Future<void> shareItem(CharacterItem item) async {
-    final file = await createExportFile(item);
+  // ===========================================================================
+  // COMPARTIR
+  // ===========================================================================
 
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'application/json')],
-      subject: 'Objeto de Asteria: ${item.name}',
-      text: 'Importa este objeto en Asteria.',
+  static Future<void> shareDefinition(ItemDefinition definition) async {
+    final file = await createExportFile(definition);
+
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'application/json')],
+        subject: 'Objeto de Asteria: ${definition.name}',
+        text: 'Importa este objeto en Asteria.',
+      ),
     );
+  }
+
+  // ===========================================================================
+  // COMPATIBILIDAD TEMPORAL
+  //
+  // Mientras todavía haya callers legacy que trabajen con CharacterItem.
+  // ===========================================================================
+
+  static Future<File> createLegacyExportFile(CharacterItem item) {
+    return createExportFile(item.toDefinition());
+  }
+
+  static Future<void> shareItem(CharacterItem item) {
+    return shareDefinition(item.toDefinition());
   }
 
   // ===========================================================================
   // IMPORTAR
   // ===========================================================================
 
-  static Future<CharacterItem?> pickAndImportItem() async {
+  static Future<ItemDefinition?> pickAndImportDefinition() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: false,
@@ -93,10 +114,14 @@ class ItemImportExportService {
       return null;
     }
 
-    return importFromFile(File(path));
+    return importDefinitionFromFile(File(path));
   }
 
-  static Future<CharacterItem> importFromFile(File file) async {
+  // ===========================================================================
+  // IMPORTAR DESDE ARCHIVO
+  // ===========================================================================
+
+  static Future<ItemDefinition> importDefinitionFromFile(File file) async {
     final raw = await file.readAsString();
 
     final decoded = jsonDecode(raw);
@@ -107,9 +132,17 @@ class ItemImportExportService {
 
     final map = Map<String, dynamic>.from(decoded);
 
+    // =========================================================================
+    // TYPE
+    // =========================================================================
+
     if (map['type'] != formatType) {
       throw const FormatException('El archivo no es un objeto de Asteria.');
     }
+
+    // =========================================================================
+    // VERSION
+    // =========================================================================
 
     final version = (map['version'] as num?)?.toInt() ?? 0;
 
@@ -117,55 +150,110 @@ class ItemImportExportService {
       throw FormatException('Versión de objeto no compatible: $version');
     }
 
-    final rawItem = map['item'];
+    // =========================================================================
+    // VERSION 2+ · ITEM DEFINITION
+    // =========================================================================
 
-    if (rawItem is! Map) {
+    if (version >= 2) {
+      final rawDefinition = map['definition'];
+
+      if (rawDefinition is! Map) {
+        throw const FormatException(
+          'La definición del objeto está incompleta.',
+        );
+      }
+
+      final definition = ItemDefinition.fromMap(
+        Map<dynamic, dynamic>.from(rawDefinition),
+      );
+
+      return _attachImportedImage(
+        definition: definition,
+        encodedImage: map['image']?.toString(),
+      );
+    }
+
+    // =========================================================================
+    // VERSION 1 · LEGACY CHARACTER ITEM
+    //
+    // Compatibilidad con archivos ya exportados por versiones anteriores.
+    // =========================================================================
+
+    final rawLegacyItem = map['item'];
+
+    if (rawLegacyItem is! Map) {
       throw const FormatException('El objeto está incompleto.');
     }
 
-    final item = CharacterItem.fromMap(Map<dynamic, dynamic>.from(rawItem));
+    final legacyItem = CharacterItem.fromMap(
+      Map<dynamic, dynamic>.from(rawLegacyItem),
+    );
 
-    /*
-     * Siempre generamos ID nuevo.
-     */
-    item.id = DateTime.now().microsecondsSinceEpoch.toString();
+    final definition = legacyItem.toDefinition();
 
-    item.equipped = false;
+    return _attachImportedImage(
+      definition: definition,
+      encodedImage: map['image']?.toString(),
+    );
+  }
 
-    // =========================================================================
-    // IMAGEN
-    // =========================================================================
+  // ===========================================================================
+  // COMPATIBILIDAD TEMPORAL · IMPORT LEGACY
+  //
+  // Solo para callers que todavía esperan CharacterItem.
+  // ===========================================================================
 
-    final encodedImage = map['image']?.toString();
+  static Future<CharacterItem?> pickAndImportItem() async {
+    final definition = await pickAndImportDefinition();
+
+    if (definition == null) {
+      return null;
+    }
+
+    return CharacterItem.fromDefinition(
+      definition,
+      inventoryId: DateTime.now().microsecondsSinceEpoch.toString(),
+      quantity: 1,
+      equipped: false,
+    );
+  }
+
+  static Future<CharacterItem> importFromFile(File file) async {
+    final definition = await importDefinitionFromFile(file);
+
+    return CharacterItem.fromDefinition(
+      definition,
+      inventoryId: DateTime.now().microsecondsSinceEpoch.toString(),
+      quantity: 1,
+      equipped: false,
+    );
+  }
+
+  // ===========================================================================
+  // IMAGEN
+  // ===========================================================================
+
+  static Future<ItemDefinition> _attachImportedImage({
+    required ItemDefinition definition,
+    required String? encodedImage,
+  }) async {
+    String imagePath = '';
 
     if (encodedImage != null && encodedImage.isNotEmpty) {
       try {
         final bytes = base64Decode(encodedImage);
 
-        item.imagePath = await _saveImportedImage(item.id, bytes);
+        imagePath = await _saveImportedImage(definition.id, bytes);
       } catch (_) {
-        item.imagePath = '';
+        imagePath = '';
       }
-    } else {
-      item.imagePath = '';
     }
 
-    /*
-     * Las habilidades y pasivas pueden
-     * mantener sus IDs internos porque
-     * viven dentro de este nuevo item,
-     * pero podemos regenerarlos para
-     * evitar cualquier posible choque.
-     */
-    for (var i = 0; i < item.passives.length; i++) {
-      item.passives[i].id = '${item.id}_passive_$i';
-    }
+    final map = definition.toMap();
 
-    for (var i = 0; i < item.abilities.length; i++) {
-      item.abilities[i].id = '${item.id}_ability_$i';
-    }
+    map['imagePath'] = imagePath;
 
-    return item;
+    return ItemDefinition.fromMap(map);
   }
 
   // ===========================================================================
@@ -184,7 +272,9 @@ class ItemImportExportService {
       await imageDirectory.create(recursive: true);
     }
 
-    final file = File('${imageDirectory.path}/imported_$itemId.jpg');
+    final safeItemId = _safeFileName(itemId);
+
+    final file = File('${imageDirectory.path}/imported_$safeItemId.jpg');
 
     await file.writeAsBytes(bytes, flush: true);
 
