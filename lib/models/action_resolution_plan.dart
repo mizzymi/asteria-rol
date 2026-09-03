@@ -1,10 +1,20 @@
 import 'ability.dart';
 import 'ability_effect_part.dart';
 import 'action_cost.dart';
+import 'action_definition.dart';
 import 'action_external_requirement.dart';
+import 'action_content.dart';
 
 class ActionResolutionPlan {
-  final CharacterAbility ability;
+  /// TEMPORAL.
+  ///
+  /// Lo conservamos mientras queden APIs antiguas que
+  /// necesitan CharacterAbility completa.
+  final CharacterAbility? ability;
+
+  final ActionDefinition definition;
+
+  final ActionContent content;
 
   final List<AbilityEffectPart> automaticParts;
 
@@ -15,26 +25,24 @@ class ActionResolutionPlan {
   final List<ActionCost> costs;
 
   const ActionResolutionPlan({
-    required this.ability,
+    this.ability,
+    required this.definition,
+    required this.content,
     this.automaticParts = const [],
     this.optionalParts = const [],
     this.externalRequirements = const [],
     this.costs = const [],
   });
 
-  List<AbilityEffectPart> get allAvailableParts {
-    return [...automaticParts, ...optionalParts];
-  }
+  bool get hasAbility => ability != null;
 
-  bool get hasOptionalParts {
-    return optionalParts.isNotEmpty;
-  }
+  CharacterAbility get requireAbility {
+    final value = ability;
 
-  bool get needsExternalInformation {
-    return externalRequirements.isNotEmpty;
-  }
+    if (value == null) {
+      throw StateError('Este plan no procede de una habilidad.');
+    }
 
-  bool get hasCosts {
-    return costs.isNotEmpty;
+    return value;
   }
 }

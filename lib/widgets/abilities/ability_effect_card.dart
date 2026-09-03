@@ -6,7 +6,6 @@ import '../../models/character.dart';
 import '../../models/skill.dart';
 import 'ability_colors.dart';
 
-
 class AbilityEffectCard extends StatelessWidget {
   final CharacterAbility ability;
   final AbilityEffect effect;

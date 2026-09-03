@@ -32,7 +32,9 @@ import '../models/critical_damage_bonus.dart';
 import '../models/character_effect_triggered_external_outcome.dart';
 import '../models/action_source.dart';
 import '../models/action_definition.dart';
+import '../models/action_content.dart';
 
+import 'action_stat_resolver.dart';
 import 'character_effect_trigger_engine.dart';
 import 'action_result_applier.dart';
 import 'action_external_requirement_parser.dart';
@@ -206,7 +208,7 @@ class ActionResolver {
     // ===========================================================================
 
     if (!_passesHitGate(
-      requiresAttackRoll: plan.ability.requiresAttackRoll,
+      requiresAttackRoll: plan.definition.requiresAttackRoll,
       behavior: bonus.hitBehavior,
       attackResult: attackResult,
       targetParticipatesInAttackRoll: target.participatesInAttackRoll,
@@ -240,7 +242,7 @@ class ActionResolver {
         continue;
       }
 
-      switch (plan.ability.targetResolutionMode) {
+      switch (plan.definition.targetResolutionMode) {
         // =======================================================================
         // SHARED
         //
@@ -308,7 +310,7 @@ class ActionResolver {
     // Su coste es global por acción, no por target.
     // ===========================================================================
 
-    if (_abilityHeals(plan.ability)) {
+    if (plan.content.heals) {
       for (final active in character.activeHealingBonuses) {
         final bonus = active.bonus;
 
@@ -366,7 +368,7 @@ class ActionResolver {
   // ===========================================================================
 
   ActionDiceResult resolveDiceResultForTarget({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
     required ActionTarget target,
     required ActionDiceResult diceResult,
     ActionTargetAttackResult? attackResult,
@@ -374,7 +376,7 @@ class ActionResolver {
     final survivingParts = diceResult.parts
         .where((part) {
           return _passesHitGate(
-            requiresAttackRoll: ability.requiresAttackRoll,
+            requiresAttackRoll: definition.requiresAttackRoll,
             behavior: part.request.hitBehavior,
             attackResult: attackResult,
             targetParticipatesInAttackRoll: target.participatesInAttackRoll,
@@ -388,7 +390,7 @@ class ActionResolver {
   }
 
   ActionTargetResult buildTargetResult({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
     required ActionTarget target,
     required ActionDiceResult diceResult,
     ActionTargetAttackResult? attackResult,
@@ -397,7 +399,7 @@ class ActionResolver {
     bool auxiliary = false,
   }) {
     final resolvedDiceResult = resolveDiceResultForTarget(
-      ability: ability,
+      definition: definition,
       target: target,
       diceResult: diceResult,
       attackResult: attackResult,
@@ -444,7 +446,7 @@ class ActionResolver {
 
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
   }) {
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       // =========================================================================
       // SHARED
       // =========================================================================
@@ -518,8 +520,6 @@ class ActionResolver {
 
     required ActionDefinition definition,
 
-    required CharacterAbility ability,
-
     required ActionResolutionContext context,
 
     required ActionCriticalProfile criticalProfile,
@@ -531,7 +531,8 @@ class ActionResolver {
     ).combineCosts(costs);
 
     final plan = ActionResolutionPlan(
-      ability: ability,
+      definition: definition,
+      content: const ActionContent.empty(),
       automaticParts: const [],
       optionalParts: const [],
       externalRequirements: const [],
@@ -542,8 +543,6 @@ class ActionResolver {
       source: source,
 
       definition: definition,
-
-      ability: ability,
 
       context: context,
 
@@ -557,8 +556,6 @@ class ActionResolver {
 
   ActionResolutionResult buildDirectResolutionResult({
     required ActionSource source,
-
-    required CharacterAbility ability,
 
     required AbilityTargetResolutionMode targetResolutionMode,
 
@@ -583,8 +580,6 @@ class ActionResolver {
   }) {
     return ActionResolutionResult(
       source: source,
-
-      ability: ability,
 
       targetResolutionMode: targetResolutionMode,
 
@@ -662,14 +657,14 @@ class ActionResolver {
   }
 
   bool _passesLinkedEffectHitGate({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
     required ActionLinkedEffect linkedEffect,
     ActionTarget? target,
     ActionTargetAttackResult? targetAttackResult,
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
     bool auxiliarySelf = false,
   }) {
-    if (!ability.requiresAttackRoll) {
+    if (!definition.requiresAttackRoll) {
       return true;
     }
 
@@ -681,7 +676,7 @@ class ActionResolver {
 
     if (!auxiliarySelf) {
       return _passesHitGate(
-        requiresAttackRoll: ability.requiresAttackRoll,
+        requiresAttackRoll: definition.requiresAttackRoll,
         behavior: behavior,
         attackResult: targetAttackResult,
         targetParticipatesInAttackRoll:
@@ -708,7 +703,7 @@ class ActionResolver {
           final request = partResult.request;
 
           if (!_passesHitGate(
-            requiresAttackRoll: plan.ability.requiresAttackRoll,
+            requiresAttackRoll: plan.definition.requiresAttackRoll,
             behavior: request.hitBehavior,
             attackResult: attackResult,
             targetParticipatesInAttackRoll: target.participatesInAttackRoll,
@@ -754,37 +749,22 @@ class ActionResolver {
   }
 
   AbilityEffect? _linkedEffectSourceEffect({
-    required CharacterAbility ability,
+    required ActionContent content,
     required ActionLinkedEffect linkedEffect,
   }) {
     final explicitId = linkedEffect.normalizedSourceEffectId;
 
-    // ===========================================================================
-    // SOURCE EXPLÍCITO
-    // ===========================================================================
-
     if (explicitId != null) {
-      for (final effect in ability.effects) {
+      for (final effect in content.effects) {
         if (effect.id == explicitId) {
           return effect;
         }
       }
 
-      // El ID existe en los datos pero ya no existe
-      // en la habilidad.
       return null;
     }
 
-    // ===========================================================================
-    // COMPATIBILIDAD LEGACY
-    //
-    // Antiguamente no se guardaba sourceEffectId.
-    //
-    // Si solo existe un único AbilityEffect con salvación,
-    // podemos inferir inequívocamente que era el origen.
-    // ===========================================================================
-
-    final savingEffects = ability.effects
+    final savingEffects = content.effects
         .where((effect) => effect.usesSavingThrow)
         .toList(growable: false);
 
@@ -846,7 +826,7 @@ class ActionResolver {
     // 3. LINKED EFFECTS CONTROLADOS POR ESTE SAVE
     // ===========================================================================
 
-    for (final linkedEffect in prepared.ability.linkedEffects) {
+    for (final linkedEffect in prepared.plan.content.linkedEffects) {
       if (linkedEffect.saveBehavior == ActionLinkedEffectSaveBehavior.ignore) {
         continue;
       }
@@ -859,7 +839,7 @@ class ActionResolver {
       }
 
       final sourceEffect = _linkedEffectSourceEffect(
-        ability: prepared.ability,
+        content: prepared.plan.content,
         linkedEffect: linkedEffect,
       );
 
@@ -870,7 +850,7 @@ class ActionResolver {
       }
 
       if (!_passesLinkedEffectHitGate(
-        ability: prepared.ability,
+        definition: prepared.definition,
         linkedEffect: linkedEffect,
         target: target,
         targetAttackResult: attackResult,
@@ -914,50 +894,36 @@ class ActionResolver {
   }
 
   List<ActionEffectResult> _buildLinkedEffectResultsForTarget({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
     required ActionTarget target,
     required ActionTargetAttackResult? attackResult,
     required List<ActionSavingThrowResult> savingThrowResults,
   }) {
-    if (ability.linkedEffects.isEmpty) {
+    if (content.linkedEffects.isEmpty) {
       return const [];
     }
 
     final results = <ActionEffectResult>[];
 
-    for (final linkedEffect in ability.linkedEffects) {
-      // =======================================================================
-      // 1. TARGET
-      // =======================================================================
-
+    for (final linkedEffect in content.linkedEffects) {
       switch (linkedEffect.target) {
         case ActionLinkedEffectTarget.actionTarget:
-          // El target normal ya viene representado por este ActionTarget.
           break;
-
         case ActionLinkedEffectTarget.self:
           if (!target.isSelf) {
             continue;
           }
-
           break;
-
         case ActionLinkedEffectTarget.externalTargets:
           if (!target.isExternal) {
             continue;
           }
-
           break;
       }
 
-      // =======================================================================
-      // 2. HIT / MISS
-      //
-      // Una única fuente de verdad.
-      // =======================================================================
-
       if (!_passesLinkedEffectHitGate(
-        ability: ability,
+        definition: definition,
         linkedEffect: linkedEffect,
         target: target,
         targetAttackResult: attackResult,
@@ -965,22 +931,14 @@ class ActionResolver {
         continue;
       }
 
-      // =======================================================================
-      // 3. SAVING THROW
-      // =======================================================================
-
       if (!_passesLinkedEffectSaveGate(
-        ability: ability,
+        content: content,
         linkedEffect: linkedEffect,
         target: target,
         savingThrowResults: savingThrowResults,
       )) {
         continue;
       }
-
-      // =======================================================================
-      // 4. RESULTADO
-      // =======================================================================
 
       results.add(ActionEffectResult(linkedEffect: linkedEffect));
     }
@@ -989,26 +947,15 @@ class ActionResolver {
   }
 
   bool _passesLinkedEffectSaveGate({
-    required CharacterAbility ability,
+    required ActionContent content,
     required ActionLinkedEffect linkedEffect,
     required List<ActionSavingThrowResult> savingThrowResults,
     ActionTarget? target,
     bool auxiliarySelf = false,
   }) {
-    // ===========================================================================
-    // IGNORAR SAVE
-    // ===========================================================================
-
     if (linkedEffect.saveBehavior == ActionLinkedEffectSaveBehavior.ignore) {
       return true;
     }
-
-    // ===========================================================================
-    // SELF AUXILIAR
-    //
-    // El personaje que ejecuta la acción no debe utilizar
-    // la salvación de un objetivo externo.
-    // ===========================================================================
 
     if (auxiliarySelf) {
       return true;
@@ -1018,12 +965,8 @@ class ActionResolver {
       return true;
     }
 
-    // ===========================================================================
-    // SOURCE EFFECT
-    // ===========================================================================
-
     final sourceEffect = _linkedEffectSourceEffect(
-      ability: ability,
+      content: content,
       linkedEffect: linkedEffect,
     );
 
@@ -1031,56 +974,33 @@ class ActionResolver {
       return true;
     }
 
-    // ===========================================================================
-    // RESULTADO EXACTO
-    //
-    // Deben coincidir:
-    // - target
-    // - effect origen
-    // ===========================================================================
-
     ActionSavingThrowResult? save;
 
     for (final candidate in savingThrowResults) {
       if (candidate.request.targetId != target.id) {
         continue;
       }
-
       if (candidate.request.effectId != sourceEffect.id) {
         continue;
       }
-
       save = candidate;
       break;
     }
 
-    // No hubo una salvación aplicable.
-    if (save == null) {
+    if (save == null || !save.saved) {
       return true;
     }
-
-    // Si falla, el efecto vinculado sigue vivo.
-    if (!save.saved) {
-      return true;
-    }
-
-    // ===========================================================================
-    // SAVE EXITOSO
-    // ===========================================================================
 
     switch (linkedEffect.saveBehavior) {
       case ActionLinkedEffectSaveBehavior.ignore:
         return true;
-
       case ActionLinkedEffectSaveBehavior.preventOnSuccess:
         return false;
-
       case ActionLinkedEffectSaveBehavior.followSource:
         switch (save.request.successEffect) {
           case SaveSuccessEffect.full:
           case SaveSuccessEffect.half:
             return true;
-
           case SaveSuccessEffect.none:
             return false;
         }
@@ -1088,39 +1008,25 @@ class ActionResolver {
   }
 
   List<ActionEffectResult> _buildAuxiliarySelfLinkedEffects({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
     required ActionResolutionContext context,
     required Map<String, ActionTargetAttackResult> attackResultsByTargetId,
     required List<ActionSavingThrowResult> savingThrowResults,
   }) {
-    // ===========================================================================
-    // SELF YA ES TARGET NORMAL
-    //
-    // Si self ya forma parte de la resolución normal,
-    // _buildLinkedEffectResultsForTarget() se ocupa de él.
-    // ===========================================================================
-
     if (context.targets.any((target) => target.isSelf)) {
       return const [];
     }
 
     final results = <ActionEffectResult>[];
 
-    for (final linkedEffect in ability.linkedEffects) {
-      // =========================================================================
-      // SOLO SELF
-      // =========================================================================
-
+    for (final linkedEffect in content.linkedEffects) {
       if (linkedEffect.target != ActionLinkedEffectTarget.self) {
         continue;
       }
 
-      // =========================================================================
-      // HIT / MISS
-      // =========================================================================
-
       if (!_passesLinkedEffectHitGate(
-        ability: ability,
+        definition: definition,
         linkedEffect: linkedEffect,
         attackResultsByTargetId: attackResultsByTargetId,
         auxiliarySelf: true,
@@ -1128,12 +1034,8 @@ class ActionResolver {
         continue;
       }
 
-      // =========================================================================
-      // SAVES
-      // =========================================================================
-
       if (!_passesLinkedEffectSaveGate(
-        ability: ability,
+        content: content,
         linkedEffect: linkedEffect,
         savingThrowResults: savingThrowResults,
         auxiliarySelf: true,
@@ -1148,13 +1050,15 @@ class ActionResolver {
   }
 
   ActionTargetResult? _buildAuxiliarySelfTargetResult({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
     required ActionResolutionContext context,
     required Map<String, ActionTargetAttackResult> attackResultsByTargetId,
     required List<ActionSavingThrowResult> savingThrowResults,
   }) {
     final effects = _buildAuxiliarySelfLinkedEffects(
-      ability: ability,
+      definition: definition,
+      content: content,
       context: context,
       attackResultsByTargetId: attackResultsByTargetId,
       savingThrowResults: savingThrowResults,
@@ -1166,15 +1070,10 @@ class ActionResolver {
 
     return ActionTargetResult(
       target: const ActionTarget.self(participatesInAttackRoll: false),
-
       diceResult: const ActionDiceResult(parts: []),
-
       attackResult: null,
-
       savingThrows: const [],
-
       effects: effects,
-
       auxiliary: true,
     );
   }
@@ -1195,7 +1094,7 @@ class ActionResolver {
         attackResult: targetAttackResult,
       );
 
-      for (final effect in prepared.ability.effects) {
+      for (final effect in prepared.plan.content.effects) {
         if (!_effectNeedsSavingThrowForTarget(
           prepared: prepared,
           effect: effect,
@@ -1213,7 +1112,7 @@ class ActionResolver {
             effectId: effect.id,
             effectName: effect.name,
             ability: effect.savingThrowAbility,
-            dc: character.abilityEffectSaveDc(prepared.ability, effect),
+            dc: statResolver.effectSaveDc(plan: prepared.plan, effect: effect),
             successEffect: effect.saveSuccessEffect,
           ),
         );
@@ -1269,7 +1168,6 @@ class ActionResolver {
     return PreparedActionResolution(
       source: ActionSource.ability(ability),
       definition: ActionDefinition.fromAbility(ability),
-      ability: ability,
       context: context,
       plan: plan,
       criticalProfile: criticalProfile,
@@ -1302,7 +1200,7 @@ class ActionResolver {
     required String groupId,
     ActionTarget? target,
   }) {
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       case AbilityTargetResolutionMode.shared:
         return context.isOptionalGroupSelected(groupId);
 
@@ -1489,12 +1387,14 @@ class ActionResolver {
 
   List<ActionExternalRequirement>
   orderedPreResolutionExternalRequirementsForTarget({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
     required ActionResolutionContext context,
     required ActionTarget target,
   }) {
     final requirements = orderedPreResolutionExternalRequirements(
-      ability: ability,
+      definition: definition,
+      content: content,
     );
 
     if (requirements.isEmpty) {
@@ -1504,12 +1404,6 @@ class ActionResolver {
     final result = <ActionExternalRequirement>[];
 
     for (final requirement in requirements) {
-      // =======================================================================
-      // YA PODEMOS RESOLVERLO CON INFORMACIÓN CONOCIDA
-      //
-      // Esto además registra la respuesta correspondiente en el contexto.
-      // =======================================================================
-
       final resolved = tryResolveKnownExternalRequirement(
         context: context,
         target: target,
@@ -1519,10 +1413,6 @@ class ActionResolver {
       if (resolved) {
         continue;
       }
-
-      // =======================================================================
-      // NECESITA PREGUNTA EXTERNA
-      // =======================================================================
 
       result.add(requirement);
     }
@@ -1541,6 +1431,8 @@ class ActionResolver {
     List<ActionSavingThrowResult> savingThrowResults = const [],
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
   }) {
+    final ability = plan.requireAbility;
+
     final targetResults = <ActionTargetResult>[];
 
     for (final target in context.targets) {
@@ -1575,7 +1467,8 @@ class ActionResolver {
           savingThrows: targetSavingThrows,
 
           effects: _buildLinkedEffectResultsForTarget(
-            ability: plan.ability,
+            definition: plan.definition,
+            content: plan.content,
             target: target,
             savingThrowResults: targetSavingThrows,
             attackResult: targetAttackResult,
@@ -1593,7 +1486,8 @@ class ActionResolver {
     // ===========================================================================
 
     final auxiliarySelf = _buildAuxiliarySelfTargetResult(
-      ability: plan.ability,
+      definition: plan.definition,
+      content: plan.content,
       context: context,
       attackResultsByTargetId: attackResultsByTargetId,
       savingThrowResults: savingThrowResults,
@@ -1604,8 +1498,8 @@ class ActionResolver {
     }
 
     return ActionResolutionResult(
-      source: ActionSource.ability(plan.ability),
-      ability: plan.ability,
+      source: ActionSource.ability(ability),
+      ability: ability,
       targetResolutionMode: AbilityTargetResolutionMode.shared,
       targetResults: targetResults,
       attackResult: attackResult,
@@ -1638,6 +1532,8 @@ class ActionResolver {
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
     Map<String, List<ActionChanceResult>> chanceResultsByTargetId = const {},
   }) {
+    final ability = plan.requireAbility;
+
     final targetResults = <ActionTargetResult>[];
 
     for (final target in context.targets) {
@@ -1678,7 +1574,8 @@ class ActionResolver {
           savingThrows: targetSavingThrows,
 
           effects: _buildLinkedEffectResultsForTarget(
-            ability: plan.ability,
+            definition: plan.definition,
+            content: plan.content,
             target: target,
             savingThrowResults: targetSavingThrows,
             attackResult: targetAttackResult,
@@ -1696,7 +1593,8 @@ class ActionResolver {
     // ===========================================================================
 
     final auxiliarySelf = _buildAuxiliarySelfTargetResult(
-      ability: plan.ability,
+      definition: plan.definition,
+      content: plan.content,
       context: context,
       attackResultsByTargetId: attackResultsByTargetId,
       savingThrowResults: savingThrowResults,
@@ -1707,9 +1605,9 @@ class ActionResolver {
     }
 
     return ActionResolutionResult(
-      source: ActionSource.ability(plan.ability),
+      source: ActionSource.ability(ability),
 
-      ability: plan.ability,
+      ability: ability,
 
       targetResolutionMode: AbilityTargetResolutionMode.independent,
 
@@ -1741,26 +1639,14 @@ class ActionResolver {
     );
   }
 
-  bool _hasUnsupportedSharedTargetSpecificSources(CharacterAbility ability) {
-    if (!_abilityDealsDamage(ability)) {
+  bool _hasUnsupportedSharedTargetSpecificSources(ActionResolutionPlan plan) {
+    if (!plan.content.dealsDamage) {
       return false;
     }
 
-    // ===========================================================================
-    // DAMAGE BONUS
-    //
-    // AbilityEffectPart target-specific ya está soportado mediante:
-    // superset shared + filtrado posterior.
-    //
-    // DamageBonus todavía se construye directamente dentro del request y
-    // puede tener condición/fórmula dependiente del target.
-    // ===========================================================================
-
     for (final active in character.activeDamageBonuses) {
       final bonus = active.bonus;
-
       final condition = bonus.condition;
-
       if (condition != null &&
           _externalRequirementsFromExpression(
             condition.expression,
@@ -1769,21 +1655,15 @@ class ActionResolver {
       }
 
       final formula = bonus.formula;
-
       if (formula != null &&
           _externalRequirementsFromExpression(formula.expression).isNotEmpty) {
         return true;
       }
     }
 
-    // ===========================================================================
-    // CRITICAL DAMAGE BONUS
-    // ===========================================================================
-
-    if (ability.requiresAttackRoll) {
+    if (plan.definition.requiresAttackRoll) {
       for (final bonus in character.activeCriticalDamageBonuses()) {
         final condition = bonus.condition;
-
         if (condition != null &&
             _externalRequirementsFromExpression(
               condition.expression,
@@ -1792,7 +1672,6 @@ class ActionResolver {
         }
 
         final formula = bonus.formula;
-
         if (formula != null &&
             _externalRequirementsFromExpression(
               formula.expression,
@@ -1802,18 +1681,9 @@ class ActionResolver {
       }
     }
 
-    // ===========================================================================
-    // HEALING BONUS
-    //
-    // Igual que DamageBonus:
-    // si la fórmula depende del target, un único request shared
-    // no puede representar valores distintos por objetivo.
-    // ===========================================================================
-
-    if (_abilityHeals(ability)) {
+    if (plan.content.heals) {
       for (final bonus in character.activeHealingBonuses) {
         final formula = bonus.bonus.formula;
-
         if (formula != null &&
             _externalRequirementsFromExpression(
               formula.expression,
@@ -2026,7 +1896,7 @@ class ActionResolver {
   }
 
   void validatePreparedTargetResolution(PreparedActionResolution prepared) {
-    if (prepared.ability.targetResolutionMode !=
+    if (prepared.definition.targetResolutionMode !=
         AbilityTargetResolutionMode.shared) {
       return;
     }
@@ -2045,7 +1915,7 @@ class ActionResolver {
     // - filtrado posterior por target
     // ===========================================================================
 
-    if (!_hasUnsupportedSharedTargetSpecificSources(prepared.ability)) {
+    if (!_hasUnsupportedSharedTargetSpecificSources(prepared.plan)) {
       return;
     }
 
@@ -2064,7 +1934,7 @@ class ActionResolver {
   }
 
   int preparedAttackModifier(PreparedActionResolution prepared) {
-    return character.characterAbilityAttackBonus(prepared.ability);
+    return statResolver.attackModifier(prepared.plan);
   }
 
   ActionAttackResult resolvePreparedAttackRoll({
@@ -2126,7 +1996,7 @@ class ActionResolver {
         target: target,
         attackResult: targetAttackResult,
       );
-    } else if (plan.ability.targetResolutionMode ==
+    } else if (plan.definition.targetResolutionMode ==
             AbilityTargetResolutionMode.shared &&
         context.targets.length > 1) {
       // =======================================================================
@@ -2140,7 +2010,7 @@ class ActionResolver {
       // =======================================================================
 
       selected = <AbilityEffectPart>[
-        for (final effect in plan.ability.effects)
+        for (final effect in plan.content.effects)
           for (final part in effect.parts)
             if (_partCanApplyToAnyTarget(
               plan: plan,
@@ -2176,7 +2046,7 @@ class ActionResolver {
           : ActionCriticalType.normal;
     }
 
-    for (final effect in plan.ability.effects) {
+    for (final effect in plan.content.effects) {
       for (final part in effect.parts) {
         if (!selected.contains(part)) {
           continue;
@@ -2186,7 +2056,7 @@ class ActionResolver {
 
         final participatesInCritical =
             critical &&
-            plan.ability.requiresAttackRoll &&
+            plan.definition.requiresAttackRoll &&
             effect.effectType == AbilityEffectType.damage &&
             !effect.usesSavingThrow &&
             part.participatesInCritical;
@@ -2211,7 +2081,7 @@ class ActionResolver {
             dicePools: transformed.dicePools,
             baseModifier: baseModifier,
             modifier: transformed.modifier,
-            modifierLabel: _abilityTypeShortLabel(plan.ability.abilityType),
+            modifierLabel: _abilityTypeShortLabel(plan.definition.abilityType),
             automaticValue: transformed.automaticValue,
             automaticValueLabel: transformed.automaticValue != 0
                 ? _criticalAutomaticValueLabel(effectiveCriticalType)
@@ -2219,8 +2089,8 @@ class ActionResolver {
             hitBehavior: part.hitBehavior,
 
             sourceType: ActionDiceSourceType.ability,
-            sourceId: plan.ability.id,
-            sourceName: plan.ability.name,
+            sourceId: plan.definition.id,
+            sourceName: plan.definition.name,
 
             damageType: part.typeName,
           ),
@@ -2232,7 +2102,7 @@ class ActionResolver {
       );
 
       if (extraMultipliers.isEmpty && effect.legacyAddAbilityModifier) {
-        extraMultipliers[plan.ability.abilityType] = 1;
+        extraMultipliers[plan.definition.abilityType] = 1;
       }
 
       final modifierLabel = _abilityModifierMultipliersLabel(extraMultipliers);
@@ -2243,14 +2113,14 @@ class ActionResolver {
           effect.effectBonus != 0;
 
       if (hasExtra) {
-        final baseModifier = character.abilityEffectModifier(
-          plan.ability,
-          effect,
+        final baseModifier = statResolver.effectModifier(
+          plan: plan,
+          effect: effect,
         );
 
         final participatesInCritical =
             critical &&
-            plan.ability.requiresAttackRoll &&
+            plan.definition.requiresAttackRoll &&
             effect.dealsDamage &&
             !effect.usesSavingThrow &&
             effect.extraParticipatesInCritical;
@@ -2286,8 +2156,8 @@ class ActionResolver {
                 : '',
 
             sourceType: ActionDiceSourceType.ability,
-            sourceId: plan.ability.id,
-            sourceName: plan.ability.name,
+            sourceId: plan.definition.id,
+            sourceName: plan.definition.name,
 
             damageType: effect.effectTypeName,
           ),
@@ -2295,7 +2165,7 @@ class ActionResolver {
       }
     }
 
-    if (_abilityDealsDamage(plan.ability)) {
+    if (plan.content.dealsDamage) {
       _appendDamageBonuses(
         parts: parts,
         context: context,
@@ -2305,11 +2175,11 @@ class ActionResolver {
       );
     }
 
-    if (_abilityHeals(plan.ability)) {
+    if (plan.content.heals) {
       _appendHealingBonuses(parts: parts, context: context, target: target);
     }
 
-    if (critical && _abilityDealsDamage(plan.ability)) {
+    if (critical && plan.content.dealsDamage) {
       appendCriticalExtraDice(
         plan: plan,
         parts: parts,
@@ -2526,10 +2396,8 @@ class ActionResolver {
     );
   }
 
-  bool _abilityHeals(CharacterAbility ability) {
-    return ability.effects.any(
-      (effect) => effect.effectType == AbilityEffectType.healing,
-    );
+  ActionStatResolver get statResolver {
+    return ActionStatResolver(character: character);
   }
 
   // `hitBehavior` y `participatesInCritical` son independientes.
@@ -2734,40 +2602,42 @@ class ActionResolver {
   // ===========================================================================
 
   List<ActionExternalRequirement> orderedExternalRequirements({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
   }) {
-    return orderedPreResolutionExternalRequirements(ability: ability);
+    return orderedPreResolutionExternalRequirements(
+      definition: definition,
+      content: content,
+    );
   }
 
   List<ActionExternalRequirement> orderedPreResolutionExternalRequirements({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
   }) {
     return _orderExternalRequirements(
-      collectPreResolutionExternalRequirements(ability: ability),
+      collectPreResolutionExternalRequirements(
+        definition: definition,
+        content: content,
+      ),
     );
   }
 
   List<ActionExternalRequirement> orderedPostResolutionExternalRequirements({
-    required CharacterAbility ability,
     required Set<PassiveTriggerEvent> events,
   }) {
     return _orderExternalRequirements(
-      collectPostResolutionExternalRequirements(
-        ability: ability,
-        events: events,
-      ),
+      collectPostResolutionExternalRequirements(events: events),
     );
   }
 
   List<ActionExternalRequirement>
   orderedPostResolutionExternalRequirementsForTarget({
-    required CharacterAbility ability,
     required ActionResolutionContext context,
     required ActionTarget target,
     required Set<PassiveTriggerEvent> events,
   }) {
     final requirements = orderedPostResolutionExternalRequirements(
-      ability: ability,
       events: events,
     );
 
@@ -3141,7 +3011,6 @@ class ActionResolver {
   }
 
   List<ActionExternalRequirement> collectPostResolutionExternalRequirements({
-    required CharacterAbility ability,
     required Set<PassiveTriggerEvent> events,
   }) {
     final requirements = <ActionExternalRequirement>[];
@@ -3197,44 +3066,34 @@ class ActionResolver {
   }
 
   List<ActionExternalRequirement> collectPreResolutionExternalRequirements({
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
   }) {
     final requirements = <ActionExternalRequirement>[];
 
     // =========================================================================
-    // 1. REQUIREMENTS DE LA PROPIA HABILIDAD
+    // 1. REQUIREMENTS DEL CONTENIDO DE LA ACCIÓN
     // =========================================================================
 
-    for (final effect in ability.effects) {
+    for (final effect in content.effects) {
       for (final part in effect.parts) {
         requirements.addAll(part.externalRequirements);
       }
     }
 
     // =========================================================================
-    // 2. REQUIREMENTS DE BONUS DE DAÑO / CRÍTICO
-    //
-    // Estas condiciones también se evalúan dentro del nuevo ActionResolver y
-    // pueden depender de información temporal del objetivo.
+    // 2. BONUS DE DAÑO / CRÍTICO
     // =========================================================================
 
-    if (_abilityDealsDamage(ability)) {
+    if (content.dealsDamage) {
       for (final active in character.activeDamageBonuses) {
         final bonus = active.bonus;
-
-        // -------------------------------------------------------------------------
-        // CONDICIÓN
-        // -------------------------------------------------------------------------
 
         if (bonus.hasCondition) {
           requirements.addAll(
             _externalRequirementsFromExpression(bonus.condition!.expression),
           );
         }
-
-        // -------------------------------------------------------------------------
-        // FÓRMULA DE VALOR
-        // -------------------------------------------------------------------------
 
         if (bonus.hasFormula) {
           requirements.addAll(
@@ -3243,25 +3102,13 @@ class ActionResolver {
         }
       }
 
-      // -------------------------------------------------------------------------
-      // CRITICAL DAMAGE BONUS
-      // -------------------------------------------------------------------------
-
-      if (ability.requiresAttackRoll) {
+      if (definition.requiresAttackRoll) {
         for (final bonus in character.activeCriticalDamageBonuses()) {
-          // -----------------------------------------------------------------------
-          // CONDICIÓN
-          // -----------------------------------------------------------------------
-
           if (bonus.hasCondition) {
             requirements.addAll(
               _externalRequirementsFromExpression(bonus.condition!.expression),
             );
           }
-
-          // -----------------------------------------------------------------------
-          // FÓRMULA DE VALOR
-          // -----------------------------------------------------------------------
 
           if (bonus.hasFormula) {
             requirements.addAll(
@@ -3273,10 +3120,13 @@ class ActionResolver {
     }
 
     // =========================================================================
-    // 3. REQUIREMENTS DE PASIVAS QUE PUEDEN REACCIONAR
+    // 3. PASIVAS QUE PUEDEN REACCIONAR
     // =========================================================================
 
-    final possibleEvents = _possiblePassiveEventsForAbility(ability);
+    final possibleEvents = _possiblePassiveEventsForAction(
+      definition: definition,
+      content: content,
+    );
 
     for (final passive in character.enabledPassives) {
       if (!passive.enabled) {
@@ -3304,14 +3154,14 @@ class ActionResolver {
         }
 
         for (final action in trigger.actions) {
-          final valueFormula = action.valueFormula;
+          final formula = action.valueFormula;
 
-          if (valueFormula == null || valueFormula.expression.trim().isEmpty) {
+          if (formula == null || formula.expression.trim().isEmpty) {
             continue;
           }
 
           requirements.addAll(
-            _externalRequirementsFromExpression(valueFormula.expression),
+            _externalRequirementsFromExpression(formula.expression),
           );
         }
       }
@@ -3320,8 +3170,14 @@ class ActionResolver {
     return ActionExternalRequirementSet(requirements).requirements;
   }
 
-  void validatePassiveTriggerTargetScopes({required CharacterAbility ability}) {
-    final possibleEvents = _possiblePassiveEventsForAbility(ability);
+  void validatePassiveTriggerTargetScopes({
+    required ActionDefinition definition,
+    required ActionContent content,
+  }) {
+    final possibleEvents = _possiblePassiveEventsForAction(
+      definition: definition,
+      content: content,
+    );
 
     if (!possibleEvents.contains(PassiveTriggerEvent.criticalHit)) {
       return;
@@ -3350,30 +3206,30 @@ class ActionResolver {
     }
   }
 
-  Set<PassiveTriggerEvent> _possiblePassiveEventsForAbility(
-    CharacterAbility ability,
-  ) {
+  Set<PassiveTriggerEvent> _possiblePassiveEventsForAction({
+    required ActionDefinition definition,
+    required ActionContent content,
+  }) {
     final events = <PassiveTriggerEvent>{};
 
-    if (ability.requiresAttackRoll) {
+    if (definition.requiresAttackRoll) {
       events.add(PassiveTriggerEvent.attackHit);
-
       events.add(PassiveTriggerEvent.attackMiss);
     }
 
-    if (_abilityDealsDamage(ability)) {
+    if (content.dealsDamage) {
       events.add(PassiveTriggerEvent.damageDealt);
 
-      if (ability.requiresAttackRoll) {
+      if (definition.requiresAttackRoll) {
         events.add(PassiveTriggerEvent.criticalHit);
       }
     }
 
-    if (_abilityHeals(ability)) {
+    if (content.heals) {
       events.add(PassiveTriggerEvent.healingDealt);
     }
 
-    return events;
+    return Set<PassiveTriggerEvent>.unmodifiable(events);
   }
 
   bool _shouldUseAbilityEffectPartForTarget({
@@ -3412,7 +3268,7 @@ class ActionResolver {
     // cada target tiene su propia selección.
     // ===========================================================================
 
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       case AbilityTargetResolutionMode.shared:
         return context.isOptionalGroupSelected(groupId);
 
@@ -3510,12 +3366,19 @@ class ActionResolver {
 
     final costResolver = ActionCostResolver(character: character);
 
+    final definition = ActionDefinition.fromAbility(ability);
+
+    final content = ActionContent.fromAbility(ability);
+
     return ActionResolutionPlan(
       ability: ability,
+      definition: definition,
+      content: content,
       automaticParts: automaticParts,
       optionalParts: optionalParts,
       externalRequirements: collectPreResolutionExternalRequirements(
-        ability: ability,
+        definition: definition,
+        content: content,
       ),
       costs: costResolver.costsForAbility(ability.id),
     );
@@ -3529,7 +3392,7 @@ class ActionResolver {
   }) {
     final result = <AbilityEffectPart>[];
 
-    for (final effect in plan.ability.effects) {
+    for (final effect in plan.content.effects) {
       for (final part in effect.parts) {
         // =======================================================================
         // 1. CONDICIÓN + OPCIONALIDAD
@@ -3557,7 +3420,7 @@ class ActionResolver {
         // =======================================================================
 
         if (!_passesHitGate(
-          requiresAttackRoll: plan.ability.requiresAttackRoll,
+          requiresAttackRoll: plan.definition.requiresAttackRoll,
           behavior: part.hitBehavior,
           attackResult: attackResult,
           targetParticipatesInAttackRoll:
@@ -3881,7 +3744,7 @@ class ActionResolver {
   }) {
     final result = <AbilityEffectPart>[];
 
-    for (final effect in plan.ability.effects) {
+    for (final effect in plan.content.effects) {
       for (final part in effect.parts) {
         if (!part.optional) {
           continue;
@@ -3916,7 +3779,7 @@ class ActionResolver {
   }) {
     final costs = <ActionCost>[];
 
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       // =========================================================================
       // SHARED
       //
@@ -4021,7 +3884,7 @@ class ActionResolver {
     // COSTES YA SELECCIONADOS
     // ===========================================================================
 
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       // =========================================================================
       // SHARED
       //
@@ -4083,7 +3946,7 @@ class ActionResolver {
 
     final bool alreadySelected;
 
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       case AbilityTargetResolutionMode.shared:
         alreadySelected = context.isOptionalGroupSelected(groupId);
 
@@ -4114,7 +3977,7 @@ class ActionResolver {
       return context.isAbilityEffectPartAvailable(part, target: target);
     }
 
-    if (plan.ability.targetResolutionMode ==
+    if (plan.definition.targetResolutionMode ==
             AbilityTargetResolutionMode.shared &&
         context.targets.length > 1) {
       return context.targets.any(
@@ -4142,7 +4005,7 @@ class ActionResolver {
       );
     }
 
-    if (plan.ability.targetResolutionMode ==
+    if (plan.definition.targetResolutionMode ==
             AbilityTargetResolutionMode.shared &&
         context.targets.length > 1) {
       return context.targets.any(
@@ -4186,7 +4049,7 @@ class ActionResolver {
       return conditionMet(target);
     }
 
-    if (plan.ability.targetResolutionMode ==
+    if (plan.definition.targetResolutionMode ==
             AbilityTargetResolutionMode.shared &&
         context.targets.length > 1) {
       return context.targets.any(conditionMet);
@@ -4212,7 +4075,7 @@ class ActionResolver {
     // 1. OPTIONALS DE LA HABILIDAD
     // ===========================================================================
 
-    for (final effect in plan.ability.effects) {
+    for (final effect in plan.content.effects) {
       for (final part in effect.parts) {
         if (!part.optional) {
           continue;
@@ -4394,7 +4257,7 @@ class ActionResolver {
     // PARTES YA SELECCIONADAS
     // ===========================================================================
 
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       case AbilityTargetResolutionMode.shared:
         final addedPartIds = <String>{};
 
@@ -4577,7 +4440,7 @@ class ActionResolver {
     required ActionResolutionPlan plan,
     required ActionResolutionContext context,
   }) {
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       case AbilityTargetResolutionMode.shared:
         return const [(id: 'shared', target: null)];
 
@@ -4745,7 +4608,7 @@ class ActionResolver {
     List<ActionSavingThrowResult> savingThrowResults = const [],
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
   }) {
-    if (prepared.ability.targetResolutionMode !=
+    if (prepared.definition.targetResolutionMode !=
         AbilityTargetResolutionMode.shared) {
       throw StateError('Esta operación solo admite resolución compartida.');
     }
@@ -4775,7 +4638,7 @@ class ActionResolver {
     List<ActionSavingThrowResult> savingThrowResults = const [],
     Map<String, ActionTargetAttackResult> attackResultsByTargetId = const {},
   }) {
-    if (prepared.ability.targetResolutionMode !=
+    if (prepared.definition.targetResolutionMode !=
         AbilityTargetResolutionMode.independent) {
       throw StateError('Esta operación requiere resolución independiente.');
     }
@@ -4821,7 +4684,7 @@ class ActionResolver {
     //
     // Por tanto, una parte con requireHit que falle por miss
     // NO añade su coste final.
-    switch (plan.ability.targetResolutionMode) {
+    switch (plan.definition.targetResolutionMode) {
       // =========================================================================
       // SHARED
       //
@@ -4897,7 +4760,7 @@ class ActionResolver {
         continue;
       }
 
-      switch (plan.ability.targetResolutionMode) {
+      switch (plan.definition.targetResolutionMode) {
         // =========================================================================
         // SHARED
         // =========================================================================
@@ -4963,7 +4826,7 @@ class ActionResolver {
     // independientemente del número de targets.
     // ===========================================================================
 
-    if (_abilityHeals(plan.ability)) {
+    if (plan.content.heals) {
       for (final active in character.activeHealingBonuses) {
         final bonus = active.bonus;
 

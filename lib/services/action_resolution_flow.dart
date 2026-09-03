@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/action_content.dart';
 import '../models/action_definition.dart';
 import '../models/action_source.dart';
 import '../models/weapon_attack_resolution.dart';
@@ -471,18 +472,6 @@ class ActionResolutionFlow {
     }
   }
 
-  CharacterAbility _weaponActionAbility(Weapon weapon) {
-    return CharacterAbility(
-      id: 'weapon:${weapon.id}',
-      name: weapon.name,
-      abilityType: weapon.attackAbility,
-      requiresAttackRoll: true,
-      targetType: AbilityTargetType.external,
-      targetResolutionMode: AbilityTargetResolutionMode.shared,
-      effects: const [],
-    );
-  }
-
   Future<ActionExecutionResult?> resolveWeapon(
     BuildContext context, {
     required Weapon weapon,
@@ -855,10 +844,12 @@ class ActionResolutionFlow {
     // Filtramos cada parte según su propio hitBehavior.
     // ===========================================================================
 
-    final syntheticAbility = _weaponActionAbility(weapon);
+    final source = ActionSource.weapon(weapon);
+
+    final definition = ActionDefinition.fromWeapon(weapon);
 
     final targetResult = actionResolver.buildTargetResult(
-      ability: syntheticAbility,
+      definition: definition,
       target: target,
       diceResult: diceResult,
       attackResult: targetAttackResult,
@@ -868,14 +859,8 @@ class ActionResolutionFlow {
     // 14. RESULTADO DEL ACTION ENGINE
     // ===========================================================================
 
-    final source = ActionSource.weapon(weapon);
-
-    final definition = ActionDefinition.fromWeapon(weapon);
-
     final resolution = actionResolver.buildDirectResolutionResult(
       source: source,
-
-      ability: syntheticAbility,
 
       targetResolutionMode: AbilityTargetResolutionMode.shared,
 
@@ -920,8 +905,6 @@ class ActionResolutionFlow {
 
       definition: definition,
 
-      ability: syntheticAbility,
-
       context: actionContext,
 
       criticalProfile: attackResult.criticalProfile,
@@ -948,8 +931,14 @@ class ActionResolutionFlow {
   }) async {
     final resolver = ActionResolver(character: character);
 
+    final definition = ActionDefinition.fromAbility(ability);
+    final content = ActionContent.fromAbility(ability);
+
     try {
-      resolver.validatePassiveTriggerTargetScopes(ability: ability);
+      resolver.validatePassiveTriggerTargetScopes(
+        definition: definition,
+        content: content,
+      );
     } on StateError catch (error) {
       _showError(context, error.message.toString());
 
@@ -984,7 +973,8 @@ class ActionResolutionFlow {
     final requirementsCompleted = await _collectExternalRequirements(
       context,
       resolver: resolver,
-      ability: ability,
+      definition: definition,
+      content: content,
       actionContext: actionContext,
     );
 
@@ -1033,13 +1023,6 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // -------------------------------------------------------------------------
-    // COSTES
-    //
-    // Solo validamos.
-    // El pago ocurre exclusivamente en commitResolution().
-    // -------------------------------------------------------------------------
-
     final validation = resolver.validatePreparedActionCosts(prepared);
 
     if (!validation.valid) {
@@ -1050,12 +1033,6 @@ class ActionResolutionFlow {
 
       return null;
     }
-
-    // -------------------------------------------------------------------------
-    // MODO DE DADOS
-    //
-    // Solo preguntamos físico/digital si realmente hay algo que tirar.
-    // -------------------------------------------------------------------------
 
     ActionDiceMode diceMode = ActionDiceMode.digital;
 
@@ -1071,11 +1048,7 @@ class ActionResolutionFlow {
       diceMode = selectedDiceMode;
     }
 
-    // -------------------------------------------------------------------------
-    // ATAQUE
-    // -------------------------------------------------------------------------
-
-    if (ability.requiresAttackRoll) {
+    if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
         context,
         resolver: resolver,
@@ -1083,10 +1056,6 @@ class ActionResolutionFlow {
         diceMode: diceMode,
       );
     }
-
-    // -------------------------------------------------------------------------
-    // SIN ATAQUE
-    // -------------------------------------------------------------------------
 
     return _resolveWithoutAttack(
       context,
@@ -1795,15 +1764,15 @@ class ActionResolutionFlow {
     required PreparedActionResolution prepared,
     required ActionResolutionResult resolution,
   }) async {
-    // ===========================================================================
-    // POST-RESOLUTION
-    //
-    // Se procesa únicamente para targets externos que realmente
-    // produjeron eventos post-resolution.
-    // ===========================================================================
+    final critical =
+        resolution.attackResult?.critical ??
+        resolution.criticalProfile.forcedCritical;
 
     for (final targetResult in resolution.externalTargetResults) {
-      final events = resolver.postResolutionEventsForTarget(targetResult);
+      final events = resolver.postResolutionEventsForTarget(
+        targetResult,
+        critical: critical,
+      );
 
       if (events.isEmpty) {
         continue;
@@ -1811,20 +1780,10 @@ class ActionResolutionFlow {
 
       final target = targetResult.target;
 
-      // =======================================================================
-      // INVALIDAR ESTADO CURRENT
-      //
-      // Después de daño/curación ya no podemos reutilizar como "current"
-      // la información recogida antes de resolver la acción.
-      //
-      // El snapshot BEFORE permanece intacto.
-      // =======================================================================
-
       prepared.context.clearTargetCurrentHealthKnowledge(target);
 
       final requirements = resolver
           .orderedPostResolutionExternalRequirementsForTarget(
-            ability: prepared.ability,
             context: prepared.context,
             target: target,
             events: events,
@@ -1957,7 +1916,7 @@ class ActionResolutionFlow {
       targets: prepared.context.targets,
       attackResult: attackResult,
       selfLabel: selfLabel,
-      ability: prepared.ability.abilityType,
+      ability: prepared.definition.abilityType,
     );
 
     if (attackResults == null || !context.mounted) {
@@ -2189,7 +2148,7 @@ class ActionResolutionFlow {
             PhysicalDiceSection(
               id: scope.id,
               title: target == null
-                  ? prepared.ability.name
+                  ? prepared.definition.name
                   : target.isSelf
                   ? selfLabel
                   : target.label ?? 'Objetivo',
@@ -2370,7 +2329,8 @@ class ActionResolutionFlow {
   Future<bool> _collectExternalRequirements(
     BuildContext context, {
     required ActionResolver resolver,
-    required CharacterAbility ability,
+    required ActionDefinition definition,
+    required ActionContent content,
     required ActionResolutionContext actionContext,
   }) async {
     // ===========================================================================
@@ -2388,7 +2348,8 @@ class ActionResolutionFlow {
     for (final target in actionContext.targets) {
       final requirements = resolver
           .orderedPreResolutionExternalRequirementsForTarget(
-            ability: ability,
+            definition: definition,
+            content: content,
             context: actionContext,
             target: target,
           );

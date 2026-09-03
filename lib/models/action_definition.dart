@@ -4,6 +4,7 @@ import 'weapon.dart';
 
 class ActionDefinition {
   final String id;
+
   final String name;
 
   final AbilityType abilityType;
@@ -14,6 +15,15 @@ class ActionDefinition {
 
   final AbilityTargetResolutionMode targetResolutionMode;
 
+  /// Bonus de ataque propio de una acción genérica.
+  ///
+  /// En habilidades legacy normalmente será 0 porque el cálculo
+  /// todavía procede de Character.
+  final int attackBonus;
+
+  /// CD fija opcional para acciones que no procedan de CharacterAbility.
+  final int? fixedSaveDc;
+
   const ActionDefinition({
     required this.id,
     required this.name,
@@ -21,30 +31,52 @@ class ActionDefinition {
     required this.requiresAttackRoll,
     required this.targetType,
     required this.targetResolutionMode,
+    this.attackBonus = 0,
+    this.fixedSaveDc,
   });
 
   factory ActionDefinition.fromAbility(CharacterAbility ability) {
     return ActionDefinition(
       id: ability.id,
+
       name: ability.name,
+
       abilityType: ability.abilityType,
+
       requiresAttackRoll: ability.requiresAttackRoll,
+
       targetType: ability.targetType,
+
       targetResolutionMode: ability.targetResolutionMode,
-    );
-  }
-  factory ActionDefinition.fromWeapon(
-      Weapon weapon,
-      ) {
-    return ActionDefinition(
-      id: weapon.id,
-      name: weapon.name,
-      abilityType: weapon.attackAbility,
-      requiresAttackRoll: true,
-      targetType: AbilityTargetType.external,
-      targetResolutionMode:
-      AbilityTargetResolutionMode.shared,
+
+      // Legacy:
+      // characterAbilityAttackBonus() sigue encargándose del cálculo.
+      attackBonus: 0,
+
+      fixedSaveDc: null,
     );
   }
 
+  factory ActionDefinition.fromWeapon(Weapon weapon) {
+    return ActionDefinition(
+      id: weapon.id,
+
+      name: weapon.name,
+
+      abilityType: weapon.attackAbility,
+
+      requiresAttackRoll: true,
+
+      targetType: AbilityTargetType.external,
+
+      targetResolutionMode: AbilityTargetResolutionMode.shared,
+
+      // IMPORTANTE:
+      // WeaponActionResolver ya calcula el magicBonus.
+      // No lo duplicamos aquí todavía.
+      attackBonus: 0,
+
+      fixedSaveDc: null,
+    );
+  }
 }

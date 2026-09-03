@@ -545,7 +545,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                   child: CombatStatCard(
                     icon: Icons.shield_rounded,
                     title: 'CA',
-                    value: '${character.armorClass}',
+                    value: '${character.calculatedArmorClass}',
                     color: CharacterHomeColors.armor,
                   ),
                 ),
@@ -567,7 +567,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                   child: CombatStatCard(
                     icon: Icons.directions_run_rounded,
                     title: 'VEL',
-                    value: '${character.speed}',
+                    value: '${character.totalSpeed}',
                     color: CharacterHomeColors.speed,
                   ),
                 ),

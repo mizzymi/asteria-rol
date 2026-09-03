@@ -4,6 +4,7 @@ import 'action_cost.dart';
 import 'action_critical_profile.dart';
 import 'action_execution_result.dart';
 import 'action_result_target_view_data.dart';
+import 'action_source.dart';
 
 class ActionResultViewData {
   // ===========================================================================
@@ -13,6 +14,8 @@ class ActionResultViewData {
   final String actionId;
 
   final String actionName;
+
+  final ActionSource source;
 
   // ===========================================================================
   // ATAQUE
@@ -41,21 +44,12 @@ class ActionResultViewData {
 
   // ===========================================================================
   // COSTES
-  //
-  // Son los costes definitivos de la resolución.
   // ===========================================================================
 
   final List<ActionCost> costs;
 
   // ===========================================================================
   // APLICACIÓN
-  //
-  // Sirve para distinguir:
-  //
-  // - lo realmente aplicado a self,
-  // - los outcomes pendientes para targets externos.
-  //
-  // No debe utilizarse para reconstruir el resultado mecánico.
   // ===========================================================================
 
   final ActionApplyResult application;
@@ -63,6 +57,7 @@ class ActionResultViewData {
   const ActionResultViewData({
     required this.actionId,
     required this.actionName,
+    required this.source,
     required this.attackResult,
     required this.critical,
     required this.criticalProfile,
@@ -82,8 +77,9 @@ class ActionResultViewData {
     final resolution = execution.resolution;
 
     return ActionResultViewData(
-      actionId: resolution.ability.id,
-      actionName: resolution.ability.name,
+      actionId: resolution.source.id,
+      actionName: resolution.source.name,
+      source: resolution.source,
 
       attackResult: resolution.attackResult,
 
@@ -104,6 +100,18 @@ class ActionResultViewData {
 
       application: execution.application,
     );
+  }
+
+  // ===========================================================================
+  // SOURCE
+  // ===========================================================================
+
+  bool get isAbility {
+    return source.isAbility;
+  }
+
+  bool get isWeapon {
+    return source.isWeapon;
   }
 
   // ===========================================================================
@@ -128,8 +136,6 @@ class ActionResultViewData {
 
   // ===========================================================================
   // CRÍTICO
-  //
-  // Estos getters solamente exponen información ya presente.
   // ===========================================================================
 
   bool get isCritical {

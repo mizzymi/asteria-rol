@@ -9,7 +9,10 @@ import 'action_event_variables.dart';
 import 'action_source.dart';
 
 class ActionResolutionResult {
-  final CharacterAbility ability;
+  /// Habilidad origen cuando la acción procede de CharacterAbility.
+  ///
+  /// Es null para armas y otras fuentes que no sean habilidades.
+  final CharacterAbility? ability;
 
   final AbilityTargetResolutionMode targetResolutionMode;
 
@@ -37,7 +40,8 @@ class ActionResolutionResult {
   final ActionSource source;
 
   const ActionResolutionResult({
-    required this.ability,
+    required this.source,
+    this.ability,
     required this.targetResolutionMode,
     required this.targetResults,
     required this.criticalProfile,
@@ -49,8 +53,19 @@ class ActionResolutionResult {
     this.costs = const [],
     this.preResolutionExternalVariablesByTargetId = const {},
     this.externalVariablesByTargetId = const {},
-    required this.source,
   });
+
+  bool get hasAbility => ability != null;
+
+  CharacterAbility get requireAbility {
+    final value = ability;
+
+    if (value == null) {
+      throw StateError('Este resultado no procede de una habilidad.');
+    }
+
+    return value;
+  }
 
   Set<String> selectedOptionalGroupIdsForTargetId(String targetId) {
     return selectedOptionalGroupIdsByTargetId[targetId] ?? const <String>{};

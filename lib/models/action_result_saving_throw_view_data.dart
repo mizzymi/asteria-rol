@@ -104,12 +104,10 @@ class ActionResultSavingThrowViewData {
   }
 
   bool get reducedOutcome {
-    return saved &&
-        successEffect == SaveSuccessEffect.half;
+    return saved && successEffect == SaveSuccessEffect.half;
   }
 
   bool get preventedOutcome {
-    return saved &&
-        successEffect == SaveSuccessEffect.none;
+    return saved && successEffect == SaveSuccessEffect.none;
   }
 }

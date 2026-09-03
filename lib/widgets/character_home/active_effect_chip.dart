@@ -21,29 +21,23 @@ class ActiveEffectChip extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final accent = _effectColor(
-      context,
-      effect,
-    );
+    final accent = _effectColor(context, effect);
 
-    final background =
-    CharacterHomeColors.tintedSurface(
+    final background = CharacterHomeColors.tintedSurface(
       context,
       accent,
       lightStrength: 0.12,
       darkStrength: 0.20,
     );
 
-    final iconBackground =
-    CharacterHomeColors.tintedSurface(
+    final iconBackground = CharacterHomeColors.tintedSurface(
       context,
       accent,
       lightStrength: 0.24,
       darkStrength: 0.30,
     );
 
-    final borderColor =
-    CharacterHomeColors.tintedBorder(
+    final borderColor = CharacterHomeColors.tintedBorder(
       context,
       accent,
       lightAlpha: 0.20,
@@ -54,25 +48,19 @@ class ActiveEffectChip extends StatelessWidget {
       color: background,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: borderColor,
-        ),
+        side: BorderSide(color: borderColor),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 11,
-            vertical: 9,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               // ===============================================================
               // ICONO
               // ===============================================================
-
               Container(
                 width: 30,
                 height: 30,
@@ -80,11 +68,7 @@ class ActiveEffectChip extends StatelessWidget {
                   color: iconBackground,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  _effectIcon(effect),
-                  size: 17,
-                  color: accent,
-                ),
+                child: Icon(_effectIcon(effect), size: 17, color: accent),
               ),
 
               const SizedBox(width: 8),
@@ -92,7 +76,6 @@ class ActiveEffectChip extends StatelessWidget {
               // ===============================================================
               // NOMBRE + DURACIÓN
               // ===============================================================
-
               Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,9 +84,7 @@ class ActiveEffectChip extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: 145,
-                        ),
+                        constraints: const BoxConstraints(maxWidth: 145),
                         child: Text(
                           effect.name,
                           maxLines: 1,
@@ -118,17 +99,13 @@ class ActiveEffectChip extends StatelessWidget {
                       if (count > 1) ...[
                         const SizedBox(width: 6),
 
-                        _StackBadge(
-                          count: count,
-                          color: accent,
-                        ),
+                        _StackBadge(count: count, color: accent),
                       ],
                     ],
                   ),
 
-                  if (_durationText(effect)
-                  case final duration?
-                  when duration.isNotEmpty) ...[
+                  if (_durationText(effect) case final duration?
+                      when duration.isNotEmpty) ...[
                     const SizedBox(height: 2),
 
                     Row(
@@ -165,15 +142,12 @@ class ActiveEffectChip extends StatelessWidget {
   // DURACIÓN
   // ===========================================================================
 
-  String? _durationText(
-      CharacterEffect effect,
-      ) {
+  String? _durationText(CharacterEffect effect) {
     if (!effect.hasDuration) {
       return null;
     }
 
-    final text =
-    effect.durationText.trim();
+    final text = effect.durationText.trim();
 
     if (text.isEmpty) {
       return null;
@@ -186,38 +160,25 @@ class ActiveEffectChip extends StatelessWidget {
   // COLOR
   // ===========================================================================
 
-  Color _effectColor(
-      BuildContext context,
-      CharacterEffect effect,
-      ) {
-    final colors =
-        Theme.of(context).colorScheme;
+  Color _effectColor(BuildContext context, CharacterEffect effect) {
+    final colors = Theme.of(context).colorScheme;
 
-    if (!effect.enabled ||
-        effect.expired) {
+    if (!effect.enabled || effect.expired) {
       return colors.onSurfaceVariant;
     }
 
     switch (effect.type) {
       case CharacterEffectType.buff:
-        return const Color(
-          0xFF4CAF7D,
-        );
+        return const Color(0xFF4CAF7D);
 
       case CharacterEffectType.debuff:
-        return const Color(
-          0xFFE45D68,
-        );
+        return const Color(0xFFE45D68);
 
       case CharacterEffectType.condition:
-        return const Color(
-          0xFF9B6CE8,
-        );
+        return const Color(0xFF9B6CE8);
 
       case CharacterEffectType.neutral:
-        return const Color(
-          0xFF5F8FD8,
-        );
+        return const Color(0xFF5F8FD8);
     }
   }
 
@@ -225,9 +186,7 @@ class ActiveEffectChip extends StatelessWidget {
   // ICONO
   // ===========================================================================
 
-  IconData _effectIcon(
-      CharacterEffect effect,
-      ) {
+  IconData _effectIcon(CharacterEffect effect) {
     if (effect.expired) {
       return Icons.timer_off_rounded;
     }
@@ -260,17 +219,13 @@ class _StackBadge extends StatelessWidget {
   final int count;
   final Color color;
 
-  const _StackBadge({
-    required this.count,
-    required this.color,
-  });
+  const _StackBadge({required this.count, required this.color});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final background =
-    CharacterHomeColors.tintedSurface(
+    final background = CharacterHomeColors.tintedSurface(
       context,
       color,
       lightStrength: 0.20,
@@ -278,10 +233,7 @@ class _StackBadge extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 6,
-        vertical: 2,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(20),

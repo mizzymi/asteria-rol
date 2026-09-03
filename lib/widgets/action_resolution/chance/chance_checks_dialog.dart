@@ -14,10 +14,7 @@ Future<List<ActionPhysicalChanceInput>?> showPhysicalChanceChecksDialog(
     return const [];
   }
 
-  final rolls = <String, int?>{
-    for (final check in checks)
-      check.id: null,
-  };
+  final rolls = <String, int?>{for (final check in checks) check.id: null};
 
   final errors = <String, String?>{};
 

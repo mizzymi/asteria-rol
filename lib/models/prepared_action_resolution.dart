@@ -1,4 +1,3 @@
-import 'ability.dart';
 import 'action_cost.dart';
 import 'action_critical_profile.dart';
 import 'action_resolution_context.dart';
@@ -7,8 +6,6 @@ import 'action_source.dart';
 import 'action_definition.dart';
 
 class PreparedActionResolution {
-  final CharacterAbility ability;
-
   final ActionResolutionContext context;
 
   final ActionResolutionPlan plan;
@@ -24,7 +21,6 @@ class PreparedActionResolution {
   const PreparedActionResolution({
     required this.source,
     required this.definition,
-    required this.ability,
     required this.context,
     required this.plan,
     required this.criticalProfile,

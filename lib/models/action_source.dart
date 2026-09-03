@@ -1,10 +1,7 @@
 import 'ability.dart';
 import 'weapon.dart';
 
-enum ActionSourceType {
-  ability,
-  weapon,
-}
+enum ActionSourceType { ability, weapon }
 
 class ActionSource {
   final ActionSourceType type;
@@ -23,9 +20,7 @@ class ActionSource {
     this.weapon,
   });
 
-  factory ActionSource.ability(
-      CharacterAbility ability,
-      ) {
+  factory ActionSource.ability(CharacterAbility ability) {
     return ActionSource._(
       type: ActionSourceType.ability,
       id: ability.id,
@@ -34,9 +29,7 @@ class ActionSource {
     );
   }
 
-  factory ActionSource.weapon(
-      Weapon weapon,
-      ) {
+  factory ActionSource.weapon(Weapon weapon) {
     return ActionSource._(
       type: ActionSourceType.weapon,
       id: weapon.id,

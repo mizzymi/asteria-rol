@@ -37,7 +37,6 @@ class PassiveTriggeredExternalOutcome {
   }
 
   bool get requiresSavingThrow {
-    return savingThrow != null &&
-        savingThrow!.dc > 0;
+    return savingThrow != null && savingThrow!.dc > 0;
   }
 }

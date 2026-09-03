@@ -147,28 +147,17 @@ class Character {
 
     for (final passive in enabledPassives) {
       for (final bonus in passive.healingBonuses) {
-        result.add(
-          ActiveHealingBonus(
-            bonus: bonus,
-            passive: passive,
-          ),
-        );
+        result.add(ActiveHealingBonus(bonus: bonus, passive: passive));
       }
     }
 
     for (final effect in enabledEffects) {
       for (final bonus in effect.healingBonuses) {
-        result.add(
-          ActiveHealingBonus(
-            bonus: bonus,
-          ),
-        );
+        result.add(ActiveHealingBonus(bonus: bonus));
       }
     }
 
-    return List<ActiveHealingBonus>.unmodifiable(
-      result,
-    );
+    return List<ActiveHealingBonus>.unmodifiable(result);
   }
 
   List<CharacterCounter> counters;
