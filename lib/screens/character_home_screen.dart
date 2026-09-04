@@ -32,6 +32,7 @@ import 'stats_screen.dart';
 import 'story_screen.dart';
 import 'resources_screen.dart';
 import 'effects_screen.dart';
+import 'knowledge_screen.dart';
 
 class CharacterHomeScreen extends StatefulWidget {
   final Character character;
@@ -760,6 +761,10 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               onDice: () {
                 openScreen(DiceScreen(character: character));
               },
+
+              onKnowledge: () {
+                openScreen(KnowledgeScreen(character: character));
+              }
             ),
           ],
         ),

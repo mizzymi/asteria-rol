@@ -109,6 +109,9 @@ class ItemGeneralSection extends StatelessWidget {
       case ItemType.armor:
         return 'Armadura corporal con configuración de CA.';
 
+      case ItemType.shield:
+        return 'Escudo equipable para protección adicional.';
+
       case ItemType.helmet:
         return 'Objeto pensado para el slot de cabeza.';
 
@@ -133,6 +136,12 @@ class ItemGeneralSection extends StatelessWidget {
       case ItemType.consumable:
         return 'Objeto que puede consumirse al utilizarlo.';
 
+      case ItemType.potion:
+        return 'Poción o brebaje con efectos consumibles inmediatos.';
+
+      case ItemType.scroll:
+        return 'Pergamino mágico o escrito de un solo uso.';
+
       case ItemType.tool:
         return 'Herramienta; no necesita habilidades ni pasivas.';
 
@@ -145,7 +154,13 @@ class ItemGeneralSection extends StatelessWidget {
       case ItemType.special:
         return 'Objeto especial con comportamiento personalizado.';
 
-      case ItemType.other:
+      case ItemType.ammunition:
+        return 'Munición consumible utilizada por armas a distancia.';
+
+      case ItemType.container:
+        return 'Contenedor o bolsa para almacenar otros objetos.';
+
+      case ItemType.misc:
         return 'Objeto sin una categoría específica.';
     }
   }

@@ -60,7 +60,7 @@ class CharacterItem {
 
   String description;
 
-  String imagePath;
+  String? imagePath;
 
   ItemType type;
 
@@ -112,7 +112,7 @@ class CharacterItem {
     this.description = '',
     String? templateId,
     this.imagePath = '',
-    this.type = ItemType.other,
+    this.type = ItemType.misc,
     this.notes = '',
     this.calculable = false,
     List<ItemCalculationCost>? calculationCosts,
@@ -135,8 +135,8 @@ class CharacterItem {
   // HELPERS
   // ===========================================================================
 
-  bool get hasImage {
-    return imagePath.trim().isNotEmpty;
+  bool? get hasImage {
+    return imagePath?.trim().isNotEmpty;
   }
 
   bool get hasPassives {
@@ -502,7 +502,7 @@ class CharacterItem {
 
     final type = ItemType.values.firstWhere(
       (value) => value.name == map['type']?.toString(),
-      orElse: () => ItemType.other,
+      orElse: () => ItemType.misc,
     );
 
     // =========================================================================

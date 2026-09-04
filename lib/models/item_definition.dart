@@ -1,134 +1,107 @@
+import 'package:flutter/foundation.dart';
+import 'equipment_slot.dart';
 import 'ability.dart';
+import 'action_definition.dart';
 import 'consumable.dart';
 import 'passive.dart';
 import 'weapon.dart';
 
-// =============================================================================
-// ITEM TYPE
-// =============================================================================
-
 enum ItemType {
+  weapon,
   armor,
+  shield,
   helmet,
   gloves,
   boots,
-
   ring,
   amulet,
-
-  weapon,
-  accessory,
-
   consumable,
-
-  tool,
   material,
+  tool,
   book,
-
   special,
-  other,
-}
-
-extension ItemTypeData on ItemType {
-  // ===========================================================================
-  // LABEL
-  // ===========================================================================
+  misc,
+  potion,
+  scroll,
+  accessory,
+  ammunition,
+  container;
 
   String get label {
     switch (this) {
-      case ItemType.armor:
-        return 'Armadura';
-
-      case ItemType.helmet:
-        return 'Casco';
-
-      case ItemType.gloves:
-        return 'Guantes';
-
-      case ItemType.boots:
-        return 'Botas';
-
-      case ItemType.ring:
-        return 'Anillo';
-
-      case ItemType.amulet:
-        return 'Amuleto';
-
       case ItemType.weapon:
         return 'Arma';
-
-      case ItemType.accessory:
-        return 'Accesorio';
-
+      case ItemType.armor:
+        return 'Armadura';
+      case ItemType.shield:
+        return 'Escudo';
+      case ItemType.helmet:
+        return 'Casco';
+      case ItemType.gloves:
+        return 'Guantes';
+      case ItemType.boots:
+        return 'Botas';
+      case ItemType.ring:
+        return 'Anillo';
+      case ItemType.amulet:
+        return 'Amuleto';
       case ItemType.consumable:
         return 'Consumible';
-
-      case ItemType.tool:
-        return 'Herramienta';
-
       case ItemType.material:
         return 'Material';
-
+      case ItemType.tool:
+        return 'Herramienta';
       case ItemType.book:
         return 'Libro';
-
       case ItemType.special:
         return 'Especial';
-
-      case ItemType.other:
-        return 'Otro';
-    }
-  }
-
-  // ===========================================================================
-  // STACK
-  // ===========================================================================
-
-  bool get stackableByDefault {
-    switch (this) {
-      case ItemType.consumable:
-      case ItemType.material:
-        return true;
-
-      case ItemType.armor:
-      case ItemType.helmet:
-      case ItemType.gloves:
-      case ItemType.boots:
-      case ItemType.ring:
-      case ItemType.amulet:
-      case ItemType.weapon:
+      case ItemType.misc:
+        return 'Varios';
+      case ItemType.potion:
+        return 'Poción';
+      case ItemType.scroll:
+        return 'Pergamino';
       case ItemType.accessory:
-      case ItemType.tool:
-      case ItemType.book:
-      case ItemType.special:
-      case ItemType.other:
-        return false;
+        return 'Accesorio';
+      case ItemType.ammunition:
+        return 'Munición';
+      case ItemType.container:
+        return 'Contenedor';
     }
   }
-
-  // ===========================================================================
-  // EQUIPMENT
-  // ===========================================================================
 
   bool get isEquipable {
     switch (this) {
+      case ItemType.weapon:
       case ItemType.armor:
+      case ItemType.shield:
       case ItemType.helmet:
       case ItemType.gloves:
       case ItemType.boots:
       case ItemType.ring:
       case ItemType.amulet:
-      case ItemType.weapon:
       case ItemType.accessory:
         return true;
-
-      case ItemType.consumable:
-      case ItemType.tool:
-      case ItemType.material:
-      case ItemType.book:
-      case ItemType.special:
-      case ItemType.other:
+      default:
         return false;
+    }
+  }
+
+  bool get stackableByDefault {
+    switch (this) {
+      case ItemType.weapon:
+      case ItemType.armor:
+      case ItemType.shield:
+      case ItemType.helmet:
+      case ItemType.gloves:
+      case ItemType.boots:
+      case ItemType.ring:
+      case ItemType.amulet:
+      case ItemType.accessory:
+      case ItemType.container:
+        return false;
+      default:
+        return true;
     }
   }
 
@@ -141,596 +114,383 @@ extension ItemTypeData on ItemType {
       case ItemType.amulet:
         return true;
 
-      case ItemType.ring:
-      case ItemType.weapon:
-      case ItemType.accessory:
-      case ItemType.consumable:
-      case ItemType.tool:
-      case ItemType.material:
-      case ItemType.book:
-      case ItemType.special:
-      case ItemType.other:
+      default:
         return false;
     }
   }
 
   String? get defaultEquipmentSlotId {
     switch (this) {
+      case ItemType.weapon:
+        return 'main_hand';
+      case ItemType.shield:
+        return 'off_hand';
       case ItemType.armor:
-        return 'armor';
-
+        return 'chest';
       case ItemType.helmet:
         return 'head';
-
       case ItemType.gloves:
         return 'hands';
-
       case ItemType.boots:
         return 'feet';
-
       case ItemType.ring:
-        return 'ring';
-
+        return 'ring_1';
       case ItemType.amulet:
         return 'neck';
-
-      case ItemType.weapon:
-        return 'weapon';
-
-      case ItemType.accessory:
-        return 'accessory';
-
-      case ItemType.consumable:
-      case ItemType.tool:
-      case ItemType.material:
-      case ItemType.book:
-      case ItemType.special:
-      case ItemType.other:
+      default:
         return null;
     }
   }
 
   List<String> get defaultEquipmentSlotIds {
-    final slotId = defaultEquipmentSlotId;
-
-    if (slotId == null) {
-      return const [];
-    }
-
-    return [slotId];
-  }
-
-  // ===========================================================================
-  // TYPE HELPERS
-  // ===========================================================================
-
-  bool get isArmorLike {
-    switch (this) {
-      case ItemType.armor:
-      case ItemType.helmet:
-      case ItemType.gloves:
-      case ItemType.boots:
-        return true;
-
-      case ItemType.ring:
-      case ItemType.amulet:
-      case ItemType.weapon:
-      case ItemType.accessory:
-      case ItemType.consumable:
-      case ItemType.tool:
-      case ItemType.material:
-      case ItemType.book:
-      case ItemType.special:
-      case ItemType.other:
-        return false;
-    }
+    final slot = defaultEquipmentSlotId;
+    return slot != null ? [slot] : const [];
   }
 }
 
-// =============================================================================
-// ARMOR
-// =============================================================================
+enum ArmorCategory {
+  light,
+  medium,
+  heavy,
+  shield,
+  custom;
 
-enum ArmorCategory { light, medium, heavy }
-
-extension ArmorCategoryData on ArmorCategory {
   String get label {
     switch (this) {
       case ArmorCategory.light:
         return 'Ligera';
-
       case ArmorCategory.medium:
         return 'Media';
-
       case ArmorCategory.heavy:
         return 'Pesada';
+      case ArmorCategory.shield:
+        return 'Escudo';
+      case ArmorCategory.custom:
+        return 'Personalizada';
     }
   }
 }
 
-class ItemArmorDefinition {
-  final ArmorCategory category;
+extension ItemTypeSlotCompatibility on ItemType {
+  Set<EquipmentSlotCategory> get compatibleSlotCategories {
+    switch (this) {
+      case ItemType.armor:
+        return {
+          EquipmentSlotCategory.chest,
+          EquipmentSlotCategory.head,
+          EquipmentSlotCategory.legs,
+          EquipmentSlotCategory.feet,
+          EquipmentSlotCategory.hands,
+          EquipmentSlotCategory.waist,
+        };
+      case ItemType.helmet:
+        return {EquipmentSlotCategory.head};
+      case ItemType.gloves:
+        return {EquipmentSlotCategory.hands};
+      case ItemType.boots:
+        return {EquipmentSlotCategory.feet};
+      case ItemType.amulet:
+        return {EquipmentSlotCategory.neck};
+      case ItemType.ring:
+        return {EquipmentSlotCategory.ring};
+      case ItemType.weapon:
+      case ItemType.shield:
+        return {EquipmentSlotCategory.mainHand, EquipmentSlotCategory.offHand};
+      case ItemType.accessory:
+        return {
+          EquipmentSlotCategory.neck,
+          EquipmentSlotCategory.ring,
+          EquipmentSlotCategory.waist,
+          EquipmentSlotCategory.custom,
+        };
+      case ItemType.tool:
+        return {
+          EquipmentSlotCategory.mainHand,
+          EquipmentSlotCategory.offHand,
+          EquipmentSlotCategory.custom,
+        };
+      default:
+        return {};
+    }
+  }
+}
 
+@immutable
+class ItemArmorDefinition {
   final int baseArmorClass;
+  final ArmorCategory category;
+  final int? maxDexBonus;
+  final int minStrength;
+  final bool stealthDisadvantage;
+  final String? customFormula; // <-- NUEVO
 
   const ItemArmorDefinition({
-    required this.category,
-    required this.baseArmorClass,
+    this.baseArmorClass = 10,
+    this.category = ArmorCategory.light,
+    this.maxDexBonus,
+    this.minStrength = 0,
+    this.stealthDisadvantage = false,
+    this.customFormula,
   });
 
-  // ===========================================================================
-  // SERIALIZATION
-  // ===========================================================================
+  int get armorClass => baseArmorClass;
 
-  Map<String, dynamic> toMap() {
-    return {'category': category.name, 'baseArmorClass': baseArmorClass};
-  }
+  Map<String, dynamic> toMap() => {
+    'baseArmorClass': baseArmorClass,
+    'armorClass': baseArmorClass,
+    'category': category.name,
+    'maxDexBonus': maxDexBonus,
+    'minStrength': minStrength,
+    'stealthDisadvantage': stealthDisadvantage,
+    if (customFormula != null) 'customFormula': customFormula,
+  };
 
   factory ItemArmorDefinition.fromMap(Map<dynamic, dynamic> map) {
     return ItemArmorDefinition(
+      baseArmorClass:
+          (map['baseArmorClass'] ?? map['armorClass'] as num?)?.toInt() ?? 10,
       category: ArmorCategory.values.firstWhere(
-        (value) => value.name == map['category']?.toString(),
+        (e) => e.name == map['category'],
         orElse: () => ArmorCategory.light,
       ),
-      baseArmorClass: (map['baseArmorClass'] as num?)?.toInt() ?? 10,
+      maxDexBonus: (map['maxDexBonus'] as num?)?.toInt(),
+      minStrength: (map['minStrength'] as num?)?.toInt() ?? 0,
+      stealthDisadvantage: map['stealthDisadvantage'] as bool? ?? false,
+      customFormula: map['customFormula']?.toString(),
     );
   }
 }
 
-// =============================================================================
-// ITEM DEFINITION
-// =============================================================================
-
+@immutable
 class ItemDefinition {
-  /// Identidad real del objeto.
-  ///
-  /// Biblioteca, inventario, tiendas, recetas y paquetes deben utilizar
-  /// este ID para referenciar el mismo objeto.
   final String id;
+  final String name;
+  final String description;
+  final ItemType type;
+  final String? imagePath;
+  final double weight;
+  final int priceValue;
+  final String currencyName;
+  final bool stackable;
+  final int maxStackSize;
+  final String notes;
+  final bool calculable;
+  final List<ItemCalculationCost> calculationCosts;
+  final List<String> equipmentSlotIds;
+  final ItemArmorDefinition? armor;
+  final Weapon? weapon;
+  final Consumable? consumable;
+  final List<CharacterPassive> passives;
+  final List<CharacterAbility> abilities;
+  final ActionDefinition? actionDefinition;
+  final Map<String, dynamic> customProperties;
 
-  String name;
+  /// ID del conocimiento que contiene o enseña este objeto (libros, pergaminos, etc.)
+  final String? relatedKnowledgeId;
 
-  String description;
-
-  ItemType type;
-
-  String imagePath;
-
-  String notes;
-
-  // ===========================================================================
-  // STACK / CALCULATOR
-  // ===========================================================================
-
-  bool stackable;
-
-  bool calculable;
-
-  List<ItemCalculationCost> calculationCosts;
-
-  // ===========================================================================
-  // EQUIPMENT
-  // ===========================================================================
-
-  /// Slots en los que puede equiparse.
-  ///
-  /// Vacío = no equipable.
-  List<String> equipmentSlotIds;
-
-  // ===========================================================================
-  // CONTENT
-  // ===========================================================================
-
-  ItemArmorDefinition? armor;
-
-  Weapon? weapon;
-
-  Consumable? consumable;
-
-  List<CharacterPassive> passives;
-
-  List<CharacterAbility> abilities;
-
-  ItemDefinition({
+  const ItemDefinition({
     required this.id,
     required this.name,
     this.description = '',
-    this.type = ItemType.other,
-    this.imagePath = '',
+    this.type = ItemType.misc,
+    this.imagePath,
+    this.weight = 0.0,
+    this.priceValue = 0,
+    this.currencyName = 'Oro',
+    this.stackable = true,
+    this.maxStackSize = 999,
     this.notes = '',
-    bool? stackable,
     this.calculable = false,
-    List<ItemCalculationCost>? calculationCosts,
-    List<String>? equipmentSlotIds,
+    this.calculationCosts = const [],
+    this.equipmentSlotIds = const [],
     this.armor,
     this.weapon,
     this.consumable,
+    this.passives = const [],
+    this.abilities = const [],
+    this.actionDefinition,
+    this.customProperties = const {},
+    this.relatedKnowledgeId,
+  });
+
+  bool get isWeapon => type == ItemType.weapon || weapon != null;
+  bool get hasImage => imagePath != null && imagePath!.trim().isNotEmpty;
+  bool get isEquippable => equipmentSlotIds.isNotEmpty || type.isEquipable;
+  bool get hasPassives => passives.isNotEmpty;
+  bool get hasAbilities => abilities.isNotEmpty;
+  bool get hasAction => actionDefinition != null;
+
+  ItemDefinition copyWith({
+    String? id,
+    String? name,
+    String? description,
+    ItemType? type,
+    String? imagePath,
+    double? weight,
+    int? priceValue,
+    String? currencyName,
+    bool? stackable,
+    int? maxStackSize,
+    String? notes,
+    bool? calculable,
+    List<ItemCalculationCost>? calculationCosts,
+    List<String>? equipmentSlotIds,
+    ItemArmorDefinition? armor,
+    Weapon? weapon,
+    Consumable? consumable,
     List<CharacterPassive>? passives,
     List<CharacterAbility>? abilities,
-  }) : stackable = stackable ?? type.stackableByDefault,
-       calculationCosts = calculationCosts ?? [],
-       equipmentSlotIds = equipmentSlotIds ?? type.defaultEquipmentSlotIds,
-       passives = passives ?? [],
-       abilities = abilities ?? [];
-
-  // ===========================================================================
-  // HELPERS
-  // ===========================================================================
-
-  bool get hasImage {
-    return imagePath.trim().isNotEmpty;
+    ActionDefinition? actionDefinition,
+    Map<String, dynamic>? customProperties,
+    String? relatedKnowledgeId,
+  }) {
+    return ItemDefinition(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      type: type ?? this.type,
+      imagePath: imagePath ?? this.imagePath,
+      weight: weight ?? this.weight,
+      priceValue: priceValue ?? this.priceValue,
+      currencyName: currencyName ?? this.currencyName,
+      stackable: stackable ?? this.stackable,
+      maxStackSize: maxStackSize ?? this.maxStackSize,
+      notes: notes ?? this.notes,
+      calculable: calculable ?? this.calculable,
+      calculationCosts: calculationCosts ?? this.calculationCosts,
+      equipmentSlotIds: equipmentSlotIds ?? this.equipmentSlotIds,
+      armor: armor ?? this.armor,
+      weapon: weapon ?? this.weapon,
+      consumable: consumable ?? this.consumable,
+      passives: passives ?? this.passives,
+      abilities: abilities ?? this.abilities,
+      actionDefinition: actionDefinition ?? this.actionDefinition,
+      customProperties: customProperties ?? this.customProperties,
+      relatedKnowledgeId: relatedKnowledgeId ?? this.relatedKnowledgeId,
+    );
   }
 
-  bool get equipable {
-    return equipmentSlotIds.isNotEmpty;
-  }
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'description': description,
+    'type': type.name,
+    'imagePath': imagePath,
+    'weight': weight,
+    'priceValue': priceValue,
+    'currencyName': currencyName,
+    'stackable': stackable,
+    'maxStackSize': maxStackSize,
+    'notes': notes,
+    'calculable': calculable,
+    'calculationCosts': calculationCosts.map((c) => c.toMap()).toList(),
+    'equipmentSlotIds': equipmentSlotIds,
+    'armor': armor?.toMap(),
+    'weapon': weapon?.toMap(),
+    'consumable': consumable?.toMap(),
+    'passives': passives.map((p) => p.toMap()).toList(),
+    'abilities': abilities.map((a) => a.toMap()).toList(),
+    'actionDefinition': actionDefinition != null
+        ? {'id': actionDefinition!.id}
+        : null,
+    'customProperties': customProperties,
+    if (relatedKnowledgeId != null) 'relatedKnowledgeId': relatedKnowledgeId,
+  };
 
-  bool get hasArmor {
-    return armor != null;
-  }
-
-  bool get hasWeapon {
-    return weapon != null;
-  }
-
-  bool get hasConsumable {
-    return consumable != null;
-  }
-
-  bool get hasPassives {
-    return passives.isNotEmpty;
-  }
-
-  bool get hasAbilities {
-    return abilities.isNotEmpty;
-  }
-
-  bool get hasCalculationCosts {
-    return calculationCosts.isNotEmpty;
-  }
-
-  bool get isWeapon {
-    return type == ItemType.weapon && weapon != null;
-  }
-
-  bool get isConsumable {
-    return type == ItemType.consumable && consumable != null;
-  }
-
-  // ===========================================================================
-  // COPY
-  // ===========================================================================
-
-  ItemDefinition copy() {
-    return ItemDefinition.fromMap(toMap());
-  }
-
-  // ===========================================================================
-  // SERIALIZATION
-  // ===========================================================================
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-
-      'name': name,
-
-      'description': description,
-
-      'type': type.name,
-
-      'imagePath': imagePath,
-
-      'notes': notes,
-
-      'stackable': stackable,
-
-      'calculable': calculable,
-
-      'calculationCosts': calculationCosts.map((cost) => cost.toMap()).toList(),
-
-      'equipmentSlotIds': List<String>.from(equipmentSlotIds),
-
-      'armor': armor?.toMap(),
-
-      'weapon': weapon?.toMap(),
-
-      'consumable': consumable?.toMap(),
-
-      'passives': passives.map((passive) => passive.toMap()).toList(),
-
-      'abilities': abilities.map((ability) => ability.toMap()).toList(),
-    };
-  }
-
-  // ===========================================================================
-  // FROM MAP
-  // ===========================================================================
+  Map<String, dynamic> toJson() => toMap();
 
   factory ItemDefinition.fromMap(Map<dynamic, dynamic> map) {
-    // =========================================================================
-    // TYPE
-    // =========================================================================
-
-    final type = ItemType.values.firstWhere(
-      (value) => value.name == map['type']?.toString(),
-      orElse: () => ItemType.other,
-    );
-
-    // =========================================================================
-    // PASSIVES
-    // =========================================================================
-
-    final passives = <CharacterPassive>[];
-
-    final rawPassives = map['passives'];
-
-    if (rawPassives is List) {
-      for (final rawPassive in rawPassives) {
-        if (rawPassive is! Map) {
-          continue;
-        }
-
-        try {
-          passives.add(
-            CharacterPassive.fromMap(Map<dynamic, dynamic>.from(rawPassive)),
-          );
-        } catch (_) {
-          continue;
-        }
-      }
-    }
-
-    // =========================================================================
-    // LEGACY SINGLE PASSIVE
-    // =========================================================================
-
-    if (passives.isEmpty) {
-      final rawPassive = map['passive'];
-
-      if (rawPassive is Map) {
-        try {
-          passives.add(
-            CharacterPassive.fromMap(Map<dynamic, dynamic>.from(rawPassive)),
-          );
-        } catch (_) {
-          // Ignorar contenido legacy inválido.
-        }
-      }
-    }
-
-    // =========================================================================
-    // ABILITIES
-    // =========================================================================
-
-    final abilities = <CharacterAbility>[];
-
-    final rawAbilities = map['abilities'];
-
-    if (rawAbilities is List) {
-      for (final rawAbility in rawAbilities) {
-        if (rawAbility is! Map) {
-          continue;
-        }
-
-        try {
-          abilities.add(
-            CharacterAbility.fromMap(Map<dynamic, dynamic>.from(rawAbility)),
-          );
-        } catch (_) {
-          continue;
-        }
-      }
-    }
-
-    // =========================================================================
-    // WEAPON
-    // =========================================================================
-
-    Weapon? weapon;
-
-    final rawWeapon = map['weapon'];
-
-    if (rawWeapon is Map) {
-      try {
-        weapon = Weapon.fromMap(Map<dynamic, dynamic>.from(rawWeapon));
-      } catch (_) {
-        weapon = null;
-      }
-    }
-
-    // =========================================================================
-    // CONSUMABLE
-    // =========================================================================
-
-    Consumable? consumable;
-
-    final rawConsumable = map['consumable'];
-
-    if (rawConsumable is Map) {
-      try {
-        consumable = Consumable.fromMap(
-          Map<dynamic, dynamic>.from(rawConsumable),
-        );
-      } catch (_) {
-        consumable = null;
-      }
-    }
-
-    // =========================================================================
-    // ARMOR
-    // =========================================================================
-
-    ItemArmorDefinition? armor;
-
-    final rawArmor = map['armor'];
-
-    if (rawArmor is Map) {
-      try {
-        armor = ItemArmorDefinition.fromMap(
-          Map<dynamic, dynamic>.from(rawArmor),
-        );
-      } catch (_) {
-        armor = null;
-      }
-    }
-
-    // =========================================================================
-    // LEGACY ARMOR
-    //
-    // El CharacterItem antiguo guardaba:
-    //
-    // armorCategory
-    // armorBaseClass
-    // =========================================================================
-
-    if (armor == null) {
-      final legacyArmorCategory = map['armorCategory']?.toString();
-
-      if (legacyArmorCategory != null && legacyArmorCategory.isNotEmpty) {
-        final category = ArmorCategory.values.firstWhere(
-          (value) => value.name == legacyArmorCategory,
-          orElse: () => ArmorCategory.light,
-        );
-
-        armor = ItemArmorDefinition(
-          category: category,
-          baseArmorClass: (map['armorBaseClass'] as num?)?.toInt() ?? 10,
-        );
-      }
-    }
-
-    // =========================================================================
-    // CALCULATION COSTS
-    // =========================================================================
-
-    final calculationCosts = <ItemCalculationCost>[];
-
-    final rawCalculationCosts = map['calculationCosts'];
-
-    if (rawCalculationCosts is List) {
-      for (final rawCost in rawCalculationCosts) {
-        if (rawCost is! Map) {
-          continue;
-        }
-
-        try {
-          calculationCosts.add(
-            ItemCalculationCost.fromMap(Map<dynamic, dynamic>.from(rawCost)),
-          );
-        } catch (_) {
-          continue;
-        }
-      }
-    }
-
-    // =========================================================================
-    // EQUIPMENT SLOTS
-    // =========================================================================
-
-    final equipmentSlotIds = <String>[];
-
-    final rawSlots = map['equipmentSlotIds'];
-
-    if (rawSlots is List) {
-      for (final rawSlot in rawSlots) {
-        final slotId = rawSlot?.toString().trim() ?? '';
-
-        if (slotId.isEmpty) {
-          continue;
-        }
-
-        if (!equipmentSlotIds.contains(slotId)) {
-          equipmentSlotIds.add(slotId);
-        }
-      }
-    }
-
-    // =========================================================================
-    // LEGACY EQUIPMENT
-    // =========================================================================
-
-    if (equipmentSlotIds.isEmpty && type.isEquipable) {
-      equipmentSlotIds.addAll(type.defaultEquipmentSlotIds);
-    }
-
-    // =========================================================================
-    // ID
-    //
-    // templateId era la identidad de definición legacy.
-    // =========================================================================
-
-    final rawId = map['id']?.toString().trim() ?? '';
-
-    final rawTemplateId = map['templateId']?.toString().trim() ?? '';
-
-    final id = rawTemplateId.isNotEmpty ? rawTemplateId : rawId;
-
-    // =========================================================================
-    // RESULT
-    // =========================================================================
-
     return ItemDefinition(
-      id: id,
-
-      name: map['name']?.toString() ?? '',
-
-      description: map['description']?.toString() ?? '',
-
-      type: type,
-
-      imagePath: map['imagePath']?.toString() ?? '',
-
-      notes: map['notes']?.toString() ?? '',
-
-      stackable: map['stackable'] as bool? ?? type.stackableByDefault,
-
-      calculable: map['calculable'] as bool? ?? calculationCosts.isNotEmpty,
-
-      calculationCosts: calculationCosts,
-
-      equipmentSlotIds: equipmentSlotIds,
-
-      armor: armor,
-
-      weapon: weapon,
-
-      consumable: consumable,
-
-      passives: passives,
-
-      abilities: abilities,
+      id: map['id'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      type: ItemType.values.firstWhere(
+        (e) => e.name == map['type'],
+        orElse: () => ItemType.misc,
+      ),
+      imagePath: map['imagePath'] as String?,
+      weight: (map['weight'] as num?)?.toDouble() ?? 0.0,
+      priceValue: (map['priceValue'] as num?)?.toInt() ?? 0,
+      currencyName: map['currencyName'] as String? ?? 'Oro',
+      stackable: map['stackable'] as bool? ?? true,
+      maxStackSize: (map['maxStackSize'] as num?)?.toInt() ?? 999,
+      notes: map['notes'] as String? ?? '',
+      calculable: map['calculable'] as bool? ?? false,
+      calculationCosts:
+          (map['calculationCosts'] as List<dynamic>?)
+              ?.map(
+                (e) => ItemCalculationCost.fromMap(e as Map<dynamic, dynamic>),
+              )
+              .toList() ??
+          const [],
+      equipmentSlotIds:
+          (map['equipmentSlotIds'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      armor: map['armor'] != null
+          ? ItemArmorDefinition.fromMap(map['armor'] as Map<dynamic, dynamic>)
+          : null,
+      weapon: map['weapon'] != null
+          ? Weapon.fromMap(Map<String, dynamic>.from(map['weapon'] as Map))
+          : null,
+      consumable: map['consumable'] != null
+          ? Consumable.fromMap(
+              Map<String, dynamic>.from(map['consumable'] as Map),
+            )
+          : null,
+      passives:
+          (map['passives'] as List<dynamic>?)
+              ?.map(
+                (e) => CharacterPassive.fromMap(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
+              .toList() ??
+          const [],
+      abilities:
+          (map['abilities'] as List<dynamic>?)
+              ?.map(
+                (e) => CharacterAbility.fromMap(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
+              .toList() ??
+          const [],
+      customProperties: map['customProperties'] != null
+          ? Map<String, dynamic>.from(map['customProperties'] as Map)
+          : const {},
+      relatedKnowledgeId: map['relatedKnowledgeId']?.toString(),
     );
   }
-}
 
-// =============================================================================
-// CALCULATION COST
-// =============================================================================
+  factory ItemDefinition.fromJson(Map<String, dynamic> json) =>
+      ItemDefinition.fromMap(json);
+}
 
 class ItemCalculationCost {
-  /// Referencia siempre ItemDefinition.id.
   String itemId;
-
   int quantityPerUnit;
 
-  ItemCalculationCost({required this.itemId, this.quantityPerUnit = 1});
+  ItemCalculationCost({required this.itemId, required this.quantityPerUnit});
 
-  // ===========================================================================
-  // SERIALIZATION
-  // ===========================================================================
+  // Alias compatibles
+  String get resourceId => itemId;
+  set resourceId(String val) => itemId = val;
+  int get amount => quantityPerUnit;
+  set amount(int val) => quantityPerUnit = val;
 
-  Map<String, dynamic> toMap() {
-    return {'itemId': itemId, 'quantityPerUnit': quantityPerUnit};
-  }
+  Map<String, dynamic> toMap() => {
+    'itemId': itemId,
+    'quantityPerUnit': quantityPerUnit,
+  };
 
   factory ItemCalculationCost.fromMap(Map<dynamic, dynamic> map) {
-    final quantity = (map['quantityPerUnit'] as num?)?.toInt() ?? 1;
-
     return ItemCalculationCost(
-      itemId: map['itemId']?.toString() ?? '',
-
-      quantityPerUnit: quantity < 1 ? 1 : quantity,
+      itemId: (map['itemId'] ?? map['resourceId']) as String? ?? '',
+      quantityPerUnit:
+      (map['quantityPerUnit'] ?? map['amount'] as num?)?.toInt() ?? 1,
     );
   }
 }
+

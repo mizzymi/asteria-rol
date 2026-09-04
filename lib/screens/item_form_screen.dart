@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../models/character_knowledge.dart';
+import '../models/knowledge_definition.dart';
 import '../models/ability.dart';
 import '../models/character.dart';
 import '../models/consumable.dart';
 import '../models/critical_damage_bonus.dart';
 import '../models/dice_pool.dart';
+import '../models/equipment_slot.dart';
 import '../models/item_definition.dart';
 import '../models/passive.dart';
 import '../models/skill.dart';
 import '../models/weapon.dart';
 import '../models/weapon_damage.dart';
 
+import '../widgets/common/app_card.dart';
+import '../widgets/common/section_header.dart';
+import '../widgets/items/knowledge_insert_bar.dart';
 import '../widgets/items/item_form/item_abilities_section.dart';
 import '../widgets/items/item_form/item_armor_section.dart';
 import '../widgets/items/item_form/item_calculation_section.dart';
@@ -21,25 +27,13 @@ import '../widgets/items/item_form/item_notes_section.dart';
 import '../widgets/items/item_form/item_passives_section.dart';
 import '../widgets/items/item_form/item_weapon_section.dart';
 
+import 'knowledge_form_screen.dart';
 import 'ability_form_screen.dart';
 import 'passive_form_screen.dart';
 
 class ItemFormScreen extends StatefulWidget {
   final ItemDefinition? definition;
-
-  /// Personaje usado únicamente como contexto.
-  ///
-  /// Permite:
-  /// - mostrar recursos al editar efectos de consumibles;
-  /// - utilizar objetos del inventario como candidatos de calculadora.
-  ///
-  /// La definición NO guarda estado del inventario.
   final Character? character;
-
-  /// Definiciones externas disponibles para la calculadora.
-  ///
-  /// Esto permite reutilizar el formulario desde biblioteca,
-  /// Master, tiendas, etc. sin depender de CharacterItem.
   final List<ItemDefinition> availableDefinitions;
 
   const ItemFormScreen({
@@ -61,26 +55,22 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   // ===========================================================================
 
   late final TextEditingController nameController;
-
   late final TextEditingController descriptionController;
-
   late final TextEditingController notesController;
-
   late final TextEditingController armorBaseClassController;
-
   late final TextEditingController magicBonusController;
+  late final TextEditingController knowledgeIdController;
+  late final TextEditingController customArmorFormulaController;
 
   // ===========================================================================
   // ESTADO GENERAL
   // ===========================================================================
 
   late ItemType itemType;
-
   late String imagePath;
-
   late bool calculable;
-
   late List<ItemCalculationCost> calculationCosts;
+  late List<String> equipmentSlotIds;
 
   // ===========================================================================
   // ARMADURA
@@ -93,13 +83,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   // ===========================================================================
 
   late AbilityType weaponAttackAbility;
-
   late int weaponCriticalMinimumNaturalRoll;
-
   late bool weaponEmpoweredCritical;
-
   late bool weaponProficient;
-
   late List<WeaponDamage> weaponDamages;
 
   // ===========================================================================
@@ -107,7 +93,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   // ===========================================================================
 
   late String consumableUseText;
-
   late List<AbilityEffect> consumableEffects;
 
   // ===========================================================================
@@ -115,75 +100,58 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   // ===========================================================================
 
   late List<CharacterPassive> passives;
-
   late List<CharacterAbility> abilities;
 
   // ===========================================================================
   // HELPERS
   // ===========================================================================
 
-  bool get editing {
-    return widget.definition != null;
+  bool get editing => widget.definition != null;
+
+  List<EquipmentSlotDefinition> get availableSlotDefinitions {
+    final allSlots =
+        (widget.character != null &&
+            widget.character!.equipmentSlots.isNotEmpty)
+        ? widget.character!.equipmentSlots
+        : defaultEquipmentSlots;
+
+    final allowedCategories = itemType.compatibleSlotCategories;
+    if (allowedCategories.isEmpty) return const [];
+
+    return allSlots
+        .where((slot) => allowedCategories.contains(slot.category))
+        .toList();
   }
 
-  /// Definiciones utilizables por la calculadora.
-  ///
-  /// Combina:
-  /// - definiciones proporcionadas externamente;
-  /// - objetos legacy que todavía viven en Character.items.
-  ///
-  /// Siempre deduplicamos mediante ItemDefinition.id.
   List<ItemDefinition> get availableCalculationItems {
     final resultById = <String, ItemDefinition>{};
-
     final currentDefinitionId = widget.definition?.id.trim();
 
-    // =========================================================================
-    // DEFINICIONES EXTERNAS
-    // =========================================================================
-
-    for (final definition in widget.availableDefinitions) {
-      final id = definition.id.trim();
-
-      if (id.isEmpty) {
-        continue;
-      }
-
+    void register(ItemDefinition def) {
+      final id = def.id.trim();
+      if (id.isEmpty) return;
       if (currentDefinitionId != null &&
           currentDefinitionId.isNotEmpty &&
           id == currentDefinitionId) {
-        continue;
+        return;
       }
-
-      resultById.putIfAbsent(
-        id,
-        () => ItemDefinition.fromMap(definition.toMap()),
-      );
+      resultById.putIfAbsent(id, () => def);
     }
 
-    // =========================================================================
-    // INVENTARIO LEGACY DEL PERSONAJE
-    // =========================================================================
+    for (final definition in widget.availableDefinitions) {
+      register(ItemDefinition.fromMap(definition.toMap()));
+    }
 
-    final characterItems = widget.character?.items;
-
-    if (characterItems != null) {
-      for (final item in characterItems) {
-        final definition = item.toDefinition();
-
-        final id = definition.id.trim();
-
-        if (id.isEmpty) {
-          continue;
+    final character = widget.character;
+    if (character != null) {
+      for (final inventory in character.inventoryItems) {
+        final def = character.definitionForInventoryItem(inventory);
+        if (def != null) {
+          register(def);
         }
-
-        if (currentDefinitionId != null &&
-            currentDefinitionId.isNotEmpty &&
-            id == currentDefinitionId) {
-          continue;
-        }
-
-        resultById.putIfAbsent(id, () => definition);
+      }
+      for (final def in character.itemDefinitions) {
+        register(def);
       }
     }
 
@@ -201,90 +169,65 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     final item = widget.definition;
 
     nameController = TextEditingController(text: item?.name ?? '');
-
     descriptionController = TextEditingController(
       text: item?.description ?? '',
     );
-
     notesController = TextEditingController(text: item?.notes ?? '');
-
     armorBaseClassController = TextEditingController(
       text: '${item?.armor?.baseArmorClass ?? 11}',
     );
+    knowledgeIdController = TextEditingController(
+      text: item?.relatedKnowledgeId ?? '',
+    );
+    customArmorFormulaController = TextEditingController(
+      text: item?.armor?.customFormula ?? '',
+    );
 
-    itemType = item?.type ?? ItemType.other;
-
+    itemType = item?.type ?? ItemType.misc;
     imagePath = item?.imagePath ?? '';
 
-    // =========================================================================
-    // CALCULADORA
-    // =========================================================================
+    equipmentSlotIds = item?.equipmentSlotIds.isNotEmpty == true
+        ? List<String>.from(item!.equipmentSlotIds)
+        : (itemType.isEquipable
+              ? List<String>.from(itemType.defaultEquipmentSlotIds)
+              : <String>[]);
 
     calculable = item?.calculable ?? false;
-
     calculationCosts =
         item?.calculationCosts
             .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
             .toList() ??
         <ItemCalculationCost>[];
 
-    // =========================================================================
-    // ARMADURA
-    // =========================================================================
-
     armorCategory = item?.armor?.category ?? ArmorCategory.light;
 
-    // =========================================================================
-    // ARMA
-    // =========================================================================
-
     final weapon = item?.weapon;
-
     magicBonusController = TextEditingController(
       text: '${weapon?.magicBonus ?? 0}',
     );
-
     weaponAttackAbility = weapon?.attackAbility ?? AbilityType.strength;
-
     weaponCriticalMinimumNaturalRoll = weapon?.criticalMinimumNaturalRoll ?? 20;
-
     weaponEmpoweredCritical = weapon?.empoweredCritical ?? false;
-
     weaponProficient = weapon?.proficient ?? true;
-
     weaponDamages =
         weapon?.damages
             .map((damage) => WeaponDamage.fromMap(damage.toMap()))
             .toList() ??
         <WeaponDamage>[];
 
-    // =========================================================================
-    // CONSUMIBLE
-    // =========================================================================
-
     final consumable = item?.consumable;
-
     consumableUseText = consumable?.useText.trim().isNotEmpty == true
         ? consumable!.useText
         : 'Usar';
-
     consumableEffects =
         consumable?.effects.map(_cloneConsumableEffect).toList() ??
         <AbilityEffect>[];
-
-    // =========================================================================
-    // PASIVAS
-    // =========================================================================
 
     passives =
         item?.passives
             .map((passive) => CharacterPassive.fromMap(passive.toMap()))
             .toList() ??
         <CharacterPassive>[];
-
-    // =========================================================================
-    // HABILIDADES
-    // =========================================================================
 
     abilities =
         item?.abilities
@@ -301,9 +244,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     setState(() {
       consumableEffects.add(
         AbilityEffect(
-          id:
-              '${DateTime.now().microsecondsSinceEpoch}'
-              '_consumable_effect',
+          id: '${DateTime.now().microsecondsSinceEpoch}_consumable_effect',
           name: '',
           effectType: AbilityEffectType.healing,
           dicePools: [DicePool(count: 1, sides: 4)],
@@ -317,45 +258,31 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   void updateConsumableEffect(int index, AbilityEffect effect) {
-    if (index < 0 || index >= consumableEffects.length) {
-      return;
-    }
-
+    if (index < 0 || index >= consumableEffects.length) return;
     setState(() {
       consumableEffects[index] = effect;
     });
   }
 
   void removeConsumableEffect(int index) {
-    if (index < 0 || index >= consumableEffects.length) {
-      return;
-    }
-
+    if (index < 0 || index >= consumableEffects.length) return;
     setState(() {
       consumableEffects.removeAt(index);
     });
   }
 
   void moveConsumableEffectUp(int index) {
-    if (index <= 0 || index >= consumableEffects.length) {
-      return;
-    }
-
+    if (index <= 0 || index >= consumableEffects.length) return;
     setState(() {
       final effect = consumableEffects.removeAt(index);
-
       consumableEffects.insert(index - 1, effect);
     });
   }
 
   void moveConsumableEffectDown(int index) {
-    if (index < 0 || index >= consumableEffects.length - 1) {
-      return;
-    }
-
+    if (index < 0 || index >= consumableEffects.length - 1) return;
     setState(() {
       final effect = consumableEffects.removeAt(index);
-
       consumableEffects.insert(index + 1, effect);
     });
   }
@@ -373,46 +300,32 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       context,
       MaterialPageRoute(builder: (_) => const PassiveFormScreen()),
     );
-
-    if (passive == null || !mounted) {
-      return;
-    }
+    if (passive == null || !mounted) return;
 
     passive.sourceType = PassiveSourceType.item;
-
     setState(() {
       passives.add(passive);
     });
   }
 
   Future<void> editPassive(int index) async {
-    if (index < 0 || index >= passives.length) {
-      return;
-    }
-
+    if (index < 0 || index >= passives.length) return;
     final current = passives[index];
 
     final result = await Navigator.push<CharacterPassive>(
       context,
       MaterialPageRoute(builder: (_) => PassiveFormScreen(passive: current)),
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
+    if (result == null || !mounted) return;
 
     result.sourceType = PassiveSourceType.item;
-
     setState(() {
       passives[index] = result;
     });
   }
 
   Future<void> deletePassive(int index) async {
-    if (index < 0 || index >= passives.length) {
-      return;
-    }
-
+    if (index < 0 || index >= passives.length) return;
     final passive = passives[index];
 
     final confirmed = await showDialog<bool>(
@@ -423,15 +336,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           content: Text('¿Quieres eliminar "${passive.name}"?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Eliminar'),
             ),
           ],
@@ -439,10 +348,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       },
     );
 
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
+    if (confirmed != true || !mounted) return;
     setState(() {
       passives.removeAt(index);
     });
@@ -457,10 +363,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       context,
       MaterialPageRoute(builder: (_) => const AbilityFormScreen()),
     );
-
-    if (ability == null || !mounted) {
-      return;
-    }
+    if (ability == null || !mounted) return;
 
     setState(() {
       abilities.add(ability);
@@ -468,20 +371,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> editAbility(int index) async {
-    if (index < 0 || index >= abilities.length) {
-      return;
-    }
-
+    if (index < 0 || index >= abilities.length) return;
     final current = abilities[index];
 
     final result = await Navigator.push<CharacterAbility>(
       context,
       MaterialPageRoute(builder: (_) => AbilityFormScreen(ability: current)),
     );
-
-    if (result == null || !mounted) {
-      return;
-    }
+    if (result == null || !mounted) return;
 
     setState(() {
       abilities[index] = result;
@@ -489,10 +386,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> deleteAbility(int index) async {
-    if (index < 0 || index >= abilities.length) {
-      return;
-    }
-
+    if (index < 0 || index >= abilities.length) return;
     final ability = abilities[index];
 
     final confirmed = await showDialog<bool>(
@@ -503,15 +397,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           content: Text('¿Quieres eliminar "${ability.name}"?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Eliminar'),
             ),
           ],
@@ -519,43 +409,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       },
     );
 
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
+    if (confirmed != true || !mounted) return;
     setState(() {
       abilities.removeAt(index);
     });
-  }
-
-  // ===========================================================================
-  // RESOLUCIÓN DE PROPIEDADES DE DEFINICIÓN
-  // ===========================================================================
-
-  bool _resolvedStackable() {
-    final original = widget.definition;
-
-    if (original != null && original.type == itemType) {
-      return original.stackable;
-    }
-
-    return itemType.stackableByDefault;
-  }
-
-  List<String> _resolvedEquipmentSlotIds() {
-    if (!itemType.isEquipable) {
-      return const [];
-    }
-
-    final original = widget.definition;
-
-    if (original != null &&
-        original.type == itemType &&
-        original.equipmentSlotIds.isNotEmpty) {
-      return List<String>.from(original.equipmentSlotIds);
-    }
-
-    return List<String>.from(itemType.defaultEquipmentSlotIds);
   }
 
   // ===========================================================================
@@ -563,13 +420,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   // ===========================================================================
 
   void saveItem() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    // =========================================================================
-    // VALIDAR ARMA
-    // =========================================================================
+    if (!_formKey.currentState!.validate()) return;
 
     if (itemType == ItemType.weapon && weaponDamages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -577,21 +428,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           content: Text('Añade al menos un componente de daño al arma.'),
         ),
       );
-
       return;
     }
 
-    // =========================================================================
-    // ARMA
-    // =========================================================================
-
     Weapon? weapon;
-
     if (itemType == ItemType.weapon) {
       final primaryDamage = weaponDamages.isNotEmpty
           ? weaponDamages.first
           : null;
-
       final existingWeapon = widget.definition?.weapon;
 
       weapon = Weapon(
@@ -604,33 +448,21 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         magicBonus: int.tryParse(magicBonusController.text) ?? 0,
         criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
         empoweredCritical: weaponEmpoweredCritical,
-
-        // Legacy
         damageDice: primaryDamage?.diceNotation ?? '1d6',
         damageType: primaryDamage?.damageType ?? 'Cortante',
-
-        // Sistema actual
         damages: weaponDamages
-            .map((damage) => WeaponDamage.fromMap(damage.toMap()))
+            .map((d) => WeaponDamage.fromMap(d.toMap()))
             .toList(),
-
-        // Conservamos bonuses intrínsecos
-        // que todavía no tienen editor aquí.
         criticalDamageBonuses:
             existingWeapon?.criticalDamageBonuses
-                .map((bonus) => CriticalDamageBonus.fromMap(bonus.toMap()))
+                .map((b) => CriticalDamageBonus.fromMap(b.toMap()))
                 .toList() ??
             <CriticalDamageBonus>[],
       );
     }
 
-    // =========================================================================
-    // CONSUMIBLE
-    // =========================================================================
-
     Consumable? consumable;
-
-    if (itemType == ItemType.consumable) {
+    if (itemType == ItemType.consumable || itemType == ItemType.potion) {
       consumable = Consumable(
         useText: consumableUseText.trim().isEmpty
             ? 'Usar'
@@ -639,58 +471,43 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       );
     }
 
-    // =========================================================================
-    // ARMADURA
-    // =========================================================================
-
+    final rawKnowledgeId = knowledgeIdController.text.trim();
     final armorBaseClass = int.tryParse(armorBaseClassController.text) ?? 10;
-
-    // =========================================================================
-    // DEFINICIÓN
-    // =========================================================================
 
     final definition = ItemDefinition(
       id:
           widget.definition?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
-
       name: nameController.text.trim(),
-
       description: descriptionController.text.trim(),
-
       type: itemType,
-
       imagePath: imagePath,
-
       notes: notesController.text.trim(),
-
-      stackable: _resolvedStackable(),
-
+      stackable: widget.definition?.stackable ?? itemType.stackableByDefault,
       calculable: calculable,
-
       calculationCosts: calculationCosts
           .map((cost) => ItemCalculationCost.fromMap(cost.toMap()))
           .toList(),
-
-      equipmentSlotIds: _resolvedEquipmentSlotIds(),
-
+      equipmentSlotIds: itemType.isEquipable
+          ? List<String>.from(equipmentSlotIds)
+          : const [],
+      relatedKnowledgeId: rawKnowledgeId.isNotEmpty ? rawKnowledgeId : null,
       armor: itemType == ItemType.armor
           ? ItemArmorDefinition(
               category: armorCategory,
               baseArmorClass: armorBaseClass,
+              customFormula: armorCategory == ArmorCategory.custom
+                  ? customArmorFormulaController.text.trim()
+                  : null,
             )
           : null,
-
       weapon: weapon,
-
       consumable: consumable,
-
       passives: passives
-          .map((passive) => CharacterPassive.fromMap(passive.toMap()))
+          .map((p) => CharacterPassive.fromMap(p.toMap()))
           .toList(),
-
       abilities: abilities
-          .map((ability) => CharacterAbility.fromMap(ability.toMap()))
+          .map((a) => CharacterAbility.fromMap(a.toMap()))
           .toList(),
     );
 
@@ -703,39 +520,19 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   Future<void> addWeaponDamage() async {
     final result = await openWeaponDamageForm();
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      weaponDamages.add(result);
-    });
+    if (result == null || !mounted) return;
+    setState(() => weaponDamages.add(result));
   }
 
   Future<void> editWeaponDamage(int index) async {
-    if (index < 0 || index >= weaponDamages.length) {
-      return;
-    }
-
-    final current = weaponDamages[index];
-
-    final result = await openWeaponDamageForm(damage: current);
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      weaponDamages[index] = result;
-    });
+    if (index < 0 || index >= weaponDamages.length) return;
+    final result = await openWeaponDamageForm(damage: weaponDamages[index]);
+    if (result == null || !mounted) return;
+    setState(() => weaponDamages[index] = result);
   }
 
   Future<void> deleteWeaponDamage(int index) async {
-    if (index < 0 || index >= weaponDamages.length) {
-      return;
-    }
-
+    if (index < 0 || index >= weaponDamages.length) return;
     final damage = weaponDamages[index];
 
     final confirmed = await showDialog<bool>(
@@ -750,15 +547,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Eliminar'),
             ),
           ],
@@ -766,22 +559,13 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       },
     );
 
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    setState(() {
-      weaponDamages.removeAt(index);
-    });
+    if (confirmed != true || !mounted) return;
+    setState(() => weaponDamages.removeAt(index));
   }
 
   Future<void> editWeaponCriticalDamage(int index) async {
-    if (index < 0 || index >= weaponDamages.length) {
-      return;
-    }
-
+    if (index < 0 || index >= weaponDamages.length) return;
     final damage = weaponDamages[index];
-
     var diceText = damage.criticalDiceNotation;
 
     final result = await showDialog<List<DicePool>>(
@@ -798,43 +582,31 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               prefixIcon: Icon(Icons.flash_on_rounded),
               helperText: 'Solo se tiran en un crítico y no se multiplican.',
             ),
-            onChanged: (value) {
-              diceText = value;
-            },
+            onChanged: (value) => diceText = value,
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancelar'),
             ),
             FilledButton(
               onPressed: () {
                 final text = diceText.trim();
-
-                // Vacío = eliminar dados extra.
                 if (text.isEmpty) {
                   Navigator.pop(dialogContext, <DicePool>[]);
-
                   return;
                 }
-
                 final pools = _parseWeaponDice(text);
-
                 if (pools == null) {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Usa un formato válido, por ejemplo '
-                        '2d6 o 1d6 + 1d4.',
+                        'Usa un formato válido, por ejemplo 2d6 o 1d6 + 1d4.',
                       ),
                     ),
                   );
-
                   return;
                 }
-
                 Navigator.pop(dialogContext, pools);
               },
               child: const Text('Guardar'),
@@ -844,10 +616,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       },
     );
 
-    if (result == null || !mounted) {
-      return;
-    }
-
+    if (result == null || !mounted) return;
     setState(() {
       damage.criticalDicePools = result
           .map((pool) => DicePool(count: pool.count, sides: pool.sides))
@@ -859,21 +628,16 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     final diceController = TextEditingController(
       text: damage?.diceNotation ?? '1d8',
     );
-
     final damageNameController = TextEditingController(
       text: damage?.name ?? '',
     );
-
     final damageTypeController = TextEditingController(
       text: damage?.damageType ?? 'Cortante',
     );
-
     final bonusController = TextEditingController(
       text: '${damage?.bonus ?? 0}',
     );
-
     var addAbilityModifier = damage?.addAbilityModifier ?? true;
-
     var abilityType = damage?.abilityType ?? weaponAttackAbility;
 
     final result = await showDialog<WeaponDamage>(
@@ -894,9 +658,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         hintText: 'Daño principal',
                       ),
                     ),
-
                     const SizedBox(height: 14),
-
                     TextField(
                       controller: diceController,
                       decoration: const InputDecoration(
@@ -905,9 +667,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         prefixIcon: Icon(Icons.casino_rounded),
                       ),
                     ),
-
                     const SizedBox(height: 14),
-
                     TextField(
                       controller: damageTypeController,
                       decoration: const InputDecoration(
@@ -915,9 +675,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         hintText: 'Cortante',
                       ),
                     ),
-
                     const SizedBox(height: 14),
-
                     TextField(
                       controller: bonusController,
                       keyboardType: const TextInputType.numberWithOptions(
@@ -928,20 +686,15 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         hintText: '0',
                       ),
                     ),
-
                     const SizedBox(height: 10),
-
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Añadir modificador de atributo'),
                       value: addAbilityModifier,
                       onChanged: (value) {
-                        setDialogState(() {
-                          addAbilityModifier = value;
-                        });
+                        setDialogState(() => addAbilityModifier = value);
                       },
                     ),
-
                     if (addAbilityModifier)
                       DropdownButtonFormField<AbilityType>(
                         initialValue: abilityType,
@@ -955,13 +708,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                           );
                         }).toList(),
                         onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-
-                          setDialogState(() {
-                            abilityType = value;
-                          });
+                          if (value == null) return;
+                          setDialogState(() => abilityType = value);
                         },
                       ),
                   ],
@@ -969,29 +717,22 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancelar'),
                 ),
-
                 FilledButton(
                   onPressed: () {
                     final pools = _parseWeaponDice(diceController.text);
-
                     if (pools == null) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Usa un formato de dados válido, '
-                            'por ejemplo 1d8 o 2d6.',
+                            'Usa un formato de dados válido, por ejemplo 1d8 o 2d6.',
                           ),
                         ),
                       );
-
                       return;
                     }
-
                     Navigator.pop(
                       dialogContext,
                       WeaponDamage(
@@ -1004,20 +745,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         abilityType: abilityType,
                         bonus: int.tryParse(bonusController.text) ?? 0,
                         damageType: damageTypeController.text.trim(),
-
-                        // Conservamos la configuración
-                        // de crítico existente.
                         criticalDicePools:
                             damage?.criticalDicePools
                                 .map(
-                                  (pool) => DicePool(
-                                    count: pool.count,
-                                    sides: pool.sides,
-                                  ),
+                                  (p) =>
+                                      DicePool(count: p.count, sides: p.sides),
                                 )
                                 .toList() ??
                             <DicePool>[],
-
                         participatesInCritical:
                             damage?.participatesInCritical ?? true,
                       ),
@@ -1036,7 +771,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     damageNameController.dispose();
     damageTypeController.dispose();
     bonusController.dispose();
-
+    customArmorFormulaController.dispose();
     return result;
   }
 
@@ -1046,34 +781,28 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         .map((part) => part.trim())
         .where((part) => part.isNotEmpty)
         .toList();
-
     if (pieces.isEmpty) {
       return null;
     }
 
     final pools = <DicePool>[];
-
     for (final piece in pieces) {
       final match = RegExp(
         r'^(\d+)d(\d+)$',
         caseSensitive: false,
       ).firstMatch(piece);
-
       if (match == null) {
         return null;
       }
 
       final count = int.tryParse(match.group(1) ?? '');
-
       final sides = int.tryParse(match.group(2) ?? '');
-
       if (count == null || sides == null || count <= 0 || sides <= 0) {
         return null;
       }
 
       pools.add(DicePool(count: count, sides: sides));
     }
-
     return pools;
   }
 
@@ -1083,23 +812,13 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   void addCalculationCost() {
     ItemDefinition? candidate;
-
     for (final item in availableCalculationItems) {
-      final alreadyUsed = calculationCosts.any(
-        (cost) => cost.itemId == item.id,
-      );
-
-      if (alreadyUsed) {
-        continue;
+      if (!calculationCosts.any((cost) => cost.itemId == item.id)) {
+        candidate = item;
+        break;
       }
-
-      candidate = item;
-      break;
     }
-
-    if (candidate == null) {
-      return;
-    }
+    if (candidate == null) return;
 
     setState(() {
       calculationCosts.add(
@@ -1109,55 +828,44 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   void updateCalculationCostItem(int index, String itemId) {
-    if (index < 0 || index >= calculationCosts.length) {
-      return;
-    }
-
-    setState(() {
-      calculationCosts[index].itemId = itemId;
-    });
+    if (index < 0 || index >= calculationCosts.length) return;
+    setState(() => calculationCosts[index].itemId = itemId);
   }
 
   void updateCalculationCostQuantity(int index, int quantity) {
-    if (index < 0 || index >= calculationCosts.length) {
-      return;
-    }
-
-    if (quantity < 1) {
-      return;
-    }
-
-    setState(() {
-      calculationCosts[index].quantityPerUnit = quantity;
-    });
+    if (index < 0 || index >= calculationCosts.length || quantity < 1) return;
+    setState(() => calculationCosts[index].quantityPerUnit = quantity);
   }
 
   void removeCalculationCost(int index) {
-    if (index < 0 || index >= calculationCosts.length) {
-      return;
-    }
-
-    setState(() {
-      calculationCosts.removeAt(index);
-    });
+    if (index < 0 || index >= calculationCosts.length) return;
+    setState(() => calculationCosts.removeAt(index));
   }
 
-  // ===========================================================================
-  // DISPOSE
-  // ===========================================================================
+  bool get isBookOrScroll {
+    final nameLower = nameController.text.trim().toLowerCase();
+    final isTextNamed =
+        nameLower.contains('libro') ||
+        nameLower.contains('tomo') ||
+        nameLower.contains('grimorio') ||
+        nameLower.contains('pergamino') ||
+        nameLower.contains('manual');
+
+    return itemType == ItemType.misc ||
+        isTextNamed ||
+        itemType == ItemType.book ||
+        itemType == ItemType.scroll;
+  }
 
   @override
   void dispose() {
     nameController.dispose();
-
     descriptionController.dispose();
-
     notesController.dispose();
-
     armorBaseClassController.dispose();
-
     magicBonusController.dispose();
-
+    knowledgeIdController.dispose();
+    customArmorFormulaController.dispose();
     super.dispose();
   }
 
@@ -1178,224 +886,281 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           ),
         ],
       ),
-
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
             padding: const EdgeInsets.all(18),
             children: [
-              // ===============================================================
-              // IMAGEN
-              // ===============================================================
               ItemImageSection(
                 imagePath: imagePath,
-                onImageChanged: (value) {
-                  setState(() {
-                    imagePath = value;
-                  });
-                },
+                onImageChanged: (value) => setState(() => imagePath = value),
               ),
-
               const SizedBox(height: 28),
 
-              // ===============================================================
-              // GENERAL
-              // ===============================================================
               ItemGeneralSection(
                 nameController: nameController,
-
                 descriptionController: descriptionController,
-
                 itemType: itemType,
-
                 onTypeChanged: (value) {
                   setState(() {
                     itemType = value;
+
+                    final allowedCategories = itemType.compatibleSlotCategories;
+                    final validSlotIds = availableSlotDefinitions
+                        .where((s) => allowedCategories.contains(s.category))
+                        .map((s) => s.id)
+                        .toSet();
+
+                    equipmentSlotIds.removeWhere(
+                      (id) => !validSlotIds.contains(id),
+                    );
+
+                    if (equipmentSlotIds.isEmpty && itemType.isEquipable) {
+                      equipmentSlotIds = itemType.defaultEquipmentSlotIds
+                          .where(validSlotIds.contains)
+                          .toList();
+                    }
                   });
                 },
               ),
+
+              // ===============================================================
+              // KNOWLEDGE INSERT BAR (Conocimiento vinculado para libros/pergaminos)
+              // ===============================================================
+              if (isBookOrScroll) ...[
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(
+                        icon: Icons.auto_stories_rounded,
+                        title: 'Conocimiento vinculado',
+                        subtitle:
+                            'Asocia este tomo o pergamino a un saber de estudio',
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: knowledgeIdController,
+                        decoration: InputDecoration(
+                          labelText: 'ID del Conocimiento',
+                          hintText: 'ej. historia_arcana_vol_1',
+                          prefixIcon: const Icon(Icons.menu_book_rounded),
+                          helperText:
+                              'Habilita la acción de leer y estudiar en el inventario.',
+                          suffixIcon: knowledgeIdController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded),
+                                  onPressed: () {
+                                    setState(() {
+                                      knowledgeIdController.clear();
+                                    });
+                                  },
+                                )
+                              : null,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Barra de inserción rápida basada en el patrón de fórmulas
+                      KnowledgeInsertBar(
+                        character: widget.character,
+                        onInsert: (value) {
+                          setState(() {
+                            knowledgeIdController.text = value;
+                            knowledgeIdController.selection =
+                                TextSelection.collapsed(
+                                  offset: knowledgeIdController.text.length,
+                                );
+                          });
+                        },
+                        onCreateKnowledge: () async {
+                          if (widget.character == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Se necesita un personaje para crear un saber.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          // Navegamos al formulario para crear el conocimiento
+                          final result =
+                              await Navigator.push<Map<String, dynamic>>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const KnowledgeFormScreen(),
+                                ),
+                              );
+
+                          if (result == null || !mounted) return;
+
+                          final def =
+                              result['definition'] as KnowledgeDefinition;
+                          final notes = result['notes'] as String;
+                          final spellIds =
+                              result['unlockedSpellIds'] as List<String>? ?? [];
+
+                          setState(() {
+                            final entry = CharacterKnowledge(
+                              knowledgeId: def.id,
+                              status: KnowledgeStatus.discovered,
+                              currentProgress: 0,
+                              notes: notes,
+                              unlockedSpellIds: spellIds,
+                            );
+                            widget.character!.knowledges.add(entry);
+
+                            // Autoseleccionamos el ID del saber recién creado en el campo del objeto
+                            knowledgeIdController.text = def.id;
+                            knowledgeIdController.selection =
+                                TextSelection.collapsed(
+                                  offset: knowledgeIdController.text.length,
+                                );
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+              ],
+
+              // ===============================================================
+              // RANURAS DE EQUIPAMIENTO
+              // ===============================================================
+              if (itemType.isEquipable) ...[
+                const SizedBox(height: 28),
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(
+                        icon: Icons.checkroom_rounded,
+                        title: 'Ranuras compatibles',
+                        subtitle:
+                            'Elige en qué ranuras se puede equipar este objeto',
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: availableSlotDefinitions.map((slot) {
+                          final isSelected = equipmentSlotIds.contains(slot.id);
+                          return FilterChip(
+                            label: Text(slot.name),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  equipmentSlotIds.add(slot.id);
+                                } else {
+                                  equipmentSlotIds.remove(slot.id);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 28),
 
-              // ===============================================================
-              // CALCULADORA
-              // ===============================================================
               ItemCalculationSection(
                 calculable: calculable,
-
                 availableItems: availableCalculationItems,
-
                 costs: calculationCosts,
-
-                onCalculableChanged: (value) {
-                  setState(() {
-                    calculable = value;
-                  });
-                },
-
+                onCalculableChanged: (val) => setState(() => calculable = val),
                 onAddCost: addCalculationCost,
-
                 onCostItemChanged: updateCalculationCostItem,
-
                 onCostQuantityChanged: updateCalculationCostQuantity,
-
                 onRemoveCost: removeCalculationCost,
               ),
 
-              // ===============================================================
-              // ARMADURA
-              // ===============================================================
               if (itemType == ItemType.armor) ...[
                 const SizedBox(height: 28),
-
                 ItemArmorSection(
                   armorCategory: armorCategory,
-
                   armorBaseClassController: armorBaseClassController,
-
-                  onCategoryChanged: (value) {
-                    setState(() {
-                      armorCategory = value;
-                    });
-                  },
+                  customFormulaController: customArmorFormulaController,
+                  character: widget.character,
+                  onCategoryChanged: (val) =>
+                      setState(() => armorCategory = val),
                 ),
               ],
 
-              // ===============================================================
-              // ARMA
-              // ===============================================================
               if (itemType == ItemType.weapon) ...[
                 const SizedBox(height: 28),
-
                 ItemWeaponSection(
                   attackAbility: weaponAttackAbility,
-
                   proficient: weaponProficient,
-
                   magicBonusController: magicBonusController,
-
                   criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
-
                   empoweredCritical: weaponEmpoweredCritical,
-
                   damages: weaponDamages,
-
-                  onAttackAbilityChanged: (value) {
-                    setState(() {
-                      weaponAttackAbility = value;
-                    });
-                  },
-
-                  onProficientChanged: (value) {
-                    setState(() {
-                      weaponProficient = value;
-                    });
-                  },
-
-                  onCriticalMinimumNaturalRollChanged: (value) {
-                    setState(() {
-                      weaponCriticalMinimumNaturalRoll = value;
-                    });
-                  },
-
-                  onEmpoweredCriticalChanged: (value) {
-                    setState(() {
-                      weaponEmpoweredCritical = value;
-                    });
-                  },
-
+                  onAttackAbilityChanged: (val) =>
+                      setState(() => weaponAttackAbility = val),
+                  onProficientChanged: (val) =>
+                      setState(() => weaponProficient = val),
+                  onCriticalMinimumNaturalRollChanged: (val) =>
+                      setState(() => weaponCriticalMinimumNaturalRoll),
+                  onEmpoweredCriticalChanged: (val) =>
+                      setState(() => weaponEmpoweredCritical = val),
                   onAddDamage: addWeaponDamage,
-
                   onEditDamage: editWeaponDamage,
-
                   onDeleteDamage: deleteWeaponDamage,
-
                   onEditCriticalDamage: editWeaponCriticalDamage,
-
-                  onDamageChanged: (_) {
-                    setState(() {});
-                  },
+                  onDamageChanged: (_) => setState(() {}),
                 ),
               ],
 
-              // ===============================================================
-              // CONSUMIBLE
-              // ===============================================================
-              if (itemType == ItemType.consumable) ...[
+              if (itemType == ItemType.consumable ||
+                  itemType == ItemType.potion) ...[
                 const SizedBox(height: 28),
-
                 ItemConsumableSection(
                   useText: consumableUseText,
-
-                  onUseTextChanged: (value) {
-                    consumableUseText = value;
-                  },
-
+                  onUseTextChanged: (val) => consumableUseText = val,
                   effects: consumableEffects,
-
                   resources: widget.character?.resources ?? const [],
-
                   onAddEffect: addConsumableEffect,
-
                   onEffectChanged: updateConsumableEffect,
-
                   onRemoveEffect: removeConsumableEffect,
-
                   onMoveUp: moveConsumableEffectUp,
-
                   onMoveDown: moveConsumableEffectDown,
                 ),
               ],
 
               const SizedBox(height: 28),
-
-              // ===============================================================
-              // PASIVAS
-              // ===============================================================
               ItemPassivesSection(
                 passives: passives,
-
                 onAdd: addPassive,
-
                 onEdit: editPassive,
-
                 onDelete: deletePassive,
               ),
 
               const SizedBox(height: 28),
-
-              // ===============================================================
-              // HABILIDADES
-              // ===============================================================
               ItemAbilitiesSection(
                 abilities: abilities,
-
                 onAdd: addAbility,
-
                 onEdit: editAbility,
-
                 onDelete: deleteAbility,
               ),
 
               const SizedBox(height: 28),
-
-              // ===============================================================
-              // NOTAS
-              // ===============================================================
               ItemNotesSection(notesController: notesController),
 
               const SizedBox(height: 30),
-
-              // ===============================================================
-              // GUARDAR
-              // ===============================================================
               FilledButton.icon(
                 onPressed: saveItem,
                 icon: const Icon(Icons.save_rounded),
                 label: Text(editing ? 'Guardar cambios' : 'Crear objeto'),
               ),
-
               const SizedBox(height: 30),
             ],
           ),

@@ -34,6 +34,7 @@ import '../models/weapon.dart';
 import '../models/passive.dart';
 import '../models/passive_roll_resolution.dart';
 import '../models/item_definition.dart';
+import '../models/spell_definition.dart';
 
 import '../widgets/abilities/attack_roll_sheet.dart';
 import '../widgets/action_resolution/dice/dice_mode_sheet.dart';
@@ -106,9 +107,6 @@ class ActionResolutionFlow {
       if (target == null) {
         continue;
       }
-      // =========================================================================
-      // SALVACIÓN
-      // =========================================================================
 
       var saved = false;
 
@@ -121,19 +119,17 @@ class ActionResolutionFlow {
               '${outcome.passiveId}:'
               '${outcome.triggerId}:'
               '${outcome.targetId}',
-
           targetId: outcome.targetId,
-
           effectId: 'passive-trigger:${outcome.triggerId}',
-
           effectName: outcome.passiveName,
-
           ability: save.ability,
-
           dc: save.dc,
-
           successEffect: SaveSuccessEffect.none,
         );
+
+        if (!context.mounted) {
+          return null;
+        }
 
         final answers = await showExternalSavingThrowResultsDialog(
           context,
@@ -146,7 +142,6 @@ class ActionResolutionFlow {
 
         saved = answers[request.id] ?? false;
 
-        // Salvación exitosa que anula todo.
         if (saved && save.behavior == TriggerSaveBehavior.negate) {
           results.add(
             PassiveTriggerExternalResult(
@@ -164,10 +159,6 @@ class ActionResolutionFlow {
         }
       }
 
-      // =========================================================================
-      // ACCIONES
-      // =========================================================================
-
       var damage = 0;
       var healing = 0;
 
@@ -175,10 +166,6 @@ class ActionResolutionFlow {
 
       for (final action in outcome.actions) {
         switch (action.type) {
-          // =====================================================================
-          // DAÑO
-          // =====================================================================
-
           case PassiveTriggerActionType.dealDamage:
             final amount = await _resolvePassiveTriggerActionAmount(
               context,
@@ -195,12 +182,7 @@ class ActionResolutionFlow {
             }
 
             damage += amount;
-
             break;
-
-          // =====================================================================
-          // CURACIÓN
-          // =====================================================================
 
           case PassiveTriggerActionType.heal:
             final amount = await _resolvePassiveTriggerActionAmount(
@@ -218,12 +200,7 @@ class ActionResolutionFlow {
             }
 
             healing += amount;
-
             break;
-
-          // =====================================================================
-          // APLICAR EFECTO
-          // =====================================================================
 
           case PassiveTriggerActionType.applyEffect:
             final effectId = action.effectId?.trim();
@@ -231,10 +208,6 @@ class ActionResolutionFlow {
             if (effectId == null || effectId.isEmpty) {
               break;
             }
-
-            // ===========================================================================
-            // ENCONTRAR EFECTO VINCULADO
-            // ===========================================================================
 
             CharacterEffect? template;
 
@@ -249,21 +222,10 @@ class ActionResolutionFlow {
               break;
             }
 
-            // ===========================================================================
-            // COPIA PARA EL RESULTADO EXTERNO
-            // ===========================================================================
-
             final copy = CharacterEffect.fromMap(template.toMap());
-
             copy.resetDuration();
-
             effects.add(copy);
-
             break;
-
-          // =====================================================================
-          // NO TIENEN SENTIDO SOBRE OTRO CHARACTER EN ESTE PIPELINE
-          // =====================================================================
 
           case PassiveTriggerActionType.addResource:
           case PassiveTriggerActionType.subtractResource:
@@ -305,10 +267,6 @@ class ActionResolutionFlow {
     required PassiveTriggerAction action,
     required ActionDiceMode diceMode,
   }) async {
-    // ===========================================================================
-    // FÓRMULA
-    // ===========================================================================
-
     final modifier = resolver.passiveTriggerActionModifier(
       passive: passive,
       action: action,
@@ -316,43 +274,25 @@ class ActionResolutionFlow {
       target: target,
     );
 
-    // ===========================================================================
-    // SIN DADOS
-    // ===========================================================================
-
     if (!action.hasDice) {
       return modifier;
     }
-
-    // ===========================================================================
-    // REQUEST
-    // ===========================================================================
 
     final request = ActionDiceRequest(
       parts: [
         ActionDiceRequestPart(
           id: 'passive-trigger-action',
-
           effectId: 'passive-trigger',
-
           effectName: 'Trigger de ${passive.name}',
-
           effectType: action.type == PassiveTriggerActionType.heal
               ? AbilityEffectType.healing
               : AbilityEffectType.damage,
-
           dicePools: List<DicePool>.unmodifiable(action.dicePools),
-
           modifier: modifier,
-
           hitBehavior: ActionHitBehavior.ignoreHit,
-
           sourceType: ActionDiceSourceType.passive,
-
           sourceId: passive.id,
-
           sourceName: passive.name,
-
           damageType: action.damageType,
         ),
       ],
@@ -360,7 +300,6 @@ class ActionResolutionFlow {
 
     if (diceMode == ActionDiceMode.digital) {
       final result = const ActionDiceResolver().rollDigital(request);
-
       return result.parts.fold<int>(0, (sum, part) => sum + part.total);
     }
 
@@ -380,7 +319,6 @@ class ActionResolutionFlow {
     }
 
     final physical = inputs['passive-trigger'];
-
     if (physical == null) {
       return null;
     }
@@ -399,10 +337,6 @@ class ActionResolutionFlow {
   }) async {
     final resolver = PassiveActionResolver(character: character);
 
-    // ===========================================================================
-    // MODO DE DADOS
-    // ===========================================================================
-
     final diceMode = await showActionDiceModeSheet(context);
 
     if (diceMode == null || !context.mounted) {
@@ -410,31 +344,17 @@ class ActionResolutionFlow {
     }
 
     final request = resolver.buildRollRequest(passive);
-
     final calculationText = request.parts.isEmpty
         ? '0'
         : request.parts.first.calculationText;
 
-    // ===========================================================================
-    // RESOLVER
-    // ===========================================================================
-
     switch (diceMode) {
-      // -------------------------------------------------------------------------
-      // DIGITAL
-      // -------------------------------------------------------------------------
-
       case ActionDiceMode.digital:
         final diceResult = resolver.resolveDigitalRequest(request);
-
         return PassiveRollResolution(
           diceResult: diceResult,
           calculationText: calculationText,
         );
-
-      // -------------------------------------------------------------------------
-      // FÍSICO
-      // -------------------------------------------------------------------------
 
       case ActionDiceMode.physical:
         final inputsBySection = await showPhysicalDiceDialog(
@@ -453,7 +373,6 @@ class ActionResolutionFlow {
         }
 
         final inputs = inputsBySection['passive:${passive.id}'];
-
         if (inputs == null) {
           return null;
         }
@@ -476,19 +395,9 @@ class ActionResolutionFlow {
   }) async {
     final resolver = ActionResolver(character: character);
 
-    // ===========================================================================
-    // SOURCE / DEFINITION / CONTENT
-    // ===========================================================================
-
     final source = ActionSource.weapon(weapon);
-
     final definition = ActionDefinition.fromWeapon(weapon);
-
     final content = ActionContent.fromWeapon(weapon);
-
-    // ===========================================================================
-    // 1. VALIDACIÓN ESTRUCTURAL
-    // ===========================================================================
 
     try {
       resolver.validatePassiveTriggerTargetScopes(
@@ -497,13 +406,8 @@ class ActionResolutionFlow {
       );
     } on StateError catch (error) {
       _showError(context, error.message.toString());
-
       return null;
     }
-
-    // ===========================================================================
-    // 2. TARGETS
-    // ===========================================================================
 
     final targets = await showActionTargetSelector(
       context,
@@ -519,23 +423,10 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // RESTRICCIÓN ACTUAL DE ARMAS
-    //
-    // El Action Engine ya soporta resolución genérica.
-    // Por ahora mantenemos las armas como ataque contra un único target.
-    // Esto puede ampliarse más adelante sin crear otro resolver.
-    // ===========================================================================
-
     if (targets.length != 1) {
       _showError(context, 'Los ataques de arma requieren un único objetivo.');
-
       return null;
     }
-
-    // ===========================================================================
-    // 3. CONTEXTO
-    // ===========================================================================
 
     final actionContext = ActionResolutionContext(
       character: character,
@@ -543,10 +434,6 @@ class ActionResolutionFlow {
     );
 
     actionContext.populateKnownTargetVariables();
-
-    // ===========================================================================
-    // 4. REQUIREMENTS PRE-RESOLUTION
-    // ===========================================================================
 
     final requirementsCompleted = await _collectExternalRequirements(
       context,
@@ -561,18 +448,7 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // 5. PERFIL CRÍTICO
-    // ===========================================================================
-
     final criticalProfile = resolver.buildCriticalProfileForWeapon(weapon);
-
-    // ===========================================================================
-    // 6. PLAN INICIAL
-    //
-    // Todavía no resolvemos nada.
-    // Lo utilizamos para descubrir opcionales.
-    // ===========================================================================
 
     final initialPrepared = resolver.prepareDirectAction(
       source: source,
@@ -581,10 +457,6 @@ class ActionResolutionFlow {
       context: actionContext,
       criticalProfile: criticalProfile,
     );
-
-    // ===========================================================================
-    // 7. OPCIONALES
-    // ===========================================================================
 
     final optionalCompleted = await _collectOptionalChoices(
       context,
@@ -597,13 +469,6 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // 8. PREPARED DEFINITIVO
-    //
-    // Se vuelve a preparar después de que el usuario haya seleccionado
-    // opcionales porque esas selecciones forman parte del contexto.
-    // ===========================================================================
-
     final prepared = resolver.prepareDirectAction(
       source: source,
       definition: definition,
@@ -612,21 +477,12 @@ class ActionResolutionFlow {
       criticalProfile: criticalProfile,
     );
 
-    // ===========================================================================
-    // 9. VALIDACIÓN DE RESOLUCIÓN
-    // ===========================================================================
-
     try {
       resolver.validatePreparedTargetResolution(prepared);
     } on StateError catch (error) {
       _showError(context, error.message.toString());
-
       return null;
     }
-
-    // ===========================================================================
-    // 10. VALIDACIÓN DE COSTES
-    // ===========================================================================
 
     final validation = resolver.validatePreparedActionCosts(prepared);
 
@@ -635,13 +491,8 @@ class ActionResolutionFlow {
         context,
         validation.error ?? 'No puedes pagar los costes de este ataque.',
       );
-
       return null;
     }
-
-    // ===========================================================================
-    // 11. MODO DE DADOS
-    // ===========================================================================
 
     ActionDiceMode diceMode = ActionDiceMode.digital;
 
@@ -656,10 +507,6 @@ class ActionResolutionFlow {
 
       diceMode = selectedDiceMode;
     }
-
-    // ===========================================================================
-    // 12. ACTION ENGINE
-    // ===========================================================================
 
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
@@ -686,31 +533,19 @@ class ActionResolutionFlow {
 
     if (consumable == null) {
       _showError(context, 'Este objeto no es un consumible.');
-
       return null;
     }
 
     if (consumable.effects.isEmpty) {
       _showError(context, 'Este consumible no tiene efectos configurados.');
-
       return null;
     }
 
     final resolver = ActionResolver(character: character);
 
-    // ===========================================================================
-    // SOURCE / DEFINITION / CONTENT
-    // ===========================================================================
-
     final source = ActionSource.item(item);
-
     final definition = ActionDefinition.fromConsumableItem(item);
-
     final content = ActionContent.fromConsumableItem(item);
-
-    // ===========================================================================
-    // 1. VALIDACIÓN ESTRUCTURAL
-    // ===========================================================================
 
     try {
       resolver.validatePassiveTriggerTargetScopes(
@@ -719,13 +554,8 @@ class ActionResolutionFlow {
       );
     } on StateError catch (error) {
       _showError(context, error.message.toString());
-
       return null;
     }
-
-    // ===========================================================================
-    // 2. TARGETS
-    // ===========================================================================
 
     final targets = await showActionTargetSelector(
       context,
@@ -741,20 +571,12 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // 3. CONTEXTO
-    // ===========================================================================
-
     final actionContext = ActionResolutionContext(
       character: character,
       targets: targets,
     );
 
     actionContext.populateKnownTargetVariables();
-
-    // ===========================================================================
-    // 4. REQUIREMENTS PRE-RESOLUTION
-    // ===========================================================================
 
     final requirementsCompleted = await _collectExternalRequirements(
       context,
@@ -769,17 +591,7 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // 5. PERFIL CRÍTICO
-    //
-    // Un consumible normal no realiza tirada de ataque.
-    // ===========================================================================
-
     final criticalProfile = resolver.buildCriticalProfile();
-
-    // ===========================================================================
-    // 6. PLAN INICIAL
-    // ===========================================================================
 
     final initialPrepared = resolver.prepareDirectAction(
       source: source,
@@ -788,10 +600,6 @@ class ActionResolutionFlow {
       context: actionContext,
       criticalProfile: criticalProfile,
     );
-
-    // ===========================================================================
-    // 7. OPCIONALES
-    // ===========================================================================
 
     final optionalCompleted = await _collectOptionalChoices(
       context,
@@ -804,10 +612,6 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // 8. PREPARED DEFINITIVO
-    // ===========================================================================
-
     final prepared = resolver.prepareDirectAction(
       source: source,
       definition: definition,
@@ -816,21 +620,12 @@ class ActionResolutionFlow {
       criticalProfile: criticalProfile,
     );
 
-    // ===========================================================================
-    // 9. VALIDACIÓN DE RESOLUCIÓN
-    // ===========================================================================
-
     try {
       resolver.validatePreparedTargetResolution(prepared);
     } on StateError catch (error) {
       _showError(context, error.message.toString());
-
       return null;
     }
-
-    // ===========================================================================
-    // 10. VALIDACIÓN DE COSTES
-    // ===========================================================================
 
     final validation = resolver.validatePreparedActionCosts(prepared);
 
@@ -839,13 +634,8 @@ class ActionResolutionFlow {
         context,
         validation.error ?? 'No puedes pagar los costes de este consumible.',
       );
-
       return null;
     }
-
-    // ===========================================================================
-    // 11. MODO DE DADOS
-    // ===========================================================================
 
     ActionDiceMode diceMode = ActionDiceMode.digital;
 
@@ -861,11 +651,123 @@ class ActionResolutionFlow {
       diceMode = selectedDiceMode;
     }
 
-    // ===========================================================================
-    // 12. ACTION ENGINE
-    //
-    // Un consumible no necesita una ruta mecánica paralela.
-    // ===========================================================================
+    if (prepared.definition.requiresAttackRoll) {
+      return _resolveAttack(
+        context,
+        resolver: resolver,
+        prepared: prepared,
+        diceMode: diceMode,
+      );
+    }
+
+    return _resolveWithoutAttack(
+      context,
+      resolver: resolver,
+      prepared: prepared,
+      diceMode: diceMode,
+    );
+  }
+
+  Future<ActionExecutionResult?> resolveAbility(
+    BuildContext context, {
+    required CharacterAbility ability,
+  }) async {
+    final resolver = ActionResolver(character: character);
+    final source = ActionSource.ability(ability);
+    final definition = ActionDefinition.fromAbility(ability);
+    final content = ActionContent.fromAbility(ability);
+
+    try {
+      resolver.validatePassiveTriggerTargetScopes(
+        definition: definition,
+        content: content,
+      );
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+      return null;
+    }
+
+    final targets = await showActionTargetSelector(
+      context,
+      targetType: ability.targetType,
+      selfLabel: selfLabel,
+    );
+
+    if (targets == null || !context.mounted) {
+      return null;
+    }
+
+    final actionContext = ActionResolutionContext(
+      character: character,
+      targets: targets,
+    );
+
+    actionContext.populateKnownTargetVariables();
+
+    final requirementsCompleted = await _collectExternalRequirements(
+      context,
+      resolver: resolver,
+      source: source,
+      definition: definition,
+      content: content,
+      actionContext: actionContext,
+    );
+
+    if (!requirementsCompleted || !context.mounted) {
+      return null;
+    }
+
+    final initialPlan = resolver.prepareAbilityPlan(
+      ability: ability,
+      context: actionContext,
+    );
+
+    final optionalCompleted = await _collectOptionalChoices(
+      context,
+      resolver: resolver,
+      plan: initialPlan,
+      actionContext: actionContext,
+    );
+
+    if (!optionalCompleted || !context.mounted) {
+      return null;
+    }
+
+    final prepared = resolver.prepareAbilityAction(
+      ability: ability,
+      context: actionContext,
+    );
+
+    try {
+      resolver.validatePreparedTargetResolution(prepared);
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+      return null;
+    }
+
+    final validation = resolver.validatePreparedActionCosts(prepared);
+
+    if (!validation.valid) {
+      _showError(
+        context,
+        validation.error ?? 'No puedes pagar los costes de esta acción.',
+      );
+      return null;
+    }
+
+    ActionDiceMode diceMode = ActionDiceMode.digital;
+
+    final requiresDiceMode = resolver.preparedActionRequiresDiceMode(prepared);
+
+    if (requiresDiceMode) {
+      final selectedDiceMode = await showActionDiceModeSheet(context);
+
+      if (selectedDiceMode == null || !context.mounted) {
+        return null;
+      }
+
+      diceMode = selectedDiceMode;
+    }
 
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
@@ -885,17 +787,17 @@ class ActionResolutionFlow {
   }
 
   // ===========================================================================
-  // ENTRY POINT
+  // SPELL RESOLUTION
   // ===========================================================================
 
-  Future<ActionExecutionResult?> resolveAbility(
+  Future<ActionExecutionResult?> resolveSpell(
     BuildContext context, {
-    required CharacterAbility ability,
+    required SpellDefinition spell,
   }) async {
     final resolver = ActionResolver(character: character);
-    final source = ActionSource.ability(ability);
-    final definition = ActionDefinition.fromAbility(ability);
-    final content = ActionContent.fromAbility(ability);
+    final source = ActionSource.spell(spell);
+    final definition = ActionDefinition.fromSpell(spell);
+    final content = ActionContent.fromSpell(spell);
 
     try {
       resolver.validatePassiveTriggerTargetScopes(
@@ -904,21 +806,20 @@ class ActionResolutionFlow {
       );
     } on StateError catch (error) {
       _showError(context, error.message.toString());
-
       return null;
     }
 
-    // -------------------------------------------------------------------------
-    // TARGETS
-    // -------------------------------------------------------------------------
-
     final targets = await showActionTargetSelector(
       context,
-      targetType: ability.targetType,
+      targetType: definition.targetType,
       selfLabel: selfLabel,
     );
 
     if (targets == null || !context.mounted) {
+      return null;
+    }
+
+    if (targets.isEmpty) {
       return null;
     }
 
@@ -928,10 +829,6 @@ class ActionResolutionFlow {
     );
 
     actionContext.populateKnownTargetVariables();
-
-    // -------------------------------------------------------------------------
-    // CONDICIONES EXTERNAS
-    // -------------------------------------------------------------------------
 
     final requirementsCompleted = await _collectExternalRequirements(
       context,
@@ -946,23 +843,20 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // -------------------------------------------------------------------------
-    // PLAN
-    // -------------------------------------------------------------------------
+    final criticalProfile = resolver.buildCriticalProfile();
 
-    final initialPlan = resolver.prepareAbilityPlan(
-      ability: ability,
+    final initialPrepared = resolver.prepareDirectAction(
+      source: source,
+      definition: definition,
+      content: content,
       context: actionContext,
+      criticalProfile: criticalProfile,
     );
-
-    // -------------------------------------------------------------------------
-    // OPCIONALES
-    // -------------------------------------------------------------------------
 
     final optionalCompleted = await _collectOptionalChoices(
       context,
       resolver: resolver,
-      plan: initialPlan,
+      plan: initialPrepared.plan,
       actionContext: actionContext,
     );
 
@@ -970,20 +864,18 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // -------------------------------------------------------------------------
-    // PREPARED
-    // -------------------------------------------------------------------------
-
-    final prepared = resolver.prepareAbilityAction(
-      ability: ability,
+    final prepared = resolver.prepareDirectAction(
+      source: source,
+      definition: definition,
+      content: content,
       context: actionContext,
+      criticalProfile: criticalProfile,
     );
 
     try {
       resolver.validatePreparedTargetResolution(prepared);
     } on StateError catch (error) {
       _showError(context, error.message.toString());
-
       return null;
     }
 
@@ -992,9 +884,8 @@ class ActionResolutionFlow {
     if (!validation.valid) {
       _showError(
         context,
-        validation.error ?? 'No puedes pagar los costes de esta acción.',
+        validation.error ?? 'No puedes pagar los costes de este conjuro.',
       );
-
       return null;
     }
 
@@ -1052,70 +943,42 @@ class ActionResolutionFlow {
         (outcome) => outcome.targetId == triggered.targetId,
       );
 
-      // =========================================================================
-      // TARGET NUEVO
-      // =========================================================================
-
       if (index < 0) {
         outcomes.add(
           ExternalTargetOutcome(
             targetId: triggered.targetId,
-
             targetLabel: triggered.targetLabel,
-
             damage: triggered.damage,
-
             healing: triggered.healing,
-
             passiveEffects: List<CharacterEffect>.unmodifiable(
               triggered.effects,
             ),
-
             triggerResults: [triggered],
-
             effectTriggerResults: const [],
           ),
         );
-
         continue;
       }
-
-      // =========================================================================
-      // TARGET EXISTENTE
-      // =========================================================================
 
       final current = outcomes[index];
 
       outcomes[index] = ExternalTargetOutcome(
         targetId: current.targetId,
-
         targetLabel: current.targetLabel ?? triggered.targetLabel,
-
         damage: current.damage + triggered.damage,
-
         healing: current.healing + triggered.healing,
-
         effects: current.effects,
-
         passiveEffects: [...current.passiveEffects, ...triggered.effects],
-
-        // Trigger procedente de PASIVA
         triggerResults: [...current.triggerResults, triggered],
-
-        // Solo conservar los triggers procedentes de CharacterEffect
         effectTriggerResults: current.effectTriggerResults,
       );
     }
 
     final mergedApplication = ActionApplyResult(
       selfDamageApplied: application.selfDamageApplied,
-
       selfHealingApplied: application.selfHealingApplied,
-
       selfEffectsApplied: application.selfEffectsApplied,
-
       criticalDispatched: application.criticalDispatched,
-
       externalTargetOutcomes: List<ExternalTargetOutcome>.unmodifiable(
         outcomes,
       ),
@@ -1150,70 +1013,42 @@ class ActionResolutionFlow {
         (outcome) => outcome.targetId == triggered.targetId,
       );
 
-      // =========================================================================
-      // TARGET NUEVO
-      // =========================================================================
-
       if (index < 0) {
         outcomes.add(
           ExternalTargetOutcome(
             targetId: triggered.targetId,
-
             targetLabel: triggered.targetLabel,
-
             damage: triggered.damage,
-
             healing: triggered.healing,
-
             passiveEffects: List<CharacterEffect>.unmodifiable(
               triggered.effects,
             ),
-
             triggerResults: const [],
-
             effectTriggerResults: [triggered],
           ),
         );
-
         continue;
       }
-
-      // =========================================================================
-      // TARGET EXISTENTE
-      // =========================================================================
 
       final current = outcomes[index];
 
       outcomes[index] = ExternalTargetOutcome(
         targetId: current.targetId,
-
         targetLabel: current.targetLabel ?? triggered.targetLabel,
-
         damage: current.damage + triggered.damage,
-
         healing: current.healing + triggered.healing,
-
         effects: current.effects,
-
         passiveEffects: [...current.passiveEffects, ...triggered.effects],
-
-        // Conservar triggers de PASIVAS
         triggerResults: current.triggerResults,
-
-        // Añadir trigger procedente de EFFECT
         effectTriggerResults: [...current.effectTriggerResults, triggered],
       );
     }
 
     final mergedApplication = ActionApplyResult(
       selfDamageApplied: application.selfDamageApplied,
-
       selfHealingApplied: application.selfHealingApplied,
-
       selfEffectsApplied: application.selfEffectsApplied,
-
       criticalDispatched: application.criticalDispatched,
-
       externalTargetOutcomes: List<ExternalTargetOutcome>.unmodifiable(
         outcomes,
       ),
@@ -1232,17 +1067,6 @@ class ActionResolutionFlow {
     required ActionResolutionResult resolution,
     required ActionDiceMode diceMode,
   }) async {
-    // ===========================================================================
-    // REQUIREMENTS POST-RESOLUTION
-    //
-    // Todavía NO hemos:
-    // - pagado costes
-    // - aplicado resultado
-    // - disparado triggers post
-    //
-    // Así cancelar aquí sigue cancelando TODA la acción.
-    // ===========================================================================
-
     final postCompleted = await _collectPostResolutionExternalRequirements(
       context,
       resolver: resolver,
@@ -1255,11 +1079,8 @@ class ActionResolutionFlow {
     }
 
     final triggeredOutcomes = <PassiveTriggeredExternalOutcome>[];
-
     final effectTriggeredOutcomes = <CharacterEffectTriggeredExternalOutcome>[];
-
     final reservedLimitedTriggers = <String>{};
-
     final reservedLimitedEffectTriggers = <String>{};
 
     final critical =
@@ -1283,47 +1104,30 @@ class ActionResolutionFlow {
       for (final candidate in effectCandidates) {
         if (candidate.usageLimit == TriggerUsageLimit.unlimited) {
           effectTriggeredOutcomes.add(candidate);
-
           continue;
         }
 
         final key = candidate.usageKey;
-
         if (reservedLimitedEffectTriggers.contains(key)) {
           continue;
         }
 
         reservedLimitedEffectTriggers.add(key);
-
         effectTriggeredOutcomes.add(candidate);
       }
 
       for (final candidate in candidates) {
-        // =======================================================================
-        // SIN LÍMITE
-        // =======================================================================
-
         if (candidate.usageLimit == TriggerUsageLimit.unlimited) {
           triggeredOutcomes.add(candidate);
-
           continue;
         }
 
-        // =======================================================================
-        // LIMITADO
-        //
-        // oncePerTurn / oncePerRound solo puede reservarse una vez
-        // dentro de esta resolución.
-        // =======================================================================
-
         final key = candidate.usageKey;
-
         if (reservedLimitedTriggers.contains(key)) {
           continue;
         }
 
         reservedLimitedTriggers.add(key);
-
         triggeredOutcomes.add(candidate);
       }
     }
@@ -1343,10 +1147,6 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // TRIGGERS PROCEDENTES DE CHARACTER EFFECTS
-    // ===========================================================================
-
     final effectTriggeredResults =
         await _resolveEffectTriggeredExternalOutcomes(
           context,
@@ -1361,24 +1161,19 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // ===========================================================================
-    // REFRESCAR SNAPSHOT
-    //
-    // El resultado inicial se construyó antes de las respuestas post.
-    // ===========================================================================
-
     final finalResolution = resolution.copyWith(
       externalVariablesByTargetId: prepared.context
           .snapshotTargetExternalVariables(),
     );
 
-    // ===========================================================================
-    // COMMIT REAL
-    // ===========================================================================
+    if (!context.mounted) {
+      return null;
+    }
 
     return _commitResolution(
       context: context,
       resolver: resolver,
+      prepared: prepared,
       resolution: finalResolution,
       triggeredResults: triggeredResults,
       effectTriggeredResults: effectTriggeredResults,
@@ -1427,6 +1222,10 @@ class ActionResolutionFlow {
       // =======================================================================
 
       for (final bonus in outcome.damageBonuses) {
+        if (!context.mounted) {
+          return null;
+        }
+
         final amount = await _resolveEffectTriggerDamage(
           context,
           bonus: bonus,
@@ -1449,6 +1248,10 @@ class ActionResolutionFlow {
       // =======================================================================
 
       for (final bonus in outcome.healingBonuses) {
+        if (!context.mounted) {
+          return null;
+        }
+
         final amount = await _resolveEffectTriggerHealing(
           context,
           bonus: bonus,
@@ -1465,10 +1268,6 @@ class ActionResolutionFlow {
 
         healing += amount;
       }
-
-      // =======================================================================
-      // EFECTOS
-      // =======================================================================
 
       final effects = outcome.linkedEffects
           .map((effect) => CharacterEffect.fromMap(effect.toMap()))
@@ -1505,22 +1304,12 @@ class ActionResolutionFlow {
     required ActionResolutionContext actionContext,
     required ActionDiceMode diceMode,
   }) async {
-    // ===========================================================================
-    // CONTEXTO / MODIFICADOR
-    // ===========================================================================
-
     final formulaContext = actionContext.buildFormulaContext(target: target);
 
     final modifier = character.damageBonusModifier(
       bonus,
       formulaContext: formulaContext,
     );
-
-    // ===========================================================================
-    // REQUEST
-    //
-    // El mismo request se utiliza para físico y digital.
-    // ===========================================================================
 
     final partId =
         'effect-trigger-damage:'
@@ -1532,45 +1321,26 @@ class ActionResolutionFlow {
       parts: [
         ActionDiceRequestPart(
           id: partId,
-
           effectId: 'effect-trigger:$sourceEffectId',
-
           effectName: bonus.name.trim().isNotEmpty
               ? bonus.name.trim()
               : sourceEffectName,
-
           effectType: AbilityEffectType.damage,
-
           dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
-
           modifier: modifier,
-
           hitBehavior: ActionHitBehavior.ignoreHit,
-
           sourceType: ActionDiceSourceType.effect,
-
           sourceId: sourceEffectId,
-
           sourceName: sourceEffectName,
-
           damageType: bonus.damageType,
         ),
       ],
     );
 
-    // ===========================================================================
-    // DIGITAL
-    // ===========================================================================
-
     if (diceMode == ActionDiceMode.digital) {
       final result = const ActionDiceResolver().rollDigital(request);
-
       return result.parts.fold<int>(0, (sum, part) => sum + part.total);
     }
-
-    // ===========================================================================
-    // FÍSICO
-    // ===========================================================================
 
     final sectionId =
         'effect-trigger-damage-section:'
@@ -1583,11 +1353,9 @@ class ActionResolutionFlow {
       sections: [
         PhysicalDiceSection(
           id: sectionId,
-
           title: sourceEffectName.trim().isNotEmpty
               ? sourceEffectName.trim()
               : 'Trigger de efecto',
-
           request: request,
         ),
       ],
@@ -1598,7 +1366,6 @@ class ActionResolutionFlow {
     }
 
     final inputs = inputsBySection[sectionId];
-
     if (inputs == null) {
       return null;
     }
@@ -1620,20 +1387,12 @@ class ActionResolutionFlow {
     required ActionResolutionContext actionContext,
     required ActionDiceMode diceMode,
   }) async {
-    // ===========================================================================
-    // CONTEXTO / MODIFICADOR
-    // ===========================================================================
-
     final formulaContext = actionContext.buildFormulaContext(target: target);
 
     final modifier = character.healingBonusModifier(
       bonus,
       formulaContext: formulaContext,
     );
-
-    // ===========================================================================
-    // REQUEST
-    // ===========================================================================
 
     final partId =
         'effect-trigger-healing:'
@@ -1645,43 +1404,25 @@ class ActionResolutionFlow {
       parts: [
         ActionDiceRequestPart(
           id: partId,
-
           effectId: 'effect-trigger:$sourceEffectId',
-
           effectName: bonus.name.trim().isNotEmpty
               ? bonus.name.trim()
               : sourceEffectName,
-
           effectType: AbilityEffectType.healing,
-
           dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
-
           modifier: modifier,
-
           hitBehavior: ActionHitBehavior.ignoreHit,
-
           sourceType: ActionDiceSourceType.effect,
-
           sourceId: sourceEffectId,
-
           sourceName: sourceEffectName,
         ),
       ],
     );
 
-    // ===========================================================================
-    // DIGITAL
-    // ===========================================================================
-
     if (diceMode == ActionDiceMode.digital) {
       final result = const ActionDiceResolver().rollDigital(request);
-
       return result.parts.fold<int>(0, (sum, part) => sum + part.total);
     }
-
-    // ===========================================================================
-    // FÍSICO
-    // ===========================================================================
 
     final sectionId =
         'effect-trigger-healing-section:'
@@ -1694,11 +1435,9 @@ class ActionResolutionFlow {
       sections: [
         PhysicalDiceSection(
           id: sectionId,
-
           title: sourceEffectName.trim().isNotEmpty
               ? sourceEffectName.trim()
               : 'Trigger de efecto',
-
           request: request,
         ),
       ],
@@ -1709,7 +1448,6 @@ class ActionResolutionFlow {
     }
 
     final inputs = inputsBySection[sectionId];
-
     if (inputs == null) {
       return null;
     }
@@ -1743,7 +1481,6 @@ class ActionResolutionFlow {
       }
 
       final target = targetResult.target;
-
       prepared.context.clearTargetCurrentHealthKnowledge(target);
 
       final requirements = resolver
@@ -1770,7 +1507,6 @@ class ActionResolutionFlow {
         }
 
         final answer = answers[requirement.normalizedVariableName];
-
         if (answer == null) {
           continue;
         }
@@ -1786,10 +1522,6 @@ class ActionResolutionFlow {
 
     return true;
   }
-
-  // ===========================================================================
-  // SIN ATAQUE
-  // ===========================================================================
 
   Future<ActionExecutionResult?> _resolveWithoutAttack(
     BuildContext context, {
@@ -1816,7 +1548,7 @@ class ActionResolutionFlow {
       diceMode: diceMode,
     );
 
-    if (resolution == null) {
+    if (resolution == null || !context.mounted) {
       return null;
     }
 
@@ -1829,29 +1561,17 @@ class ActionResolutionFlow {
     );
   }
 
-  // ===========================================================================
-  // ATAQUE
-  // ===========================================================================
-
   Future<ActionExecutionResult?> _resolveAttack(
     BuildContext context, {
     required ActionResolver resolver,
     required PreparedActionResolution prepared,
     required ActionDiceMode diceMode,
   }) async {
-    // -------------------------------------------------------------------------
-    // VENTAJA / DESVENTAJA
-    // -------------------------------------------------------------------------
-
     final attackMode = await showAttackRollModeSheet(context);
 
     if (attackMode == null || !context.mounted) {
       return null;
     }
-
-    // -------------------------------------------------------------------------
-    // D20
-    // -------------------------------------------------------------------------
 
     final rolls = await _resolveAttackRolls(
       context,
@@ -1871,10 +1591,6 @@ class ActionResolutionFlow {
       secondRoll: rolls.secondRoll,
     );
 
-    // -------------------------------------------------------------------------
-    // HIT / MISS
-    // -------------------------------------------------------------------------
-
     final attackResults = await showAttackTargetsDialog(
       context,
       targets: prepared.context.targets,
@@ -1886,10 +1602,6 @@ class ActionResolutionFlow {
     if (attackResults == null || !context.mounted) {
       return null;
     }
-
-    // -------------------------------------------------------------------------
-    // SALVACIONES
-    // -------------------------------------------------------------------------
 
     final saves = await _collectSavingThrows(
       context,
@@ -1903,10 +1615,6 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // -------------------------------------------------------------------------
-    // RESOLUCIÓN
-    // -------------------------------------------------------------------------
-
     final resolution = await _resolvePrepared(
       context,
       resolver: resolver,
@@ -1917,7 +1625,7 @@ class ActionResolutionFlow {
       diceMode: diceMode,
     );
 
-    if (resolution == null) {
+    if (resolution == null || !context.mounted) {
       return null;
     }
 
@@ -1929,10 +1637,6 @@ class ActionResolutionFlow {
       diceMode: diceMode,
     );
   }
-
-  // ===========================================================================
-  // D20 ATAQUE
-  // ===========================================================================
 
   Future<ActionAttackRolls?> _resolveAttackRolls(
     BuildContext context, {
@@ -1949,10 +1653,6 @@ class ActionResolutionFlow {
     }
   }
 
-  // ===========================================================================
-  // RESOLUCIÓN PREPARADA
-  // ===========================================================================
-
   Future<ActionResolutionResult?> _resolvePrepared(
     BuildContext context, {
     required ActionResolver resolver,
@@ -1967,21 +1667,7 @@ class ActionResolutionFlow {
       attackResult: attackResult,
     );
 
-    // ===========================================================================
-    // SCOPES
-    //
-    // El Resolver decide cuántas resoluciones existen.
-    //
-    // El Flow no necesita saber si son:
-    // - shared
-    // - independent
-    // ===========================================================================
-
     final scopes = resolver.preparedResolutionScopes(prepared);
-
-    // ===========================================================================
-    // CHANCE CHECKS
-    // ===========================================================================
 
     final chanceResultsByScopeId = <String, List<ActionChanceResult>>{};
 
@@ -1995,24 +1681,14 @@ class ActionResolutionFlow {
 
       if (checks.isEmpty) {
         chanceResultsByScopeId[scope.id] = const [];
-
         continue;
       }
 
       switch (diceMode) {
-        // -----------------------------------------------------------------------
-        // DIGITAL
-        // -----------------------------------------------------------------------
-
         case ActionDiceMode.digital:
           chanceResultsByScopeId[scope.id] = resolver
               .resolveChanceChecksDigital(checks: checks);
-
           break;
-
-        // -----------------------------------------------------------------------
-        // FÍSICO
-        // -----------------------------------------------------------------------
 
         case ActionDiceMode.physical:
           final inputs = await showPhysicalChanceChecksDialog(
@@ -2033,14 +1709,9 @@ class ActionResolutionFlow {
                 checks: checks,
                 rollsByCheckId: rollsByCheckId,
               );
-
           break;
       }
     }
-
-    // ===========================================================================
-    // REQUESTS
-    // ===========================================================================
 
     final requestsByScopeId = <String, ActionDiceRequest>{};
 
@@ -2061,21 +1732,12 @@ class ActionResolutionFlow {
       );
     }
 
-    // ===========================================================================
-    // DADOS
-    // ===========================================================================
-
     final diceResultsByScopeId = <String, ActionDiceResult>{};
 
     switch (diceMode) {
-      // =========================================================================
-      // DIGITAL
-      // =========================================================================
-
       case ActionDiceMode.digital:
         for (final scope in scopes) {
           final request = requestsByScopeId[scope.id];
-
           if (request == null) {
             continue;
           }
@@ -2084,24 +1746,17 @@ class ActionResolutionFlow {
             request: request,
           );
         }
-
         break;
-
-      // =========================================================================
-      // FÍSICO
-      // =========================================================================
 
       case ActionDiceMode.physical:
         final sections = <PhysicalDiceSection>[];
 
         for (final scope in scopes) {
           final request = requestsByScopeId[scope.id];
-
           if (request == null) {
             continue;
           }
 
-          // No pedimos dados cuyo valor ya sea automático.
           if (!request.parts.any((part) => part.requiresRoll)) {
             continue;
           }
@@ -2139,7 +1794,6 @@ class ActionResolutionFlow {
 
         for (final scope in scopes) {
           final request = requestsByScopeId[scope.id];
-
           if (request == null) {
             continue;
           }
@@ -2153,15 +1807,8 @@ class ActionResolutionFlow {
             inputs: inputs,
           );
         }
-
         break;
     }
-
-    // ===========================================================================
-    // RESULTADO
-    //
-    // A partir de aquí el Flow ya no conoce la estrategia de resolución.
-    // ===========================================================================
 
     return resolver.buildPreparedResolutionFromScopes(
       prepared: prepared,
@@ -2177,10 +1824,6 @@ class ActionResolutionFlow {
       savingThrowResults: savingThrowResults,
     );
   }
-
-  // ===========================================================================
-  // SALVACIONES
-  // ===========================================================================
 
   Future<List<ActionSavingThrowResult>?> _collectSavingThrows(
     BuildContext context, {
@@ -2214,10 +1857,6 @@ class ActionResolutionFlow {
 
     if (selfRequests.isNotEmpty) {
       switch (diceMode) {
-        // -----------------------------------------------------------------------
-        // SELF FÍSICO
-        // -----------------------------------------------------------------------
-
         case ActionDiceMode.physical:
           final inputs = await showPhysicalSavingThrowsDialog(
             context,
@@ -2225,8 +1864,6 @@ class ActionResolutionFlow {
           );
 
           if (inputs == null || !context.mounted) {
-            // Cancelar aquí cancela TODA
-            // la acción.
             return null;
           }
 
@@ -2236,27 +1873,22 @@ class ActionResolutionFlow {
               inputs: inputs,
             ),
           );
-
           break;
-
-        // -----------------------------------------------------------------------
-        // SELF DIGITAL
-        // -----------------------------------------------------------------------
 
         case ActionDiceMode.digital:
           results.addAll(
             resolver.resolveDigitalSavingThrows(requests: selfRequests),
           );
-
           break;
       }
     }
 
+    if (!context.mounted) {
+      return null;
+    }
+
     // ===========================================================================
     // EXTERNOS
-    //
-    // No conocemos sus stats ni su tirada.
-    // Solo preguntamos si superaron la salvación.
     // ===========================================================================
 
     if (externalRequests.isNotEmpty) {
@@ -2266,8 +1898,6 @@ class ActionResolutionFlow {
       );
 
       if (externalAnswers == null || !context.mounted) {
-        // Cancelar aquí cancela TODA
-        // la acción.
         return null;
       }
 
@@ -2279,16 +1909,8 @@ class ActionResolutionFlow {
       );
     }
 
-    final immutableResults = List<ActionSavingThrowResult>.unmodifiable(
-      results,
-    );
-
-    return immutableResults;
+    return List<ActionSavingThrowResult>.unmodifiable(results);
   }
-
-  // ===========================================================================
-  // EXTERNAL REQUIREMENTS
-  // ===========================================================================
 
   Future<bool> _collectExternalRequirements(
     BuildContext context, {
@@ -2298,18 +1920,6 @@ class ActionResolutionFlow {
     required ActionContent content,
     required ActionResolutionContext actionContext,
   }) async {
-    // ===========================================================================
-    // REQUIREMENTS PRE-RESOLUTION POR TARGET
-    //
-    // El Resolver decide:
-    // - qué requirements existen,
-    // - cuáles ya conoce,
-    // - cuáles puede inferir,
-    // - cuáles realmente necesitan pregunta.
-    //
-    // El Flow únicamente muestra UI y registra la respuesta.
-    // ===========================================================================
-
     for (final target in actionContext.targets) {
       final requirements = resolver
           .orderedPreResolutionExternalRequirementsForTarget(
@@ -2337,7 +1947,6 @@ class ActionResolutionFlow {
         }
 
         final answer = answers[requirement.normalizedVariableName];
-
         if (answer == null) {
           continue;
         }
@@ -2383,10 +1992,6 @@ class ActionResolutionFlow {
     }
   }
 
-  // ===========================================================================
-  // OPCIONALES
-  // ===========================================================================
-
   Future<bool> _collectOptionalChoices(
     BuildContext context, {
     required ActionResolver resolver,
@@ -2426,12 +2031,10 @@ class ActionResolutionFlow {
 
     for (final entry in entries) {
       final selected = selections[entry.key] ?? false;
-
       final target = entry.target;
 
       if (target == null) {
         actionContext.setOptionalGroupSelected(entry.group.id, selected);
-
         continue;
       }
 
@@ -2445,9 +2048,6 @@ class ActionResolutionFlow {
     return true;
   }
 
-  // ===========================================================================
-  // COMMIT
-  // ===========================================================================
   void _dispatchTargetTriggers({
     required ActionResolver resolver,
     required ActionTargetResult targetResult,
@@ -2463,7 +2063,6 @@ class ActionResolutionFlow {
     }
 
     final target = targetResult.target;
-
     final variables = <String, double>{
       'damage': targetResult.damage.toDouble(),
       'healing': targetResult.healing.toDouble(),
@@ -2472,9 +2071,7 @@ class ActionResolutionFlow {
     for (final event in events) {
       character.dispatchPassiveTrigger(
         event,
-
         eventVariables: variables,
-
         actionContext: ActionTriggerContext(
           targetId: target.id,
           targetLabel: target.label,
@@ -2503,21 +2100,15 @@ class ActionResolutionFlow {
   ActionExecutionResult? _commitResolution({
     required BuildContext context,
     required ActionResolver resolver,
+    required PreparedActionResolution prepared,
     required ActionResolutionResult resolution,
-
     List<PassiveTriggerExternalResult> triggeredResults = const [],
-
     List<CharacterEffectTriggerExternalResult> effectTriggeredResults =
         const [],
   }) {
     try {
       var execution = resolver.commitResolution(resolution);
 
-      // =========================================================================
-      // CONSUMIR USOS DE TRIGGERS EXTERNOS
-      //
-      // Solo llegamos aquí después de un commit exitoso.
-      // =========================================================================
 
       final triggerEngine = PassiveTriggerEngine(character: character);
 
@@ -2532,10 +2123,6 @@ class ActionResolutionFlow {
       for (final result in effectTriggeredResults) {
         effectTriggerEngine.consumeExternalTriggerResult(result);
       }
-
-      // =========================================================================
-      // FUSIONAR RESULTADOS
-      // =========================================================================
 
       execution = _mergePassiveTriggeredResults(
         execution: execution,
@@ -2555,14 +2142,9 @@ class ActionResolutionFlow {
       return execution;
     } on StateError catch (error) {
       _showError(context, error.message.toString());
-
       return null;
     }
   }
-
-  // ===========================================================================
-  // ERROR
-  // ===========================================================================
 
   void _showError(BuildContext context, String message) {
     if (!context.mounted) {

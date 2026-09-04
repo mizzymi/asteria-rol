@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/character_content_folder.dart';
-import '../models/item.dart';
+import '../models/item_definition.dart';
 import '../models/ability.dart';
 import '../models/character.dart';
 import '../models/passive.dart';
+import '../models/spell_definition.dart';
 import '../models/external_action_transfer.dart';
 
 import '../services/external_action_transfer_storage_service.dart';
@@ -46,6 +47,8 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
   bool _showingItemsRoot = false;
 
+  bool _showingSpellsRoot = false;
+
   String? _currentItemId;
 
   CharacterContentFolder? get _currentFolder {
@@ -65,9 +68,8 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   void _openFolder(String folderId) {
     setState(() {
       _currentFolderId = folderId;
-
       _showingItemsRoot = false;
-
+      _showingSpellsRoot = false;
       _currentItemId = null;
     });
   }
@@ -75,9 +77,8 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   void _openItemsRoot() {
     setState(() {
       _currentFolderId = null;
-
       _showingItemsRoot = true;
-
+      _showingSpellsRoot = false;
       _currentItemId = null;
     });
   }
@@ -85,9 +86,8 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   void _openItemFolder(ItemDefinition item) {
     setState(() {
       _currentFolderId = null;
-
       _showingItemsRoot = false;
-
+      _showingSpellsRoot = false;
       _currentItemId = item.id;
     });
   }
@@ -95,6 +95,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   bool get _canGoBackInsideContent {
     return _currentFolderId != null ||
         _showingItemsRoot ||
+        _showingSpellsRoot ||
         _currentItemId != null;
   }
 
@@ -102,23 +103,20 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     if (_currentItemId != null) {
       setState(() {
         _currentItemId = null;
-
         _showingItemsRoot = true;
       });
-
       return;
     }
 
-    if (_showingItemsRoot) {
+    if (_showingItemsRoot || _showingSpellsRoot) {
       setState(() {
         _showingItemsRoot = false;
+        _showingSpellsRoot = false;
       });
-
       return;
     }
 
     final folder = _currentFolder;
-
     if (folder != null) {
       setState(() {
         _currentFolderId = folder.parentId;
@@ -135,6 +133,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
     if (_showingItemsRoot) {
       return 'Objetos';
+    }
+
+    if (_showingSpellsRoot) {
+      return 'Grimorio (Conjuros)';
     }
 
     final folder = _currentFolder;
@@ -154,30 +156,23 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Nueva carpeta'),
-
           content: TextField(
             autofocus: true,
-
             decoration: const InputDecoration(
               labelText: 'Nombre',
               prefixIcon: Icon(Icons.folder_rounded),
             ),
-
             onChanged: (value) {
               folderName = value;
             },
-
             onSubmitted: (value) {
               final name = value.trim();
-
               if (name.isEmpty) {
                 return;
               }
-
               Navigator.of(dialogContext).pop(name);
             },
           ),
-
           actions: [
             TextButton(
               onPressed: () {
@@ -185,15 +180,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               },
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
               onPressed: () {
                 final name = folderName.trim();
-
                 if (name.isEmpty) {
                   return;
                 }
-
                 Navigator.of(dialogContext).pop(name);
               },
               child: const Text('Crear'),
@@ -219,7 +211,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
   Future<void> _renameCurrentFolder() async {
     final folder = _currentFolder;
-
     if (folder == null) {
       return;
     }
@@ -231,31 +222,24 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Renombrar carpeta'),
-
           content: TextFormField(
             initialValue: folder.name,
             autofocus: true,
-
             decoration: const InputDecoration(
               labelText: 'Nombre',
               prefixIcon: Icon(Icons.folder_rounded),
             ),
-
             onChanged: (value) {
               folderName = value;
             },
-
             onFieldSubmitted: (value) {
               final name = value.trim();
-
               if (name.isEmpty) {
                 return;
               }
-
               Navigator.of(dialogContext).pop(name);
             },
           ),
-
           actions: [
             TextButton(
               onPressed: () {
@@ -263,15 +247,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               },
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
               onPressed: () {
                 final name = folderName.trim();
-
                 if (name.isEmpty) {
                   return;
                 }
-
                 Navigator.of(dialogContext).pop(name);
               },
               child: const Text('Guardar'),
@@ -294,7 +275,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
   Future<void> _deleteCurrentFolder() async {
     final folder = _currentFolder;
-
     if (folder == null) {
       return;
     }
@@ -314,7 +294,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
     setState(() {
       character.removeContentFolder(folder.id);
-
       _currentFolderId = parentId;
     });
 
@@ -326,16 +305,13 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
     void visit(String? parentId, int depth) {
       final folders = character.contentFoldersInside(parentId);
-
       for (final folder in folders) {
         result.add(_FolderOption(folder: folder, depth: depth));
-
         visit(folder.id, depth + 1);
       }
     }
 
     visit(null, 0);
-
     return result;
   }
 
@@ -363,16 +339,11 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
                 Flexible(
                   child: ListView(
                     shrinkWrap: true,
                     children: [
-                      // =========================================================
-                      // SIN CARPETA
-                      // =========================================================
                       ListTile(
                         leading: const Icon(Icons.home_outlined),
                         title: const Text('Sin carpeta'),
@@ -380,21 +351,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                             ? Icon(Icons.check_rounded, color: colors.primary)
                             : null,
                         onTap: () {
-                          // Usamos un valor especial porque
-                          // Navigator.pop(..., null) también
-                          // significaría "cancelado".
                           Navigator.pop(sheetContext, '__root__');
                         },
                       ),
-
                       if (options.isNotEmpty) const Divider(),
-
-                      // =========================================================
-                      // CARPETAS
-                      // =========================================================
                       ...options.map((option) {
                         final folder = option.folder;
-
                         final selected = folder.id == currentFolderId;
 
                         return ListTile(
@@ -422,12 +384,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                           },
                         );
                       }),
-
                       const Divider(),
-
-                      // =========================================================
-                      // NUEVA CARPETA
-                      // =========================================================
                       ListTile(
                         leading: const Icon(Icons.create_new_folder_rounded),
                         title: const Text('Nueva carpeta'),
@@ -448,61 +405,37 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
   Future<void> moveAbility(CharacterAbility ability) async {
     var selected = await _pickFolder(currentFolderId: ability.folderId);
-
-    if (selected == null || !mounted) {
-      return;
-    }
+    if (selected == null || !mounted) return;
 
     if (selected == '__create__') {
       await _createFolder();
-
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       selected = await _pickFolder(currentFolderId: ability.folderId);
-
-      if (selected == null || selected == '__create__' || !mounted) {
-        return;
-      }
+      if (selected == null || selected == '__create__' || !mounted) return;
     }
 
     final folderId = selected == '__root__' ? null : selected;
-
     setState(() {
       character.moveAbilityToFolder(ability, folderId);
     });
-
     await save();
   }
 
   Future<void> movePassive(CharacterPassive passive) async {
     var selected = await _pickFolder(currentFolderId: passive.folderId);
-
-    if (selected == null || !mounted) {
-      return;
-    }
+    if (selected == null || !mounted) return;
 
     if (selected == '__create__') {
       await _createFolder();
-
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       selected = await _pickFolder(currentFolderId: passive.folderId);
-
-      if (selected == null || selected == '__create__' || !mounted) {
-        return;
-      }
+      if (selected == null || selected == '__create__' || !mounted) return;
     }
 
     final folderId = selected == '__root__' ? null : selected;
-
     setState(() {
       character.movePassiveToFolder(passive, folderId);
     });
-
     await save();
   }
 
@@ -510,22 +443,16 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     await showExternalActionImportDialog(
       context,
       character: character,
-
       onCharacterChanged: () async {
         await save();
       },
-
       onConfirmTransfer: (transfer) {
         return _confirmExternalTransfer(transfer: transfer);
       },
     );
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     setState(() {});
-
     await widget.onCharacterChanged?.call();
   }
 
@@ -537,7 +464,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     }
 
     final outcome = transfer.confirmedOutcome;
-
     if (outcome == null) {
       throw StateError('La confirmación no contiene resultado.');
     }
@@ -570,23 +496,16 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     );
 
     await save();
-
     await ExternalActionTransferStorageService.markConfirmed(
       transfer.transferId,
     );
-
     await ExternalActionTransferStorageService.removeConfirmationContext(
       transfer.transferId,
     );
-
     await widget.onCharacterChanged?.call();
 
     return true;
   }
-
-  // ===========================================================================
-  // STORAGE
-  // ===========================================================================
 
   Future<void> save() {
     return CharacterStorageService.saveCharacter(character);
@@ -601,22 +520,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
     try {
       final execution = await flow.resolveAbility(context, ability: ability);
-
-      if (execution == null) {
-        return;
-      }
-
-      // -----------------------------------------------------------------------
-      // El commit ya ocurrió dentro del flow.
-      // Ahora persistimos una sola vez.
-      // -----------------------------------------------------------------------
+      if (execution == null) return;
 
       await save();
-
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       setState(() {});
 
       await showActionResolutionResultDialog(
@@ -625,10 +532,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
         execution: execution,
       );
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se ha podido resolver la acción: $error')),
       );
@@ -641,15 +545,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
   Future<void> showAbilityCombatActions(CharacterAbility ability) async {
     final requiresAttack = ability.requiresAttackRoll;
-
     final hasDamage = ability.dealsDamage;
-
     final hasHealing = ability.heals;
-
     final hasEffects = ability.effects.any((effect) => effect.hasEffect);
-
     final hasLinkedEffects = ability.linkedEffects.isNotEmpty;
-
     final canUse =
         !requiresAttack &&
         !hasDamage &&
@@ -658,57 +557,23 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
     await CombatActionSheet.show(
       context,
-
       title: ability.name,
-
       subtitle: 'Habilidad',
-
-      // -----------------------------------------------------------------------
-      // ATAQUE
-      //
-      // Si existe ataque, el daño/curación/etc.
-      // se resuelve dentro del ataque.
-      // -----------------------------------------------------------------------
       canAttack: requiresAttack,
-
-      // -----------------------------------------------------------------------
-      // SIN ATAQUE
-      // -----------------------------------------------------------------------
       canDamage: !requiresAttack && hasDamage,
-
       canHeal: !requiresAttack && hasHealing,
-
       canUse: canUse,
-
-      // Crítico manual eliminado.
-      // El crítico pertenece al resultado
-      // del ataque.
       canCritical: false,
-
-      onAttack: () {
-        _resolveAbility(ability);
-      },
-
-      onDamage: () {
-        _resolveAbility(ability);
-      },
-
-      onHeal: () {
-        _resolveAbility(ability);
-      },
-
-      onUse: () {
-        _resolveAbility(ability);
-      },
-
+      onAttack: () => _resolveAbility(ability),
+      onDamage: () => _resolveAbility(ability),
+      onHeal: () => _resolveAbility(ability),
+      onUse: () => _resolveAbility(ability),
       onCritical: null,
     );
   }
 
   Future<void> rollPassive(CharacterPassive passive) async {
-    if (!passive.enabled || !passive.hasRoll) {
-      return;
-    }
+    if (!passive.enabled || !passive.hasRoll) return;
 
     await showPassiveRollDialog(
       context,
@@ -718,27 +583,15 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   Future<void> applyPassiveLinkedEffects(CharacterPassive passive) async {
-    if (!passive.enabled || passive.linkedEffects.isEmpty) {
-      return;
-    }
+    if (!passive.enabled || passive.linkedEffects.isEmpty) return;
 
     final service = CharacterEffectApplicationService(character: character);
-
     final applied = service.applyTemplates(passive.linkedEffects);
+    if (applied.isEmpty) return;
 
-    if (applied.isEmpty) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {});
-    }
-
+    if (mounted) setState(() {});
     await save();
-
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -752,84 +605,57 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
-  // CREATE ABILITY
+  // ABILITIES CRUD
   // ===========================================================================
 
   Future<void> createAbility() async {
     final ability = await Navigator.push<CharacterAbility>(
       context,
-
       MaterialPageRoute(
         builder: (_) => AbilityFormScreen(character: character),
       ),
     );
-
-    if (ability == null) {
-      return;
-    }
+    if (ability == null) return;
 
     setState(() {
       character.addCharacterAbility(ability);
     });
-
     await save();
   }
-
-  // ===========================================================================
-  // EDIT ABILITY
-  // ===========================================================================
 
   Future<void> editAbility(CharacterAbility ability) async {
     final result = await Navigator.push<CharacterAbility>(
       context,
-
       MaterialPageRoute(
         builder: (_) =>
             AbilityFormScreen(ability: ability, character: character),
       ),
     );
-
-    if (result == null) {
-      return;
-    }
+    if (result == null) return;
 
     setState(() {
       character.updateCharacterAbility(result);
     });
-
     await save();
   }
-
-  // ===========================================================================
-  // DELETE ABILITY
-  // ===========================================================================
 
   Future<void> deleteAbility(CharacterAbility ability) async {
     final confirmed = await _confirmDelete(
       title: 'Eliminar habilidad',
       message: '¿Quieres eliminar "${ability.name}"?',
     );
-
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     setState(() {
       character.removeCharacterAbility(ability.id);
     });
-
     await save();
   }
-
-  // ===========================================================================
-  // RESTORE ABILITY
-  // ===========================================================================
 
   Future<void> restoreAbility(CharacterAbility ability) async {
     setState(() {
       character.restoreCharacterAbility(ability);
     });
-
     await save();
   }
 
@@ -837,12 +663,8 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     setState(() {
       character.restoreAllAbilities();
     });
-
     await save();
-
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     ScaffoldMessenger.of(
       context,
@@ -850,7 +672,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   // ===========================================================================
-  // CREATE PASSIVE
+  // PASSIVES CRUD
   // ===========================================================================
 
   Future<void> createPassive() async {
@@ -860,92 +682,55 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
         builder: (_) => PassiveFormScreen(character: character),
       ),
     );
-
-    if (passive == null) {
-      return;
-    }
+    if (passive == null) return;
 
     setState(() {
       character.addPassive(passive);
     });
-
     await save();
   }
-
-  // ===========================================================================
-  // EDIT PASSIVE
-  // ===========================================================================
 
   Future<void> editPassive(CharacterPassive passive) async {
     final result = await Navigator.push<CharacterPassive>(
       context,
-
       MaterialPageRoute(
         builder: (_) =>
             PassiveFormScreen(character: character, passive: passive),
       ),
     );
-
-    if (result == null) {
-      return;
-    }
+    if (result == null) return;
 
     setState(() {
       character.updatePassive(result);
     });
-
     await save();
   }
-
-  // ===========================================================================
-  // DELETE PASSIVE
-  // ===========================================================================
 
   Future<void> deletePassive(CharacterPassive passive) async {
     final confirmed = await _confirmDelete(
       title: 'Eliminar pasiva',
       message: '¿Quieres eliminar "${passive.name}"?',
     );
-
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     setState(() {
       character.removePassive(passive.id);
     });
-
     await save();
   }
-
-  // ===========================================================================
-  // PASSIVE ENABLED
-  // ===========================================================================
 
   Future<void> togglePassive(CharacterPassive passive, bool value) async {
     setState(() {
       character.setPassiveEnabled(passive, value);
     });
-
     await save();
   }
 
-  // ===========================================================================
-  // PASSIVE CHARGES
-  // ===========================================================================
   Future<void> restorePassiveCharge(CharacterPassive passive) async {
     character.addPassiveCharges(passive.id, 1);
-
-    if (mounted) {
-      setState(() {});
-    }
-
+    if (mounted) setState(() {});
     await save();
   }
-
-  // ===========================================================================
-  // CONFIRM
-  // ===========================================================================
 
   Future<bool> _confirmDelete({
     required String title,
@@ -956,36 +741,22 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           title: Text(title),
-
           content: Text(message),
-
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
-
             FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Eliminar'),
             ),
           ],
         );
       },
     );
-
     return result == true;
   }
-
-  // ===========================================================================
-  // CREATE MENU
-  // ===========================================================================
 
   Future<void> _showCreateMenu() async {
     final result = await showModalBottomSheet<String>(
@@ -1000,39 +771,25 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.flash_on_rounded),
-
                   title: const Text('Nueva habilidad'),
-
                   subtitle: const Text(
                     'Ataques, poderes, curaciones y técnicas',
                   ),
-
-                  onTap: () {
-                    Navigator.pop(sheetContext, 'ability');
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'ability'),
                 ),
-
                 ListTile(
                   leading: const Icon(Icons.auto_awesome_rounded),
-
                   title: const Text('Nueva pasiva'),
-
                   subtitle: const Text(
                     'Rasgos, bonificaciones y efectos permanentes',
                   ),
-
-                  onTap: () {
-                    Navigator.pop(sheetContext, 'passive');
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'passive'),
                 ),
-
                 ListTile(
                   leading: const Icon(Icons.create_new_folder_rounded),
                   title: const Text('Nueva carpeta'),
                   subtitle: const Text('Organiza habilidades y pasivas'),
-                  onTap: () {
-                    Navigator.pop(sheetContext, 'folder');
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'folder'),
                 ),
               ],
             ),
@@ -1045,11 +802,9 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       case 'ability':
         await createAbility();
         break;
-
       case 'passive':
         await createPassive();
         break;
-
       case 'folder':
         await _createFolder();
         break;
@@ -1064,19 +819,20 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   Widget build(BuildContext context) {
     final currentItem = _currentItem;
 
-    final folders = !_showingItemsRoot && currentItem == null
+    final folders =
+        !_showingItemsRoot && !_showingSpellsRoot && currentItem == null
         ? character.contentFoldersInside(_currentFolderId)
         : <CharacterContentFolder>[];
 
     final abilities = currentItem != null
         ? currentItem.abilities
-        : _showingItemsRoot
+        : (_showingItemsRoot || _showingSpellsRoot)
         ? const <CharacterAbility>[]
         : character.abilitiesInFolder(_currentFolderId);
 
     final passives = currentItem != null
         ? currentItem.passives
-        : _showingItemsRoot
+        : (_showingItemsRoot || _showingSpellsRoot)
         ? const <CharacterPassive>[]
         : character.passivesInFolder(_currentFolderId);
 
@@ -1087,6 +843,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     final showObjectsFolder =
         _currentFolderId == null &&
         !_showingItemsRoot &&
+        !_showingSpellsRoot &&
         currentItem == null &&
         character.equippedContentItems.isNotEmpty;
 
@@ -1095,7 +852,8 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
         abilities.isNotEmpty ||
         passives.isNotEmpty ||
         itemFolders.isNotEmpty ||
-        showObjectsFolder;
+        showObjectsFolder ||
+        _showingSpellsRoot;
 
     return Scaffold(
       appBar: AppBar(
@@ -1105,9 +863,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                 icon: const Icon(Icons.arrow_back_rounded),
               )
             : null,
-
         title: Text(_screenTitle),
-
         actions: [
           if (abilities.any((ability) => ability.hasLimitedUses))
             IconButton(
@@ -1115,7 +871,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               onPressed: restoreAllAbilities,
               icon: const Icon(Icons.restart_alt_rounded),
             ),
-
           if (_currentFolder != null)
             PopupMenuButton<String>(
               onSelected: (value) async {
@@ -1123,7 +878,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                   case 'rename':
                     await _renameCurrentFolder();
                     break;
-
                   case 'delete':
                     await _deleteCurrentFolder();
                     break;
@@ -1146,7 +900,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                 ),
               ],
             ),
-
           IconButton(
             tooltip: 'Importar resultado externo',
             onPressed: _importExternalAction,
@@ -1154,7 +907,6 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
           ),
         ],
       ),
-
       body: !hasContent
           ? EmptyState(
               icon: Icons.auto_awesome_rounded,
@@ -1167,16 +919,14 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
               children: [
                 // =============================================================
-                // SUBCARPETAS
+                // SUBCARPETAS REGULARES
                 // =============================================================
                 ...folders.map(
                   (folder) => _ContentFolderTile(
                     icon: Icons.folder_rounded,
                     name: folder.name,
                     count: character.directContentCountInFolder(folder.id),
-                    onTap: () {
-                      _openFolder(folder.id);
-                    },
+                    onTap: () => _openFolder(folder.id),
                   ),
                 ),
 
@@ -1204,14 +954,12 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                     name: item.name,
                     count: character.itemContentCount(item),
                     automatic: true,
-                    onTap: () {
-                      _openItemFolder(item);
-                    },
+                    onTap: () => _openItemFolder(item),
                   ),
                 ),
 
                 // =============================================================
-                // CONTENIDO
+                // CONTENIDO (HABILIDADES Y PASIVAS)
                 // =============================================================
                 if (abilities.isNotEmpty || passives.isNotEmpty) ...[
                   if (folders.isNotEmpty ||
@@ -1221,102 +969,58 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
                   ...abilities.map((ability) {
                     final sourceItem = character.itemForAbility(ability);
-
                     return AbilityCard(
                       ability: ability,
                       character: character,
                       sourceItem: sourceItem,
-
                       onMove: sourceItem == null
-                          ? () {
-                              moveAbility(ability);
-                            }
+                          ? () => moveAbility(ability)
                           : null,
-
                       onEdit: sourceItem == null
-                          ? () {
-                              editAbility(ability);
-                            }
+                          ? () => editAbility(ability)
                           : null,
-
                       onDelete: sourceItem == null
-                          ? () {
-                              deleteAbility(ability);
-                            }
+                          ? () => deleteAbility(ability)
                           : null,
-
                       onRestore: ability.hasLimitedUses
-                          ? () {
-                              restoreAbility(ability);
-                            }
+                          ? () => restoreAbility(ability)
                           : null,
-
-                      onCombatActions: () {
-                        showAbilityCombatActions(ability);
-                      },
+                      onCombatActions: () => showAbilityCombatActions(ability),
                     );
                   }),
 
                   ...passives.map((passive) {
                     final sourceItem = character.itemForPassive(passive);
-
                     final fromItem = sourceItem != null;
 
                     return PassiveCard(
                       passive: passive,
                       sourceItem: sourceItem,
                       showPassiveBadge: true,
-
-                      onMove: fromItem
-                          ? null
-                          : () {
-                              movePassive(passive);
-                            },
-
+                      onMove: fromItem ? null : () => movePassive(passive),
                       onRoll: passive.hasRoll
-                          ? () {
-                              rollPassive(passive);
-                            }
+                          ? () => rollPassive(passive)
                           : null,
-
                       onApplyLinkedEffects:
                           passive.linkedEffects.isNotEmpty &&
                               !passive.hasAutomaticLinkedEffectTriggers
-                          ? () {
-                              applyPassiveLinkedEffects(passive);
-                            }
+                          ? () => applyPassiveLinkedEffects(passive)
                           : null,
-
                       onRestoreCharges: passive.usesCharges
-                          ? () {
-                              restorePassiveCharge(passive);
-                            }
+                          ? () => restorePassiveCharge(passive)
                           : null,
-
                       onToggle: fromItem
                           ? null
-                          : (value) {
-                              togglePassive(passive, value);
-                            },
-
-                      onEdit: fromItem
-                          ? null
-                          : () {
-                              editPassive(passive);
-                            },
-
-                      onDelete: fromItem
-                          ? null
-                          : () {
-                              deletePassive(passive);
-                            },
+                          : (value) => togglePassive(passive, value),
+                      onEdit: fromItem ? null : () => editPassive(passive),
+                      onDelete: fromItem ? null : () => deletePassive(passive),
                     );
                   }),
                 ],
               ],
             ),
-
-      floatingActionButton: _showingItemsRoot || currentItem != null
+      floatingActionButton:
+          _showingItemsRoot || _showingSpellsRoot || currentItem != null
           ? null
           : FloatingActionButton.extended(
               onPressed: _showCreateMenu,
@@ -1332,7 +1036,6 @@ class _ContentFolderTile extends StatelessWidget {
   final String name;
   final int count;
   final bool automatic;
-
   final VoidCallback onTap;
 
   const _ContentFolderTile({
@@ -1367,10 +1070,7 @@ class _ContentFolderTile extends StatelessWidget {
             fontWeight: FontWeight.w900,
           ),
         ),
-        subtitle: Text(
-          '$count '
-          '${count == 1 ? 'elemento' : 'elementos'}',
-        ),
+        subtitle: Text('$count ${count == 1 ? 'elemento' : 'elementos'}'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

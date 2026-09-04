@@ -6,6 +6,7 @@ import 'action_linked_effect.dart';
 import 'critical_damage_bonus.dart';
 import 'weapon.dart';
 import 'item_definition.dart';
+import 'spell_definition.dart';
 
 class ActionContent {
   final List<AbilityEffect> effects;
@@ -17,7 +18,7 @@ class ActionContent {
   /// Pueden proceder de:
   ///
   /// - armas
-  /// - Items
+  /// - items
   /// - magia
   /// - otras fuentes futuras
   final List<ActionDamageComponent> damageComponents;
@@ -34,7 +35,6 @@ class ActionContent {
   factory ActionContent.fromAbility(CharacterAbility ability) {
     return ActionContent(
       effects: List<AbilityEffect>.unmodifiable(ability.effects),
-
       linkedEffects: List<ActionLinkedEffect>.unmodifiable(
         ability.linkedEffects,
       ),
@@ -46,7 +46,6 @@ class ActionContent {
 
     for (var index = 0; index < weapon.damages.length; index++) {
       final damage = weapon.damages[index];
-
       final abilityMultipliers = <AbilityType, int>{};
 
       if (damage.addAbilityModifier) {
@@ -56,24 +55,13 @@ class ActionContent {
       damageComponents.add(
         ActionDamageComponent(
           id: damage.id,
-
           name: damage.name,
-
           dicePools: List.unmodifiable(damage.dicePools),
-
           criticalDicePools: List.unmodifiable(damage.criticalDicePools),
-
           abilityModifierMultipliers: Map.unmodifiable(abilityMultipliers),
-
-          // El bonus mágico del arma forma
-          // parte únicamente del primer
-          // componente de daño.
           flatBonus: damage.bonus + (index == 0 ? weapon.magicBonus : 0),
-
           damageType: damage.damageType,
-
           participatesInCritical: damage.participatesInCritical,
-
           hitBehavior: ActionHitBehavior.requireHit,
         ),
       );
@@ -83,10 +71,27 @@ class ActionContent {
       damageComponents: List<ActionDamageComponent>.unmodifiable(
         damageComponents,
       ),
-
       criticalDamageBonuses: List<CriticalDamageBonus>.unmodifiable(
         weapon.criticalDamageBonuses,
       ),
+    );
+  }
+
+  factory ActionContent.fromConsumableItem(ItemDefinition item) {
+    final consumable = item.consumable;
+
+    if (consumable == null) {
+      return const ActionContent.empty();
+    }
+
+    return ActionContent(
+      effects: List<AbilityEffect>.unmodifiable(consumable.effects),
+    );
+  }
+
+  factory ActionContent.fromSpell(SpellDefinition spell) {
+    return ActionContent(
+      effects: List<AbilityEffect>.unmodifiable(spell.effects),
     );
   }
 
@@ -114,18 +119,6 @@ class ActionContent {
   bool get heals {
     return effects.any(
       (effect) => effect.effectType == AbilityEffectType.healing,
-    );
-  }
-
-  factory ActionContent.fromConsumableItem(ItemDefinition item) {
-    final consumable = item.consumable;
-
-    if (consumable == null) {
-      return const ActionContent.empty();
-    }
-
-    return ActionContent(
-      effects: List<AbilityEffect>.unmodifiable(consumable.effects),
     );
   }
 }

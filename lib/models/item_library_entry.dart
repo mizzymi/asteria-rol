@@ -36,8 +36,8 @@ class ItemLibraryEntry {
     return definition.type;
   }
 
-  bool get hasImage {
-    return definition.imagePath.trim().isNotEmpty;
+  bool? get hasImage {
+    return definition.imagePath?.trim().isNotEmpty;
   }
 
   // ===========================================================================
@@ -163,12 +163,12 @@ class ItemLibraryEntry {
     // weapon
     // accessory
     // consumable
-    // other
+    // misc
     //
     // Por tanto podemos conservar directamente el valor serializado.
     // -------------------------------------------------------------------------
 
-    migrated['type'] = map['type']?.toString() ?? ItemType.other.name;
+    migrated['type'] = map['type']?.toString() ?? ItemType.misc.name;
 
     // -------------------------------------------------------------------------
     // ARMADURA
@@ -211,7 +211,7 @@ class ItemLibraryEntry {
     final type = map['type']?.toString();
 
     migrated['stackable'] =
-        type == ItemType.consumable.name || type == ItemType.other.name;
+        type == ItemType.consumable.name || type == ItemType.misc.name;
 
     // -------------------------------------------------------------------------
     // DATOS QUE YA TIENEN FORMATO COMPATIBLE

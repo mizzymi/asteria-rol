@@ -2,6 +2,7 @@ import 'ability.dart';
 import 'skill.dart';
 import 'weapon.dart';
 import 'item_definition.dart';
+import 'spell_definition.dart';
 
 class ActionDefinition {
   final String id;
@@ -17,9 +18,6 @@ class ActionDefinition {
   final AbilityTargetResolutionMode targetResolutionMode;
 
   /// Bonus de ataque propio de una acción genérica.
-  ///
-  /// En habilidades legacy normalmente será 0 porque el cálculo
-  /// todavía procede de Character.
   final int attackBonus;
 
   /// CD fija opcional para acciones que no procedan de CharacterAbility.
@@ -39,21 +37,12 @@ class ActionDefinition {
   factory ActionDefinition.fromAbility(CharacterAbility ability) {
     return ActionDefinition(
       id: ability.id,
-
       name: ability.name,
-
       abilityType: ability.abilityType,
-
       requiresAttackRoll: ability.requiresAttackRoll,
-
       targetType: ability.targetType,
-
       targetResolutionMode: ability.targetResolutionMode,
-
-      // Legacy:
-      // characterAbilityAttackBonus() sigue encargándose del cálculo.
       attackBonus: 0,
-
       fixedSaveDc: null,
     );
   }
@@ -61,19 +50,12 @@ class ActionDefinition {
   factory ActionDefinition.fromWeapon(Weapon weapon) {
     return ActionDefinition(
       id: weapon.id,
-
       name: weapon.name,
-
       abilityType: weapon.attackAbility,
-
       requiresAttackRoll: true,
-
       targetType: AbilityTargetType.external,
-
       targetResolutionMode: AbilityTargetResolutionMode.shared,
-
       attackBonus: 0,
-
       fixedSaveDc: null,
     );
   }
@@ -82,16 +64,37 @@ class ActionDefinition {
     return ActionDefinition(
       id: item.id,
       name: item.name,
-
       targetType: AbilityTargetType.self,
-
       targetResolutionMode: AbilityTargetResolutionMode.shared,
-
       requiresAttackRoll: false,
-
       abilityType: AbilityType.strength,
-
       attackBonus: 0,
+    );
+  }
+
+  factory ActionDefinition.fromSpell(
+    SpellDefinition spell, {
+    AbilityType castingAbility = AbilityType.intelligence,
+  }) {
+    final targetsSelf =
+        spell.range.trim().toLowerCase() == 'propio' ||
+        spell.range.trim().toLowerCase() == 'personal' ||
+        (spell.effects.isNotEmpty &&
+            spell.effects.every(
+              (e) => e.effectType == AbilityEffectType.healing,
+            ));
+
+    return ActionDefinition(
+      id: spell.id,
+      name: spell.name,
+      abilityType: castingAbility,
+      requiresAttackRoll: false,
+      targetType: targetsSelf
+          ? AbilityTargetType.self
+          : AbilityTargetType.external,
+      targetResolutionMode: AbilityTargetResolutionMode.shared,
+      attackBonus: 0,
+      fixedSaveDc: null,
     );
   }
 }

@@ -17,6 +17,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
   final VoidCallback onResources;
   final VoidCallback onCounters;
   final VoidCallback onDice;
+  final VoidCallback onKnowledge;
 
   const CharacterHomeNavigationSection({
     super.key,
@@ -32,6 +33,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
     required this.onResources,
     required this.onCounters,
     required this.onDice,
+    required this.onKnowledge,
   });
 
   @override
@@ -188,6 +190,16 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
           color: CharacterHomeColors.dice,
           onTap: onDice,
+        ),
+
+        const SizedBox(height: 8),
+
+        CharacterMenuCard(
+          icon: Icons.casino_rounded,
+          title: 'Libros',
+          subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
+          color: CharacterHomeColors.dice,
+          onTap: onKnowledge,
         ),
       ],
     );

@@ -5,28 +5,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/character.dart';
 import '../models/item.dart';
-import '../models/inventory_item.dart';
 
-import '../services/character_storage_service.dart';
-import '../services/item_library_service.dart';
 import '../services/action_resolution_flow.dart';
+import '../services/character_storage_service.dart';
+import '../services/inventory_service.dart';
+import '../services/item_import_export_service.dart';
+import '../services/item_library_service.dart';
 
+import '../theme/item_type_colors.dart';
 import '../utils/number_format.dart';
 
+import '../widgets/items/slot_selection_dialog.dart';
 import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/section_header.dart';
 import '../widgets/items/item_card.dart';
-import '../widgets/items/item_grid_card.dart';
 import '../widgets/items/item_extended_content.dart';
+import '../widgets/items/item_grid_card.dart';
 import '../widgets/items/item_image.dart';
+import '../widgets/items/equipment_slots_config_dialog.dart';
 import '../widgets/items/item_image_viewer.dart';
-import '../services/item_import_export_service.dart';
 
-import '../theme/item_type_colors.dart';
-
-import 'item_library_screen.dart';
 import 'item_form_screen.dart';
+import 'item_library_screen.dart';
 
 typedef InventoryItemView = ({
   InventoryItem inventory,
@@ -46,16 +47,17 @@ class _ItemsScreenState extends State<ItemsScreen> {
   Character get character => widget.character;
 
   static const String _gridViewPreferenceKey = 'items_grid_view';
+  final _inventoryService = const InventoryService();
 
   bool gridView = false;
   bool viewPreferenceLoaded = false;
+
   // ===========================================================================
   // GUARDAR
   // ===========================================================================
 
   Future<void> save() async {
     character.normalizeHealth();
-
     await CharacterStorageService.saveCharacter(character);
   }
 
@@ -74,8 +76,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     setState(() {
-      character.addInventoryItem(definition: definition, quantity: 1);
-
+      _inventoryService.addItem(
+        character: character,
+        definition: definition,
+        quantity: 1,
+      );
       character.normalizeHealth();
     });
 
@@ -125,20 +130,27 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     setState(() {
-      // El ID es identidad estable.
       final normalized = ItemDefinition.fromMap(updatedDefinition.toMap());
-
       final map = normalized.toMap();
-
       map['id'] = definition.id;
 
-      character.registerItemDefinition(ItemDefinition.fromMap(map));
+      final newDef = ItemDefinition.fromMap(map);
+      character.registerItemDefinition(newDef);
 
       if (inventory.equipped) {
-        character.equipInventoryItem(
-          inventory,
-          slotId: inventory.equippedSlotId,
-        );
+        if (!newDef.isEquippable) {
+          // Si el objeto fue editado y ya no se puede equipar
+          _inventoryService.unequipItem(character: character, item: inventory);
+        } else if (inventory.equippedSlotId != null) {
+          // Respeta exactamente la ranura previa donde estaba equipado
+          _inventoryService.equipItemInSlot(
+            character: character,
+            item: inventory,
+            slotId: inventory.equippedSlotId!,
+          );
+        } else {
+          _inventoryService.equipItem(character: character, item: inventory);
+        }
       }
 
       character.normalizeHealth();
@@ -163,15 +175,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
           content: Text('¿Quieres eliminar "${definition.name}"?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Eliminar'),
             ),
           ],
@@ -184,8 +192,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     setState(() {
-      character.inventoryItems.removeWhere((item) => item.id == inventory.id);
-
+      _inventoryService.removeItem(
+        character: character,
+        inventoryItemId: inventory.id,
+        quantity: inventory.quantity,
+      );
       character.normalizeHealth();
     });
 
@@ -200,47 +211,61 @@ class _ItemsScreenState extends State<ItemsScreen> {
     InventoryItem inventory,
     ItemDefinition definition,
   ) async {
-    if (!definition.type.isEquipable) {
+    if (!definition.isEquippable) {
       return;
     }
 
-    setState(() {
-      // =======================================================================
-      // DESEQUIPAR
-      // =======================================================================
-
-      if (inventory.equipped) {
-        character.unequipInventoryItem(inventory);
-
+    // Si ya está equipado, desequipar directamente
+    if (inventory.equipped) {
+      setState(() {
+        _inventoryService.unequipItem(character: character, item: inventory);
         _mergeInventoryItemStacks(definition.id);
-
         character.normalizeHealth();
+      });
+      await save();
+      return;
+    }
 
-        return;
-      }
+    // Si tiene más de una ranura posible, preguntar al usuario
+    String? targetSlotId;
+    final availableSlots = definition.equipmentSlotIds.isNotEmpty
+        ? definition.equipmentSlotIds
+        : [definition.type.defaultEquipmentSlotId];
 
-      // =======================================================================
-      // EQUIPAR UNA UNIDAD DE UNA PILA
-      // =======================================================================
+    if (availableSlots.length > 1) {
+      targetSlotId = await SlotSelectionDialog.show(
+        context,
+        character: character,
+        definition: definition,
+        item: inventory,
+      );
+      if (targetSlotId == null || !mounted) return;
+    } else {
+      targetSlotId = availableSlots.first;
+    }
 
+    setState(() {
       if (inventory.quantity > 1) {
         inventory.quantity -= 1;
-
         final equippedInventory = InventoryItem(
-          id:
-              'inventory_item_'
-              '${DateTime.now().microsecondsSinceEpoch}',
+          id: 'inventory_item_${DateTime.now().microsecondsSinceEpoch}',
           itemId: inventory.itemId,
           quantity: 1,
           equipped: false,
           equippedSlotId: null,
         );
-
         character.inventoryItems.add(equippedInventory);
-
-        character.equipInventoryItem(equippedInventory);
+        _inventoryService.equipItemInSlot(
+          character: character,
+          item: equippedInventory,
+          slotId: targetSlotId!,
+        );
       } else {
-        character.equipInventoryItem(inventory);
+        _inventoryService.equipItemInSlot(
+          character: character,
+          item: inventory,
+          slotId: targetSlotId!,
+        );
       }
 
       character.normalizeHealth();
@@ -257,7 +282,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     InventoryItem? destination;
-
     final duplicates = <InventoryItem>[];
 
     for (final inventory in character.inventoryItems) {
@@ -271,12 +295,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
       }
 
       destination.quantity += inventory.quantity;
-
       duplicates.add(inventory);
     }
 
     final duplicateIds = duplicates.map((item) => item.id).toSet();
-
     character.inventoryItems.removeWhere(
       (item) => duplicateIds.contains(item.id),
     );
@@ -285,20 +307,17 @@ class _ItemsScreenState extends State<ItemsScreen> {
   // ===========================================================================
   // DAÑO DE ARMA
   // ===========================================================================
+
   Future<void> resolveWeapon(ItemDefinition definition) async {
     final weapon = definition.weapon;
 
     if (weapon == null) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Este objeto no tiene un arma configurada.'),
         ),
       );
-
       return;
     }
 
@@ -306,17 +325,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
     try {
       final execution = await flow.resolveWeapon(context, weapon: weapon);
-
-      if (execution == null) {
-        return;
-      }
+      if (execution == null) return;
 
       await save();
 
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       setState(() {});
 
       await showActionResolutionResultDialog(
@@ -325,10 +338,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
         execution: execution,
       );
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se ha podido resolver el ataque: $error')),
       );
@@ -336,88 +346,28 @@ class _ItemsScreenState extends State<ItemsScreen> {
   }
 
   // ===========================================================================
-  // USAR CONSUMIBLE
+  // USAR CONSUMIBLE (USO ATÓMICO)
   // ===========================================================================
 
   Future<void> useConsumable(
     InventoryItem inventory,
     ItemDefinition definition,
   ) async {
-    final consumable = definition.consumable;
+    final success = await _inventoryService.useConsumable(
+      context: context,
+      character: character,
+      inventoryItem: inventory,
+    );
 
-    if (consumable == null) {
+    if (!success || !mounted) {
       return;
     }
 
-    if (inventory.quantity <= 0) {
-      if (!mounted) {
-        return;
-      }
+    setState(() {
+      character.normalizeHealth();
+    });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No quedan unidades de este consumible.')),
-      );
-
-      return;
-    }
-
-    if (consumable.effects.isEmpty) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Este consumible no tiene efectos configurados.'),
-        ),
-      );
-
-      return;
-    }
-
-    final flow = ActionResolutionFlow(character: character);
-
-    try {
-      final execution = await flow.resolveConsumable(context, item: definition);
-
-      // Cancelado / fallo:
-      // no consumimos nada.
-      if (execution == null || !mounted) {
-        return;
-      }
-
-      setState(() {
-        inventory.quantity -= 1;
-
-        if (inventory.quantity <= 0) {
-          character.inventoryItems.removeWhere(
-            (item) => item.id == inventory.id,
-          );
-        }
-
-        character.normalizeHealth();
-      });
-
-      await save();
-
-      if (!mounted) {
-        return;
-      }
-
-      await showActionResolutionResultDialog(
-        context,
-        character: character,
-        execution: execution,
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se ha podido usar el consumible: $error')),
-      );
-    }
+    await save();
   }
 
   Future<void> editItemQuantityQuick(
@@ -439,10 +389,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
 
     setState(() {
-      inventory.quantity = result;
-
-      if (inventory.quantity <= 0) {
-        character.inventoryItems.removeWhere((item) => item.id == inventory.id);
+      if (result <= 0) {
+        _inventoryService.removeItem(
+          character: character,
+          inventoryItemId: inventory.id,
+          quantity: inventory.quantity,
+        );
+      } else {
+        inventory.quantity = result;
       }
     });
 
@@ -457,10 +411,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
     try {
       await ItemLibraryService.addDefinition(definition);
 
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${definition.name} guardado en la biblioteca.'),
@@ -468,10 +419,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
         ),
       );
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No se ha podido guardar el objeto en la biblioteca.'),
@@ -483,15 +431,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
   Future<void> importItem() async {
     try {
       final item = await ItemImportExportService.pickAndImportDefinition();
+      if (item == null || !mounted) return;
 
-      if (item == null || !mounted) {
-        return;
-      }
-
-      /*
-     * Antes de añadirlo podemos mostrar
-     * una confirmación rápida.
-     */
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
@@ -507,36 +448,25 @@ class _ItemsScreenState extends State<ItemsScreen> {
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
-
                 if (item.description.isNotEmpty) ...[
                   const SizedBox(height: 8),
-
                   Text(item.description),
                 ],
-
                 const SizedBox(height: 12),
-
                 Text(item.type.label),
-
                 if (item.passives.isNotEmpty)
                   Text('${item.passives.length} pasivas'),
-
                 if (item.abilities.isNotEmpty)
                   Text('${item.abilities.length} habilidades'),
               ],
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext, false);
-                },
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('Cancelar'),
               ),
-
               FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(dialogContext, true);
-                },
+                onPressed: () => Navigator.pop(dialogContext, true),
                 icon: const Icon(Icons.inventory_2_rounded),
                 label: const Text('Añadir'),
               ),
@@ -545,38 +475,30 @@ class _ItemsScreenState extends State<ItemsScreen> {
         },
       );
 
-      if (confirmed != true || !mounted) {
-        return;
-      }
+      if (confirmed != true || !mounted) return;
 
       setState(() {
-        character.addInventoryItem(definition: item, quantity: 1);
-
+        _inventoryService.addItem(
+          character: character,
+          definition: item,
+          quantity: 1,
+        );
         character.normalizeHealth();
       });
 
       await save();
 
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${item.name} añadido al inventario.')),
       );
     } on FormatException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se ha podido importar el objeto.')),
       );
@@ -587,10 +509,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
     try {
       await ItemImportExportService.shareDefinition(definition);
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se ha podido compartir el objeto.')),
       );
@@ -605,22 +524,20 @@ class _ItemsScreenState extends State<ItemsScreen> {
       ),
     );
 
-    if (definition == null || !mounted) {
-      return;
-    }
+    if (definition == null || !mounted) return;
 
     setState(() {
-      character.addInventoryItem(definition: definition, quantity: 1);
-
+      _inventoryService.addItem(
+        character: character,
+        definition: definition,
+        quantity: 1,
+      );
       character.normalizeHealth();
     });
 
     await save();
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${definition.name} añadido al inventario.')),
     );
@@ -637,7 +554,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
       useSafeArea: true,
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
-
         final color = ItemTypeColors.of(definition.type);
 
         return FractionallySizedBox(
@@ -647,9 +563,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ===============================================================
-                // IMAGEN
-                // ===============================================================
                 if (definition.hasImage) ...[
                   Material(
                     color: Colors.transparent,
@@ -669,7 +582,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 18),
                 ] else ...[
                   Container(
@@ -685,13 +597,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       color: color,
                     ),
                   ),
-
                   const SizedBox(height: 18),
                 ],
 
-                // ===============================================================
-                // NOMBRE
-                // ===============================================================
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -703,12 +611,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
                         ),
                       ),
                     ),
-
                     IconButton(
                       tooltip: 'Editar',
                       onPressed: () {
                         Navigator.pop(sheetContext);
-
                         editItem(inventory, definition);
                       },
                       icon: const Icon(Icons.edit_rounded),
@@ -716,9 +622,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   ],
                 ),
 
-                // ===============================================================
-                // TIPO / CANTIDAD
-                // ===============================================================
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -731,12 +634,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       ),
                       label: Text(definition.type.label),
                     ),
-
                     Chip(
                       avatar: const Icon(Icons.layers_rounded, size: 17),
                       label: Text('×${formatThousands(inventory.quantity)}'),
                     ),
-
                     if (inventory.equipped)
                       const Chip(
                         avatar: Icon(Icons.check_circle_rounded, size: 17),
@@ -745,12 +646,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   ],
                 ),
 
-                // ===============================================================
-                // DESCRIPCIÓN
-                // ===============================================================
                 if (definition.description.trim().isNotEmpty) ...[
                   const SizedBox(height: 14),
-
                   Text(
                     definition.description,
                     style: theme.textTheme.bodyMedium,
@@ -759,35 +656,27 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
                 const SizedBox(height: 18),
 
-                // ===============================================================
-                // CONTENIDO EXTENDIDO
-                // ===============================================================
                 ItemExtendedContent(
                   inventoryItem: inventory,
                   definition: definition,
                   character: character,
                   padding: EdgeInsets.zero,
-
                   onEquip: () {
                     Navigator.pop(sheetContext);
-
                     toggleEquip(inventory, definition);
                   },
-
                   onWeaponAttack: definition.isWeapon && inventory.equipped
                       ? () {
                           Navigator.pop(sheetContext);
-
                           resolveWeapon(definition);
                         }
                       : null,
-
                   onConsumableUse:
-                      definition.type == ItemType.consumable &&
-                          definition.consumable != null
+                      (definition.type == ItemType.consumable ||
+                          definition.type == ItemType.potion ||
+                          definition.consumable != null)
                       ? () {
                           Navigator.pop(sheetContext);
-
                           useConsumable(inventory, definition);
                         }
                       : null,
@@ -801,10 +690,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
       },
     );
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     setState(() {});
   }
 
@@ -853,28 +739,24 @@ class _ItemsScreenState extends State<ItemsScreen> {
     });
 
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setBool(_gridViewPreferenceKey, newValue);
   }
 
   // ===========================================================================
   // BUILD
   // ===========================================================================
+
   @override
   void initState() {
     super.initState();
-
     _loadViewPreference();
   }
 
   Future<void> _loadViewPreference() async {
     final prefs = await SharedPreferences.getInstance();
-
     final savedGridView = prefs.getBool(_gridViewPreferenceKey) ?? false;
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     setState(() {
       gridView = savedGridView;
@@ -905,13 +787,25 @@ class _ItemsScreenState extends State<ItemsScreen> {
               gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
             ),
           ),
-
+          IconButton(
+            tooltip: 'Configurar ranuras',
+            onPressed: () {
+              EquipmentSlotsConfigDialog.show(
+                context,
+                character: character,
+                onSaved: () async {
+                  setState(() {});
+                  await save();
+                },
+              );
+            },
+            icon: const Icon(Icons.tune_rounded),
+          ),
           IconButton(
             tooltip: 'Importar objeto',
             onPressed: importItem,
             icon: const Icon(Icons.file_download_rounded),
           ),
-
           IconButton(
             tooltip: 'Biblioteca',
             onPressed: openLibrary,
@@ -919,7 +813,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
           ),
         ],
       ),
-
       body: !viewPreferenceLoaded
           ? const Center(child: CircularProgressIndicator())
           : character.inventoryItems.isEmpty
@@ -934,9 +827,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
               children: [
-                // =============================================================
-                // EQUIPADOS
-                // =============================================================
                 if (equipped.isNotEmpty) ...[
                   SectionHeader(
                     icon: Icons.check_circle_rounded,
@@ -944,66 +834,38 @@ class _ItemsScreenState extends State<ItemsScreen> {
                     subtitle:
                         '${equipped.length} ${equipped.length == 1 ? 'objeto equipado' : 'objetos equipados'}',
                   ),
-
                   const SizedBox(height: 14),
-
                   if (gridView)
                     buildItemGrid(equipped)
                   else
                     ...equipped.map((entry) {
                       final inventoryItem = entry.inventory;
-
                       final definition = entry.definition;
 
                       return ItemCard(
                         inventoryItem: inventoryItem,
                         definition: definition,
                         character: character,
-
-                        onEquip: () {
-                          toggleEquip(inventoryItem, definition);
-                        },
-
-                        onEdit: () {
-                          editItem(inventoryItem, definition);
-                        },
-
-                        onDelete: () {
-                          deleteItem(inventoryItem, definition);
-                        },
-
-                        onExport: () {
-                          exportItem(definition);
-                        },
-
-                        onSaveToLibrary: () {
-                          saveItemToLibrary(definition);
-                        },
-
+                        onEquip: () => toggleEquip(inventoryItem, definition),
+                        onEdit: () => editItem(inventoryItem, definition),
+                        onDelete: () => deleteItem(inventoryItem, definition),
+                        onExport: () => exportItem(definition),
+                        onSaveToLibrary: () => saveItemToLibrary(definition),
                         onQuickQuantityEdit: definition.calculable
-                            ? () {
-                                editItemQuantityQuick(
-                                  inventoryItem,
-                                  definition,
-                                );
-                              }
+                            ? () => editItemQuantityQuick(
+                                inventoryItem,
+                                definition,
+                              )
                             : null,
-
                         onWeaponAttack:
                             definition.isWeapon && inventoryItem.equipped
-                            ? () {
-                                resolveWeapon(definition);
-                              }
+                            ? () => resolveWeapon(definition)
                             : null,
                       );
                     }),
-
                   const SizedBox(height: 24),
                 ],
 
-                // =============================================================
-                // INVENTARIO
-                // =============================================================
                 SectionHeader(
                   icon: Icons.backpack_rounded,
                   title: 'Inventario',
@@ -1011,7 +873,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       ? 'No hay objetos sin equipar'
                       : '${inventory.length} ${inventory.length == 1 ? 'objeto disponible' : 'objetos disponibles'}',
                 ),
-
                 const SizedBox(height: 14),
 
                 if (inventory.isEmpty)
@@ -1034,9 +895,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
                           size: 34,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-
                         const SizedBox(height: 8),
-
                         Text(
                           'Todos tus objetos equipables están equipados.',
                           textAlign: TextAlign.center,
@@ -1055,52 +914,35 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 else
                   ...inventory.map((entry) {
                     final inventoryItem = entry.inventory;
-
                     final definition = entry.definition;
 
                     return ItemCard(
                       inventoryItem: inventoryItem,
                       definition: definition,
                       character: character,
-
-                      onEquip: () {
-                        toggleEquip(inventoryItem, definition);
-                      },
-
-                      onEdit: () {
-                        editItem(inventoryItem, definition);
-                      },
-
-                      onDelete: () {
-                        deleteItem(inventoryItem, definition);
-                      },
-
-                      onExport: () {
-                        exportItem(definition);
-                      },
-
-                      onSaveToLibrary: () {
-                        saveItemToLibrary(definition);
-                      },
-
+                      onEquip: () => toggleEquip(inventoryItem, definition),
+                      onEdit: () => editItem(inventoryItem, definition),
+                      onDelete: () => deleteItem(inventoryItem, definition),
+                      onExport: () => exportItem(definition),
+                      onSaveToLibrary: () => saveItemToLibrary(definition),
                       onQuickQuantityEdit: definition.calculable
-                          ? () {
-                              editItemQuantityQuick(inventoryItem, definition);
-                            }
+                          ? () =>
+                                editItemQuantityQuick(inventoryItem, definition)
                           : null,
-
+                      onWeaponAttack:
+                          definition.isWeapon && inventoryItem.equipped
+                          ? () => resolveWeapon(definition)
+                          : null,
                       onConsumableUse:
-                          definition.type == ItemType.consumable &&
-                              definition.consumable != null
-                          ? () {
-                              useConsumable(inventoryItem, definition);
-                            }
+                          (definition.type == ItemType.consumable ||
+                              definition.type == ItemType.potion ||
+                              definition.consumable != null)
+                          ? () => useConsumable(inventoryItem, definition)
                           : null,
                     );
                   }),
               ],
             ),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: createItem,
         icon: const Icon(Icons.add_rounded),
@@ -1127,20 +969,17 @@ class _ItemQuantityCalculatorDialog extends StatefulWidget {
 class _ItemQuantityCalculatorDialogState
     extends State<_ItemQuantityCalculatorDialog> {
   late final TextEditingController valueController;
-
   String operation = '+';
 
   @override
   void initState() {
     super.initState();
-
     valueController = TextEditingController();
   }
 
   @override
   void dispose() {
     valueController.dispose();
-
     super.dispose();
   }
 
@@ -1152,20 +991,13 @@ class _ItemQuantityCalculatorDialogState
     switch (operation) {
       case '+':
         return widget.baseValue + secondValue;
-
       case '-':
         return max(0, widget.baseValue - secondValue);
-
       case '×':
         return widget.baseValue * secondValue;
-
       case '÷':
-        if (secondValue <= 0) {
-          return widget.baseValue;
-        }
-
+        if (secondValue <= 0) return widget.baseValue;
         return widget.baseValue ~/ secondValue;
-
       default:
         return widget.baseValue;
     }
@@ -1175,16 +1007,12 @@ class _ItemQuantityCalculatorDialogState
     switch (operation) {
       case '+':
         return 'sumar';
-
       case '-':
         return 'restar';
-
       case '×':
         return 'multiplicar';
-
       case '÷':
         return 'dividir';
-
       default:
         return 'usar';
     }
@@ -1193,7 +1021,6 @@ class _ItemQuantityCalculatorDialogState
   void setQuickValue(int value) {
     setState(() {
       valueController.text = '$value';
-
       valueController.selection = TextSelection.collapsed(
         offset: valueController.text.length,
       );
@@ -1206,13 +1033,10 @@ class _ItemQuantityCalculatorDialogState
       title: Row(
         children: [
           const Icon(Icons.calculate_rounded),
-
           const SizedBox(width: 10),
-
           Expanded(child: Text(widget.itemName)),
         ],
       ),
-
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1222,9 +1046,7 @@ class _ItemQuantityCalculatorDialogState
               'Cantidad actual',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-
             const SizedBox(height: 4),
-
             Text(
               '${widget.baseValue}',
               textAlign: TextAlign.center,
@@ -1232,9 +1054,7 @@ class _ItemQuantityCalculatorDialogState
                 context,
               ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
             ),
-
             const SizedBox(height: 18),
-
             Row(
               children: [
                 for (final op in const ['+', '-', '×', '÷'])
@@ -1243,50 +1063,30 @@ class _ItemQuantityCalculatorDialogState
                       padding: const EdgeInsets.symmetric(horizontal: 3),
                       child: operation == op
                           ? FilledButton(
-                              onPressed: () {
-                                setState(() {
-                                  operation = op;
-                                });
-                              },
+                              onPressed: () => setState(() => operation = op),
                               child: Text(op),
                             )
                           : OutlinedButton(
-                              onPressed: () {
-                                setState(() {
-                                  operation = op;
-                                });
-                              },
+                              onPressed: () => setState(() => operation = op),
                               child: Text(op),
                             ),
                     ),
                   ),
               ],
             ),
-
             const SizedBox(height: 14),
-
             TextFormField(
               controller: valueController,
-
               autofocus: true,
-
               keyboardType: TextInputType.number,
-
               textAlign: TextAlign.center,
-
               decoration: InputDecoration(
                 labelText: 'Cantidad a $operationLabel',
-
                 prefixIcon: const Icon(Icons.functions_rounded),
               ),
-
-              onChanged: (_) {
-                setState(() {});
-              },
+              onChanged: (_) => setState(() {}),
             ),
-
             const SizedBox(height: 18),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -1300,29 +1100,22 @@ class _ItemQuantityCalculatorDialogState
                     'Resultado',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-
                   const SizedBox(height: 3),
-
                   Text(
                     '$calculated',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-
                   const SizedBox(height: 5),
-
                   Text(
-                    '${widget.baseValue} '
-                    '$operation '
+                    '${widget.baseValue} $operation '
                     '${valueController.text.trim().isEmpty ? '0' : valueController.text.trim()}',
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 14),
-
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 8,
@@ -1330,9 +1123,7 @@ class _ItemQuantityCalculatorDialogState
               children: [
                 for (final value in const [1, 10, 100, 1000])
                   OutlinedButton(
-                    onPressed: () {
-                      setQuickValue(value);
-                    },
+                    onPressed: () => setQuickValue(value),
                     child: Text('$value'),
                   ),
               ],
@@ -1340,19 +1131,13 @@ class _ItemQuantityCalculatorDialogState
           ],
         ),
       ),
-
       actions: [
         TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancelar'),
         ),
-
         FilledButton.icon(
-          onPressed: () {
-            Navigator.of(context).pop(calculated);
-          },
+          onPressed: () => Navigator.of(context).pop(calculated),
           icon: const Icon(Icons.check_rounded),
           label: const Text('Aplicar'),
         ),

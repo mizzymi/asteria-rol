@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../models/character.dart';
-import '../../models/inventory_item.dart';
 import '../../models/item.dart';
 
 import '../../utils/number_format.dart';

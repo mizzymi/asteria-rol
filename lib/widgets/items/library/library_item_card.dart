@@ -484,21 +484,22 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
 
 class _DefinitionImage extends StatelessWidget {
   final ItemDefinition definition;
-
   final Color color;
 
   const _DefinitionImage({required this.definition, required this.color});
 
   @override
   Widget build(BuildContext context) {
+    final imagePath = definition.imagePath;
     final hasImage =
-        definition.imagePath.isNotEmpty &&
-        File(definition.imagePath).existsSync();
+        imagePath != null &&
+        imagePath.isNotEmpty &&
+        File(imagePath).existsSync();
 
     return GestureDetector(
       onTap: hasImage
           ? () {
-              _showImage(context);
+              _showImage(context, imagePath);
             }
           : null,
       child: Container(
@@ -514,7 +515,7 @@ class _DefinitionImage extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: hasImage
-            ? Image.file(File(definition.imagePath), fit: BoxFit.cover)
+            ? Image.file(File(imagePath), fit: BoxFit.cover)
             : Icon(
                 ItemTypeColors.icon(definition.type),
                 color: color,
@@ -524,8 +525,8 @@ class _DefinitionImage extends StatelessWidget {
     );
   }
 
-  Future<void> _showImage(BuildContext context) {
-    if (definition.imagePath.isEmpty) {
+  Future<void> _showImage(BuildContext context, String imagePath) {
+    if (imagePath.isEmpty) {
       return Future.value();
     }
 
@@ -550,14 +551,13 @@ class _DefinitionImage extends StatelessWidget {
                         maxScale: 5,
                         child: Center(
                           child: Image.file(
-                            File(definition.imagePath),
+                            File(imagePath),
                             fit: BoxFit.contain,
                           ),
                         ),
                       ),
                     ),
                   ),
-
                   Positioned(
                     top: 8,
                     right: 8,
@@ -568,7 +568,6 @@ class _DefinitionImage extends StatelessWidget {
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ),
-
                   Positioned(
                     left: 20,
                     right: 20,

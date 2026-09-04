@@ -5,8 +5,9 @@ import '../services/formula_evaluator.dart';
 import '../services/passive_trigger_engine.dart';
 import '../services/character_effect_trigger_engine.dart';
 
-import 'inventory_item.dart';
-import 'item_definition.dart';
+import 'formulas/character_formula.dart';
+import 'character_knowledge.dart';
+import 'equipment_slot.dart';
 import 'formulas/formula_bonus.dart';
 import 'character_content_folder.dart';
 import 'formulas/character_formula_context.dart';
@@ -94,6 +95,12 @@ class Character {
   bool turnActive;
 
   int combatTurnSequence;
+
+  /// Progreso de conocimientos descubiertos o aprendidos por el personaje
+  List<CharacterKnowledge> knowledges;
+
+  /// Slots o recursos de magia preparados (ej: {'slot_1': 4, 'slot_2': 3})
+  Map<String, int> spellSlots;
 
   List<ActiveDamageBonus> get activeDamageBonuses {
     final result = <ActiveDamageBonus>[];
@@ -212,6 +219,8 @@ class Character {
     List<InventoryItem>? inventoryItems,
     List<CharacterResource>? resources,
     List<CharacterEffect>? effects,
+    List<CharacterKnowledge>? knowledges,
+    Map<String, int>? spellSlots,
     this.combatActive = false,
     this.combatRound = 1,
     this.turnActive = false,
@@ -239,6 +248,8 @@ class Character {
        inventoryItems = inventoryItems ?? [],
        resources = resources ?? [],
        effects = effects ?? [],
+       knowledges = List<CharacterKnowledge>.from(knowledges ?? []),
+       spellSlots = Map<String, int>.from(spellSlots ?? {}),
        counters = List<CharacterCounter>.from(counters ?? []),
        currentHealth = currentHealth ?? -1 {
     /*
@@ -265,6 +276,55 @@ class Character {
     }
 
     normalizeHealth();
+  }
+
+  // ===========================================================================
+  // GESTIÓN DE CONOCIMIENTOS Y LIBROS
+  // ===========================================================================
+
+  /// Comprueba si el personaje ya tiene registrado este conocimiento
+  CharacterKnowledge? getKnowledge(String knowledgeId) {
+    try {
+      return knowledges.firstWhere((k) => k.knowledgeId == knowledgeId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Descubre o inicia el estudio de un conocimiento
+  void discoverKnowledge(String knowledgeId) {
+    if (getKnowledge(knowledgeId) != null) return;
+    knowledges.add(
+      CharacterKnowledge(
+        knowledgeId: knowledgeId,
+        status: KnowledgeStatus.discovered,
+      ),
+    );
+  }
+
+  /// Registra horas de estudio sobre un conocimiento
+  /// Registra puntos de progreso sobre un conocimiento mediante tiradas de estudio.
+  void studyKnowledge(String knowledgeId, int progress, int requiredProgress) {
+    final entry = getKnowledge(knowledgeId);
+    if (entry == null) {
+      knowledges.add(
+        CharacterKnowledge(
+          knowledgeId: knowledgeId,
+          status: progress >= requiredProgress
+              ? KnowledgeStatus.mastered
+              : KnowledgeStatus.studying,
+          currentProgress: progress,
+        ),
+      );
+      return;
+    }
+
+    entry.currentProgress += progress;
+    if (entry.currentProgress >= requiredProgress) {
+      entry.status = KnowledgeStatus.mastered;
+    } else {
+      entry.status = KnowledgeStatus.studying;
+    }
   }
 
   String createContentFolder({required String name, String? parentId}) {
@@ -1865,10 +1925,57 @@ class Character {
 
       case ArmorCategory.medium:
         final dexBonus = dexterityModifier > 2 ? 2 : dexterityModifier;
-
         return armor.baseArmorClass + dexBonus + totalArmorClassBonus;
 
       case ArmorCategory.heavy:
+        return armor.baseArmorClass + totalArmorClassBonus;
+
+      case ArmorCategory.shield:
+        return armor.baseArmorClass + totalArmorClassBonus;
+
+      case ArmorCategory.custom:
+        final formulaStr = armor.customFormula?.trim();
+        if (formulaStr != null && formulaStr.isNotEmpty) {
+          try {
+            final resolver = ResourceModifierResolver(character: this);
+            final formulaResult = const FormulaEvaluator().evaluate(
+              CharacterFormula(expression: formulaStr),
+              context: CharacterFormulaContext.fromCharacter(
+                this,
+                resourceResolver: (resourceId) {
+                  final resource = resourceById(resourceId);
+                  if (resource == null) return null;
+                  final snapshot = resolver.resolveSnapshot(resource);
+                  return FormulaResourceValue(
+                    baseCurrentValue: snapshot.baseCurrentValue,
+                    baseMaxValue: snapshot.baseMaxValue,
+                    currentValue: snapshot.currentValue,
+                    maxValue: snapshot.maxValue,
+                  );
+                },
+                baseResourceResolver: (resourceId) {
+                  final resource = resourceById(resourceId);
+                  if (resource == null) return null;
+                  final baseMax = resource.hasMaximum
+                      ? resource.maxValue.toDouble()
+                      : null;
+                  return FormulaResourceValue(
+                    baseCurrentValue: resource.currentValue.toDouble(),
+                    baseMaxValue: baseMax,
+                    currentValue: resource.currentValue.toDouble(),
+                    maxValue: baseMax,
+                  );
+                },
+              ),
+            );
+
+            if (formulaResult.valid) {
+              return formulaResult.value.round() + totalArmorClassBonus;
+            }
+          } catch (_) {
+            return armor.baseArmorClass + totalArmorClassBonus;
+          }
+        }
         return armor.baseArmorClass + totalArmorClassBonus;
     }
   }
@@ -2162,74 +2269,24 @@ class Character {
     heal(missingHealth, dispatchTriggers: dispatchTriggers);
   }
 
-  void addItem(CharacterItem item) {
-    items.add(item);
+  List<EquipmentSlotDefinition> equipmentSlots = [];
 
-    if (item.equipped) {
-      _refreshAfterEquipmentChange();
-    }
-  }
+  void updateSlotCapacity(String slotId, int newMax) {
+    final index = equipmentSlots.indexWhere((s) => s.id == slotId);
+    if (index >= 0 && newMax >= 0) {
+      equipmentSlots[index] = equipmentSlots[index].copyWith(
+        maxEquipped: newMax,
+      );
 
-  void updateItem(CharacterItem item) {
-    final index = items.indexWhere((current) => current.id == item.id);
+      final equippedInSlot = inventoryItems
+          .where((item) => item.equipped && item.equippedSlotId == slotId)
+          .toList();
 
-    if (index < 0) {
-      return;
-    }
-
-    final previous = items[index];
-
-    final wasEquipped = previous.equipped;
-    final isEquipped = item.equipped;
-
-    // Antes de sustituir el objeto limpiamos runtimes
-    // pertenecientes a sus pasivas antiguas.
-    if (wasEquipped) {
-      final engine = PassiveTriggerEngine(character: this);
-
-      for (final passive in previous.passives) {
-        engine.removeRuntimeEffectsForPassive(
-          passive.id,
-          refreshTriggers: false,
-        );
+      while (equippedInSlot.length > newMax) {
+        final excess = equippedInSlot.removeLast();
+        unequipInventoryItem(excess);
       }
     }
-
-    items[index] = item;
-
-    if (wasEquipped || isEquipped) {
-      _refreshAfterEquipmentChange();
-    }
-  }
-
-  void removeItem(String id) {
-    final index = items.indexWhere((item) => item.id == id);
-
-    if (index < 0) {
-      return;
-    }
-
-    final item = items[index];
-
-    // Si estaba equipado, sus pasivas podían tener
-    // efectos runtime persistentes activos.
-    final wasEquipped = item.equipped;
-
-    items.removeAt(index);
-
-    if (wasEquipped) {
-      _refreshAfterEquipmentChange();
-    }
-  }
-
-  CharacterItem? itemById(String id) {
-    for (final item in items) {
-      if (item.id == id) {
-        return item;
-      }
-    }
-
-    return null;
   }
 
   // ===========================================================================
@@ -2238,20 +2295,7 @@ class Character {
 
   /// Devuelve cuántas unidades de [target] puede pagar el personaje
   /// usando los objetos definidos en calculationCosts.
-  ///
-  /// Ejemplo:
-  ///
-  /// Poción:
-  /// 2 × Moneda de oro
-  /// 3 × Moneda de plata
-  ///
-  /// Inventario:
-  /// 15 oro
-  /// 32 plata
-  ///
-  /// Resultado:
-  /// min(15 ~/ 2, 32 ~/ 3) = 7
-  int maxCalculableQuantity(CharacterItem target) {
+  int maxCalculableQuantity(ItemDefinition target) {
     if (!target.calculable || target.calculationCosts.isEmpty) {
       return 0;
     }
@@ -2263,8 +2307,7 @@ class Character {
         return 0;
       }
 
-      final available = itemQuantityById(cost.itemId);
-
+      final available = inventoryQuantityById(cost.itemId);
       final possible = available ~/ cost.quantityPerUnit;
 
       if (maximum == null || possible < maximum) {
@@ -2275,40 +2318,26 @@ class Character {
     return maximum ?? 0;
   }
 
-  /// Cantidad total de un objeto concreto.
-  ///
-  /// Se suma por si en algún momento existen varias pilas
-  /// con el mismo ID/referencia.
-  int itemQuantityById(String itemId) {
-    int total = 0;
-
-    for (final item in items) {
-      if (item.id == itemId) {
+  /// Cantidad total de un objeto en el inventario moderno.
+  int inventoryQuantityById(String itemId) {
+    var total = 0;
+    for (final item in inventoryItems) {
+      if (item.itemId == itemId) {
         total += item.quantity;
       }
     }
-
     return total;
   }
 
   /// Comprueba si puede pagar [amount] unidades del objeto.
-  bool canCalculateItem(CharacterItem target, int amount) {
-    if (amount <= 0) {
-      return false;
-    }
-
-    if (!target.calculable || target.calculationCosts.isEmpty) {
-      return false;
-    }
+  bool canCalculateItem(ItemDefinition target, int amount) {
+    if (amount <= 0) return false;
+    if (!target.calculable || target.calculationCosts.isEmpty) return false;
 
     for (final cost in target.calculationCosts) {
-      if (cost.quantityPerUnit <= 0) {
-        return false;
-      }
-
+      if (cost.quantityPerUnit <= 0) return false;
       final required = cost.quantityPerUnit * amount;
-
-      if (itemQuantityById(cost.itemId) < required) {
+      if (inventoryQuantityById(cost.itemId) < required) {
         return false;
       }
     }
@@ -2316,76 +2345,28 @@ class Character {
     return true;
   }
 
-  /// Consume los objetos necesarios.
-  ///
-  /// IMPORTANTE:
-  /// Esto solamente paga el coste.
-  /// No añade automáticamente el objeto comprado.
-  bool payCalculatedItem(CharacterItem target, int amount) {
-    if (!canCalculateItem(target, amount)) {
-      return false;
-    }
+  /// Consume los objetos necesarios del inventario moderno.
+  bool payCalculatedItem(ItemDefinition target, int amount) {
+    if (!canCalculateItem(target, amount)) return false;
 
     for (final cost in target.calculationCosts) {
       var remaining = cost.quantityPerUnit * amount;
 
-      for (var i = items.length - 1; i >= 0 && remaining > 0; i--) {
-        final item = items[i];
-
-        if (item.id != cost.itemId) {
-          continue;
-        }
+      for (var i = inventoryItems.length - 1; i >= 0 && remaining > 0; i--) {
+        final item = inventoryItems[i];
+        if (item.itemId != cost.itemId) continue;
 
         final consumed = min(item.quantity, remaining);
-
         item.quantity -= consumed;
         remaining -= consumed;
 
-        // Igual que con tus consumibles:
-        // si llega a 0 desaparece del inventario.
         if (item.quantity <= 0) {
-          items.removeAt(i);
+          inventoryItems.removeAt(i);
         }
       }
     }
 
     return true;
-  }
-
-  void equipItem(CharacterItem item) {
-    if (!item.type.isEquipable) {
-      return;
-    }
-
-    if (item.equipped && !item.type.exclusiveSlot) {
-      return;
-    }
-
-    if (item.type.exclusiveSlot) {
-      for (final other in items) {
-        if (other.id == item.id) {
-          continue;
-        }
-
-        if (other.type == item.type) {
-          other.equipped = false;
-        }
-      }
-    }
-
-    item.equipped = true;
-
-    _refreshAfterEquipmentChange();
-  }
-
-  void unequipItem(CharacterItem item) {
-    if (!item.equipped) {
-      return;
-    }
-
-    item.equipped = false;
-
-    _refreshAfterEquipmentChange();
   }
 
   ItemDefinition? itemForPassive(CharacterPassive passive) {
@@ -2641,6 +2622,30 @@ class Character {
     }
 
     refreshPassiveTriggers();
+  }
+
+  // ===========================================================================
+  // GESTIÓN DE RECOMPENSAS DE SABERES (HABILIDADES Y PASIVAS)
+  // ===========================================================================
+
+  /// Añade una habilidad al personaje si no la tiene ya registrada por su ID
+  bool addCharacterAbilityIfAbsent(CharacterAbility ability) {
+    if (characterAbilities.any((a) => a.id == ability.id)) {
+      return false;
+    }
+    characterAbilities.add(ability);
+    return true;
+  }
+
+  /// Añade una pasiva al personaje si no la tiene ya registrada por su ID
+  bool addPassiveIfAbsent(CharacterPassive passive) {
+    if (passives.any((p) => p.id == passive.id)) {
+      return false;
+    }
+    addPassive(
+      passive,
+    ); // Utiliza el método nativo que normaliza cargas y refresca triggers
+    return true;
   }
 
   // ===========================================================================
@@ -3682,6 +3687,8 @@ class Character {
 
       'inventoryItems': inventoryItems.map((item) => item.toMap()).toList(),
 
+      'equipmentSlots': equipmentSlots.map((slot) => slot.toJson()).toList(),
+
       'resources': resources.map((resource) => resource.toMap()).toList(),
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
@@ -3697,6 +3704,10 @@ class Character {
       'counters': counters.map((counter) => counter.toMap()).toList(),
 
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
+
+      'knowledges': knowledges.map((k) => k.toMap()).toList(),
+
+      'spellSlots': spellSlots,
     };
   }
 
@@ -3715,6 +3726,51 @@ class Character {
     final itemDefinitions = <ItemDefinition>[];
 
     final inventoryItems = <InventoryItem>[];
+
+    final rawSlots = map['equipmentSlots'];
+    final slots = <EquipmentSlotDefinition>[];
+
+    if (rawSlots is List && rawSlots.isNotEmpty) {
+      for (final raw in rawSlots) {
+        if (raw is Map) {
+          try {
+            slots.add(
+              EquipmentSlotDefinition.fromJson(Map<String, dynamic>.from(raw)),
+            );
+          } catch (_) {}
+        }
+      }
+    }
+
+    // Si la ficha no tiene ranuras guardadas, inicializa con las estándar
+    if (slots.isEmpty) {
+      slots.addAll(defaultEquipmentSlots);
+    }
+
+    // Deserialización de conocimientos
+    final rawKnowledges = map['knowledges'];
+    final parsedKnowledges = <CharacterKnowledge>[];
+    if (rawKnowledges is List) {
+      for (final item in rawKnowledges) {
+        if (item is Map) {
+          try {
+            parsedKnowledges.add(
+              CharacterKnowledge.fromMap(Map<dynamic, dynamic>.from(item)),
+            );
+          } catch (_) {}
+        }
+      }
+    }
+
+    // Deserialización de ranuras de conjuro
+    final rawSpellSlots = map['spellSlots'];
+    final parsedSpellSlots = <String, int>{};
+    if (rawSpellSlots is Map) {
+      for (final entry in rawSpellSlots.entries) {
+        parsedSpellSlots[entry.key.toString()] =
+            (entry.value as num?)?.toInt() ?? 0;
+      }
+    }
 
     // ===========================================================================
     // DEFINICIONES MODERNAS
@@ -3762,7 +3818,7 @@ class Character {
 
         try {
           final inventoryItem = InventoryItem.fromMap(
-            Map<dynamic, dynamic>.from(rawInventoryItem),
+            Map<String, dynamic>.from(rawInventoryItem),
           );
 
           if (inventoryItem.id.trim().isEmpty ||
@@ -4194,6 +4250,10 @@ class Character {
     // CREAR PERSONAJE
     // -------------------------------------------------------------------------
 
+    // -------------------------------------------------------------------------
+    // CREAR PERSONAJE
+    // -------------------------------------------------------------------------
+
     final character = Character(
       id: map['id']?.toString() ?? '',
 
@@ -4267,6 +4327,8 @@ class Character {
 
       criticalMinimumNaturalRoll:
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
+
+      knowledges: parsedKnowledges,
     );
 
     character.normalizeHealth();

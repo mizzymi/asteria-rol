@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../services/character_storage_service.dart';
+
+import '../../models/knowledge_definition.dart';
 import '../../models/ability.dart';
 import '../../models/skill.dart';
 import '../../models/character.dart';
-import '../../models/inventory_item.dart';
 import '../../models/item.dart';
 
 import '../common/section_header.dart';
-
+import '../knowledge/study_dialog.dart';
 import 'item_ability_preview.dart';
 import 'item_passive_preview.dart';
 
@@ -290,7 +292,10 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // CONSUMIBLE
           // ===================================================================
-          if (definition.type == ItemType.consumable && consumable != null) ...[
+          if ((definition.type == ItemType.consumable ||
+                  definition.type == ItemType.potion ||
+                  definition.consumable != null) &&
+              consumable != null) ...[
             const SizedBox(height: 16),
 
             Container(
@@ -443,8 +448,9 @@ class ItemExtendedContent extends StatelessWidget {
           // ===================================================================
           // ACCIONES DEL CONSUMIBLE
           // ===================================================================
-          if (definition.type == ItemType.consumable &&
-              consumable != null &&
+          if ((definition.type == ItemType.consumable ||
+                  definition.type == ItemType.potion ||
+                  definition.consumable != null) &&
               onConsumableUse != null) ...[
             const SizedBox(height: 14),
 
@@ -452,14 +458,44 @@ class ItemExtendedContent extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: inventoryItem.quantity > 0 ? onConsumableUse : null,
-                icon: const Icon(Icons.science_rounded),
+                icon: const Icon(Icons.local_drink_rounded),
                 label: Text(
                   inventoryItem.quantity <= 0
                       ? 'Agotado'
-                      : consumable.useText.trim().isNotEmpty
-                      ? consumable.useText
+                      : consumable?.useText.trim().isNotEmpty == true
+                      ? consumable!.useText
                       : 'Usar',
                 ),
+              ),
+            ),
+          ],
+
+          if (definition.relatedKnowledgeId != null &&
+              definition.relatedKnowledgeId!.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final kId = definition.relatedKnowledgeId!;
+                  final kDef = KnowledgeDefinition(
+                    id: kId,
+                    name: definition.name,
+                    description: definition.description,
+                  );
+
+                  final result = await showStudyDialog(
+                    context,
+                    character: character,
+                    definition: kDef,
+                  );
+
+                  if (result != null) {
+                    await CharacterStorageService.saveCharacter(character);
+                  }
+                },
+                icon: const Icon(Icons.auto_stories_rounded),
+                label: const Text('Leer / Estudiar'),
               ),
             ),
           ],

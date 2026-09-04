@@ -27,9 +27,11 @@ class ItemImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = ItemTypeColors.of(definition.type);
 
+    final imagePath = definition.imagePath;
     final hasImage =
-        definition.imagePath.isNotEmpty &&
-        File(definition.imagePath).existsSync();
+        imagePath != null &&
+        imagePath.isNotEmpty &&
+        File(imagePath).existsSync();
 
     final expanded = !size.isFinite;
 
@@ -58,7 +60,7 @@ class ItemImage extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: hasImage
             ? Image.file(
-                File(definition.imagePath),
+                File(imagePath),
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,

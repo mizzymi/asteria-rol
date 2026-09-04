@@ -1,46 +1,82 @@
 class InventoryItem {
-  /// Identidad de ESTA entrada del inventario.
-  ///
-  /// No es la identidad del objeto.
   final String id;
-
-  /// ItemDefinition real que posee el personaje.
-  final String itemId;
-
+  String characterId;
+  String itemId;
   int quantity;
-
   bool equipped;
-
-  /// Slot concreto donde está equipado.
-  ///
-  /// null = inventario.
   String? equippedSlotId;
+  String? customName;
+  String? notes;
 
   InventoryItem({
     required this.id,
+    this.characterId = '',
     required this.itemId,
     this.quantity = 1,
     this.equipped = false,
     this.equippedSlotId,
-  }) : assert(quantity >= 0);
+    this.customName,
+    this.notes,
+  });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'itemId': itemId,
-      'quantity': quantity,
-      'equipped': equipped,
-      'equippedSlotId': equippedSlotId,
-    };
-  }
+  // Alias para la separación formal del catálogo
+  String get itemDefinitionId => itemId;
+  set itemDefinitionId(String value) => itemId = value;
 
-  factory InventoryItem.fromMap(Map<dynamic, dynamic> map) {
+  InventoryItem copyWith({
+    String? id,
+    String? characterId,
+    String? itemId,
+    int? quantity,
+    bool? equipped,
+    String? Function()? equippedSlotId,
+    String? customName,
+    String? notes,
+  }) {
     return InventoryItem(
-      id: map['id']?.toString() ?? '',
-      itemId: map['itemId']?.toString() ?? '',
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
-      equipped: map['equipped'] == true,
-      equippedSlotId: map['equippedSlotId']?.toString(),
+      id: id ?? this.id,
+      characterId: characterId ?? this.characterId,
+      itemId: itemId ?? this.itemId,
+      quantity: quantity ?? this.quantity,
+      equipped: equipped ?? this.equipped,
+      equippedSlotId: equippedSlotId != null
+          ? equippedSlotId()
+          : this.equippedSlotId,
+      customName: customName ?? this.customName,
+      notes: notes ?? this.notes,
     );
   }
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'characterId': characterId,
+    'itemId': itemId,
+    'quantity': quantity,
+    'equipped': equipped,
+    'equippedSlotId': equippedSlotId,
+    'customName': customName,
+    'notes': notes,
+  };
+
+  Map<String, dynamic> toJson() => toMap();
+
+  factory InventoryItem.fromMap(Map<String, dynamic> map) {
+    final equippedSlot = map['equippedSlotId'] as String?;
+    final isEquipped =
+        map['equipped'] as bool? ??
+        (equippedSlot != null && equippedSlot.isNotEmpty);
+    return InventoryItem(
+      id: map['id'] as String? ?? '',
+      characterId: map['characterId'] as String? ?? '',
+      itemId: (map['itemId'] ?? map['itemDefinitionId']) as String? ?? '',
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      equipped: isEquipped,
+      equippedSlotId: equippedSlot,
+      customName: map['customName'] as String?,
+      notes: map['notes'] as String?,
+    );
+  }
+
+  factory InventoryItem.fromJson(Map<String, dynamic> json) =>
+      InventoryItem.fromMap(json);
 }

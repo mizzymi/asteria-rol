@@ -1,19 +1,9 @@
 import 'ability.dart';
 import 'weapon.dart';
 import 'item_definition.dart';
+import 'spell_definition.dart';
 
-enum ActionSourceType {
-  ability,
-  weapon,
-
-  // ---------------------------------------------------------------------------
-  // RESERVADOS PARA EL SISTEMA GENERAL
-  // ---------------------------------------------------------------------------
-  item,
-  spell,
-  passive,
-  custom,
-}
+enum ActionSourceType { ability, weapon, item, spell, passive, custom }
 
 class ActionSource {
   final ActionSourceType type;
@@ -24,9 +14,6 @@ class ActionSource {
 
   // ===========================================================================
   // REFERENCIAS TIPADAS
-  //
-  // Solo existen para fuentes cuyo modelo ya forma parte estable
-  // del Action Engine.
   // ===========================================================================
 
   final CharacterAbility? ability;
@@ -35,6 +22,8 @@ class ActionSource {
 
   final ItemDefinition? item;
 
+  final SpellDefinition? spell;
+
   const ActionSource._({
     required this.type,
     required this.id,
@@ -42,10 +31,11 @@ class ActionSource {
     this.ability,
     this.weapon,
     this.item,
+    this.spell,
   });
 
   // ===========================================================================
-  // ABILITY
+  // CONSTRUCTORES FACTORY
   // ===========================================================================
 
   factory ActionSource.ability(CharacterAbility ability) {
@@ -57,10 +47,6 @@ class ActionSource {
     );
   }
 
-  // ===========================================================================
-  // WEAPON
-  // ===========================================================================
-
   factory ActionSource.weapon(Weapon weapon) {
     return ActionSource._(
       type: ActionSourceType.weapon,
@@ -70,45 +56,7 @@ class ActionSource {
     );
   }
 
-  // ===========================================================================
-  // GENÉRICO
-  //
-  // Permite introducir nuevas fuentes sin obligar al Action Engine
-  // a conocer inmediatamente el modelo concreto.
-  //
-  // Ejemplos futuros:
-  //
-  // ActionSource.generic(
-  //   type: ActionSourceType.item,
-  //   id: item.id,
-  //   name: item.name,
-  // )
-  //
-  // ActionSource.generic(
-  //   type: ActionSourceType.spell,
-  //   id: spell.id,
-  //   name: spell.name,
-  // )
-  // ===========================================================================
-
-  factory ActionSource.generic({
-    required ActionSourceType type,
-    required String id,
-    required String name,
-  }) {
-    if (type == ActionSourceType.ability || type == ActionSourceType.weapon) {
-      throw ArgumentError(
-        'Ability y Weapon deben construirse mediante '
-        'ActionSource.ability() o ActionSource.weapon().',
-      );
-    }
-
-    return ActionSource._(type: type, id: id, name: name);
-  }
-
-  factory ActionSource.item(
-      ItemDefinition item,
-      ) {
+  factory ActionSource.item(ItemDefinition item) {
     return ActionSource._(
       type: ActionSourceType.item,
       id: item.id,
@@ -117,33 +65,43 @@ class ActionSource {
     );
   }
 
+  factory ActionSource.spell(SpellDefinition spell) {
+    return ActionSource._(
+      type: ActionSourceType.spell,
+      id: spell.id,
+      name: spell.name,
+      spell: spell,
+    );
+  }
+
+  factory ActionSource.generic({
+    required ActionSourceType type,
+    required String id,
+    required String name,
+  }) {
+    if (type == ActionSourceType.ability ||
+        type == ActionSourceType.weapon ||
+        type == ActionSourceType.item ||
+        type == ActionSourceType.spell) {
+      throw ArgumentError(
+        'Las fuentes soportadas deben construirse mediante su método tipado: '
+        'ActionSource.ability(), ActionSource.weapon(), ActionSource.item() o ActionSource.spell().',
+      );
+    }
+
+    return ActionSource._(type: type, id: id, name: name);
+  }
+
   // ===========================================================================
   // TYPE HELPERS
   // ===========================================================================
 
-  bool get isAbility {
-    return type == ActionSourceType.ability;
-  }
-
-  bool get isWeapon {
-    return type == ActionSourceType.weapon;
-  }
-
-  bool get isItem {
-    return type == ActionSourceType.item;
-  }
-
-  bool get isSpell {
-    return type == ActionSourceType.spell;
-  }
-
-  bool get isPassive {
-    return type == ActionSourceType.passive;
-  }
-
-  bool get isCustom {
-    return type == ActionSourceType.custom;
-  }
+  bool get isAbility => type == ActionSourceType.ability;
+  bool get isWeapon => type == ActionSourceType.weapon;
+  bool get isItem => type == ActionSourceType.item;
+  bool get isSpell => type == ActionSourceType.spell;
+  bool get isPassive => type == ActionSourceType.passive;
+  bool get isCustom => type == ActionSourceType.custom;
 
   // ===========================================================================
   // REFERENCIAS SEGURAS
@@ -151,21 +109,33 @@ class ActionSource {
 
   CharacterAbility get requireAbility {
     final value = ability;
-
     if (value == null) {
       throw StateError('La acción "$name" no procede de una habilidad.');
     }
-
     return value;
   }
 
   Weapon get requireWeapon {
     final value = weapon;
-
     if (value == null) {
       throw StateError('La acción "$name" no procede de un arma.');
     }
+    return value;
+  }
 
+  ItemDefinition get requireItem {
+    final value = item;
+    if (value == null) {
+      throw StateError('La acción "$name" no procede de un objeto.');
+    }
+    return value;
+  }
+
+  SpellDefinition get requireSpell {
+    final value = spell;
+    if (value == null) {
+      throw StateError('La acción "$name" no procede de un conjuro.');
+    }
     return value;
   }
 

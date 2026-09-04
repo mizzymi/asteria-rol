@@ -19,16 +19,13 @@ class ItemImportExportService {
   // ===========================================================================
 
   static Future<File> createExportFile(ItemDefinition definition) async {
-    final exportDefinition = ItemDefinition.fromMap(definition.toMap());
-
     String? encodedImage;
 
-    if (definition.imagePath.isNotEmpty) {
-      final imageFile = File(definition.imagePath);
-
+    final imagePath = definition.imagePath;
+    if (imagePath != null && imagePath.trim().isNotEmpty) {
+      final imageFile = File(imagePath);
       if (await imageFile.exists()) {
         final bytes = await imageFile.readAsBytes();
-
         encodedImage = base64Encode(bytes);
       }
     }
@@ -37,7 +34,7 @@ class ItemImportExportService {
     // LA RUTA LOCAL NO SE EXPORTA
     // =========================================================================
 
-    exportDefinition.imagePath = '';
+    final exportDefinition = definition.copyWith(imagePath: '');
 
     // =========================================================================
     // PAYLOAD
@@ -45,18 +42,13 @@ class ItemImportExportService {
 
     final payload = {
       'type': formatType,
-
       'version': formatVersion,
-
       'definition': exportDefinition.toMap(),
-
       'image': encodedImage,
     };
 
     final tempDirectory = await getTemporaryDirectory();
-
     final safeName = _safeFileName(definition.name);
-
     final file = File('${tempDirectory.path}/$safeName.asteria-item');
 
     await file.writeAsString(jsonEncode(payload), flush: true);
@@ -109,7 +101,6 @@ class ItemImportExportService {
     }
 
     final path = result.files.single.path;
-
     if (path == null || path.isEmpty) {
       return null;
     }
@@ -123,7 +114,6 @@ class ItemImportExportService {
 
   static Future<ItemDefinition> importDefinitionFromFile(File file) async {
     final raw = await file.readAsString();
-
     final decoded = jsonDecode(raw);
 
     if (decoded is! Map) {
@@ -242,18 +232,13 @@ class ItemImportExportService {
     if (encodedImage != null && encodedImage.isNotEmpty) {
       try {
         final bytes = base64Decode(encodedImage);
-
         imagePath = await _saveImportedImage(definition.id, bytes);
       } catch (_) {
         imagePath = '';
       }
     }
 
-    final map = definition.toMap();
-
-    map['imagePath'] = imagePath;
-
-    return ItemDefinition.fromMap(map);
+    return definition.copyWith(imagePath: imagePath);
   }
 
   // ===========================================================================
@@ -265,7 +250,6 @@ class ItemImportExportService {
     List<int> bytes,
   ) async {
     final directory = await getApplicationDocumentsDirectory();
-
     final imageDirectory = Directory('${directory.path}/item_images');
 
     if (!await imageDirectory.exists()) {
@@ -273,7 +257,6 @@ class ItemImportExportService {
     }
 
     final safeItemId = _safeFileName(itemId);
-
     final file = File('${imageDirectory.path}/imported_$safeItemId.jpg');
 
     await file.writeAsBytes(bytes, flush: true);
@@ -289,19 +272,12 @@ class ItemImportExportService {
     var result = value.trim().toLowerCase();
 
     result = result.replaceAll(RegExp(r'[áàäâ]'), 'a');
-
     result = result.replaceAll(RegExp(r'[éèëê]'), 'e');
-
     result = result.replaceAll(RegExp(r'[íìïî]'), 'i');
-
     result = result.replaceAll(RegExp(r'[óòöô]'), 'o');
-
     result = result.replaceAll(RegExp(r'[úùüû]'), 'u');
-
     result = result.replaceAll('ñ', 'n');
-
     result = result.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
-
     result = result.replaceAll(RegExp(r'^_+|_+$'), '');
 
     if (result.isEmpty) {

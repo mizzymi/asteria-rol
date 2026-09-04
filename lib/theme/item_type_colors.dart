@@ -11,6 +11,8 @@ class ItemTypeColors {
 
   static const Color armor = Color(0xFF4D8FE8);
 
+  static const Color shield = Color(0xFF5C93C4);
+
   static const Color helmet = Color(0xFF6874E8);
 
   static const Color gloves = Color(0xFFE58A52);
@@ -46,6 +48,9 @@ class ItemTypeColors {
       case ItemType.armor:
         return armor;
 
+      case ItemType.shield:
+        return shield;
+
       case ItemType.helmet:
         return helmet;
 
@@ -68,7 +73,11 @@ class ItemTypeColors {
         return accessory;
 
       case ItemType.consumable:
+      case ItemType.potion:
         return consumable;
+
+      case ItemType.scroll:
+        return book;
 
       case ItemType.tool:
         return tool;
@@ -82,7 +91,11 @@ class ItemTypeColors {
       case ItemType.special:
         return special;
 
-      case ItemType.other:
+      case ItemType.ammunition:
+        return weapon;
+
+      case ItemType.container:
+      case ItemType.misc:
         return other;
     }
   }
@@ -95,6 +108,9 @@ class ItemTypeColors {
     switch (type) {
       case ItemType.armor:
         return Icons.shield_rounded;
+
+      case ItemType.shield:
+        return Icons.security_rounded;
 
       case ItemType.helmet:
         return Icons.sports_motorsports_rounded;
@@ -118,7 +134,11 @@ class ItemTypeColors {
         return Icons.auto_awesome_rounded;
 
       case ItemType.consumable:
+      case ItemType.potion:
         return Icons.local_drink_rounded;
+
+      case ItemType.scroll:
+        return Icons.description_rounded;
 
       case ItemType.tool:
         return Icons.handyman_rounded;
@@ -132,7 +152,13 @@ class ItemTypeColors {
       case ItemType.special:
         return Icons.stars_rounded;
 
-      case ItemType.other:
+      case ItemType.ammunition:
+        return Icons.adjust_rounded;
+
+      case ItemType.container:
+        return Icons.all_inbox_rounded;
+
+      case ItemType.misc:
         return Icons.inventory_2_rounded;
     }
   }

@@ -136,10 +136,6 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
 
   // ===========================================================================
   // CREATE
-  //
-  // TEMPORAL:
-  // ItemFormScreen todavía devuelve CharacterItem.
-  // Lo convertimos inmediatamente a ItemDefinition.
   // ===========================================================================
 
   Future<void> createEntry() async {
@@ -167,18 +163,13 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
 
   // ===========================================================================
   // EDIT
-  //
-  // TEMPORAL:
-  // El formulario sigue trabajando con CharacterItem.
   // ===========================================================================
 
   Future<void> editEntry(ItemLibraryEntry entry) async {
     final definition = await Navigator.push<ItemDefinition>(
       context,
       MaterialPageRoute(
-        builder: (_) => ItemFormScreen(
-          definition: ItemDefinition.fromMap(entry.definition.toMap()),
-        ),
+        builder: (_) => ItemFormScreen(definition: entry.definition),
       ),
     );
 
@@ -186,10 +177,7 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
       return;
     }
 
-    final normalizedDefinition = _definitionWithId(
-      definition,
-      entry.definition.id,
-    );
+    final normalizedDefinition = definition.copyWith(id: entry.definition.id);
 
     await ItemLibraryService.updateDefinition(
       entryId: entry.id,
@@ -209,12 +197,6 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
 
   // ===========================================================================
   // ADD TO CHARACTER
-  //
-  // TEMPORAL:
-  // El caller todavía espera CharacterItem.
-  //
-  // Cuando Character utilice InventoryItem directamente,
-  // este Navigator devolverá InventoryItem.
   // ===========================================================================
 
   Future<void> addToCharacter(ItemLibraryEntry entry) async {
@@ -222,17 +204,11 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
       return;
     }
 
-    Navigator.pop<ItemDefinition>(
-      context,
-      ItemDefinition.fromMap(entry.definition.toMap()),
-    );
+    Navigator.pop<ItemDefinition>(context, entry.definition);
   }
 
   // ===========================================================================
   // SHARE
-  //
-  // TEMPORAL:
-  // ItemImportExportService todavía trabaja con CharacterItem.
   // ===========================================================================
 
   Future<void> shareEntry(ItemLibraryEntry entry) async {
@@ -296,9 +272,6 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
 
   // ===========================================================================
   // IMPORT
-  //
-  // TEMPORAL:
-  // ItemImportExportService todavía devuelve CharacterItem.
   // ===========================================================================
 
   Future<void> importToLibrary() async {
@@ -537,18 +510,6 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
         label: const Text('Nuevo objeto'),
       ),
     );
-  }
-
-  // ===========================================================================
-  // DEFINITION COPY WITH STABLE ID
-  // ===========================================================================
-
-  ItemDefinition _definitionWithId(ItemDefinition definition, String id) {
-    final map = definition.toMap();
-
-    map['id'] = id;
-
-    return ItemDefinition.fromMap(map);
   }
 }
 

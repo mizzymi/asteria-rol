@@ -144,7 +144,7 @@ class _StatsScreenState extends State<StatsScreen> {
     final selected = await showModalBottomSheet<ProficiencyLevel>(
       context: context,
       showDragHandle: true,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -155,21 +155,25 @@ class _StatsScreenState extends State<StatsScreen> {
                 Text(
                   skill.label,
                   style: Theme.of(
-                    context,
+                    sheetContext,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 ...ProficiencyLevel.values.map((level) {
-                  return RadioListTile<ProficiencyLevel>(
-                    value: level,
-                    groupValue: current,
+                  final isSelected = level == current;
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      isSelected
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: isSelected
+                          ? Theme.of(sheetContext).colorScheme.primary
+                          : Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                    ),
                     title: Text(level.label),
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-
-                      Navigator.pop(context, value);
+                    onTap: () {
+                      Navigator.pop(sheetContext, level);
                     },
                   );
                 }),
@@ -180,7 +184,7 @@ class _StatsScreenState extends State<StatsScreen> {
       },
     );
 
-    if (selected == null) {
+    if (selected == null || !mounted) {
       return;
     }
 

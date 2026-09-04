@@ -47,10 +47,13 @@ class CharacterImportExportService {
   static Future<void> shareCharacter(Character character) async {
     final file = await exportCharacter(character);
 
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      subject: 'Personaje de Asteria',
-      text: 'Personaje ${character.name} de Asteria',
+    final safeName = character.name.trim().replaceAll(
+      RegExp(r'[^a-zA-Z0-9_-]'),
+      '_',
+    );
+
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path)], subject: '$safeName.asteria'),
     );
   }
 

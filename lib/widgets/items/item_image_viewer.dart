@@ -10,7 +10,8 @@ class ItemImageViewer extends StatelessWidget {
   const ItemImageViewer({super.key, required this.definition});
 
   static Future<void> show(BuildContext context, ItemDefinition definition) {
-    if (definition.imagePath.isEmpty) {
+    final imagePath = definition.imagePath;
+    if (imagePath == null || imagePath.isEmpty) {
       return Future.value();
     }
 
@@ -28,6 +29,8 @@ class ItemImageViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imagePath = definition.imagePath;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -44,21 +47,31 @@ class ItemImageViewer extends StatelessWidget {
                   child: Center(
                     child: Hero(
                       tag: 'item-image-${definition.id}',
-                      child: Image.file(
-                        File(definition.imagePath),
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Icon(
-                              Icons.broken_image_rounded,
-                              size: 64,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                      child: imagePath != null && imagePath.isNotEmpty
+                          ? Image.file(
+                              File(imagePath),
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Center(
+                                  child: Icon(
+                                    Icons.broken_image_rounded,
+                                    size: 64,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                );
+                              },
+                            )
+                          : Center(
+                              child: Icon(
+                                Icons.broken_image_rounded,
+                                size: 64,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          );
-                        },
-                      ),
                     ),
                   ),
                 ),
