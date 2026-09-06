@@ -595,6 +595,9 @@ String _sourceLabel(ActionDicePartResult part) {
 
     case ActionDiceSourceType.criticalBonus:
       return 'Crítico';
+
+    case ActionDiceSourceType.feature:
+      return 'Característica';
   }
 }
 
@@ -614,6 +617,9 @@ IconData _sourceIcon(ActionDicePartResult part) {
 
     case ActionDiceSourceType.criticalBonus:
       return Icons.local_fire_department_rounded;
+
+    case ActionDiceSourceType.feature:
+      return Icons.stars_rounded;
   }
 }
 

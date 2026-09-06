@@ -7,6 +7,7 @@ class InventoryItem {
   String? equippedSlotId;
   String? customName;
   String? notes;
+  String? folderId; // <--- Añadido para soportar carpetas de objetos
 
   InventoryItem({
     required this.id,
@@ -17,6 +18,7 @@ class InventoryItem {
     this.equippedSlotId,
     this.customName,
     this.notes,
+    this.folderId,
   });
 
   // Alias para la separación formal del catálogo
@@ -30,6 +32,7 @@ class InventoryItem {
     int? quantity,
     bool? equipped,
     String? Function()? equippedSlotId,
+    String? Function()? folderId,
     String? customName,
     String? notes,
   }) {
@@ -42,6 +45,7 @@ class InventoryItem {
       equippedSlotId: equippedSlotId != null
           ? equippedSlotId()
           : this.equippedSlotId,
+      folderId: folderId != null ? folderId() : this.folderId,
       customName: customName ?? this.customName,
       notes: notes ?? this.notes,
     );
@@ -54,6 +58,7 @@ class InventoryItem {
     'quantity': quantity,
     'equipped': equipped,
     'equippedSlotId': equippedSlotId,
+    'folderId': folderId, // <--- Persistencia de la carpeta
     'customName': customName,
     'notes': notes,
   };
@@ -72,6 +77,7 @@ class InventoryItem {
       quantity: (map['quantity'] as num?)?.toInt() ?? 1,
       equipped: isEquipped,
       equippedSlotId: equippedSlot,
+      folderId: map['folderId'] as String?, // <--- Lectura de la carpeta
       customName: map['customName'] as String?,
       notes: map['notes'] as String?,
     );

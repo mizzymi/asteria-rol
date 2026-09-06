@@ -854,178 +854,189 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
         showObjectsFolder ||
         _showingSpellsRoot;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: _canGoBackInsideContent
-            ? IconButton(
-                onPressed: _goBackInsideContent,
-                icon: const Icon(Icons.arrow_back_rounded),
-              )
-            : null,
-        title: Text(_screenTitle),
-        actions: [
-          if (abilities.any((ability) => ability.hasLimitedUses))
-            IconButton(
-              tooltip: 'Restaurar usos',
-              onPressed: restoreAllAbilities,
-              icon: const Icon(Icons.restart_alt_rounded),
-            ),
-          if (_currentFolder != null)
-            PopupMenuButton<String>(
-              onSelected: (value) async {
-                switch (value) {
-                  case 'rename':
-                    await _renameCurrentFolder();
-                    break;
-                  case 'delete':
-                    await _deleteCurrentFolder();
-                    break;
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'rename',
-                  child: ListTile(
-                    leading: Icon(Icons.edit_rounded),
-                    title: Text('Renombrar'),
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: ListTile(
-                    leading: Icon(Icons.delete_outline_rounded),
-                    title: Text('Eliminar'),
-                  ),
-                ),
-              ],
-            ),
-          IconButton(
-            tooltip: 'Importar resultado externo',
-            onPressed: _importExternalAction,
-            icon: const Icon(Icons.move_to_inbox_rounded),
-          ),
-        ],
-      ),
-      body: !hasContent
-          ? EmptyState(
-              icon: Icons.auto_awesome_rounded,
-              title: 'Carpeta vacía',
-              message: 'Añade habilidades, pasivas o subcarpetas.',
-              actionLabel: 'Añadir',
-              onAction: _showCreateMenu,
-            )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
-              children: [
-                // =============================================================
-                // SUBCARPETAS REGULARES
-                // =============================================================
-                ...folders.map(
-                  (folder) => _ContentFolderTile(
-                    icon: Icons.folder_rounded,
-                    name: folder.name,
-                    count: character.directContentCountInFolder(folder.id),
-                    onTap: () => _openFolder(folder.id),
-                  ),
-                ),
-
-                // =============================================================
-                // OBJETOS ROOT
-                // =============================================================
-                if (showObjectsFolder)
-                  _ContentFolderTile(
-                    icon: Icons.inventory_2_rounded,
-                    name: 'Objetos',
-                    count: character.equippedContentItems.fold<int>(
-                      0,
-                      (sum, item) => sum + character.itemContentCount(item),
+    return PopScope(
+      canPop: !_canGoBackInsideContent,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _goBackInsideContent();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _canGoBackInsideContent
+              ? IconButton(
+                  onPressed: _goBackInsideContent,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                )
+              : null,
+          title: Text(_screenTitle),
+          actions: [
+            if (abilities.any((ability) => ability.hasLimitedUses))
+              IconButton(
+                tooltip: 'Restaurar usos',
+                onPressed: restoreAllAbilities,
+                icon: const Icon(Icons.restart_alt_rounded),
+              ),
+            if (_currentFolder != null)
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  switch (value) {
+                    case 'rename':
+                      await _renameCurrentFolder();
+                      break;
+                    case 'delete':
+                      await _deleteCurrentFolder();
+                      break;
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'rename',
+                    child: ListTile(
+                      leading: Icon(Icons.edit_rounded),
+                      title: Text('Renombrar'),
                     ),
-                    automatic: true,
-                    onTap: _openItemsRoot,
                   ),
-
-                // =============================================================
-                // CARPETAS DE OBJETO
-                // =============================================================
-                ...itemFolders.map(
-                  (item) => _ContentFolderTile(
-                    icon: Icons.inventory_2_rounded,
-                    name: item.name,
-                    count: character.itemContentCount(item),
-                    automatic: true,
-                    onTap: () => _openItemFolder(item),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline_rounded),
+                      title: Text('Eliminar'),
+                    ),
                   ),
-                ),
-
-                // =============================================================
-                // CONTENIDO (HABILIDADES Y PASIVAS)
-                // =============================================================
-                if (abilities.isNotEmpty || passives.isNotEmpty) ...[
-                  if (folders.isNotEmpty ||
-                      itemFolders.isNotEmpty ||
-                      showObjectsFolder)
-                    const SizedBox(height: 14),
-
-                  ...abilities.map((ability) {
-                    final sourceItem = character.itemForAbility(ability);
-                    return AbilityCard(
-                      ability: ability,
-                      character: character,
-                      sourceItem: sourceItem,
-                      onMove: sourceItem == null
-                          ? () => moveAbility(ability)
-                          : null,
-                      onEdit: sourceItem == null
-                          ? () => editAbility(ability)
-                          : null,
-                      onDelete: sourceItem == null
-                          ? () => deleteAbility(ability)
-                          : null,
-                      onRestore: ability.hasLimitedUses
-                          ? () => restoreAbility(ability)
-                          : null,
-                      onCombatActions: () => showAbilityCombatActions(ability),
-                    );
-                  }),
-
-                  ...passives.map((passive) {
-                    final sourceItem = character.itemForPassive(passive);
-                    final fromItem = sourceItem != null;
-
-                    return PassiveCard(
-                      passive: passive,
-                      sourceItem: sourceItem,
-                      showPassiveBadge: true,
-                      onMove: fromItem ? null : () => movePassive(passive),
-                      onRoll: passive.hasRoll
-                          ? () => rollPassive(passive)
-                          : null,
-                      onApplyLinkedEffects:
-                          passive.linkedEffects.isNotEmpty &&
-                              !passive.hasAutomaticLinkedEffectTriggers
-                          ? () => applyPassiveLinkedEffects(passive)
-                          : null,
-                      onRestoreCharges: passive.usesCharges
-                          ? () => restorePassiveCharge(passive)
-                          : null,
-                      onToggle: fromItem
-                          ? null
-                          : (value) => togglePassive(passive, value),
-                      onEdit: fromItem ? null : () => editPassive(passive),
-                      onDelete: fromItem ? null : () => deletePassive(passive),
-                    );
-                  }),
                 ],
-              ],
+              ),
+            IconButton(
+              tooltip: 'Importar resultado externo',
+              onPressed: _importExternalAction,
+              icon: const Icon(Icons.move_to_inbox_rounded),
             ),
-      floatingActionButton:
-          _showingItemsRoot || _showingSpellsRoot || currentItem != null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _showCreateMenu,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Añadir'),
-            ),
+          ],
+        ),
+        body: !hasContent
+            ? EmptyState(
+                icon: Icons.auto_awesome_rounded,
+                title: 'Carpeta vacía',
+                message: 'Añade habilidades, pasivas o subcarpetas.',
+                actionLabel: 'Añadir',
+                onAction: _showCreateMenu,
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+                children: [
+                  // =============================================================
+                  // SUBCARPETAS REGULARES
+                  // =============================================================
+                  ...folders.map(
+                    (folder) => _ContentFolderTile(
+                      icon: Icons.folder_rounded,
+                      name: folder.name,
+                      count: character.directContentCountInFolder(folder.id),
+                      onTap: () => _openFolder(folder.id),
+                    ),
+                  ),
+
+                  // =============================================================
+                  // OBJETOS ROOT
+                  // =============================================================
+                  if (showObjectsFolder)
+                    _ContentFolderTile(
+                      icon: Icons.inventory_2_rounded,
+                      name: 'Objetos',
+                      count: character.equippedContentItems.fold<int>(
+                        0,
+                        (sum, item) => sum + character.itemContentCount(item),
+                      ),
+                      automatic: true,
+                      onTap: _openItemsRoot,
+                    ),
+
+                  // =============================================================
+                  // CARPETAS DE OBJETO
+                  // =============================================================
+                  ...itemFolders.map(
+                    (item) => _ContentFolderTile(
+                      icon: Icons.inventory_2_rounded,
+                      name: item.name,
+                      count: character.itemContentCount(item),
+                      automatic: true,
+                      onTap: () => _openItemFolder(item),
+                    ),
+                  ),
+
+                  // =============================================================
+                  // CONTENIDO (HABILIDADES Y PASIVAS)
+                  // =============================================================
+                  if (abilities.isNotEmpty || passives.isNotEmpty) ...[
+                    if (folders.isNotEmpty ||
+                        itemFolders.isNotEmpty ||
+                        showObjectsFolder)
+                      const SizedBox(height: 14),
+
+                    ...abilities.map((ability) {
+                      final sourceItem = character.itemForAbility(ability);
+                      return AbilityCard(
+                        ability: ability,
+                        character: character,
+                        sourceItem: sourceItem,
+                        onMove: sourceItem == null
+                            ? () => moveAbility(ability)
+                            : null,
+                        onEdit: sourceItem == null
+                            ? () => editAbility(ability)
+                            : null,
+                        onDelete: sourceItem == null
+                            ? () => deleteAbility(ability)
+                            : null,
+                        onRestore: ability.hasLimitedUses
+                            ? () => restoreAbility(ability)
+                            : null,
+                        onCombatActions: () =>
+                            showAbilityCombatActions(ability),
+                      );
+                    }),
+
+                    ...passives.map((passive) {
+                      final sourceItem = character.itemForPassive(passive);
+                      final fromItem = sourceItem != null;
+
+                      return PassiveCard(
+                        passive: passive,
+                        sourceItem: sourceItem,
+                        showPassiveBadge: true,
+                        onMove: fromItem ? null : () => movePassive(passive),
+                        onRoll: passive.hasRoll
+                            ? () => rollPassive(passive)
+                            : null,
+                        onApplyLinkedEffects:
+                            passive.linkedEffects.isNotEmpty &&
+                                !passive.hasAutomaticLinkedEffectTriggers
+                            ? () => applyPassiveLinkedEffects(passive)
+                            : null,
+                        onRestoreCharges: passive.usesCharges
+                            ? () => restorePassiveCharge(passive)
+                            : null,
+                        onToggle: fromItem
+                            ? null
+                            : (value) => togglePassive(passive, value),
+                        onEdit: fromItem ? null : () => editPassive(passive),
+                        onDelete: fromItem
+                            ? null
+                            : () => deletePassive(passive),
+                      );
+                    }),
+                  ],
+                ],
+              ),
+        floatingActionButton:
+            _showingItemsRoot || _showingSpellsRoot || currentItem != null
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _showCreateMenu,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Añadir'),
+              ),
+      ),
     );
   }
 }

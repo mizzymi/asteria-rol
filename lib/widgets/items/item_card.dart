@@ -26,6 +26,7 @@ class ItemCard extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onExport;
   final VoidCallback onSaveToLibrary;
+  final VoidCallback? onMove; // <--- Añadido callback para mover a carpeta
 
   final VoidCallback? onWeaponAttack;
   final VoidCallback? onConsumableUse;
@@ -41,6 +42,7 @@ class ItemCard extends StatefulWidget {
     required this.onDelete,
     required this.onExport,
     required this.onSaveToLibrary,
+    this.onMove,
     this.onWeaponAttack,
     this.onConsumableUse,
     this.onQuickQuantityEdit,
@@ -91,6 +93,7 @@ class _ItemCardState extends State<ItemCard> {
             onDelete: widget.onDelete,
             onExport: widget.onExport,
             onSaveToLibrary: widget.onSaveToLibrary,
+            onMove: widget.onMove,
             onQuickQuantityEdit: widget.onQuickQuantityEdit,
           ),
 
@@ -139,6 +142,7 @@ class _ItemHeader extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onExport;
   final VoidCallback onSaveToLibrary;
+  final VoidCallback? onMove;
 
   final VoidCallback? onQuickQuantityEdit;
 
@@ -153,6 +157,7 @@ class _ItemHeader extends StatelessWidget {
     required this.onDelete,
     required this.onExport,
     required this.onSaveToLibrary,
+    this.onMove,
     this.onQuickQuantityEdit,
   });
 
@@ -269,6 +274,10 @@ class _ItemHeader extends StatelessWidget {
                         onEdit();
                         break;
 
+                      case 'move':
+                        onMove?.call();
+                        break;
+
                       case 'library':
                         onSaveToLibrary();
                         break;
@@ -283,8 +292,8 @@ class _ItemHeader extends StatelessWidget {
                     }
                   },
                   itemBuilder: (_) {
-                    return const [
-                      PopupMenuItem(
+                    return [
+                      const PopupMenuItem(
                         value: 'edit',
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
@@ -292,7 +301,16 @@ class _ItemHeader extends StatelessWidget {
                           title: Text('Editar'),
                         ),
                       ),
-                      PopupMenuItem(
+                      if (onMove != null)
+                        const PopupMenuItem(
+                          value: 'move',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.drive_file_move_rounded),
+                            title: Text('Mover a carpeta'),
+                          ),
+                        ),
+                      const PopupMenuItem(
                         value: 'library',
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
@@ -300,7 +318,7 @@ class _ItemHeader extends StatelessWidget {
                           title: Text('Guardar en biblioteca'),
                         ),
                       ),
-                      PopupMenuItem(
+                      const PopupMenuItem(
                         value: 'export',
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
@@ -308,8 +326,8 @@ class _ItemHeader extends StatelessWidget {
                           title: Text('Compartir'),
                         ),
                       ),
-                      PopupMenuDivider(),
-                      PopupMenuItem(
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
                         value: 'delete',
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,

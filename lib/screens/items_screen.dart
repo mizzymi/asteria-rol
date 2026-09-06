@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/character.dart';
 import '../models/item.dart';
+import '../models/character_content_folder.dart';
 
 import '../services/action_resolution_flow.dart';
 import '../services/character_storage_service.dart';
@@ -52,6 +53,40 @@ class _ItemsScreenState extends State<ItemsScreen> {
   bool gridView = false;
   bool viewPreferenceLoaded = false;
 
+  // Estado de navegación por carpetas de objetos
+  String? _currentFolderId;
+
+  CharacterContentFolder? get _currentFolder {
+    return character.contentFolderById(_currentFolderId);
+  }
+
+  void _openFolder(String folderId) {
+    setState(() {
+      _currentFolderId = folderId;
+    });
+  }
+
+  bool get _canGoBackInsideContent {
+    return _currentFolderId != null;
+  }
+
+  void _goBackInsideContent() {
+    final folder = _currentFolder;
+    if (folder != null) {
+      setState(() {
+        _currentFolderId = folder.parentId;
+      });
+    }
+  }
+
+  String get _screenTitle {
+    final folder = _currentFolder;
+    if (folder != null) {
+      return folder.name;
+    }
+    return 'Objetos';
+  }
+
   // ===========================================================================
   // GUARDAR
   // ===========================================================================
@@ -62,8 +97,264 @@ class _ItemsScreenState extends State<ItemsScreen> {
   }
 
   // ===========================================================================
-  // CREAR
+  // CREAR / GESTIÓN DE CARPETAS
   // ===========================================================================
+
+  Future<void> _createFolder() async {
+    var folderName = '';
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nueva carpeta de objetos'),
+          content: TextField(
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nombre',
+              prefixIcon: Icon(Icons.folder_rounded),
+            ),
+            onChanged: (value) => folderName = value,
+            onSubmitted: (value) {
+              final name = value.trim();
+              if (name.isEmpty) return;
+              Navigator.of(dialogContext).pop(name);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final name = folderName.trim();
+                if (name.isEmpty) return;
+                Navigator.of(dialogContext).pop(name);
+              },
+              child: const Text('Crear'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null || result.trim().isEmpty || !mounted) return;
+
+    setState(() {
+      character.createContentFolder(
+        name: result.trim(),
+        parentId: _currentFolderId,
+        isItemFolder: true, // <--- EXCLUSIVO PARA OBJETOS
+      );
+    });
+
+    await save();
+  }
+
+  Future<void> _renameCurrentFolder() async {
+    final folder = _currentFolder;
+    if (folder == null) return;
+
+    var folderName = folder.name;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Renombrar carpeta'),
+          content: TextFormField(
+            initialValue: folder.name,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nombre',
+              prefixIcon: Icon(Icons.folder_rounded),
+            ),
+            onChanged: (value) => folderName = value,
+            onFieldSubmitted: (value) {
+              final name = value.trim();
+              if (name.isEmpty) return;
+              Navigator.of(dialogContext).pop(name);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final name = folderName.trim();
+                if (name.isEmpty) return;
+                Navigator.of(dialogContext).pop(name);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null || result.trim().isEmpty || !mounted) return;
+
+    setState(() {
+      character.renameContentFolder(folder.id, result.trim());
+    });
+
+    await save();
+  }
+
+  Future<void> _deleteCurrentFolder() async {
+    final folder = _currentFolder;
+    if (folder == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar carpeta'),
+          content: Text(
+            '¿Quieres eliminar "${folder.name}"? Su contenido subirá a la carpeta anterior.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final parentId = folder.parentId;
+    setState(() {
+      character.removeContentFolder(folder.id);
+      _currentFolderId = parentId;
+    });
+
+    await save();
+  }
+
+  List<_FolderOption> _folderOptions() {
+    final result = <_FolderOption>[];
+
+    void visit(String? parentId, int depth) {
+      final folders = character.itemFoldersInside(parentId);
+      for (final folder in folders) {
+        result.add(_FolderOption(folder: folder, depth: depth));
+        visit(folder.id, depth + 1);
+      }
+    }
+
+    visit(null, 0);
+    return result;
+  }
+
+  Future<String?> _pickFolder({required String? currentFolderId}) async {
+    final options = _folderOptions();
+
+    return showModalBottomSheet<String?>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final colors = theme.colorScheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Mover a carpeta',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.home_outlined),
+                        title: const Text('Sin carpeta (Raíz)'),
+                        trailing: currentFolderId == null
+                            ? Icon(Icons.check_rounded, color: colors.primary)
+                            : null,
+                        onTap: () => Navigator.pop(sheetContext, '__root__'),
+                      ),
+                      if (options.isNotEmpty) const Divider(),
+                      ...options.map((option) {
+                        final folder = option.folder;
+                        final selected = folder.id == currentFolderId;
+
+                        return ListTile(
+                          contentPadding: EdgeInsets.only(
+                            left: 16 + (option.depth * 20),
+                            right: 12,
+                          ),
+                          leading: Icon(
+                            Icons.folder_rounded,
+                            color: colors.primary,
+                          ),
+                          title: Text(
+                            folder.name,
+                            style: TextStyle(
+                              fontWeight: option.depth == 0
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                          trailing: selected
+                              ? Icon(Icons.check_rounded, color: colors.primary)
+                              : null,
+                          onTap: () => Navigator.pop(sheetContext, folder.id),
+                        );
+                      }),
+                      const Divider(),
+                      ListTile(
+                        leading: const Icon(Icons.create_new_folder_rounded),
+                        title: const Text('Nueva carpeta'),
+                        onTap: () => Navigator.pop(sheetContext, '__create__'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> moveInventoryItem(InventoryItem inventory) async {
+    var selected = await _pickFolder(currentFolderId: inventory.folderId);
+    if (selected == null || !mounted) return;
+
+    if (selected == '__create__') {
+      await _createFolder();
+      if (!mounted) return;
+      selected = await _pickFolder(currentFolderId: inventory.folderId);
+      if (selected == null || selected == '__create__' || !mounted) return;
+    }
+
+    final folderId = selected == '__root__' ? null : selected;
+    setState(() {
+      inventory.folderId = folderId;
+    });
+    await save();
+  }
 
   Future<void> createItem() async {
     final definition = await Navigator.push<ItemDefinition>(
@@ -81,6 +372,16 @@ class _ItemsScreenState extends State<ItemsScreen> {
         definition: definition,
         quantity: 1,
       );
+
+      // Asignar la carpeta actual al último objeto añadido
+      if (character.inventoryItems.isNotEmpty) {
+        final addedItem = character.inventoryItems.lastWhere(
+          (item) => item.itemId == definition.id,
+          orElse: () => character.inventoryItems.last,
+        );
+        addedItem.folderId = _currentFolderId;
+      }
+
       character.normalizeHealth();
     });
 
@@ -139,10 +440,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
       if (inventory.equipped) {
         if (!newDef.isEquippable) {
-          // Si el objeto fue editado y ya no se puede equipar
           _inventoryService.unequipItem(character: character, item: inventory);
         } else if (inventory.equippedSlotId != null) {
-          // Respeta exactamente la ranura previa donde estaba equipado
           _inventoryService.equipItemInSlot(
             character: character,
             item: inventory,
@@ -215,7 +514,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
       return;
     }
 
-    // Si ya está equipado, desequipar directamente
     if (inventory.equipped) {
       setState(() {
         _inventoryService.unequipItem(character: character, item: inventory);
@@ -226,7 +524,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
       return;
     }
 
-    // Si tiene más de una ranura posible, preguntar al usuario
     String? targetSlotId;
     final availableSlots = definition.equipmentSlotIds.isNotEmpty
         ? definition.equipmentSlotIds
@@ -253,6 +550,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           quantity: 1,
           equipped: false,
           equippedSlotId: null,
+          folderId: inventory.folderId, // Hereda la carpeta
         );
         character.inventoryItems.add(equippedInventory);
         _inventoryService.equipItemInSlot(
@@ -305,7 +603,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
   }
 
   // ===========================================================================
-  // DAÑO DE ARMA
+  // DAÑO DE ARMA Y CONSUMIBLES
   // ===========================================================================
 
   Future<void> resolveWeapon(ItemDefinition definition) async {
@@ -344,10 +642,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
       );
     }
   }
-
-  // ===========================================================================
-  // USAR CONSUMIBLE (USO ATÓMICO)
-  // ===========================================================================
 
   Future<void> useConsumable(
     InventoryItem inventory,
@@ -404,7 +698,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
   }
 
   // ===========================================================================
-  // IMPORTAR / EXPORTAR
+  // IMPORTAR / EXPORTAR / BIBLIOTECA
   // ===========================================================================
 
   Future<void> saveItemToLibrary(ItemDefinition definition) async {
@@ -454,10 +748,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 ],
                 const SizedBox(height: 12),
                 Text(item.type.label),
-                if (item.passives.isNotEmpty)
-                  Text('${item.passives.length} pasivas'),
-                if (item.abilities.isNotEmpty)
-                  Text('${item.abilities.length} habilidades'),
               ],
             ),
             actions: [
@@ -483,6 +773,15 @@ class _ItemsScreenState extends State<ItemsScreen> {
           definition: item,
           quantity: 1,
         );
+
+        if (character.inventoryItems.isNotEmpty) {
+          final addedItem = character.inventoryItems.lastWhere(
+            (i) => i.itemId == item.id,
+            orElse: () => character.inventoryItems.last,
+          );
+          addedItem.folderId = _currentFolderId;
+        }
+
         character.normalizeHealth();
       });
 
@@ -532,6 +831,15 @@ class _ItemsScreenState extends State<ItemsScreen> {
         definition: definition,
         quantity: 1,
       );
+
+      if (character.inventoryItems.isNotEmpty) {
+        final addedItem = character.inventoryItems.lastWhere(
+          (item) => item.itemId == definition.id,
+          orElse: () => character.inventoryItems.last,
+        );
+        addedItem.folderId = _currentFolderId;
+      }
+
       character.normalizeHealth();
     });
 
@@ -742,10 +1050,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
     await prefs.setBool(_gridViewPreferenceKey, newValue);
   }
 
-  // ===========================================================================
-  // BUILD
-  // ===========================================================================
-
   @override
   void initState() {
     super.initState();
@@ -764,192 +1068,371 @@ class _ItemsScreenState extends State<ItemsScreen> {
     });
   }
 
+  Future<void> _showCreateMenu() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.inventory_2_rounded),
+                  title: const Text('Nuevo objeto'),
+                  subtitle: const Text('Crear un objeto desde cero'),
+                  onTap: () => Navigator.pop(sheetContext, 'item'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.create_new_folder_rounded),
+                  title: const Text('Nueva carpeta'),
+                  subtitle: const Text('Organiza tus objetos'),
+                  onTap: () => Navigator.pop(sheetContext, 'folder'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    switch (result) {
+      case 'item':
+        await createItem();
+        break;
+      case 'folder':
+        await _createFolder();
+        break;
+    }
+  }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
+
   @override
   Widget build(BuildContext context) {
     final allItems = _resolvedInventory;
 
-    final equipped = allItems
+    // Obtenemos solo las subcarpetas de objetos de la carpeta actual
+    final folders = character.itemFoldersInside(_currentFolderId);
+
+    // Filtramos los objetos que están exactamente en este nivel de carpetas
+    final itemsInFolder = allItems
+        .where((entry) => entry.inventory.folderId == _currentFolderId)
+        .toList(growable: false);
+
+    final equipped = itemsInFolder
         .where((entry) => entry.inventory.equipped)
         .toList(growable: false);
 
-    final inventory = allItems
+    final inventory = itemsInFolder
         .where((entry) => !entry.inventory.equipped)
         .toList(growable: false);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Objetos'),
-        actions: [
-          IconButton(
-            tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
-            onPressed: _toggleViewMode,
-            icon: Icon(
-              gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+    final hasContent = folders.isNotEmpty || itemsInFolder.isNotEmpty;
+
+    return PopScope(
+      canPop: !_canGoBackInsideContent,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _goBackInsideContent();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _canGoBackInsideContent
+              ? IconButton(
+                  onPressed: _goBackInsideContent,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                )
+              : null,
+          title: Text(_screenTitle),
+          actions: [
+            IconButton(
+              tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
+              onPressed: _toggleViewMode,
+              icon: Icon(
+                gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+              ),
             ),
-          ),
-          IconButton(
-            tooltip: 'Configurar ranuras',
-            onPressed: () {
-              EquipmentSlotsConfigDialog.show(
-                context,
-                character: character,
-                onSaved: () async {
-                  setState(() {});
-                  await save();
+            IconButton(
+              tooltip: 'Configurar ranuras',
+              onPressed: () {
+                EquipmentSlotsConfigDialog.show(
+                  context,
+                  character: character,
+                  onSaved: () async {
+                    setState(() {});
+                    await save();
+                  },
+                );
+              },
+              icon: const Icon(Icons.tune_rounded),
+            ),
+            if (_currentFolder != null)
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  switch (value) {
+                    case 'rename':
+                      await _renameCurrentFolder();
+                      break;
+                    case 'delete':
+                      await _deleteCurrentFolder();
+                      break;
+                  }
                 },
-              );
-            },
-            icon: const Icon(Icons.tune_rounded),
-          ),
-          IconButton(
-            tooltip: 'Importar objeto',
-            onPressed: importItem,
-            icon: const Icon(Icons.file_download_rounded),
-          ),
-          IconButton(
-            tooltip: 'Biblioteca',
-            onPressed: openLibrary,
-            icon: const Icon(Icons.local_library_rounded),
-          ),
-        ],
-      ),
-      body: !viewPreferenceLoaded
-          ? const Center(child: CircularProgressIndicator())
-          : character.inventoryItems.isEmpty
-          ? EmptyState(
-              icon: Icons.inventory_2_rounded,
-              title: 'Inventario vacío',
-              message:
-                  'Añade armaduras, accesorios, armas, consumibles y otros objetos.',
-              actionLabel: 'Crear objeto',
-              onAction: createItem,
-            )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
-              children: [
-                if (equipped.isNotEmpty) ...[
-                  SectionHeader(
-                    icon: Icons.check_circle_rounded,
-                    title: 'Equipados',
-                    subtitle:
-                        '${equipped.length} ${equipped.length == 1 ? 'objeto equipado' : 'objetos equipados'}',
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'rename',
+                    child: ListTile(
+                      leading: Icon(Icons.edit_rounded),
+                      title: Text('Renombrar'),
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                  if (gridView)
-                    buildItemGrid(equipped)
-                  else
-                    ...equipped.map((entry) {
-                      final inventoryItem = entry.inventory;
-                      final definition = entry.definition;
-
-                      return ItemCard(
-                        inventoryItem: inventoryItem,
-                        definition: definition,
-                        character: character,
-                        onEquip: () => toggleEquip(inventoryItem, definition),
-                        onEdit: () => editItem(inventoryItem, definition),
-                        onDelete: () => deleteItem(inventoryItem, definition),
-                        onExport: () => exportItem(definition),
-                        onSaveToLibrary: () => saveItemToLibrary(definition),
-                        onQuickQuantityEdit: definition.calculable
-                            ? () => editItemQuantityQuick(
-                                inventoryItem,
-                                definition,
-                              )
-                            : null,
-                        onWeaponAttack:
-                            definition.isWeapon && inventoryItem.equipped
-                            ? () => resolveWeapon(definition)
-                            : null,
-                      );
-                    }),
-                  const SizedBox(height: 24),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline_rounded),
+                      title: Text('Eliminar'),
+                    ),
+                  ),
                 ],
-
-                SectionHeader(
-                  icon: Icons.backpack_rounded,
-                  title: 'Inventario',
-                  subtitle: inventory.isEmpty
-                      ? 'No hay objetos sin equipar'
-                      : '${inventory.length} ${inventory.length == 1 ? 'objeto disponible' : 'objetos disponibles'}',
-                ),
-                const SizedBox(height: 14),
-
-                if (inventory.isEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withValues(alpha: 0.45),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 34,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Todos tus objetos equipables están equipados.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (gridView)
-                  buildItemGrid(inventory)
-                else
-                  ...inventory.map((entry) {
-                    final inventoryItem = entry.inventory;
-                    final definition = entry.definition;
-
-                    return ItemCard(
-                      inventoryItem: inventoryItem,
-                      definition: definition,
-                      character: character,
-                      onEquip: () => toggleEquip(inventoryItem, definition),
-                      onEdit: () => editItem(inventoryItem, definition),
-                      onDelete: () => deleteItem(inventoryItem, definition),
-                      onExport: () => exportItem(definition),
-                      onSaveToLibrary: () => saveItemToLibrary(definition),
-                      onQuickQuantityEdit: definition.calculable
-                          ? () =>
-                                editItemQuantityQuick(inventoryItem, definition)
-                          : null,
-                      onWeaponAttack:
-                          definition.isWeapon && inventoryItem.equipped
-                          ? () => resolveWeapon(definition)
-                          : null,
-                      onConsumableUse:
-                          (definition.type == ItemType.consumable ||
-                              definition.type == ItemType.potion ||
-                              definition.consumable != null)
-                          ? () => useConsumable(inventoryItem, definition)
-                          : null,
-                    );
-                  }),
-              ],
+              ),
+            IconButton(
+              tooltip: 'Importar objeto',
+              onPressed: importItem,
+              icon: const Icon(Icons.file_download_rounded),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: createItem,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nuevo objeto'),
+            IconButton(
+              tooltip: 'Biblioteca',
+              onPressed: openLibrary,
+              icon: const Icon(Icons.local_library_rounded),
+            ),
+          ],
+        ),
+        body: !viewPreferenceLoaded
+            ? const Center(child: CircularProgressIndicator())
+            : !hasContent
+            ? EmptyState(
+                icon: Icons.inventory_2_rounded,
+                title: 'Carpeta vacía',
+                message: 'Añade objetos, equipo o subcarpetas.',
+                actionLabel: 'Añadir',
+                onAction: _showCreateMenu,
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+                children: [
+                  // =======================================================================
+                  // SUBCARPETAS
+                  // =======================================================
+                  ...folders.map(
+                    (folder) => _ContentFolderTile(
+                      icon: Icons.folder_rounded,
+                      name: folder.name,
+                      count: character.itemCountInFolder(
+                        folder.id,
+                      ), 
+                      onTap: () => _openFolder(folder.id),
+                    ),
+                  ),
+
+                  if (folders.isNotEmpty && itemsInFolder.isNotEmpty)
+                    const SizedBox(height: 14),
+
+                  // =======================================================
+                  // EQUIPADOS (si aplica en la vista actual)
+                  // =======================================================
+                  if (equipped.isNotEmpty) ...[
+                    SectionHeader(
+                      icon: Icons.check_circle_rounded,
+                      title: 'Equipados',
+                      subtitle:
+                          '${equipped.length} ${equipped.length == 1 ? 'objeto equipado' : 'objetos equipados'}',
+                    ),
+                    const SizedBox(height: 14),
+                    if (gridView)
+                      buildItemGrid(equipped)
+                    else
+                      ...equipped.map((entry) {
+                        final inventoryItem = entry.inventory;
+                        final definition = entry.definition;
+
+                        return ItemCard(
+                          inventoryItem: inventoryItem,
+                          definition: definition,
+                          character: character,
+                          onEquip: () => toggleEquip(inventoryItem, definition),
+                          onEdit: () => editItem(inventoryItem, definition),
+                          onDelete: () => deleteItem(inventoryItem, definition),
+                          onMove: () => moveInventoryItem(inventoryItem),
+                          onExport: () => exportItem(definition),
+                          onSaveToLibrary: () => saveItemToLibrary(definition),
+                          onQuickQuantityEdit: definition.calculable
+                              ? () => editItemQuantityQuick(
+                                  inventoryItem,
+                                  definition,
+                                )
+                              : null,
+                          onWeaponAttack:
+                              definition.isWeapon && inventoryItem.equipped
+                              ? () => resolveWeapon(definition)
+                              : null,
+                        );
+                      }),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // =======================================================
+                  // INVENTARIO / DISPONIBLES
+                  // =======================================================
+                  if (inventory.isNotEmpty || equipped.isEmpty) ...[
+                    SectionHeader(
+                      icon: Icons.backpack_rounded,
+                      title: 'Inventario',
+                      subtitle: inventory.isEmpty
+                          ? 'No hay objetos sin equipar en esta carpeta'
+                          : '${inventory.length} ${inventory.length == 1 ? 'objeto disponible' : 'objetos disponibles'}',
+                    ),
+                    const SizedBox(height: 14),
+
+                    if (inventory.isEmpty && equipped.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outlineVariant
+                                .withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 34,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Esta carpeta está vacía.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (gridView)
+                      buildItemGrid(inventory)
+                    else
+                      ...inventory.map((entry) {
+                        final inventoryItem = entry.inventory;
+                        final definition = entry.definition;
+
+                        return ItemCard(
+                          inventoryItem: inventoryItem,
+                          definition: definition,
+                          character: character,
+                          onEquip: () => toggleEquip(inventoryItem, definition),
+                          onEdit: () => editItem(inventoryItem, definition),
+                          onDelete: () => deleteItem(inventoryItem, definition),
+                          onMove: () => moveInventoryItem(inventoryItem),
+                          onExport: () => exportItem(definition),
+                          onSaveToLibrary: () => saveItemToLibrary(definition),
+                          onQuickQuantityEdit: definition.calculable
+                              ? () => editItemQuantityQuick(
+                                  inventoryItem,
+                                  definition,
+                                )
+                              : null,
+                          onWeaponAttack:
+                              definition.isWeapon && inventoryItem.equipped
+                              ? () => resolveWeapon(definition)
+                              : null,
+                          onConsumableUse:
+                              (definition.type == ItemType.consumable ||
+                                  definition.type == ItemType.potion ||
+                                  definition.consumable != null)
+                              ? () => useConsumable(inventoryItem, definition)
+                              : null,
+                        );
+                      }),
+                  ],
+                ],
+              ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _showCreateMenu,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Añadir'),
+        ),
       ),
     );
   }
+}
+
+class _ContentFolderTile extends StatelessWidget {
+  final IconData icon;
+  final String name;
+  final int count;
+  final VoidCallback onTap;
+
+  const _ContentFolderTile({
+    required this.icon,
+    required this.name,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        onTap: onTap,
+        leading: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, color: colors.onPrimaryContainer),
+        ),
+        title: Text(
+          name,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        subtitle: Text('$count ${count == 1 ? 'elemento' : 'elementos'}'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+      ),
+    );
+  }
+}
+
+class _FolderOption {
+  final CharacterContentFolder folder;
+  final int depth;
+
+  const _FolderOption({required this.folder, required this.depth});
 }
 
 class _ItemQuantityCalculatorDialog extends StatefulWidget {

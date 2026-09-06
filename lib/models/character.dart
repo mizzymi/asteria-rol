@@ -336,26 +336,34 @@ class Character {
     }
   }
 
-  String createContentFolder({required String name, String? parentId}) {
-    final normalizedName = name.trim();
+  // Carpetas exclusivas de Habilidades/Pasivas
+  List<CharacterContentFolder> abilityFoldersInside(String? parentId) {
+    return contentFolders
+        .where((f) => !f.isItemFolder && f.parentId == parentId)
+        .toList();
+  }
 
-    if (normalizedName.isEmpty) {
-      throw ArgumentError('La carpeta necesita un nombre.');
-    }
+  // Carpetas exclusivas de Objetos
+  List<CharacterContentFolder> itemFoldersInside(String? parentId) {
+    return contentFolders
+        .where((f) => f.isItemFolder && f.parentId == parentId)
+        .toList();
+  }
 
-    if (parentId != null && contentFolderById(parentId) == null) {
-      throw StateError('La carpeta padre no existe.');
-    }
-
-    final id =
-        'content-folder-'
-        '${DateTime.now().microsecondsSinceEpoch}';
-
-    contentFolders.add(
-      CharacterContentFolder(id: id, name: normalizedName, parentId: parentId),
+  // Creación específica
+  CharacterContentFolder createContentFolder({
+    required String name,
+    String? parentId,
+    bool isItemFolder = false,
+  }) {
+    final folder = CharacterContentFolder(
+      id: 'folder_${DateTime.now().microsecondsSinceEpoch}',
+      name: name,
+      parentId: parentId,
+      isItemFolder: isItemFolder,
     );
-
-    return id;
+    contentFolders.add(folder);
+    return folder;
   }
 
   CharacterContentFolder? contentFolderById(String? folderId) {
@@ -433,6 +441,16 @@ class Character {
   int directContentCountInFolder(String? folderId) {
     return abilitiesInFolder(folderId).length +
         passivesInFolder(folderId).length;
+  }
+
+  List<InventoryItem> itemsInFolder(String? folderId) {
+    return inventoryItems
+        .where((item) => item.folderId == folderId)
+        .toList(growable: false);
+  }
+
+  int itemCountInFolder(String? folderId) {
+    return itemsInFolder(folderId).length;
   }
 
   List<ItemDefinition> get equippedContentItems {

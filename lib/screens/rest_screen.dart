@@ -47,47 +47,28 @@ class _RestScreenState extends State<RestScreen> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  RadioListTile<String>(
-                    title: const Text('Estándar (1 Dado por uso)'),
-                    subtitle: const Text(
-                      'Gastas 1 dado de golpe + Constitución por cada uso.',
-                    ),
+                  _buildRuleOption(
+                    setDialogState,
+                    title: 'Estándar (1 Dado por uso)',
+                    subtitle:
+                        'Gastas 1 dado de golpe + Constitución por cada uso.',
                     value: 'single',
-                    groupValue: _shortRestRule,
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => _shortRestRule = val);
-                        setState(() {});
-                      }
-                    },
                   ),
-                  RadioListTile<String>(
-                    title: const Text('Todos los dados (Con. por cada dado)'),
-                    subtitle: const Text(
-                      'Tiras todos tus dados de golpe y sumas Constitución a cada uno.',
-                    ),
+                  const SizedBox(height: 8),
+                  _buildRuleOption(
+                    setDialogState,
+                    title: 'Todos los dados (Con. por cada dado)',
+                    subtitle:
+                        'Tiras todos tus dados de golpe y sumas Constitución a cada uno.',
                     value: 'all_available',
-                    groupValue: _shortRestRule,
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => _shortRestRule = val);
-                        setState(() {});
-                      }
-                    },
                   ),
-                  RadioListTile<String>(
-                    title: const Text('Nivel de dados + Con. al total'),
-                    subtitle: const Text(
-                      'Tiras todos los dados de golpe equivalentes a tu nivel y añades la Constitución una sola vez al total.',
-                    ),
+                  const SizedBox(height: 8),
+                  _buildRuleOption(
+                    setDialogState,
+                    title: 'Nivel de dados + Con. al total',
+                    subtitle:
+                        'Tiras todos los dados de golpe equivalentes a tu nivel y añades la Constitución una sola vez al total.',
                     value: 'level_dice_single_con',
-                    groupValue: _shortRestRule,
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => _shortRestRule = val);
-                        setState(() {});
-                      }
-                    },
                   ),
                 ],
               ),
@@ -104,6 +85,54 @@ class _RestScreenState extends State<RestScreen> {
     );
   }
 
+  Widget _buildRuleOption(
+    StateSetter setDialogState, {
+    required String title,
+    required String subtitle,
+    required String value,
+  }) {
+    final isSelected = _shortRestRule == value;
+    final colors = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: () {
+        setDialogState(() => _shortRestRule = value);
+        setState(() {});
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: isSelected ? colors.primary : Colors.grey,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ===========================================================================
   // LÓGICA DE DESCANSO CORTO CON SOPORTE DIGITAL / FÍSICO
   // ===========================================================================
@@ -111,9 +140,10 @@ class _RestScreenState extends State<RestScreen> {
     int maxHitDice = character.level;
     int conMod = character.constitutionModifier;
 
-    // 1. Preguntar si se desea tirar en Digital o Físico usando el selector oficial de la app
     final selectedDiceMode = await showActionDiceModeSheet(context);
     if (selectedDiceMode == null || !mounted) return;
+
+    if (!mounted) return;
 
     await showDialog(
       context: context,
@@ -175,15 +205,11 @@ class _RestScreenState extends State<RestScreen> {
                     int diceCountToRoll = (_shortRestRule == 'single')
                         ? 1
                         : maxHitDice;
-
-                    // Si es la regla de un único modificador al total, el modificador de la request es 0 en los dados
-                    // y lo sumamos manualmente después, o viceversa. Gestionarlo mediante modifier único:
                     int appliedModifier =
                         (_shortRestRule == 'level_dice_single_con')
                         ? conMod
                         : (conMod * diceCountToRoll);
 
-                    // Construimos la petición de dados usando la estructura interna del ActionDiceResolver
                     final request = ActionDiceRequest(
                       parts: [
                         ActionDiceRequestPart(
@@ -206,7 +232,6 @@ class _RestScreenState extends State<RestScreen> {
                     int totalHealing = 0;
 
                     if (selectedDiceMode == ActionDiceMode.digital) {
-                      // Resolución digital automática
                       final diceResult = const ActionDiceResolver().rollDigital(
                         request,
                       );
@@ -215,9 +240,9 @@ class _RestScreenState extends State<RestScreen> {
                         (sum, part) => sum + part.total,
                       );
                     } else {
-                      // Resolución física (pide introducir el valor manual en un diálogo)
+                      if (!dialogContext.mounted) return;
                       final inputsBySection = await showPhysicalDiceDialog(
-                        context,
+                        dialogContext,
                         sections: [
                           PhysicalDiceSection(
                             id: 'hit-dice-physical',
@@ -227,7 +252,7 @@ class _RestScreenState extends State<RestScreen> {
                         ],
                       );
 
-                      if (inputsBySection == null || !context.mounted) {
+                      if (inputsBySection == null || !dialogContext.mounted) {
                         return;
                       }
 
@@ -244,7 +269,6 @@ class _RestScreenState extends State<RestScreen> {
                       );
                     }
 
-                    // Aseguramos un mínimo de recuperación de 1 PV por tirada si sale muy bajo
                     if (totalHealing < 1) totalHealing = 1;
 
                     setState(() {
@@ -254,10 +278,10 @@ class _RestScreenState extends State<RestScreen> {
                             character.maxHealth,
                           );
                     });
-                    _save();
+                    await _save();
 
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    if (!dialogContext.mounted) return;
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
                       SnackBar(
                         content: Text(
                           '¡Has recuperado un total de $totalHealing PV en el descanso corto!',
@@ -280,7 +304,6 @@ class _RestScreenState extends State<RestScreen> {
       },
     );
 
-    // Aplicar recarga de pasivas de descanso corto
     setState(() {
       for (final passive in character.passives) {
         if (passive.hasCharges &&
@@ -321,17 +344,14 @@ class _RestScreenState extends State<RestScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() {
-      // 1. Restaurar vida al máximo
       character.currentHealth = character.maxHealth;
 
-      // 2. Restaurar cargas de todas las pasivas
       for (final passive in character.passives) {
         if (passive.hasCharges) {
           passive.currentCharges = passive.maxCharges;
         }
       }
 
-      // 3. Restaurar recursos del personaje
       for (final resource in character.resources) {
         resource.currentValue = resource.maxValue;
       }
@@ -368,9 +388,6 @@ class _RestScreenState extends State<RestScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ===================================================================
-          // TARJETA DE DESCANSO CORTO
-          // ===================================================================
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -440,12 +457,7 @@ class _RestScreenState extends State<RestScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // ===================================================================
-          // TARJETA DE DESCANSO LARGO
-          // ===================================================================
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
