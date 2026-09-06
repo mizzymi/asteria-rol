@@ -194,11 +194,14 @@ class CharacterHomeNavigationSection extends StatelessWidget {
 
         const SizedBox(height: 8),
 
+        // =====================================================================
+        // SABERES / COMPENDIO (Corregido subtítulo)
+        // =====================================================================
         CharacterMenuCard(
-          icon: Icons.casino_rounded,
-          title: 'Libros',
-          subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
-          color: CharacterHomeColors.dice,
+          icon: Icons.auto_stories_rounded,
+          title: 'Compendio de Saberes',
+          subtitle: 'Libros, recetas, historia y conocimientos',
+          color: CharacterHomeColors.knowledge,
           onTap: onKnowledge,
         ),
       ],

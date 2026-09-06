@@ -636,7 +636,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       bonus: DamageBonus(
         id: '${DateTime.now().microsecondsSinceEpoch}_damage_bonus',
         name: 'Daño adicional',
-        dicePools: [DicePool(count: 1, sides: 6)],
+        dicePools: [],
       ),
       character: widget.character,
       passive: widget.passive,
@@ -686,7 +686,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       bonus: CriticalDamageBonus(
         id: '${DateTime.now().microsecondsSinceEpoch}_critical_bonus',
         name: 'Daño crítico adicional',
-        dicePools: [DicePool(count: 1, sides: 6)],
+        dicePools: [],
         chancePercent: 100,
       ),
       character: widget.character,
@@ -733,7 +733,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       bonus: HealingBonus(
         id: '${DateTime.now().microsecondsSinceEpoch}_healing_bonus',
         name: 'Curación adicional',
-        dicePools: [DicePool(count: 1, sides: 6)],
+        dicePools: [],
       ),
       character: widget.character,
       passive: widget.passive,

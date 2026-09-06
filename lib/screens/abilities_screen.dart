@@ -5,7 +5,6 @@ import '../models/item_definition.dart';
 import '../models/ability.dart';
 import '../models/character.dart';
 import '../models/passive.dart';
-import '../models/spell_definition.dart';
 import '../models/external_action_transfer.dart';
 
 import '../services/external_action_transfer_storage_service.dart';

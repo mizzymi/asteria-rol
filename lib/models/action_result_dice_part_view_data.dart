@@ -348,6 +348,9 @@ class ActionResultDicePartViewData {
 
       case ActionDiceSourceType.criticalBonus:
         return 'Bonus crítico';
+
+      case ActionDiceSourceType.feature:
+        return 'Característica';
     }
   }
 

@@ -16,14 +16,15 @@ class CharacterHomeColors {
   static const Color proficiency = Color(0xFF7BE86F);
 
   static const Color stats = Color(0xFF9B6CE8);
-  static const Color abilities = Color(0xFF6C8CD5);
-  static const Color effects = Color(0xFF4D8FE8);
+  static const Color abilities = Color(0xFF554BE1);
+  static const Color effects = Color(0xFF5E86EA);
   static const Color counters = Color(0xFF42B8C8);
   static const Color items = Color(0xFF18A6A6);
   static const Color story = Color(0xFF55B96B);
   static const Color journal = Color(0xFFF29E4C);
   static const Color resources = Color(0xFFE85D5D);
   static const Color dice = Color(0xFFE45AA7);
+  static const Color knowledge = Color(0xFFB95EF4);
 
   // ===========================================================================
   // ACCIONES RÁPIDAS

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/formulas/formula_bonus.dart';
 import '../models/character.dart';
 import '../models/character_resource.dart';
 import '../models/item.dart';
@@ -191,6 +192,7 @@ class _CombatScreenState extends State<CombatScreen> {
         return _CombatHealthDialog(
           currentHealth: character.currentHealth,
           maxHealth: character.maxHealth,
+          character: character,
         );
       },
     );
@@ -735,10 +737,12 @@ class _CombatScreenState extends State<CombatScreen> {
 }
 
 class _CombatHealthDialog extends StatefulWidget {
+  final Character character;
   final int currentHealth;
   final int maxHealth;
 
   const _CombatHealthDialog({
+    required this.character,
     required this.currentHealth,
     required this.maxHealth,
   });
@@ -749,68 +753,133 @@ class _CombatHealthDialog extends StatefulWidget {
 
 class _CombatHealthDialogState extends State<_CombatHealthDialog> {
   late final TextEditingController amountController;
-
   String operation = '-';
+
+  // Control de modo de tirada por cada pasiva activada ('digital' o 'physical')
+  final Map<String, String> _passiveRollModes = {};
+
+  // Controladores de texto por cada dado individual de cada pasiva: passiveId -> Map<diceIndex, TextEditingController>
+  final Map<String, Map<int, TextEditingController>> _diceControllers = {};
 
   @override
   void initState() {
     super.initState();
-
     amountController = TextEditingController();
   }
 
   @override
   void dispose() {
     amountController.dispose();
-
+    for (var map in _diceControllers.values) {
+      for (var controller in map.values) {
+        controller.dispose();
+      }
+    }
     super.dispose();
   }
 
-  int get amount {
+  int get baseAmount {
     return int.tryParse(amountController.text.trim()) ?? 0;
   }
 
-  int get calculated {
-    switch (operation) {
-      case '+':
-        return (widget.currentHealth + amount).clamp(0, widget.maxHealth);
+  // Filtra las pasivas habilitadas que reaccionan al evento de daño o curación recibido
+  List<CharacterPassive> get triggeredPassives {
+    final event = operation == '-'
+        ? PassiveTriggerEvent.damageReceived
+        : PassiveTriggerEvent.healingReceived;
 
-      case '-':
-        return (widget.currentHealth - amount).clamp(0, widget.maxHealth);
-
-      default:
-        return widget.currentHealth;
-    }
+    return widget.character.enabledPassives.where((passive) {
+      return passive.triggers.any((t) => t.event == event);
+    }).toList();
   }
 
-  int get difference {
-    return calculated - widget.currentHealth;
+  // Extrae de forma plana todos los dados individuales que la pasiva requiere tirar (ej. 2d8 -> [8, 8])
+  List<int> _getDiceSidesForPassive(CharacterPassive passive) {
+    final sidesList = <int>[];
+
+    // Dados de la tirada propia de la pasiva
+    for (final pool in passive.rollDicePools) {
+      for (int i = 0; i < pool.count; i++) {
+        sidesList.add(pool.sides);
+      }
+    }
+
+    // Dados procedentes de las acciones del trigger
+    for (final t in passive.triggers) {
+      for (final a in t.actions) {
+        for (final pool in a.dicePools) {
+          for (int i = 0; i < pool.count; i++) {
+            sidesList.add(pool.sides);
+          }
+        }
+      }
+    }
+
+    return sidesList;
   }
 
-  String get resultText {
-    final diff = difference;
-
-    if (diff == 0) {
-      return 'Sin cambios';
-    }
-
-    if (diff < 0) {
-      return '${diff.abs()} de daño';
-    }
-
-    return '$diff de curación';
+  TextEditingController _getDiceController(String passiveId, int index) {
+    final passiveMap = _diceControllers.putIfAbsent(passiveId, () => {});
+    return passiveMap.putIfAbsent(index, () => TextEditingController());
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final passives = triggeredPassives;
 
-    final diff = difference;
+    int modifierTotal = 0;
 
-    final resultColor = diff < 0
+    for (final passive in passives) {
+      final diceSides = _getDiceSidesForPassive(passive);
+      final bool hasAnyDice = diceSides.isNotEmpty || passive.hasRoll;
+
+      if (hasAnyDice) {
+        final mode = _passiveRollModes[passive.id] ?? 'digital';
+        if (mode == 'physical') {
+          // Sumamos los valores introducidos en cada input individual de los dados
+          int manualSum = 0;
+          for (int i = 0; i < diceSides.length; i++) {
+            final textVal = _getDiceController(passive.id, i).text.trim();
+            manualSum += int.tryParse(textVal) ?? 0;
+          }
+          final mod = widget.character.passiveRollModifier(passive);
+          modifierTotal += (manualSum + mod);
+        } else {
+          // Modo digital por defecto (estimación o valor medio de los dados)
+          final mod = widget.character.passiveRollModifier(passive);
+          int digitalSum = diceSides.fold(
+            0,
+            (sum, sides) => sum + (sides ~/ 2 + 1),
+          ); // Media aprox del dado
+          if (diceSides.isEmpty) {
+            digitalSum = 4;
+            modifierTotal += (digitalSum + mod);
+          }
+        }
+      } else {
+        // Modificador estático sin dados
+        modifierTotal += widget.character.evaluateFormulaBonus(
+          FormulaBonus(flatValue: 1),
+          passive: passive,
+        );
+      }
+    }
+
+    final rawAmount = baseAmount;
+    final finalAmount = operation == '-'
+        ? (rawAmount - modifierTotal).clamp(0, 9999)
+        : (rawAmount + modifierTotal);
+
+    final calculated = operation == '-'
+        ? (widget.currentHealth - finalAmount).clamp(0, widget.maxHealth)
+        : (widget.currentHealth + finalAmount).clamp(0, widget.maxHealth);
+
+    final difference = calculated - widget.currentHealth;
+    final resultColor = difference < 0
         ? colors.error
-        : diff > 0
+        : difference > 0
         ? CharacterHomeColors.notes
         : colors.onSurfaceVariant;
 
@@ -819,95 +888,55 @@ class _CombatHealthDialogState extends State<_CombatHealthDialog> {
         children: [
           Icon(Icons.favorite_rounded),
           SizedBox(width: 10),
-          Text('Puntos de golpe'),
+          Text('Puntos de golpe y Triggers'),
         ],
       ),
-
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ===============================================================
-            // VIDA ACTUAL
-            // ===============================================================
             Text(
-              'Vida actual',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-
-            const SizedBox(height: 4),
-
-            Text(
-              '${widget.currentHealth} / ${widget.maxHealth}',
+              'Vida actual: ${widget.currentHealth} / ${widget.maxHealth}',
               textAlign: TextAlign.center,
-              style: theme.textTheme.headlineMedium?.copyWith(
+              style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
             ),
+            const SizedBox(height: 14),
 
-            const SizedBox(height: 18),
-
-            // ===============================================================
-            // OPERACIÓN
-            // ===============================================================
+            // Selector Daño / Curación
             Row(
               children: [
                 Expanded(
-                  child: operation == '-'
-                      ? FilledButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              operation = '-';
-                            });
-                          },
-                          icon: const Icon(Icons.remove_rounded),
-                          label: const Text('Daño'),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              operation = '-';
-                            });
-                          },
-                          icon: const Icon(Icons.remove_rounded),
-                          label: const Text('Daño'),
-                        ),
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => setState(() => operation = '-'),
+                    icon: const Icon(Icons.remove_rounded),
+                    label: const Text('Daño'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: operation == '-'
+                          ? colors.errorContainer
+                          : null,
+                    ),
+                  ),
                 ),
-
                 const SizedBox(width: 8),
-
                 Expanded(
-                  child: operation == '+'
-                      ? FilledButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              operation = '+';
-                            });
-                          },
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Curación'),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              operation = '+';
-                            });
-                          },
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Curación'),
-                        ),
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => setState(() => operation = '+'),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Curación'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: operation == '+'
+                          ? colors.primaryContainer
+                          : null,
+                    ),
+                  ),
                 ),
               ],
             ),
-
             const SizedBox(height: 14),
 
-            // ===============================================================
-            // CANTIDAD
-            // ===============================================================
             TextField(
               controller: amountController,
               autofocus: true,
@@ -915,26 +944,151 @@ class _CombatHealthDialogState extends State<_CombatHealthDialog> {
               textAlign: TextAlign.center,
               decoration: InputDecoration(
                 labelText: operation == '-'
-                    ? 'Daño recibido'
-                    : 'Curación recibida',
+                    ? 'Daño base recibido'
+                    : 'Curación base recibida',
                 prefixIcon: Icon(
                   operation == '-'
                       ? Icons.remove_circle_outline_rounded
                       : Icons.add_circle_outline_rounded,
                 ),
               ),
-              onChanged: (_) {
-                setState(() {});
-              },
+              onChanged: (_) => setState(() {}),
             ),
+
+            // SECCIÓN DE PASIVAS CON TRIGGERS ACTIVAS
+            if (passives.isNotEmpty && rawAmount > 0) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const Text(
+                'Pasivas activadas por el evento:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...passives.map((passive) {
+                final mode = _passiveRollModes[passive.id] ?? 'digital';
+                final diceSides = _getDiceSidesForPassive(passive);
+                final bool hasAnyDice = diceSides.isNotEmpty || passive.hasRoll;
+
+                return Card(
+                  elevation: 0,
+                  color: colors.surfaceContainerHighest.withValues(alpha: 0.4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          passive.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (passive.description.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            passive.description,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+
+                        if (hasAnyDice) ...[
+                          // PREGUNTA ARRIBA
+                          const Text(
+                            '¿Cómo tirar los dados?',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // BOTONES ABAJO (ORGANIZADOS EN FILA SIN DESBORDE)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Center(child: Text('Digital')),
+                                  selected: mode == 'digital',
+                                  onSelected: (val) => setState(
+                                    () => _passiveRollModes[passive.id] =
+                                        'digital',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Center(child: Text('Físico')),
+                                  selected: mode == 'physical',
+                                  onSelected: (val) => setState(
+                                    () => _passiveRollModes[passive.id] =
+                                        'physical',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          // SI ES FÍSICO, UN INPUT POR CADA DADO INDIVIDUAL
+                          if (mode == 'physical') ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'Introduce el resultado de cada dado en mesa:',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            // Generamos un campo de texto por cada dado individual encontrado
+                            ...List.generate(
+                              diceSides.isEmpty ? 1 : diceSides.length,
+                              (index) {
+                                final sides = diceSides.isNotEmpty
+                                    ? diceSides[index]
+                                    : 6;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: TextField(
+                                    controller: _getDiceController(
+                                      passive.id,
+                                      index,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'd$sides (Dado ${index + 1})',
+                                      isDense: true,
+                                      border: const OutlineInputBorder(),
+                                      prefixIcon: const Icon(
+                                        Icons.casino_outlined,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ] else ...[
+                          const Text(
+                            'Modificador de pasiva aplicado automáticamente.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
 
             const SizedBox(height: 16),
 
-            // ===============================================================
-            // CÁLCULO
-            // ===============================================================
+            // DESGLOSE FINAL
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: CharacterHomeColors.tintedSurface(
                   context,
@@ -942,63 +1096,33 @@ class _CombatHealthDialogState extends State<_CombatHealthDialog> {
                   lightStrength: 0.10,
                   darkStrength: 0.16,
                 ),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
                 children: [
                   Text(
-                    'Resultado',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    '$calculated / ${widget.maxHealth}',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: resultColor,
+                    'Impacto final: $finalAmount (${operation == '-' ? 'Daño' : 'Curación'})',
+                    style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w900,
-                    ),
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  Text(
-                    '${widget.currentHealth} '
-                    '$operation '
-                    '${amountController.text.trim().isEmpty ? '0' : amountController.text.trim()}'
-                    ' = $calculated',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    resultText,
-                    style: theme.textTheme.labelLarge?.copyWith(
                       color: resultColor,
-                      fontWeight: FontWeight.w900,
                     ),
                   ),
+                  if (passives.isNotEmpty && rawAmount > 0)
+                    Text(
+                      'Base ($rawAmount) ${operation == '-' ? '-' : '+'} Mod. Pasivas ($modifierTotal)',
+                      style: theme.textTheme.bodySmall,
+                    ),
                 ],
               ),
             ),
           ],
         ),
       ),
-
       actions: [
         TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-
         FilledButton.icon(
           onPressed: () {
             Navigator.pop(context, calculated);

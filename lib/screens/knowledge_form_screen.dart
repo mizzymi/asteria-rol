@@ -87,6 +87,23 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
     }
   }
 
+  Future<void> _editAbility(String abilityId) async {
+    final ability = await AbilityLibraryService.getAbilityById(abilityId);
+    if (ability == null || !mounted) return;
+
+    final result = await Navigator.push<CharacterAbility>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AbilityFormScreen(ability: ability),
+      ),
+    );
+
+    if (result != null) {
+      await AbilityLibraryService.saveAbility(result);
+      setState(() {}); // Refresca la vista para mostrar el nombre actualizado si cambió
+    }
+  }
+
   Future<void> _createPassive() async {
     final passive = await Navigator.push<CharacterPassive>(
       context,
@@ -103,6 +120,23 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
     }
   }
 
+  Future<void> _editPassive(String passiveId) async {
+    final passive = await PassiveLibraryService.getPassiveById(passiveId);
+    if (passive == null || !mounted) return;
+
+    final result = await Navigator.push<CharacterPassive>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PassiveFormScreen(passive: passive),
+      ),
+    );
+
+    if (result != null) {
+      await PassiveLibraryService.savePassive(result);
+      setState(() {}); // Refresca la vista para mostrar el nombre actualizado si cambió
+    }
+  }
+
   void _save() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -111,9 +145,9 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
     final id = widget.definition?.id.isNotEmpty == true
         ? widget.definition!.id
         : _nameController.text.trim().toLowerCase().replaceAll(
-            RegExp(r'\s+'),
-            '_',
-          );
+      RegExp(r'\s+'),
+      '_',
+    );
 
     final updated = KnowledgeDefinition(
       id: id,
@@ -178,10 +212,10 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
               items: KnowledgeCategory.values
                   .map(
                     (cat) => DropdownMenuItem(
-                      value: cat,
-                      child: Text(cat.name.toUpperCase()),
-                    ),
-                  )
+                  value: cat,
+                  child: Text(cat.name.toUpperCase()),
+                ),
+              )
                   .toList(),
               onChanged: (val) {
                 if (val != null) setState(() => _category = val);
@@ -290,11 +324,13 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                 return FutureBuilder<CharacterAbility?>(
                   future: AbilityLibraryService.getAbilityById(abilityId),
                   builder: (context, snapshot) {
-                    final abilityName = snapshot.data?.name ?? abilityId;
+                    final ability = snapshot.data;
+                    final abilityName = ability?.name ?? abilityId;
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
+                        onTap: () => _editAbility(abilityId),
                         leading: const CircleAvatar(
                           child: Icon(Icons.flash_on_rounded, size: 18),
                         ),
@@ -302,17 +338,27 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                           abilityName,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: snapshot.data == null
+                        subtitle: ability == null
                             ? const Text('ID no encontrado en biblioteca')
                             : null,
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          tooltip: 'Desvincular',
-                          onPressed: () {
-                            setState(() {
-                              _unlockedAbilityIds.remove(abilityId);
-                            });
-                          },
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_rounded, size: 20),
+                              tooltip: 'Editar',
+                              onPressed: () => _editAbility(abilityId),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 20),
+                              tooltip: 'Desvincular',
+                              onPressed: () {
+                                setState(() {
+                                  _unlockedAbilityIds.remove(abilityId);
+                                });
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -365,11 +411,13 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                 return FutureBuilder<CharacterPassive?>(
                   future: PassiveLibraryService.getPassiveById(passiveId),
                   builder: (context, snapshot) {
-                    final passiveName = snapshot.data?.name ?? passiveId;
+                    final passive = snapshot.data;
+                    final passiveName = passive?.name ?? passiveId;
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
+                        onTap: () => _editPassive(passiveId),
                         leading: const CircleAvatar(
                           child: Icon(Icons.verified_user_rounded, size: 18),
                         ),
@@ -377,17 +425,27 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                           passiveName,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: snapshot.data == null
+                        subtitle: passive == null
                             ? const Text('ID no encontrado en biblioteca')
                             : null,
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          tooltip: 'Desvincular',
-                          onPressed: () {
-                            setState(() {
-                              _unlockedPassiveIds.remove(passiveId);
-                            });
-                          },
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_rounded, size: 20),
+                              tooltip: 'Editar',
+                              onPressed: () => _editPassive(passiveId),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 20),
+                              tooltip: 'Desvincular',
+                              onPressed: () {
+                                setState(() {
+                                  _unlockedPassiveIds.remove(passiveId);
+                                });
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     );

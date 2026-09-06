@@ -2,7 +2,6 @@ import 'ability.dart';
 import 'skill.dart';
 import 'weapon.dart';
 import 'item_definition.dart';
-import 'spell_definition.dart';
 
 class ActionDefinition {
   final String id;
@@ -69,32 +68,6 @@ class ActionDefinition {
       requiresAttackRoll: false,
       abilityType: AbilityType.strength,
       attackBonus: 0,
-    );
-  }
-
-  factory ActionDefinition.fromSpell(
-    SpellDefinition spell, {
-    AbilityType castingAbility = AbilityType.intelligence,
-  }) {
-    final targetsSelf =
-        spell.range.trim().toLowerCase() == 'propio' ||
-        spell.range.trim().toLowerCase() == 'personal' ||
-        (spell.effects.isNotEmpty &&
-            spell.effects.every(
-              (e) => e.effectType == AbilityEffectType.healing,
-            ));
-
-    return ActionDefinition(
-      id: spell.id,
-      name: spell.name,
-      abilityType: castingAbility,
-      requiresAttackRoll: false,
-      targetType: targetsSelf
-          ? AbilityTargetType.self
-          : AbilityTargetType.external,
-      targetResolutionMode: AbilityTargetResolutionMode.shared,
-      attackBonus: 0,
-      fixedSaveDc: null,
     );
   }
 }

@@ -5,13 +5,16 @@ import 'character_home_colors.dart';
 class CharacterQuickActions extends StatelessWidget {
   final VoidCallback onCombat;
   final VoidCallback onRest;
-  final VoidCallback onNotes;
+  final VoidCallback onPets; // <--- 1. Añadimos el callback de mascotas
+  final int
+  petCount; // <--- 2. Recibimos el número de mascotas para el subtítulo o tooltip dinámico (opcional)
 
   const CharacterQuickActions({
     super.key,
     required this.onCombat,
     required this.onRest,
-    required this.onNotes,
+    required this.onPets,
+    this.petCount = 0,
   });
 
   @override
@@ -45,7 +48,7 @@ class CharacterQuickActions extends StatelessWidget {
           const SizedBox(height: 12),
 
           // ===================================================================
-          // ACCIONES
+          // ACCIONES (Ahora 4 botones distribuidos en una fila o rejilla)
           // ===================================================================
           Row(
             children: [
@@ -71,12 +74,16 @@ class CharacterQuickActions extends StatelessWidget {
 
               const SizedBox(width: 8),
 
+              // ===============================================================
+              // BOTÓN DE MASCOTAS (NUEVO)
+              // ===============================================================
               Expanded(
                 child: _QuickActionButton(
-                  icon: Icons.sticky_note_2_rounded,
-                  label: 'Notas',
-                  color: CharacterHomeColors.notes,
-                  onTap: onNotes,
+                  icon: Icons.pets_rounded,
+                  label: petCount > 0 ? 'Mascotas ($petCount)' : 'Mascotas',
+                  color: CharacterHomeColors
+                      .effects, // Color cohesivo con efectos/magia
+                  onTap: onPets,
                 ),
               ),
             ],
@@ -94,9 +101,7 @@ class CharacterQuickActions extends StatelessWidget {
 class _QuickActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
-
   final Color color;
-
   final VoidCallback onTap;
 
   const _QuickActionButton({
@@ -142,7 +147,7 @@ class _QuickActionButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -150,13 +155,13 @@ class _QuickActionButton extends StatelessWidget {
               // ICONO
               // ===============================================================
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: iconBackground,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(icon, size: 23, color: color),
+                child: Icon(icon, size: 21, color: color),
               ),
 
               const SizedBox(height: 7),
@@ -169,7 +174,7 @@ class _QuickActionButton extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.labelMedium?.copyWith(
+                style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.onSurface,
                   fontWeight: FontWeight.w800,
                 ),

@@ -1,7 +1,6 @@
 import 'ability.dart';
 import 'weapon.dart';
 import 'item_definition.dart';
-import 'spell_definition.dart';
 
 enum ActionSourceType { ability, weapon, item, spell, passive, custom }
 
@@ -22,8 +21,6 @@ class ActionSource {
 
   final ItemDefinition? item;
 
-  final SpellDefinition? spell;
-
   const ActionSource._({
     required this.type,
     required this.id,
@@ -31,7 +28,6 @@ class ActionSource {
     this.ability,
     this.weapon,
     this.item,
-    this.spell,
   });
 
   // ===========================================================================
@@ -62,15 +58,6 @@ class ActionSource {
       id: item.id,
       name: item.name,
       item: item,
-    );
-  }
-
-  factory ActionSource.spell(SpellDefinition spell) {
-    return ActionSource._(
-      type: ActionSourceType.spell,
-      id: spell.id,
-      name: spell.name,
-      spell: spell,
     );
   }
 
@@ -127,14 +114,6 @@ class ActionSource {
     final value = item;
     if (value == null) {
       throw StateError('La acción "$name" no procede de un objeto.');
-    }
-    return value;
-  }
-
-  SpellDefinition get requireSpell {
-    final value = spell;
-    if (value == null) {
-      throw StateError('La acción "$name" no procede de un conjuro.');
     }
     return value;
   }

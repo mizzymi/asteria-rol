@@ -21,6 +21,7 @@ import '../widgets/character_home/combat_stat_card.dart';
 import '../widgets/character_home/health_edit_dialog.dart';
 import '../widgets/character_home/level_edit_dialog.dart';
 
+import 'rest_screen.dart';
 import 'combat_screen.dart';
 import 'character_counters_screen.dart';
 import 'abilities_screen.dart';
@@ -33,6 +34,7 @@ import 'story_screen.dart';
 import 'resources_screen.dart';
 import 'effects_screen.dart';
 import 'knowledge_screen.dart';
+import 'pets_screen.dart';
 
 class CharacterHomeScreen extends StatefulWidget {
   final Character character;
@@ -398,8 +400,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     for (final effect in character.enabledEffects) {
       final map = Map<String, dynamic>.from(effect.toMap());
 
-      // Campos que identifican la instancia,
-      // pero no el contenido real del efecto.
       map.remove('id');
 
       final key = _stableEffectKey(map);
@@ -702,12 +702,16 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               },
 
               onRest: () {
-                // Lo implementamos después.
+                openScreen(RestScreen(character: character));
               },
 
-              onNotes: () {
-                openScreen(JournalScreen(character: character));
+              onPets: () {
+                openScreen(PetsScreen(character: character));
               },
+
+              petCount:
+              character.pets.length, // <--- Añadido conteo de mascotas
+
             ),
             // ===================================================================
             // NAVEGACIÓN
@@ -718,7 +722,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
               activeEffectsCount: character.enabledEffects.length,
               resourceCount: character.resources.length,
               counterCount: character.counters.length,
-
               onStats: () {
                 openScreen(StatsScreen(character: character));
               },
@@ -764,7 +767,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
               onKnowledge: () {
                 openScreen(KnowledgeScreen(character: character));
-              }
+              },
             ),
           ],
         ),

@@ -33,6 +33,7 @@ import 'damage_bonus.dart';
 import 'critical_damage_bonus.dart';
 import 'healing_bonus.dart';
 import 'action_trigger_context.dart';
+import 'pet.dart'; // <--- Importante: Importar el modelo de mascota
 
 class Character {
   final String id;
@@ -50,6 +51,7 @@ class Character {
   AbilityScores abilities;
 
   int currentHealth;
+  int? customMaxHealth;
 
   int armorClass;
   int speed;
@@ -101,6 +103,9 @@ class Character {
 
   /// Slots o recursos de magia preparados (ej: {'slot_1': 4, 'slot_2': 3})
   Map<String, int> spellSlots;
+
+  /// Mascotas y compañeros del personaje
+  List<Pet> pets; // <--- Lista de mascotas añadida
 
   List<ActiveDamageBonus> get activeDamageBonuses {
     final result = <ActiveDamageBonus>[];
@@ -197,6 +202,7 @@ class Character {
     AbilityScores? abilities,
     List<CharacterContentFolder>? contentFolders,
     int? currentHealth,
+    this.customMaxHealth,
     this.armorClass = 10,
     this.speed = 30,
     this.backstory = '',
@@ -221,6 +227,7 @@ class Character {
     List<CharacterEffect>? effects,
     List<CharacterKnowledge>? knowledges,
     Map<String, int>? spellSlots,
+    List<Pet>? pets, // <--- Parámetro en constructor
     this.combatActive = false,
     this.combatRound = 1,
     this.turnActive = false,
@@ -250,6 +257,9 @@ class Character {
        effects = effects ?? [],
        knowledges = List<CharacterKnowledge>.from(knowledges ?? []),
        spellSlots = Map<String, int>.from(spellSlots ?? {}),
+       pets = List<Pet>.from(
+         pets ?? const [],
+       ), // <--- Inicialización de mascotas
        counters = List<CharacterCounter>.from(counters ?? []),
        currentHealth = currentHealth ?? -1 {
     /*
@@ -302,7 +312,6 @@ class Character {
     );
   }
 
-  /// Registra horas de estudio sobre un conocimiento
   /// Registra puntos de progreso sobre un conocimiento mediante tiradas de estudio.
   void studyKnowledge(String knowledgeId, int progress, int requiredProgress) {
     final entry = getKnowledge(knowledgeId);
@@ -685,32 +694,12 @@ class Character {
       return;
     }
 
-    // ===========================================================================
-    // 1. EVENTO DE FIN DE TURNO
-    //
-    // Los efectos siguen activos durante turnEnded.
-    // ===========================================================================
-
     dispatchPassiveTrigger(
       PassiveTriggerEvent.turnEnded,
       eventVariables: {'round': combatRound.toDouble(), 'turn_active': 1},
     );
 
-    // ===========================================================================
-    // 2. CERRAR TURNO
-    // ===========================================================================
-
     turnActive = false;
-
-    // ===========================================================================
-    // 3. AVANZAR EFECTOS POR TURNOS
-    //
-    // advanceTurnEffects() ya:
-    // - avanza duración
-    // - limpia expirados
-    // - normaliza vida
-    // - refresca whileCondition
-    // ===========================================================================
 
     advanceTurnEffects();
   }
@@ -719,10 +708,6 @@ class Character {
     if (!combatActive) {
       return;
     }
-
-    // ===========================================================================
-    // 1. CERRAR TURNO ACTIVO
-    // ===========================================================================
 
     if (turnActive) {
       dispatchPassiveTrigger(
@@ -735,34 +720,14 @@ class Character {
       advanceTurnEffects();
     }
 
-    // ===========================================================================
-    // 2. EVENTO DE FIN DE RONDA
-    // ===========================================================================
-
     dispatchPassiveTrigger(
       PassiveTriggerEvent.roundEnded,
       eventVariables: {'round': combatRound.toDouble(), 'turn_active': 0},
     );
 
-    // ===========================================================================
-    // 3. AVANZAR EFECTOS DE RONDA
-    //
-    // Aquí avanzan:
-    // - rounds
-    // - minutes (10 rondas = 1 minuto)
-    // ===========================================================================
-
     advanceRoundEffects();
 
-    // ===========================================================================
-    // 4. NUEVA RONDA
-    // ===========================================================================
-
     combatRound++;
-
-    // ===========================================================================
-    // 5. INICIO DE NUEVA RONDA
-    // ===========================================================================
 
     dispatchPassiveTrigger(
       PassiveTriggerEvent.roundStarted,
@@ -771,10 +736,6 @@ class Character {
   }
 
   void resetCombat() {
-    // ===========================================================================
-    // CERRAR TURNO
-    // ===========================================================================
-
     if (turnActive) {
       dispatchPassiveTrigger(
         PassiveTriggerEvent.turnEnded,
@@ -783,13 +744,6 @@ class Character {
 
       turnActive = false;
     }
-
-    // ===========================================================================
-    // CERRAR RONDA
-    //
-    // Resetear combate no avanza duraciones automáticamente.
-    // Solo cerramos el estado lógico del combate.
-    // ===========================================================================
 
     dispatchPassiveTrigger(
       PassiveTriggerEvent.roundEnded,
@@ -831,33 +785,11 @@ class Character {
 
     final engine = PassiveTriggerEngine(character: this);
 
-    // ===========================================================================
-    // DESACTIVAR
-    //
-    // Todo efecto runtime creado por triggers de esta pasiva deja de existir.
-    // ===========================================================================
-
     if (!enabled) {
       engine.removeRuntimeEffectsForPassive(passive.id, refreshTriggers: false);
     }
 
-    // ===========================================================================
-    // NORMALIZAR
-    //
-    // Quitar o activar una pasiva puede cambiar vida máxima efectiva.
-    // ===========================================================================
-
     normalizeHealth();
-
-    // ===========================================================================
-    // RECONSTRUIR ESTADO PERSISTENTE
-    //
-    // Al activar:
-    //   crea inmediatamente los whileCondition cuya condición ya sea verdadera.
-    //
-    // Al desactivar:
-    //   reevaluamos los whileCondition restantes.
-    // ===========================================================================
 
     refreshPassiveTriggers();
   }
@@ -1022,9 +954,6 @@ class Character {
     ];
   }
 
-  /// Nivel total del personaje.
-  ///
-  /// Guerrero 3 + Mago 2 = nivel 5.
   int get level {
     if (classes.isEmpty) {
       return 1;
@@ -1033,18 +962,6 @@ class Character {
     return classes.fold<int>(0, (sum, item) => sum + item.level);
   }
 
-  /*
-   * Setter temporal para que el código antiguo:
-   *
-   * character.level = 5;
-   *
-   * siga compilando.
-   *
-   * Si solo hay una clase cambia su nivel.
-   *
-   * Si hay multiclase, modifica la clase principal
-   * intentando mantener los niveles secundarios.
-   */
   set level(int value) {
     final safeValue = value < 1 ? 1 : value;
 
@@ -1095,9 +1012,6 @@ class Character {
     return classes.first.dndClass;
   }
 
-  /// Compatibilidad con pantallas antiguas que todavía usan:
-  ///
-  /// character.dndClass
   DndClass get dndClass => primaryClass;
 
   set dndClass(DndClass value) {
@@ -1736,23 +1650,10 @@ class Character {
     _refreshAfterCharacterStructureChange();
   }
 
-  /// Valor BASE del atributo.
-  ///
-  /// Es el valor guardado directamente en [abilities].
-  ///
-  /// Ejemplo:
-  /// FUE base = 16
   int baseAbilityScore(AbilityType ability) {
     return abilities.valueByType(ability);
   }
 
-  /// Bonus al VALOR BASE del atributo procedente de pasivas.
-  ///
-  /// Ejemplo:
-  /// FUE base = 16
-  /// Pasiva = +2 FUE
-  ///
-  /// abilityScore(FUE) = 18
   int passiveAbilityScoreBonus(AbilityType ability) {
     var total = 0;
 
@@ -1769,45 +1670,14 @@ class Character {
     return total;
   }
 
-  /// Valor EFECTIVO del atributo.
-  ///
-  /// Incluye:
-  /// - valor base
-  /// - modificaciones de pasivas
-  ///
-  /// Ejemplo:
-  /// FUE base = 16
-  /// Pasiva = +2 FUE
-  ///
-  /// Resultado = 18
   int abilityScore(AbilityType ability) {
     return baseAbilityScore(ability) + passiveAbilityScoreBonus(ability);
   }
 
-  /// Modificador BASE.
-  ///
-  /// IMPORTANTE:
-  /// Se calcula usando únicamente el atributo BASE.
-  ///
-  /// Ejemplo:
-  /// FUE base = 16
-  /// Resultado = +3
   int baseAbilityModifier(AbilityType ability) {
     return AbilityScores.modifierFor(baseAbilityScore(ability));
   }
 
-  /// Modificador procedente específicamente de pasivas.
-  ///
-  /// Este es el sistema de "Mod" de las pasivas.
-  ///
-  /// No modifica el valor del atributo.
-  /// Modifica directamente su modificador.
-  ///
-  /// Ejemplo:
-  /// FUE 16 = +3
-  /// Pasiva Mod FUE = +1
-  ///
-  /// Resultado final = +4
   int passiveAbilityModifierBonus(AbilityType ability) {
     var total = 0;
 
@@ -1824,7 +1694,6 @@ class Character {
     return total;
   }
 
-  /// Bonus al modificador procedente de efectos activos.
   int effectAbilityModifierBonus(AbilityType ability) {
     return enabledEffects.fold<int>(
       0,
@@ -1832,26 +1701,6 @@ class Character {
     );
   }
 
-  /// Modificador EFECTIVO del atributo.
-  ///
-  /// Orden:
-  ///
-  /// 1. Calcula el valor efectivo del stat.
-  /// 2. Convierte ese stat en modificador.
-  /// 3. Añade modificaciones directas al MOD.
-  /// 4. Añade modificaciones de efectos.
-  ///
-  /// Ejemplo:
-  ///
-  /// FUE base = 16
-  /// Base Stat pasiva = +2
-  ///
-  /// FUE efectiva = 18
-  /// Mod natural = +4
-  ///
-  /// Mod pasiva = +1
-  ///
-  /// Resultado final = +5
   int abilityModifier(AbilityType ability) {
     final effectiveScore = abilityScore(ability);
 
@@ -2000,8 +1849,6 @@ class Character {
     );
   }
 
-  /// Para compatibilidad visual.
-  /// En multiclase hay realmente varios dados de golpe.
   int get hitDie => primaryClass.hitDie;
 
   String get hitDiceText {
@@ -2116,10 +1963,6 @@ class Character {
   // PUNTOS DE VIDA
   // ===========================================================================
 
-  /// Vida máxima BASE del personaje.
-  ///
-  /// No incluye pasivas, efectos ni modificadores temporales.
-  /// Es el valor desde el que siempre se recalcula la vida efectiva.
   int get baseMaxHealth {
     if (classes.isEmpty) {
       return 1;
@@ -2144,13 +1987,10 @@ class Character {
     return total < 1 ? 1 : total;
   }
 
-  /// Vida máxima EFECTIVA.
-  ///
-  /// Siempre parte de [baseMaxHealth].
-  ///
-  /// En el futuro aquí se incorporarán también
-  /// los nuevos modificadores mediante fórmulas.
   int get maxHealth {
+    if (customMaxHealth != null) {
+      return customMaxHealth! < 1 ? 1 : customMaxHealth!;
+    }
     final total = baseMaxHealth + passiveMaxHealthBonus + effectMaxHealthBonus;
 
     return total < 1 ? 1 : total;
@@ -2293,8 +2133,6 @@ class Character {
   // CALCULADORA DE OBJETOS
   // ===========================================================================
 
-  /// Devuelve cuántas unidades de [target] puede pagar el personaje
-  /// usando los objetos definidos en calculationCosts.
   int maxCalculableQuantity(ItemDefinition target) {
     if (!target.calculable || target.calculationCosts.isEmpty) {
       return 0;
@@ -2318,7 +2156,6 @@ class Character {
     return maximum ?? 0;
   }
 
-  /// Cantidad total de un objeto en el inventario moderno.
   int inventoryQuantityById(String itemId) {
     var total = 0;
     for (final item in inventoryItems) {
@@ -2329,7 +2166,6 @@ class Character {
     return total;
   }
 
-  /// Comprueba si puede pagar [amount] unidades del objeto.
   bool canCalculateItem(ItemDefinition target, int amount) {
     if (amount <= 0) return false;
     if (!target.calculable || target.calculationCosts.isEmpty) return false;
@@ -2345,7 +2181,6 @@ class Character {
     return true;
   }
 
-  /// Consume los objetos necesarios del inventario moderno.
   bool payCalculatedItem(ItemDefinition target, int amount) {
     if (!canCalculateItem(target, amount)) return false;
 
@@ -2474,10 +2309,6 @@ class Character {
 
     final safeQuantity = quantity < 1 ? 1 : quantity;
 
-    // ===========================================================================
-    // STACK
-    // ===========================================================================
-
     if (definition.stackable) {
       for (final item in inventoryItems) {
         if (item.itemId != definition.id) {
@@ -2493,10 +2324,6 @@ class Character {
         return;
       }
     }
-
-    // ===========================================================================
-    // NUEVA INSTANCIA
-    // ===========================================================================
 
     inventoryItems.add(
       InventoryItem(
@@ -2624,11 +2451,6 @@ class Character {
     refreshPassiveTriggers();
   }
 
-  // ===========================================================================
-  // GESTIÓN DE RECOMPENSAS DE SABERES (HABILIDADES Y PASIVAS)
-  // ===========================================================================
-
-  /// Añade una habilidad al personaje si no la tiene ya registrada por su ID
   bool addCharacterAbilityIfAbsent(CharacterAbility ability) {
     if (characterAbilities.any((a) => a.id == ability.id)) {
       return false;
@@ -2637,38 +2459,20 @@ class Character {
     return true;
   }
 
-  /// Añade una pasiva al personaje si no la tiene ya registrada por su ID
   bool addPassiveIfAbsent(CharacterPassive passive) {
     if (passives.any((p) => p.id == passive.id)) {
       return false;
     }
-    addPassive(
-      passive,
-    ); // Utiliza el método nativo que normaliza cargas y refresca triggers
+    addPassive(passive);
     return true;
   }
-
-  // ===========================================================================
-  // HABILIDADES D&D
-  // ===========================================================================
 
   int abilityEffectModifier(CharacterAbility ability, AbilityEffect effect) {
     int result = effect.effectBonus;
 
-    // =========================================================================
-    // NUEVO SISTEMA
-    // =========================================================================
-
     if (effect.abilityModifierMultipliers.isNotEmpty) {
       result += calculateAbilityMultipliers(effect.abilityModifierMultipliers);
-    }
-    // =========================================================================
-    // LEGACY
-    //
-    // Las habilidades antiguas usaban el
-    // atributo principal de la habilidad.
-    // =========================================================================
-    else if (effect.legacyAddAbilityModifier) {
+    } else if (effect.legacyAddAbilityModifier) {
       result += abilityModifier(ability.abilityType);
     }
 
@@ -2708,10 +2512,6 @@ class Character {
     return skillProficiency(skill) == ProficiencyLevel.expertise;
   }
 
-  // ===========================================================================
-  // SALVACIONES
-  // ===========================================================================
-
   int savingThrowBonus(AbilityType ability) {
     final modifier = abilityModifier(ability);
 
@@ -2745,10 +2545,6 @@ class Character {
     };
   }
 
-  // ===========================================================================
-  // ARMAS
-  // ===========================================================================
-
   int attackBonus(Weapon weapon) {
     final modifier = abilityModifier(weapon.attackAbility);
 
@@ -2768,10 +2564,6 @@ class Character {
     );
   }
 
-  // ===========================================================================
-  // DAÑO DE ARMAS
-  // ===========================================================================
-
   int calculateResourceValueMultipliers(Map<String, int> multipliers) {
     int result = 0;
 
@@ -2790,59 +2582,18 @@ class Character {
     return result;
   }
 
-  /// Modificador del sistema antiguo.
-  ///
-  /// Se mantiene porque todavía puede haber
-  /// widgets o código usando:
-  ///
-  /// weapon.damageDice
-  /// weapon.damageType
   int damageModifier(Weapon weapon) {
     final modifier = abilityModifier(weapon.attackAbility);
 
     return modifier + weapon.magicBonus;
   }
 
-  /// Calcula el modificador de un componente
-  /// concreto de daño.
-  ///
-  /// Ejemplo:
-  ///
-  /// 1d8 + FUE + 1 mágico
-  ///
-  /// Si:
-  /// FUE = +4
-  /// magicBonus = +1
-  ///
-  /// resultado = +5
   int weaponDamageModifier(Weapon weapon, WeaponDamage damage) {
     int result = damage.bonus;
-
-    // -------------------------------------------------------------------------
-    // ATRIBUTO
-    // -------------------------------------------------------------------------
 
     if (damage.addAbilityModifier) {
       result += abilityModifier(damage.abilityType);
     }
-
-    // -------------------------------------------------------------------------
-    // BONUS MÁGICO
-    //
-    // Solo se aplica al PRIMER componente.
-    //
-    // Ejemplo:
-    //
-    // Espada +1
-    //
-    // 1d8 + FUE + 1 cortante
-    // 1d6 fuego
-    //
-    // y NO:
-    //
-    // 1d8 + FUE + 1
-    // 1d6 + 1
-    // -------------------------------------------------------------------------
 
     if (weapon.damages.isNotEmpty && identical(weapon.damages.first, damage)) {
       result += weapon.magicBonus;
@@ -2851,13 +2602,6 @@ class Character {
     return result;
   }
 
-  /// Texto de un componente de daño.
-  ///
-  /// Ejemplo:
-  ///
-  /// 1d8 + 5 Cortante
-  ///
-  /// 2d6 Fuego
   String weaponDamagePartText(Weapon weapon, WeaponDamage damage) {
     final modifier = weaponDamageModifier(weapon, damage);
 
@@ -2886,28 +2630,12 @@ class Character {
     return result.trim();
   }
 
-  /// Texto completo del daño del arma.
-  ///
-  /// Nuevo sistema:
-  ///
-  /// 1d8 + 5 Cortante + 1d6 Fuego
-  ///
-  /// Si no existen damages, utiliza el
-  /// sistema antiguo automáticamente.
   String damageText(Weapon weapon) {
-    // -------------------------------------------------------------------------
-    // NUEVO SISTEMA
-    // -------------------------------------------------------------------------
-
     if (weapon.damages.isNotEmpty) {
       return weapon.damages
           .map((damage) => weaponDamagePartText(weapon, damage))
           .join(' + ');
     }
-
-    // -------------------------------------------------------------------------
-    // LEGACY
-    // -------------------------------------------------------------------------
 
     final modifier = damageModifier(weapon);
 
@@ -2919,10 +2647,6 @@ class Character {
 
     return '${weapon.damageDice} $modifierText ${weapon.damageType}'.trim();
   }
-
-  // ===========================================================================
-  // TIRADA DE UN COMPONENTE
-  // ===========================================================================
 
   int healingBonusModifier(
     HealingBonus bonus, {
@@ -3035,19 +2759,11 @@ class Character {
     return part.flatBonus + abilityModifier + resourceModifier;
   }
 
-  // ===========================================================================
-  // TEXTO DE ATAQUE
-  // ===========================================================================
-
   String attackBonusText(Weapon weapon) {
     final bonus = attackBonus(weapon);
 
     return bonus >= 0 ? '+$bonus' : '$bonus';
   }
-
-  // ===========================================================================
-  // CRUD ARMAS
-  // ===========================================================================
 
   void addWeapon(Weapon weapon) {
     weapons.add(weapon);
@@ -3066,10 +2782,6 @@ class Character {
 
     return null;
   }
-
-  // ===========================================================================
-  // HABILIDADES ACTIVAS
-  // ===========================================================================
 
   int characterAbilityAttackBonus(CharacterAbility ability) {
     final modifier = abilityModifier(ability.abilityType);
@@ -3236,18 +2948,10 @@ class Character {
     characterAbilities[index] = ability;
   }
 
-  // ===========================================================================
-  // TIRADAS DE PASIVAS
-  // ===========================================================================
-
   int passiveRollModifier(CharacterPassive passive) {
     return passive.rollFlatBonus +
         calculateAbilityMultipliers(passive.rollAbilityModifierMultipliers);
   }
-
-  // ===========================================================================
-  // PASIVAS
-  // ===========================================================================
 
   Iterable<CharacterPassive> get enabledPassives {
     final normalPassives = passives.where((passive) => passive.enabled);
@@ -3386,8 +3090,6 @@ class Character {
       return;
     }
 
-    // Primero eliminamos cualquier efecto runtime creado
-    // por triggers de esta pasiva.
     PassiveTriggerEngine(
       character: this,
     ).removeRuntimeEffectsForPassive(passiveId, refreshTriggers: false);
@@ -3410,32 +3112,13 @@ class Character {
 
     final engine = PassiveTriggerEngine(character: this);
 
-    // ===========================================================================
-    // LIMPIAR RUNTIME ANTERIOR
-    //
-    // La edición puede haber eliminado triggers, cambiado targetId,
-    // cambiado whileCondition por once, etc.
-    //
-    // Por eso eliminamos todas las instancias runtime pertenecientes
-    // a la versión anterior de esta pasiva.
-    // ===========================================================================
-
     engine.removeRuntimeEffectsForPassive(passive.id, refreshTriggers: false);
-
-    // ===========================================================================
-    // REEMPLAZAR PASIVA
-    // ===========================================================================
 
     passive.normalizeCharges();
 
     passives[index] = passive;
 
-    // Los efectos retirados pueden haber cambiado vida máxima.
     normalizeHealth();
-
-    // ===========================================================================
-    // RECONSTRUIR ESTADO PERSISTENTE
-    // ===========================================================================
 
     if (refreshTriggers) {
       refreshPassiveTriggers();
@@ -3470,10 +3153,6 @@ class Character {
     return resolver.resolveMax(resource);
   }
 
-  // ===========================================================================
-  // DIARIO
-  // ===========================================================================
-
   void addJournalEntry(JournalEntry entry) {
     journalEntries.add(entry);
   }
@@ -3492,10 +3171,6 @@ class Character {
     return null;
   }
 
-  // ===========================================================================
-  // CONTADORES
-  // ===========================================================================
-
   CharacterCounter? counterById(String counterId) {
     for (final counter in counters) {
       if (counter.id == counterId) {
@@ -3509,10 +3184,6 @@ class Character {
   int counterValue(String counterId) {
     return counterById(counterId)?.value ?? 0;
   }
-
-  // ===========================================================================
-  // INCREMENTAR
-  // ===========================================================================
 
   void incrementCounter(
     String counterId,
@@ -3536,10 +3207,6 @@ class Character {
     );
   }
 
-  // ===========================================================================
-  // COMPATIBILIDAD CON EL MÉTODO ANTIGUO
-  // ===========================================================================
-
   void increaseCounter(
     String counterId, {
     int amount = 1,
@@ -3547,10 +3214,6 @@ class Character {
   }) {
     incrementCounter(counterId, amount, dispatchTriggers: dispatchTriggers);
   }
-
-  // ===========================================================================
-  // ESTABLECER
-  // ===========================================================================
 
   void setCounter(String counterId, int value, {bool dispatchTriggers = true}) {
     final counter = counterById(counterId);
@@ -3589,17 +3252,9 @@ class Character {
     refreshPassiveTriggers();
   }
 
-  // ===========================================================================
-  // RESET
-  // ===========================================================================
-
   void resetCounter(String counterId, {bool dispatchTriggers = true}) {
     setCounter(counterId, 0, dispatchTriggers: dispatchTriggers);
   }
-
-  // ===========================================================================
-  // HISTORIAL DE DADOS
-  // ===========================================================================
 
   void addDiceHistory(DiceHistoryEntry entry) {
     diceHistory.insert(0, entry);
@@ -3623,108 +3278,62 @@ class Character {
       'name': name,
       'avatarPath': avatarPath,
       'race': race,
-
-      // Nuevo sistema multiclase.
       'classes': classes.map((item) => item.toMap()).toList(),
-
-      // Compatibilidad con instalaciones anteriores.
       'dndClass': primaryClass.name,
       'level': level,
-
       'abilities': abilities.toMap(),
-
       'contentFolders': contentFolders.map((folder) => folder.toMap()).toList(),
-
       'currentHealth': currentHealth,
-
+      'customMaxHealth': customMaxHealth,
       'armorClass': armorClass,
-
       'speed': speed,
-
       'backstory': backstory,
-
       'personality': personality,
-
       'appearance': appearance,
-
       'ideals': ideals,
-
       'bonds': bonds,
-
       'flaws': flaws,
-
       'goals': goals,
-
       'storyNotes': storyNotes,
-
       'skillProficiencies': {
         for (final entry in skillProficiencies.entries)
           entry.key.name: entry.value.name,
       },
-
       'savingThrowProficiencies': {
         for (final entry in savingThrowProficiencies.entries)
           entry.key.name: entry.value,
       },
-
       'weapons': weapons.map((weapon) => weapon.toMap()).toList(),
-
       'characterAbilities': characterAbilities
           .map((ability) => ability.toMap())
           .toList(),
-
       'passives': passives.map((passive) => passive.toMap()).toList(),
-
       'journalEntries': journalEntries.map((entry) => entry.toMap()).toList(),
-
       'diceHistory': diceHistory.map((entry) => entry.toMap()).toList(),
-
       'items': items.map((item) => item.toMap()).toList(),
-
       'itemDefinitions': itemDefinitions
           .map((definition) => definition.toMap())
           .toList(),
-
       'inventoryItems': inventoryItems.map((item) => item.toMap()).toList(),
-
       'equipmentSlots': equipmentSlots.map((slot) => slot.toJson()).toList(),
-
       'resources': resources.map((resource) => resource.toMap()).toList(),
-
       'effects': effects.map((effect) => effect.toMap()).toList(),
-
       'combatActive': combatActive,
-
       'combatRound': combatRound,
-
       'turnActive': turnActive,
-
       'combatTurnSequence': combatTurnSequence,
-
       'counters': counters.map((counter) => counter.toMap()).toList(),
-
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
-
       'knowledges': knowledges.map((k) => k.toMap()).toList(),
-
       'spellSlots': spellSlots,
+      'pets': pets
+          .map((p) => p.toMap())
+          .toList(), // <--- Serialización de mascotas añadida
     };
   }
 
   factory Character.fromMap(Map<dynamic, dynamic> map) {
-    // ===========================================================================
-    // ITEMS · NUEVO SISTEMA
-    //
-    // ItemDefinition:
-    //   define qué es el objeto.
-    //
-    // InventoryItem:
-    //   define la instancia dentro del inventario:
-    //   cantidad, equipado, slot, etc.
-    // ===========================================================================
-
     final itemDefinitions = <ItemDefinition>[];
-
     final inventoryItems = <InventoryItem>[];
 
     final rawSlots = map['equipmentSlots'];
@@ -3742,12 +3351,10 @@ class Character {
       }
     }
 
-    // Si la ficha no tiene ranuras guardadas, inicializa con las estándar
     if (slots.isEmpty) {
       slots.addAll(defaultEquipmentSlots);
     }
 
-    // Deserialización de conocimientos
     final rawKnowledges = map['knowledges'];
     final parsedKnowledges = <CharacterKnowledge>[];
     if (rawKnowledges is List) {
@@ -3762,7 +3369,19 @@ class Character {
       }
     }
 
-    // Deserialización de ranuras de conjuro
+    // Deserialización de mascotas
+    final rawPets = map['pets'];
+    final parsedPets = <Pet>[];
+    if (rawPets is List) {
+      for (final item in rawPets) {
+        if (item is Map) {
+          try {
+            parsedPets.add(Pet.fromMap(Map<dynamic, dynamic>.from(item)));
+          } catch (_) {}
+        }
+      }
+    }
+
     final rawSpellSlots = map['spellSlots'];
     final parsedSpellSlots = <String, int>{};
     if (rawSpellSlots is Map) {
@@ -3771,10 +3390,6 @@ class Character {
             (entry.value as num?)?.toInt() ?? 0;
       }
     }
-
-    // ===========================================================================
-    // DEFINICIONES MODERNAS
-    // ===========================================================================
 
     final rawItemDefinitions = map['itemDefinitions'];
 
@@ -3804,10 +3419,6 @@ class Character {
       }
     }
 
-    // ===========================================================================
-    // INVENTARIO MODERNO
-    // ===========================================================================
-
     final rawInventoryItems = map['inventoryItems'];
 
     if (rawInventoryItems is List) {
@@ -3833,22 +3444,7 @@ class Character {
       }
     }
 
-    // ===========================================================================
-    // ITEMS LEGACY
-    //
-    // Se mantienen temporalmente porque todavía hay pantallas y métodos
-    // trabajando con CharacterItem.
-    //
-    // Si el personaje todavía no tiene el nuevo sistema persistido,
-    // aprovechamos estos objetos antiguos para crear automáticamente:
-    //
-    // CharacterItem
-    //       ↓
-    // ItemDefinition + InventoryItem
-    // ===========================================================================
-
     final items = <CharacterItem>[];
-
     final rawItems = map['items'];
 
     if (rawItems is List) {
@@ -3864,22 +3460,12 @@ class Character {
 
           items.add(legacyItem);
 
-          // =====================================================================
-          // MIGRAR SOLAMENTE SI TODAVÍA NO EXISTE ESA DEFINICIÓN
-          // =====================================================================
-
           final definition = legacyItem.toDefinition();
 
           if (definition.id.trim().isNotEmpty &&
               !itemDefinitions.any((current) => current.id == definition.id)) {
             itemDefinitions.add(definition);
           }
-
-          // =====================================================================
-          // MIGRAR INVENTORY ITEM
-          //
-          // Evitamos duplicarlo si ya fue cargado desde inventoryItems.
-          // =====================================================================
 
           if (definition.id.trim().isNotEmpty) {
             final alreadyMigrated = inventoryItems.any(
@@ -3914,10 +3500,6 @@ class Character {
       }
     }
 
-    // ===========================================================================
-    // LIMPIAR REFERENCIAS INVÁLIDAS DEL INVENTARIO MODERNO
-    // ===========================================================================
-
     inventoryItems.removeWhere(
       (inventoryItem) => !itemDefinitions.any(
         (definition) => definition.id == inventoryItem.itemId,
@@ -3925,7 +3507,6 @@ class Character {
     );
 
     final counters = <CharacterCounter>[];
-
     final rawCounters = map['counters'];
 
     if (rawCounters is List) {
@@ -3944,16 +3525,10 @@ class Character {
       }
     }
 
-    // -------------------------------------------------------------------------
-    // RECURSOS PERSONALIZADOS
-    // -------------------------------------------------------------------------
-
     final resources = <CharacterResource>[];
-
     final rawResources = map['resources'];
 
     final effects = <CharacterEffect>[];
-
     final rawEffects = map['effects'];
 
     if (rawEffects is List) {
@@ -3988,12 +3563,7 @@ class Character {
       }
     }
 
-    // -------------------------------------------------------------------------
-    // CLASES
-    // -------------------------------------------------------------------------
-
     final classes = <CharacterClassLevel>[];
-
     final rawClasses = map['classes'];
 
     if (rawClasses is List) {
@@ -4012,9 +3582,6 @@ class Character {
       }
     }
 
-    /*
-     * Migración automática de personajes antiguos.
-     */
     if (classes.isEmpty) {
       final rawLegacyClass = map['dndClass'] ?? map['characterClass'];
 
@@ -4026,22 +3593,12 @@ class Character {
       );
     }
 
-    // -------------------------------------------------------------------------
-    // ATRIBUTOS
-    // -------------------------------------------------------------------------
-
     final rawAbilities = map['abilities'];
-
     final abilities = rawAbilities is Map
         ? AbilityScores.fromMap(Map<dynamic, dynamic>.from(rawAbilities))
         : AbilityScores();
 
-    // -------------------------------------------------------------------------
-    // SKILLS
-    // -------------------------------------------------------------------------
-
     final skillProficiencies = <DndSkill, ProficiencyLevel>{};
-
     final rawSkillProficiencies = map['skillProficiencies'];
 
     if (rawSkillProficiencies is Map) {
@@ -4061,32 +3618,7 @@ class Character {
       }
     }
 
-    final effectTemplates = <CharacterEffect>[];
-
-    final rawEffectTemplates = map['effectTemplates'];
-
-    if (rawEffectTemplates is List) {
-      for (final rawEffect in rawEffectTemplates) {
-        if (rawEffect == null) {
-          continue;
-        }
-
-        try {
-          effectTemplates.add(
-            CharacterEffect.fromMap(Map<dynamic, dynamic>.from(rawEffect)),
-          );
-        } catch (_) {
-          continue;
-        }
-      }
-    }
-
-    // -------------------------------------------------------------------------
-    // SALVACIONES
-    // -------------------------------------------------------------------------
-
     final savingThrowProficiencies = <AbilityType, bool>{};
-
     final rawSavingThrows = map['savingThrowProficiencies'];
 
     if (rawSavingThrows is Map) {
@@ -4105,12 +3637,7 @@ class Character {
       }
     }
 
-    // -------------------------------------------------------------------------
-    // ARMAS
-    // -------------------------------------------------------------------------
-
     final weapons = <Weapon>[];
-
     final rawWeapons = map['weapons'];
 
     if (rawWeapons is List) {
@@ -4127,11 +3654,7 @@ class Character {
       }
     }
 
-    // -------------------------------------------------------------------------
-    // HABILIDADES
-    // -------------------------------------------------------------------------
     final contentFolders = <CharacterContentFolder>[];
-
     final rawContentFolders = map['contentFolders'];
 
     if (rawContentFolders is List) {
@@ -4151,7 +3674,6 @@ class Character {
     }
 
     final characterAbilities = <CharacterAbility>[];
-
     final rawCharacterAbilities = map['characterAbilities'];
 
     if (rawCharacterAbilities is List) {
@@ -4171,7 +3693,6 @@ class Character {
     }
 
     final passives = <CharacterPassive>[];
-
     final rawPassives = map['passives'];
 
     if (rawPassives is List) {
@@ -4190,12 +3711,7 @@ class Character {
       }
     }
 
-    // -------------------------------------------------------------------------
-    // DIARIO
-    // -------------------------------------------------------------------------
-
     final journalEntries = <JournalEntry>[];
-
     final rawJournalEntries = map['journalEntries'];
 
     if (rawJournalEntries is List) {
@@ -4214,12 +3730,7 @@ class Character {
       }
     }
 
-    // -------------------------------------------------------------------------
-    // HISTORIAL DE DADOS
-    // -------------------------------------------------------------------------
-
     final diceHistory = <DiceHistoryEntry>[];
-
     final rawDiceHistory = map['diceHistory'];
 
     if (rawDiceHistory is List) {
@@ -4239,96 +3750,53 @@ class Character {
     }
 
     final combatActive = map['combatActive'] == true;
-
     final combatRound = (map['combatRound'] as num?)?.toInt() ?? 1;
-
     final turnActive = map['turnActive'] == true;
-
     final combatTurnSequence =
         (map['combatTurnSequence'] as num?)?.toInt() ?? 0;
-    // -------------------------------------------------------------------------
-    // CREAR PERSONAJE
-    // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
-    // CREAR PERSONAJE
-    // -------------------------------------------------------------------------
 
     final character = Character(
       id: map['id']?.toString() ?? '',
-
       name: map['name']?.toString() ?? '',
-
       avatarPath: map['avatarPath']?.toString(),
-
       race: map['race']?.toString() ?? '',
-
       classes: classes,
-
       abilities: abilities,
-
       contentFolders: contentFolders,
-
       currentHealth: (map['currentHealth'] as num?)?.toInt(),
-
+      customMaxHealth: (map['customMaxHealth'] as num?)?.toInt(),
       armorClass: (map['armorClass'] as num?)?.toInt() ?? 10,
-
       speed: (map['speed'] as num?)?.toInt() ?? 30,
-
       backstory: map['backstory']?.toString() ?? '',
-
       personality: map['personality']?.toString() ?? '',
-
       appearance: map['appearance']?.toString() ?? '',
-
       ideals: map['ideals']?.toString() ?? '',
-
       bonds: map['bonds']?.toString() ?? '',
-
       flaws: map['flaws']?.toString() ?? '',
-
       goals: map['goals']?.toString() ?? '',
-
       storyNotes: map['storyNotes']?.toString() ?? '',
-
       skillProficiencies: skillProficiencies,
-
       savingThrowProficiencies: savingThrowProficiencies,
-
       weapons: weapons,
-
       characterAbilities: characterAbilities,
-
       passives: passives,
-
       journalEntries: journalEntries,
-
       diceHistory: diceHistory,
-
       items: items,
-
       itemDefinitions: itemDefinitions,
-
       inventoryItems: inventoryItems,
-
       resources: resources,
-
       effects: effects,
-
       combatActive: combatActive,
-
       combatRound: combatRound,
-
       turnActive: turnActive,
-
       combatTurnSequence: combatTurnSequence,
-
       counters: counters,
-
       criticalMinimumNaturalRoll:
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
-
       knowledges: parsedKnowledges,
+      spellSlots: parsedSpellSlots,
+      pets: parsedPets,
     );
 
     character.normalizeHealth();

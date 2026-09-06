@@ -34,7 +34,6 @@ import '../models/weapon.dart';
 import '../models/passive.dart';
 import '../models/passive_roll_resolution.dart';
 import '../models/item_definition.dart';
-import '../models/spell_definition.dart';
 
 import '../widgets/abilities/attack_roll_sheet.dart';
 import '../widgets/action_resolution/dice/dice_mode_sheet.dart';
@@ -228,13 +227,163 @@ class ActionResolutionFlow {
             break;
 
           case PassiveTriggerActionType.addResource:
+            {
+              final resourceId = action.resourceId;
+              if (resourceId != null && resourceId.isNotEmpty) {
+                final amount = resolver.passiveTriggerActionModifier(
+                  passive: passive,
+                  action: action,
+                  context: actionContext,
+                  target: target,
+                );
+                if (amount != 0) {
+                  character.addResourceValue(
+                    resourceId,
+                    amount,
+                    dispatchTriggers: true,
+                  );
+                }
+              }
+            }
+            break;
+
           case PassiveTriggerActionType.subtractResource:
+            {
+              final resourceId = action.resourceId;
+              if (resourceId != null && resourceId.isNotEmpty) {
+                final amount = resolver.passiveTriggerActionModifier(
+                  passive: passive,
+                  action: action,
+                  context: actionContext,
+                  target: target,
+                );
+                if (amount > 0) {
+                  character.subtractResourceValue(
+                    resourceId,
+                    amount,
+                    dispatchTriggers: true,
+                  );
+                }
+              }
+            }
+            break;
+
           case PassiveTriggerActionType.setResource:
+            {
+              final resourceId = action.resourceId;
+              if (resourceId != null && resourceId.isNotEmpty) {
+                final value = resolver.passiveTriggerActionModifier(
+                  passive: passive,
+                  action: action,
+                  context: actionContext,
+                  target: target,
+                );
+                character.setResourceValue(
+                  resourceId,
+                  value,
+                  dispatchTriggers: true,
+                );
+              }
+            }
+            break;
+
           case PassiveTriggerActionType.addCharge:
+            {
+              final amount = await _resolvePassiveTriggerActionAmount(
+                context,
+                resolver: resolver,
+                passive: passive,
+                target: target,
+                actionContext: actionContext,
+                action: action,
+                diceMode: diceMode,
+              );
+              if (amount != null && amount != 0) {
+                final targetPassiveId =
+                    action.targetId?.trim().isNotEmpty == true
+                    ? action.targetId!
+                    : passive.id;
+                character.addPassiveCharges(
+                  targetPassiveId,
+                  amount.round(),
+                  dispatchTriggers: true,
+                );
+              }
+            }
+            break;
+
           case PassiveTriggerActionType.subtractCharge:
-          case PassiveTriggerActionType.removeEffect:
+            {
+              final amount = await _resolvePassiveTriggerActionAmount(
+                context,
+                resolver: resolver,
+                passive: passive,
+                target: target,
+                actionContext: actionContext,
+                action: action,
+                diceMode: diceMode,
+              );
+              if (amount != null && amount > 0) {
+                final targetPassiveId =
+                    action.targetId?.trim().isNotEmpty == true
+                    ? action.targetId!
+                    : passive.id;
+                character.subtractPassiveCharges(
+                  targetPassiveId,
+                  amount.round(),
+                  dispatchTriggers: true,
+                );
+              }
+            }
+            break;
+
           case PassiveTriggerActionType.incrementCounter:
+            {
+              final counterId = action.counterId;
+              if (counterId != null && counterId.isNotEmpty) {
+                final amount = resolver.passiveTriggerActionModifier(
+                  passive: passive,
+                  action: action,
+                  context: actionContext,
+                  target: target,
+                );
+                if (amount != 0) {
+                  character.incrementCounter(
+                    counterId,
+                    amount,
+                    dispatchTriggers: true,
+                  );
+                }
+              }
+            }
+            break;
+
           case PassiveTriggerActionType.setCounter:
+            {
+              final counterId = action.counterId;
+              if (counterId != null && counterId.isNotEmpty) {
+                final value = resolver.passiveTriggerActionModifier(
+                  passive: passive,
+                  action: action,
+                  context: actionContext,
+                  target: target,
+                );
+                character.setCounter(counterId, value, dispatchTriggers: true);
+              }
+            }
+            break;
+
+          case PassiveTriggerActionType.removeEffect:
+            {
+              final effectId = action.effectId?.trim();
+              if (effectId != null && effectId.isNotEmpty) {
+                character.removeEffect(
+                  effectId,
+                  refreshTriggers: false,
+                  dispatchHealthTriggers: false,
+                );
+              }
+            }
             break;
         }
       }
@@ -494,19 +643,14 @@ class ActionResolutionFlow {
       return null;
     }
 
-    ActionDiceMode diceMode = ActionDiceMode.digital;
+    // Permitir elegir siempre si se tira en digital o en físico
+    final selectedDiceMode = await showActionDiceModeSheet(context);
 
-    final requiresDiceMode = resolver.preparedActionRequiresDiceMode(prepared);
-
-    if (requiresDiceMode) {
-      final selectedDiceMode = await showActionDiceModeSheet(context);
-
-      if (selectedDiceMode == null || !context.mounted) {
-        return null;
-      }
-
-      diceMode = selectedDiceMode;
+    if (selectedDiceMode == null || !context.mounted) {
+      return null;
     }
+
+    final ActionDiceMode diceMode = selectedDiceMode;
 
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
@@ -637,19 +781,14 @@ class ActionResolutionFlow {
       return null;
     }
 
-    ActionDiceMode diceMode = ActionDiceMode.digital;
+    // Permitir elegir siempre si se tira en digital o en físico
+    final selectedDiceMode = await showActionDiceModeSheet(context);
 
-    final requiresDiceMode = resolver.preparedActionRequiresDiceMode(prepared);
-
-    if (requiresDiceMode) {
-      final selectedDiceMode = await showActionDiceModeSheet(context);
-
-      if (selectedDiceMode == null || !context.mounted) {
-        return null;
-      }
-
-      diceMode = selectedDiceMode;
+    if (selectedDiceMode == null || !context.mounted) {
+      return null;
     }
+
+    final ActionDiceMode diceMode = selectedDiceMode;
 
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
@@ -755,153 +894,14 @@ class ActionResolutionFlow {
       return null;
     }
 
-    ActionDiceMode diceMode = ActionDiceMode.digital;
+    // Permitir elegir siempre si se tira en digital o en físico
+    final selectedDiceMode = await showActionDiceModeSheet(context);
 
-    final requiresDiceMode = resolver.preparedActionRequiresDiceMode(prepared);
-
-    if (requiresDiceMode) {
-      final selectedDiceMode = await showActionDiceModeSheet(context);
-
-      if (selectedDiceMode == null || !context.mounted) {
-        return null;
-      }
-
-      diceMode = selectedDiceMode;
-    }
-
-    if (prepared.definition.requiresAttackRoll) {
-      return _resolveAttack(
-        context,
-        resolver: resolver,
-        prepared: prepared,
-        diceMode: diceMode,
-      );
-    }
-
-    return _resolveWithoutAttack(
-      context,
-      resolver: resolver,
-      prepared: prepared,
-      diceMode: diceMode,
-    );
-  }
-
-  // ===========================================================================
-  // SPELL RESOLUTION
-  // ===========================================================================
-
-  Future<ActionExecutionResult?> resolveSpell(
-    BuildContext context, {
-    required SpellDefinition spell,
-  }) async {
-    final resolver = ActionResolver(character: character);
-    final source = ActionSource.spell(spell);
-    final definition = ActionDefinition.fromSpell(spell);
-    final content = ActionContent.fromSpell(spell);
-
-    try {
-      resolver.validatePassiveTriggerTargetScopes(
-        definition: definition,
-        content: content,
-      );
-    } on StateError catch (error) {
-      _showError(context, error.message.toString());
+    if (selectedDiceMode == null || !context.mounted) {
       return null;
     }
 
-    final targets = await showActionTargetSelector(
-      context,
-      targetType: definition.targetType,
-      selfLabel: selfLabel,
-    );
-
-    if (targets == null || !context.mounted) {
-      return null;
-    }
-
-    if (targets.isEmpty) {
-      return null;
-    }
-
-    final actionContext = ActionResolutionContext(
-      character: character,
-      targets: targets,
-    );
-
-    actionContext.populateKnownTargetVariables();
-
-    final requirementsCompleted = await _collectExternalRequirements(
-      context,
-      resolver: resolver,
-      source: source,
-      definition: definition,
-      content: content,
-      actionContext: actionContext,
-    );
-
-    if (!requirementsCompleted || !context.mounted) {
-      return null;
-    }
-
-    final criticalProfile = resolver.buildCriticalProfile();
-
-    final initialPrepared = resolver.prepareDirectAction(
-      source: source,
-      definition: definition,
-      content: content,
-      context: actionContext,
-      criticalProfile: criticalProfile,
-    );
-
-    final optionalCompleted = await _collectOptionalChoices(
-      context,
-      resolver: resolver,
-      plan: initialPrepared.plan,
-      actionContext: actionContext,
-    );
-
-    if (!optionalCompleted || !context.mounted) {
-      return null;
-    }
-
-    final prepared = resolver.prepareDirectAction(
-      source: source,
-      definition: definition,
-      content: content,
-      context: actionContext,
-      criticalProfile: criticalProfile,
-    );
-
-    try {
-      resolver.validatePreparedTargetResolution(prepared);
-    } on StateError catch (error) {
-      _showError(context, error.message.toString());
-      return null;
-    }
-
-    final validation = resolver.validatePreparedActionCosts(prepared);
-
-    if (!validation.valid) {
-      _showError(
-        context,
-        validation.error ?? 'No puedes pagar los costes de este conjuro.',
-      );
-      return null;
-    }
-
-    ActionDiceMode diceMode = ActionDiceMode.digital;
-
-    final requiresDiceMode = resolver.preparedActionRequiresDiceMode(prepared);
-
-    if (requiresDiceMode) {
-      final selectedDiceMode = await showActionDiceModeSheet(context);
-
-      if (selectedDiceMode == null || !context.mounted) {
-        return null;
-      }
-
-      diceMode = selectedDiceMode;
-    }
+    final ActionDiceMode diceMode = selectedDiceMode;
 
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
@@ -2108,7 +2108,6 @@ class ActionResolutionFlow {
   }) {
     try {
       var execution = resolver.commitResolution(resolution);
-
 
       final triggerEngine = PassiveTriggerEngine(character: character);
 

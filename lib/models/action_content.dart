@@ -6,7 +6,6 @@ import 'action_linked_effect.dart';
 import 'critical_damage_bonus.dart';
 import 'weapon.dart';
 import 'item_definition.dart';
-import 'spell_definition.dart';
 
 class ActionContent {
   final List<AbilityEffect> effects;
@@ -86,12 +85,6 @@ class ActionContent {
 
     return ActionContent(
       effects: List<AbilityEffect>.unmodifiable(consumable.effects),
-    );
-  }
-
-  factory ActionContent.fromSpell(SpellDefinition spell) {
-    return ActionContent(
-      effects: List<AbilityEffect>.unmodifiable(spell.effects),
     );
   }
 

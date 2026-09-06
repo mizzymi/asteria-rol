@@ -612,7 +612,15 @@ class PassiveTriggerEngine {
           return;
         }
 
-        character.addPassiveCharges(passive.id, amount, dispatchTriggers: true);
+        final targetPassiveId = action.targetId?.trim().isNotEmpty == true
+            ? action.targetId!
+            : passive.id;
+
+        character.addPassiveCharges(
+          targetPassiveId,
+          amount,
+          dispatchTriggers: true,
+        );
 
         return;
 

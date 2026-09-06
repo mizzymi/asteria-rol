@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../models/skill.dart';
 import '../../../models/character.dart';
 import '../../../models/dice_pool.dart';
 import '../../../models/healing_bonus.dart';
@@ -74,7 +75,22 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
   void initState() {
     super.initState();
 
-    bonus = HealingBonus.fromMap(widget.bonus.toMap());
+    bonus = HealingBonus(
+      id: widget.bonus.id,
+      name: widget.bonus.name,
+      dicePools: List<DicePool>.from(
+        widget.bonus.dicePools.map((p) => DicePool(count: p.count, sides: p.sides)),
+      ),
+      abilityModifierMultipliers: Map<AbilityType, int>.from(
+        widget.bonus.abilityModifierMultipliers,
+      ),
+      flatBonus: widget.bonus.flatBonus,
+      formula: widget.bonus.formula != null
+          ? CharacterFormula(expression: widget.bonus.formula!.expression)
+          : null,
+      chargeScaling: widget.bonus.chargeScaling,
+      costs: List.from(widget.bonus.costs),
+    );
 
     nameController = TextEditingController(text: bonus.name);
 

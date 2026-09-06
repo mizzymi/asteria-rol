@@ -63,6 +63,10 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
       entry.knowledgeId,
     );
 
+    if (!mounted) {
+      return;
+    }
+
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
@@ -89,35 +93,6 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
     await _save();
   }
 
-  Future<void> _deleteKnowledge(CharacterKnowledge entry) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar saber'),
-        content: Text('¿Deseas eliminar este saber de tus registros?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      setState(() {
-        character.knowledges.removeWhere(
-          (k) => k.knowledgeId == entry.knowledgeId,
-        );
-      });
-      await _save();
-    }
-  }
-
   Future<void> _studyDuringRest(
     CharacterKnowledge entry,
     RestStudyType restType,
@@ -129,6 +104,10 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
           name: entry.knowledgeId,
           requiredProgress: 5,
         );
+
+    if (!mounted) {
+      return;
+    }
 
     final result = await showStudyDialog(
       context,
@@ -158,6 +137,35 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _deleteKnowledge(CharacterKnowledge entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar saber'),
+        content: Text('¿Deseas eliminar este saber de tus registros?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        character.knowledges.removeWhere(
+          (k) => k.knowledgeId == entry.knowledgeId,
+        );
+      });
+      await _save();
+    }
   }
 
   @override

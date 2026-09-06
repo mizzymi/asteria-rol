@@ -19,7 +19,7 @@ enum ActionDicePartKind {
 // ORIGEN
 // =============================================================================
 
-enum ActionDiceSourceType { ability, weapon, passive, effect, criticalBonus }
+enum ActionDiceSourceType { ability, weapon, passive, effect, criticalBonus, feature }
 
 // =============================================================================
 // REQUEST

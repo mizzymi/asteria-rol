@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../models/skill.dart';
 import '../../../models/character.dart';
 import '../../../models/critical_damage_bonus.dart';
 import '../../../models/dice_pool.dart';
@@ -63,7 +64,30 @@ class _CriticalDamageBonusEditorDialogState
   void initState() {
     super.initState();
 
-    bonus = CriticalDamageBonus.fromMap(widget.bonus.toMap());
+    // Copiamos el bonus directamente respetando listas vacías y estructuras
+    bonus = CriticalDamageBonus(
+      id: widget.bonus.id,
+      name: widget.bonus.name,
+      dicePools: List<DicePool>.from(
+        widget.bonus.dicePools.map(
+          (p) => DicePool(count: p.count, sides: p.sides),
+        ),
+      ),
+      abilityModifierMultipliers: Map<AbilityType, int>.from(
+        widget.bonus.abilityModifierMultipliers,
+      ),
+      flatBonus: widget.bonus.flatBonus,
+      formula: widget.bonus.formula != null
+          ? CharacterFormula(expression: widget.bonus.formula!.expression)
+          : null,
+      chancePercent: widget.bonus.chancePercent,
+      damageType: widget.bonus.damageType,
+      description: widget.bonus.description,
+      condition: widget.bonus.condition,
+      optional: widget.bonus.optional,
+      optionalGroupId: widget.bonus.optionalGroupId,
+      optionalLabel: widget.bonus.optionalLabel,
+    );
 
     nameController = TextEditingController(text: bonus.name);
 

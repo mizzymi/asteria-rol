@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/skill.dart';
 import '../../models/character.dart';
 import '../../models/knowledge_definition.dart';
-import '../../models/spell_definition.dart';
 import '../../models/action_dice_mode.dart';
 import '../../services/knowledge_service.dart';
 
@@ -11,14 +10,12 @@ Future<StudyRollResult?> showStudyDialog(
   BuildContext context, {
   required Character character,
   required KnowledgeDefinition definition,
-  List<SpellDefinition> spellCatalog = const [],
 }) {
   return showDialog<StudyRollResult>(
     context: context,
     builder: (dialogContext) => _StudyDialogContent(
       character: character,
       definition: definition,
-      spellCatalog: spellCatalog,
     ),
   );
 }
@@ -26,12 +23,10 @@ Future<StudyRollResult?> showStudyDialog(
 class _StudyDialogContent extends StatefulWidget {
   final Character character;
   final KnowledgeDefinition definition;
-  final List<SpellDefinition> spellCatalog;
 
   const _StudyDialogContent({
     required this.character,
     required this.definition,
-    required this.spellCatalog,
   });
 
   @override
