@@ -26,45 +26,107 @@ class _RestScreenState extends State<RestScreen> {
   // 'single': 1 dado + Con
   // 'all_available': Todos los dados + Con (por cada dado)
   // 'level_dice_single_con': Nivel * dados + Constitución única al total
-  String _shortRestRule = 'single';
+  String get _shortRestRule => character.shortRestRule;
+  set _shortRestRule(String value) {
+    character.shortRestRule = value;
+  }
 
   Future<void> _save() async {
     await CharacterStorageService.saveCharacter(character);
     if (mounted) setState(() {});
   }
 
+  @override
+  void initState() {
+    super.initState();
+  }
+
   // ===========================================================================
   // CONFIGURACIÓN DE REGLAS DE DESCANSO CORTO
   // ===========================================================================
   Future<void> _configureShortRestRules() async {
+    // Variable temporal dentro del diálogo para manejar la selección antes de aceptar
+    String tempSelectedRule = _shortRestRule;
+
     await showDialog(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
+            Widget buildDialogRuleOption({
+              required String title,
+              required String subtitle,
+              required String value,
+            }) {
+              final isSelected = tempSelectedRule == value;
+              final colors = Theme.of(dialogContext).colorScheme;
+
+              return InkWell(
+                onTap: () {
+                  setDialogState(() => tempSelectedRule = value);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSelected
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        color: isSelected ? colors.primary : Colors.grey,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             return AlertDialog(
               title: const Text('Configurar Regla de Descanso Corto'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildRuleOption(
-                    setDialogState,
+                  buildDialogRuleOption(
                     title: 'Estándar (1 Dado por uso)',
                     subtitle:
                         'Gastas 1 dado de golpe + Constitución por cada uso.',
                     value: 'single',
                   ),
                   const SizedBox(height: 8),
-                  _buildRuleOption(
-                    setDialogState,
+                  buildDialogRuleOption(
                     title: 'Todos los dados (Con. por cada dado)',
                     subtitle:
                         'Tiras todos tus dados de golpe y sumas Constitución a cada uno.',
                     value: 'all_available',
                   ),
                   const SizedBox(height: 8),
-                  _buildRuleOption(
-                    setDialogState,
+                  buildDialogRuleOption(
                     title: 'Nivel de dados + Con. al total',
                     subtitle:
                         'Tiras todos los dados de golpe equivalentes a tu nivel y añades la Constitución una sola vez al total.',
@@ -73,8 +135,21 @@ class _RestScreenState extends State<RestScreen> {
                 ],
               ),
               actions: [
-                FilledButton(
+                TextButton(
                   onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    // Guardamos la selección definitiva en el estado y en el personaje
+                    setState(() {
+                      _shortRestRule = tempSelectedRule;
+                      character.shortRestRule = _shortRestRule;
+                    });
+                    await _save();
+                    if (!dialogContext.mounted) return;
+                    Navigator.pop(ctx);
+                  },
                   child: const Text('Aceptar'),
                 ),
               ],
@@ -82,54 +157,6 @@ class _RestScreenState extends State<RestScreen> {
           },
         );
       },
-    );
-  }
-
-  Widget _buildRuleOption(
-    StateSetter setDialogState, {
-    required String title,
-    required String subtitle,
-    required String value,
-  }) {
-    final isSelected = _shortRestRule == value;
-    final colors = Theme.of(context).colorScheme;
-
-    return InkWell(
-      onTap: () {
-        setDialogState(() => _shortRestRule = value);
-        setState(() {});
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        child: Row(
-          children: [
-            Icon(
-              isSelected
-                  ? Icons.radio_button_checked_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: isSelected ? colors.primary : Colors.grey,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -281,7 +308,7 @@ class _RestScreenState extends State<RestScreen> {
                     await _save();
 
                     if (!dialogContext.mounted) return;
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
                           '¡Has recuperado un total de $totalHealing PV en el descanso corto!',

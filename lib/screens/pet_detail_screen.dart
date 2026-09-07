@@ -96,7 +96,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   // ===========================================================================
   // CREAR / EDITAR ATAQUE BÁSICO (Soporta todos los atributos y dados de daño)
   // ===========================================================================
-  // Función auxiliar para convertir texto como "1d8" o "2d6" en una lista de DicePool
   List<DicePool> _parseDiceNotation(String notation) {
     final cleaned = notation.trim().toLowerCase();
     final regex = RegExp(r'(\d+)\s*d\s*(\d+)');
@@ -108,7 +107,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       return [DicePool(count: count, sides: sides)];
     }
 
-    // Por defecto si el formato no coincide
     return [DicePool(count: 1, sides: 6)];
   }
 
@@ -166,8 +164,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<AbilityType>(
-                      initialValue:
-                          attackAbility, // <--- Change 'value' to 'initialValue'
+                      initialValue: attackAbility,
                       decoration: const InputDecoration(
                         labelText: 'Atributo de ataque',
                       ),
@@ -213,24 +210,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         }
                       },
                     ),
-                    CheckboxListTile(
-                      title: const Text('Competente'),
-                      value: proficient,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => proficient = val);
-                        }
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Competente'),
-                      value: proficient,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        if (val != null) setDialogState(() => proficient = val);
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -272,8 +251,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             damages: [
               WeaponDamage(
                 id: 'dmg_1',
-                dicePools:
-                    parsedPools, // <--- Aquí pasamos la lista de DicePool correctamente
+                dicePools: parsedPools,
                 damageType: typeText,
                 addAbilityModifier: true,
                 abilityType: attackAbility,
@@ -290,7 +268,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         weapon.damages = [
           WeaponDamage(
             id: weapon.damages.isNotEmpty ? weapon.damages.first.id : 'dmg_1',
-            dicePools: parsedPools, // <--- Aquí también
+            dicePools: parsedPools,
             damageType: typeText,
             addAbilityModifier: true,
             abilityType: attackAbility,
@@ -323,9 +301,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     await _save();
   }
 
-  // ===========================================================================
-  // ADAPTADOR TEMPORAL PARA USAR EL RESOLVER OFICIAL CON LOS STATS DE LA MASCOTA
-  // ===========================================================================
   Character _toTemporaryCharacter() {
     int targetLevel = 1;
     if (pet.proficiencyBonus >= 6) {
@@ -358,7 +333,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     );
   }
 
-  // Resolver ataque básico usando el motor de la app
   Future<void> _resolvePetWeapon(Weapon weapon) async {
     final tempChar = _toTemporaryCharacter();
     final flow = ActionResolutionFlow(character: tempChar);
@@ -368,9 +342,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
       if (execution == null || !mounted) return;
 
-      // Sincronizamos la vida y aseguramos que los cambios en pasivas/cargas se guarden
       pet.currentHealth = tempChar.currentHealth;
-      await _save(); // Esto guarda el personaje principal y sus mascotas con las cargas actualizadas
+      await _save();
       setState(() {});
 
       if (!mounted) return;
@@ -387,7 +360,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     }
   }
 
-  // Resolver habilidad activa usando el motor de la app
   Future<void> _resolvePetAbility(CharacterAbility ability) async {
     final tempChar = _toTemporaryCharacter();
     final flow = ActionResolutionFlow(character: tempChar);
@@ -398,7 +370,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       if (execution == null || !mounted) return;
 
       pet.currentHealth = tempChar.currentHealth;
-      await _save(); // Persiste los cambios de la mascota (cargas, vida, etc.)
+      await _save();
       setState(() {});
 
       if (!mounted) return;
@@ -515,8 +487,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       InkWell(
-                        onTap:
-                            _editPetHealth, // <--- Al pulsar abre el diálogo de vida de la mascota
+                        onTap: _editPetHealth,
                         borderRadius: BorderRadius.circular(8),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -599,53 +570,56 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               ),
             )
           else
-            ...pet.weapons.map((weapon) {
+            ...pet.weapons.expand((weapon) {
               final atkBonus = pet.weaponAttackBonus(weapon);
               final atkText = atkBonus >= 0 ? '+$atkBonus' : '$atkBonus';
-              return Card(
-                child: ListTile(
-                  onTap: () => _resolvePetWeapon(weapon),
-                  leading: const Icon(Icons.gavel_rounded),
-                  title: Text(
-                    weapon.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    'Atributo: ${weapon.attackAbility.name.toUpperCase()} • Ataque: $atkText • Daño: ${weapon.damageDice} ${weapon.damageType}',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.green,
+              return [
+                Card(
+                  child: ListTile(
+                    onTap: () => _resolvePetWeapon(weapon),
+                    leading: const Icon(Icons.gavel_rounded),
+                    title: Text(
+                      weapon.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      'Atributo: ${weapon.attackAbility.name.toUpperCase()} • Ataque: $atkText • Daño: ${weapon.damageDice} ${weapon.damageType}',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.green,
+                          ),
+                          tooltip: 'Atacar',
+                          onPressed: () => _resolvePetWeapon(weapon),
                         ),
-                        tooltip: 'Atacar',
-                        onPressed: () => _resolvePetWeapon(weapon),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_rounded, size: 20),
-                        onPressed: () => _addOrEditWeapon(weapon: weapon),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          size: 20,
+                        IconButton(
+                          icon: const Icon(Icons.edit_rounded, size: 20),
+                          onPressed: () => _addOrEditWeapon(weapon: weapon),
                         ),
-                        onPressed: () async {
-                          setState(
-                            () => pet.weapons.removeWhere(
-                              (w) => w.id == weapon.id,
-                            ),
-                          );
-                          await _save();
-                        },
-                      ),
-                    ],
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 20,
+                          ),
+                          onPressed: () async {
+                            setState(
+                              () => pet.weapons.removeWhere(
+                                (w) => w.id == weapon.id,
+                              ),
+                            );
+                            await _save();
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              );
+                const SizedBox(height: 12), // <--- Espacio entre ataques
+              ];
             }),
 
           const SizedBox(height: 20),
@@ -677,55 +651,55 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               ),
             )
           else
-            // ===================================================================
-            // HABILIDADES ACTIVAS
-            // ===================================================================
-            ...pet.characterAbilities.map(
-              (ability) => Card(
-                child: ListTile(
-                  onTap: () => _editAbility(ability), // <--- Tocar para editar
-                  leading: const Icon(Icons.flash_on_rounded),
-                  title: Text(
-                    ability.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    ability.description.isNotEmpty
-                        ? ability.description
-                        : 'Sin descripción',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.green,
+            ...pet.characterAbilities.expand((ability) {
+              return [
+                Card(
+                  child: ListTile(
+                    onTap: () => _editAbility(ability),
+                    leading: const Icon(Icons.flash_on_rounded),
+                    title: Text(
+                      ability.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      ability.description.isNotEmpty
+                          ? ability.description
+                          : 'Sin descripción',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.green,
+                          ),
+                          tooltip: 'Usar habilidad',
+                          onPressed: () => _resolvePetAbility(ability),
                         ),
-                        tooltip: 'Usar habilidad',
-                        onPressed: () => _resolvePetAbility(ability),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_rounded, size: 20),
-                        tooltip: 'Editar',
-                        onPressed: () => _editAbility(ability),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () async {
-                          setState(
-                            () => pet.characterAbilities.removeWhere(
-                              (a) => a.id == ability.id,
-                            ),
-                          );
-                          await _save();
-                        },
-                      ),
-                    ],
+                        IconButton(
+                          icon: const Icon(Icons.edit_rounded, size: 20),
+                          tooltip: 'Editar',
+                          onPressed: () => _editAbility(ability),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          onPressed: () async {
+                            setState(
+                              () => pet.characterAbilities.removeWhere(
+                                (a) => a.id == ability.id,
+                              ),
+                            );
+                            await _save();
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+                const SizedBox(height: 12), // <--- Espacio entre habilidades
+              ];
+            }),
 
           const SizedBox(height: 20),
           Row(
@@ -745,113 +719,123 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // ===================================================================
-          // PASIVAS
-          // ===================================================================
-          ...pet.passives.map(
-            (passive) => Card(
-              child: ListTile(
-                onTap: () => _editPassive(passive),
-                leading: const Icon(Icons.auto_awesome_rounded),
-                title: Text(
-                  passive.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${passive.triggers.length} triggers configurados'),
-                    // Muestra las cargas si la pasiva las tiene habilitadas
-                    if (passive.hasCharges) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.tertiaryContainer,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Cargas: ${passive.chargesText}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onTertiaryContainer,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Botón rápido para gastar carga (-)
-                          if (passive.currentCharges > 0)
-                            InkWell(
-                              onTap: () async {
-                                setState(() {
-                                  passive.currentCharges--;
-                                });
-                                await _save();
-                              },
-                              child: const Padding(
-                                padding: EdgeInsets.all(4.0),
-                                child: Icon(
-                                  Icons.remove_circle_outline,
-                                  size: 18,
-                                  color: Colors.red,
-                                ),
-                              ),
-                            ),
-                          // Botón rápido para sumar carga (+)
-                          if (!passive.chargesFull)
-                            InkWell(
-                              onTap: () async {
-                                setState(() {
-                                  passive.currentCharges++;
-                                  passive.normalizeCharges();
-                                });
-                                await _save();
-                              },
-                              child: const Padding(
-                                padding: EdgeInsets.all(4.0),
-                                child: Icon(
-                                  Icons.add_circle_outline,
-                                  size: 18,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-                isThreeLine: passive.hasCharges,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit_rounded, size: 20),
-                      tooltip: 'Editar',
-                      onPressed: () => _editPassive(passive),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      onPressed: () async {
-                        setState(
-                          () => pet.passives.removeWhere(
-                            (p) => p.id == passive.id,
-                          ),
-                        );
-                        await _save();
-                      },
-                    ),
-                  ],
-                ),
+          if (pet.passives.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                'No hay pasivas asignadas.',
+                style: TextStyle(fontStyle: FontStyle.italic),
               ),
-            ),
-          ),
+            )
+          else
+            ...pet.passives.expand((passive) {
+              return [
+                Card(
+                  child: ListTile(
+                    onTap: () => _editPassive(passive),
+                    leading: const Icon(Icons.auto_awesome_rounded),
+                    title: Text(
+                      passive.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${passive.triggers.length} triggers configurados',
+                        ),
+                        if (passive.hasCharges) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.tertiaryContainer,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Cargas: ${passive.chargesText}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        theme.colorScheme.onTertiaryContainer,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (passive.currentCharges > 0)
+                                InkWell(
+                                  onTap: () async {
+                                    setState(() {
+                                      passive.currentCharges--;
+                                    });
+                                    await _save();
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(4.0),
+                                    child: Icon(
+                                      Icons.remove_circle_outline,
+                                      size: 18,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ),
+                              if (!passive.chargesFull)
+                                InkWell(
+                                  onTap: () async {
+                                    setState(() {
+                                      passive.currentCharges++;
+                                      passive.normalizeCharges();
+                                    });
+                                    await _save();
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(4.0),
+                                    child: Icon(
+                                      Icons.add_circle_outline,
+                                      size: 18,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                    isThreeLine: passive.hasCharges,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_rounded, size: 20),
+                          tooltip: 'Editar',
+                          onPressed: () => _editPassive(passive),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          onPressed: () async {
+                            setState(
+                              () => pet.passives.removeWhere(
+                                (p) => p.id == passive.id,
+                              ),
+                            );
+                            await _save();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12), // <--- Espacio entre pasivas
+              ];
+            }),
+          const SizedBox(height: 28),
         ],
       ),
     );

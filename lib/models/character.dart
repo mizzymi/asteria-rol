@@ -186,6 +186,8 @@ class Character {
   /// 20 = crítico únicamente con 20 natural.
   int criticalMinimumNaturalRoll;
 
+  String shortRestRule;
+
   Character({
     required this.id,
     required this.name,
@@ -234,6 +236,7 @@ class Character {
     this.combatTurnSequence = 0,
     List<CharacterCounter>? counters,
     this.criticalMinimumNaturalRoll = 20,
+    this.shortRestRule = 'single',
   }) : classes = _resolveClasses(
          classes: classes,
          dndClass: dndClass,
@@ -3347,6 +3350,7 @@ class Character {
       'pets': pets
           .map((p) => p.toMap())
           .toList(), // <--- Serialización de mascotas añadida
+      'shortRestRule': shortRestRule,
     };
   }
 
@@ -3815,6 +3819,7 @@ class Character {
       knowledges: parsedKnowledges,
       spellSlots: parsedSpellSlots,
       pets: parsedPets,
+      shortRestRule: map['shortRestRule']?.toString() ?? 'single',
     );
 
     character.normalizeHealth();
