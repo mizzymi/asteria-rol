@@ -44,25 +44,39 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
   Future<void> _createCharacter() async {
     final result = await Navigator.push<Character>(
       context,
-      MaterialPageRoute(builder: (_) => CharacterFormScreen(initialCampaignId: campaign.id)),
+      MaterialPageRoute(
+        builder: (_) => CharacterFormScreen(initialCampaignId: campaign.id),
+      ),
     );
     if (result != null) _reload();
   }
 
   Future<void> _openCharacter(Character character) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => CharacterHomeScreen(character: character)));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CharacterHomeScreen(character: character),
+      ),
+    );
     _reload();
   }
 
   Future<void> _editCampaign() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => CampaignFormScreen(campaign: campaign)));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CampaignFormScreen(campaign: campaign)),
+    );
     _reload();
   }
 
   Future<void> _deleteCampaign() async {
     if (characters.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mueve o elimina los personajes de esta campaña antes de borrarla.')),
+        const SnackBar(
+          content: Text(
+            'Mueve o elimina los personajes de esta campaña antes de borrarla.',
+          ),
+        ),
       );
       return;
     }
@@ -72,8 +86,14 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
         title: const Text('Eliminar campaña'),
         content: Text('¿Quieres eliminar “${campaign.name}”?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Eliminar')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
         ],
       ),
     );
@@ -100,8 +120,20 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                   if (value == 'delete') _deleteCampaign();
                 },
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_rounded), title: Text('Editar'))),
-                  PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline_rounded), title: Text('Eliminar'))),
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      leading: Icon(Icons.edit_rounded),
+                      title: Text('Editar'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline_rounded),
+                      title: Text('Eliminar'),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -109,7 +141,8 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (campaign.imagePath != null && File(campaign.imagePath!).existsSync())
+                  if (campaign.imagePath != null &&
+                      File(campaign.imagePath!).existsSync())
                     Image.file(File(campaign.imagePath!), fit: BoxFit.cover)
                   else
                     DecoratedBox(
@@ -117,7 +150,10 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [colors.primaryContainer, colors.secondaryContainer],
+                          colors: [
+                            colors.primaryContainer,
+                            colors.secondaryContainer,
+                          ],
                         ),
                       ),
                     ),
@@ -126,7 +162,10 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black.withValues(alpha: .7)],
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: .7),
+                        ],
                       ),
                     ),
                   ),
@@ -137,10 +176,22 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(campaign.name, style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900)),
+                        Text(
+                          campaign.name,
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
                         if (campaign.description.isNotEmpty) ...[
                           const SizedBox(height: 5),
-                          Text(campaign.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+                          Text(
+                            campaign.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white70),
+                          ),
                         ],
                       ],
                     ),
@@ -154,11 +205,22 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
             sliver: SliverToBoxAdapter(
               child: Row(
                 children: [
-                  Expanded(child: _Stat(icon: Icons.groups_rounded, value: '${characters.length}', label: 'Personajes')),
+                  Expanded(
+                    child: _Stat(
+                      icon: Icons.groups_rounded,
+                      value: '${characters.length}',
+                      label: 'Personajes',
+                    ),
+                  ),
                   const SizedBox(width: 10),
-                  Expanded(child: _Stat(icon: Icons.favorite_rounded, value: '${characters.fold<int>(0, (sum, c) => sum + c.currentHealth)}', label: 'PV actuales')),
-                  const SizedBox(width: 10),
-                  Expanded(child: _Stat(icon: Icons.backpack_rounded, value: '${characters.fold<int>(0, (sum, c) => sum + c.inventoryItems.length)}', label: 'Objetos')),
+                  Expanded(
+                    child: _Stat(
+                      icon: Icons.backpack_rounded,
+                      value:
+                          '${characters.fold<int>(0, (sum, c) => sum + c.inventoryItems.length)}',
+                      label: 'Objetos',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -168,9 +230,18 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
             sliver: SliverToBoxAdapter(
               child: Row(
                 children: [
-                  Text('Personajes', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  Text(
+                    'Personajes',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   const Spacer(),
-                  FilledButton.tonalIcon(onPressed: _createCharacter, icon: const Icon(Icons.add_rounded), label: const Text('Añadir')),
+                  FilledButton.tonalIcon(
+                    onPressed: _createCharacter,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Añadir'),
+                  ),
                 ],
               ),
             ),
@@ -184,13 +255,28 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.person_add_alt_1_rounded, size: 64, color: colors.primary),
+                      Icon(
+                        Icons.person_add_alt_1_rounded,
+                        size: 64,
+                        color: colors.primary,
+                      ),
                       const SizedBox(height: 14),
-                      Text('Esta campaña aún no tiene personajes', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
+                      Text(
+                        'Esta campaña aún no tiene personajes',
+                        style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 8),
-                      const Text('Añade tu primer personaje para empezar la aventura.', textAlign: TextAlign.center),
+                      const Text(
+                        'Añade tu primer personaje para empezar la aventura.',
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 18),
-                      FilledButton.icon(onPressed: _createCharacter, icon: const Icon(Icons.add_rounded), label: const Text('Crear personaje')),
+                      FilledButton.icon(
+                        onPressed: _createCharacter,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Crear personaje'),
+                      ),
                     ],
                   ),
                 ),
@@ -200,22 +286,24 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (index.isOdd) return const SizedBox(height: 10);
-                    final character = characters[index ~/ 2];
-                    return _CharacterTile(
-                      character: character,
-                      onTap: () => _openCharacter(character),
-                    );
-                  },
-                  childCount: characters.length * 2 - 1,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  if (index.isOdd) return const SizedBox(height: 10);
+                  final character = characters[index ~/ 2];
+                  return _CharacterTile(
+                    character: character,
+                    onTap: () => _openCharacter(character),
+                  );
+                }, childCount: characters.length * 2 - 1),
               ),
             ),
         ],
       ),
-      floatingActionButton: characters.isEmpty ? null : FloatingActionButton(onPressed: _createCharacter, child: const Icon(Icons.add_rounded)),
+      floatingActionButton: characters.isEmpty
+          ? null
+          : FloatingActionButton(
+              onPressed: _createCharacter,
+              child: const Icon(Icons.add_rounded),
+            ),
     );
   }
 }
@@ -230,8 +318,23 @@ class _Stat extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-      decoration: BoxDecoration(color: colors.surfaceContainerLow, borderRadius: BorderRadius.circular(18), border: Border.all(color: colors.outlineVariant)),
-      child: Column(children: [Icon(icon, color: colors.primary), const SizedBox(height: 5), Text(value, style: Theme.of(context).textTheme.titleLarge), Text(label, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center)]),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: colors.primary),
+          const SizedBox(height: 5),
+          Text(value, style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -251,23 +354,57 @@ class _CharacterTile extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Row(children: [
-            CircleAvatar(
-              radius: 31,
-              backgroundImage: character.avatarPath != null && File(character.avatarPath!).existsSync() ? FileImage(File(character.avatarPath!)) : null,
-              child: character.avatarPath == null ? Text(character.name.isEmpty ? '?' : character.name[0].toUpperCase()) : null,
-            ),
-            const SizedBox(width: 13),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(character.name, style: Theme.of(context).textTheme.titleMedium),
-              Text('${character.dndClass.name} · Nivel ${character.level}', style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 8),
-              ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: health, minHeight: 6)),
-              const SizedBox(height: 4),
-              Text('${character.currentHealth} / ${character.maxHealth} PV', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.primary)),
-            ])),
-            const Icon(Icons.chevron_right_rounded),
-          ]),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 31,
+                backgroundImage:
+                    character.avatarPath != null &&
+                        File(character.avatarPath!).existsSync()
+                    ? FileImage(File(character.avatarPath!))
+                    : null,
+                child: character.avatarPath == null
+                    ? Text(
+                        character.name.isEmpty
+                            ? '?'
+                            : character.name[0].toUpperCase(),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      character.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(
+                      '${character.dndClass.name} · Nivel ${character.level}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: LinearProgressIndicator(
+                        value: health,
+                        minHeight: 6,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${character.currentHealth} / ${character.maxHealth} PV',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: colors.primary),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
         ),
       ),
     );
