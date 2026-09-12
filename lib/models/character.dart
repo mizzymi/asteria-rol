@@ -42,6 +42,9 @@ class Character {
   String name;
   String? avatarPath;
 
+  /// Campaña a la que pertenece el personaje.
+  String? campaignId;
+
   String race;
 
   /// Una o varias clases.
@@ -193,6 +196,7 @@ class Character {
     required this.id,
     required this.name,
     this.avatarPath,
+    this.campaignId,
     this.race = '',
 
     /// Nuevo sistema.
@@ -3318,6 +3322,7 @@ class Character {
       'id': id,
       'name': name,
       'avatarPath': avatarPath,
+      'campaignId': campaignId,
       'race': race,
       'classes': classes.map((item) => item.toMap()).toList(),
       'dndClass': primaryClass.name,
@@ -3801,6 +3806,7 @@ class Character {
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
       avatarPath: map['avatarPath']?.toString(),
+      campaignId: map['campaignId']?.toString(),
       race: map['race']?.toString() ?? '',
       classes: classes,
       abilities: abilities,

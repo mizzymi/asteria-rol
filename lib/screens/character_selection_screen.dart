@@ -1,15 +1,19 @@
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
-import 'dart:convert';
 
-import '../models/dnd_class.dart';
-import '../services/character_import_export_service.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'item_library_screen.dart';
+
+import '../models/campaign.dart';
 import '../models/character.dart';
+import '../models/dnd_class.dart';
+import '../services/campaign_storage_service.dart';
+import '../services/character_import_export_service.dart';
 import '../services/character_storage_service.dart';
+import 'campaign_detail_screen.dart';
+import 'campaign_form_screen.dart';
 import 'character_form_screen.dart';
 import 'character_home_screen.dart';
+import 'item_library_screen.dart';
 
 class CharacterSelectionScreen extends StatefulWidget {
   const CharacterSelectionScreen({super.key});
@@ -20,383 +24,418 @@ class CharacterSelectionScreen extends StatefulWidget {
 }
 
 class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
+  List<Campaign> campaigns = [];
   List<Character> characters = [];
-
-  String search = '';
 
   @override
   void initState() {
     super.initState();
-
-    loadCharacters();
+    _reload();
   }
 
-  void loadCharacters() {
+  void _reload() {
+    if (!mounted) return;
     setState(() {
+      campaigns = CampaignStorageService.getCampaigns();
       characters = CharacterStorageService.getCharacters();
     });
   }
 
-  Future<void> openItemLibrary() async {
+  Campaign? _campaignFor(Character character) {
+    for (final campaign in campaigns) {
+      if (campaign.id == character.campaignId) return campaign;
+    }
+    return null;
+  }
+
+  Future<void> _createCampaign() async {
+    final result = await Navigator.push<Campaign>(
+      context,
+      MaterialPageRoute(builder: (_) => const CampaignFormScreen()),
+    );
+    if (result != null) _reload();
+  }
+
+  Future<void> _openCampaign(Campaign campaign) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ItemLibraryScreen()),
+      MaterialPageRoute(
+        builder: (_) => CampaignDetailScreen(campaign: campaign),
+      ),
     );
+    _reload();
   }
 
-  Future<void> createCharacter() async {
-    final result = await Navigator.push<Character>(
-      context,
-      MaterialPageRoute(builder: (_) => const CharacterFormScreen()),
-    );
-
-    if (result != null) {
-      loadCharacters();
-    }
-  }
-
-  Future<void> openCharacter(Character character) async {
+  Future<void> _openCharacter(Character character) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CharacterHomeScreen(character: character),
       ),
     );
-
-    loadCharacters();
+    _reload();
   }
 
-  Future<void> exportCharacter(Character character) async {
-    try {
-      await CharacterImportExportService.shareCharacter(character);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo exportar el personaje: $error')),
-      );
+  Future<Campaign?> _chooseCampaign({String title = 'Elegir campaña'}) async {
+    if (campaigns.isEmpty) {
+      await _createCampaign();
+      if (campaigns.isEmpty) return null;
     }
+    if (campaigns.length == 1) return campaigns.first;
+    if (!mounted) return null;
+    return showModalBottomSheet<Campaign>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              ...campaigns.map(
+                (campaign) => ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.auto_stories_rounded),
+                  ),
+                  title: Text(campaign.name),
+                  subtitle: Text(
+                    '${characters.where((c) => c.campaignId == campaign.id).length} personajes',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.pop(sheetContext, campaign),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Future<void> importCharacter() async {
+  Future<void> _createCharacter() async {
+    final campaign = await _chooseCampaign(title: '¿En qué campaña estará?');
+    if (campaign == null || !mounted) return;
+    final result = await Navigator.push<Character>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CharacterFormScreen(initialCampaignId: campaign.id),
+      ),
+    );
+    if (result != null) _reload();
+  }
+
+  Future<void> _importCharacter() async {
     try {
+      final campaign = await _chooseCampaign(title: 'Importar personaje en…');
+      if (campaign == null) return;
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['asteria', 'json'],
         allowMultiple: false,
       );
-
-      if (result == null || result.files.isEmpty) {
-        return;
-      }
-
+      if (result == null || result.files.isEmpty) return;
       final path = result.files.single.path;
-
-      if (path == null) {
+      if (path == null)
         throw const FormatException('No se pudo acceder al archivo.');
-      }
-
       final character = await CharacterImportExportService.importFileAsCopy(
         File(path),
       );
-
+      character.campaignId = campaign.id;
       await CharacterStorageService.saveCharacter(character);
-
-      if (!mounted) {
-        return;
-      }
-
-      loadCharacters();
-
+      if (!mounted) return;
+      _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${character.name} importado correctamente.')),
+        SnackBar(
+          content: Text('${character.name} añadido a ${campaign.name}.'),
+        ),
       );
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo importar el personaje: $error')),
       );
     }
   }
 
-  Future<void> duplicateCharacter(Character character) async {
-    try {
-      final raw = jsonEncode(character.toMap());
-
-      final copy = CharacterImportExportService.importCharacterAsCopy(raw);
-
-      await CharacterStorageService.saveCharacter(copy);
-
-      if (!mounted) {
-        return;
-      }
-
-      loadCharacters();
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${copy.name} creado.')));
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo duplicar el personaje: $error')),
-      );
-    }
-  }
-
-  Future<void> deleteCharacter(Character character) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Eliminar personaje'),
-          content: Text(
-            '¿Quieres eliminar "${character.name}"? Esta acción no se puede deshacer.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('Eliminar'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    await CharacterStorageService.deleteCharacter(character.id);
-
-    if (!mounted) {
-      return;
-    }
-
-    loadCharacters();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final filteredCharacters = characters.where((character) {
-      return character.name.toLowerCase().contains(search.toLowerCase());
-    }).toList();
+    final colors = Theme.of(context).colorScheme;
+    final totalItems = characters.fold<int>(
+      0,
+      (sum, character) => sum + character.inventoryItems.length,
+    );
+    final recentCharacters = characters.take(7).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Mis personajes',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Importar personaje',
-            onPressed: importCharacter,
-            icon: const Icon(Icons.file_download_rounded),
-          ),
-
-          IconButton(
-            tooltip: 'Biblioteca de objetos',
-            onPressed: openItemLibrary,
-            icon: const Icon(Icons.local_library_rounded),
-          ),
-        ],
-      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Column(
-            children: [
-              TextField(
-                onChanged: (value) {
-                  setState(() {
-                    search = value;
-                  });
-                },
-                decoration: const InputDecoration(
-                  hintText: 'Buscar personaje...',
-                  prefixIcon: Icon(Icons.search_rounded),
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              sliver: SliverToBoxAdapter(
+                child: _Header(
+                  onMenu: () => _showMenu(context),
                 ),
               ),
-
-              const SizedBox(height: 20),
-
-              Expanded(
-                child: filteredCharacters.isEmpty
-                    ? _EmptyState(
-                        hasSearch: search.isNotEmpty,
-                        onCreate: createCharacter,
-                      )
-                    : ListView.builder(
-                        itemCount: filteredCharacters.length,
-                        itemBuilder: (context, index) {
-                          final character = filteredCharacters[index];
-
-                          return _CharacterCard(
-                            character: character,
-
-                            onTap: () {
-                              openCharacter(character);
-                            },
-
-                            onExport: () {
-                              exportCharacter(character);
-                            },
-
-                            onDuplicate: () {
-                              duplicateCharacter(character);
-                            },
-
-                            onDelete: () {
-                              deleteCharacter(character);
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: createCharacter,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nuevo personaje'),
-      ),
-    );
-  }
-}
-
-class _CharacterCard extends StatelessWidget {
-  final Character character;
-  final VoidCallback onTap;
-
-  final VoidCallback onExport;
-  final VoidCallback onDuplicate;
-  final VoidCallback onDelete;
-
-  const _CharacterCard({
-    required this.character,
-    required this.onTap,
-    required this.onExport,
-    required this.onDuplicate,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 34,
-                backgroundImage: character.avatarPath != null
-                    ? FileImage(File(character.avatarPath!))
-                    : null,
-                child: character.avatarPath == null
-                    ? Text(
-                        character.name.isNotEmpty
-                            ? character.name[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              sliver: SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        colors.primaryContainer,
+                        colors.secondaryContainer.withValues(alpha: .72),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: colors.outlineVariant),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: colors.surface.withValues(alpha: .72),
+                          shape: BoxShape.circle,
                         ),
-                      )
-                    : null,
+                        child: Icon(
+                          Icons.castle_rounded,
+                          size: 32,
+                          color: colors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Tu aventura continúa',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              campaigns.isEmpty
+                                  ? 'Crea una campaña para empezar a reunir a tus personajes.'
+                                  : 'Entra en una campaña y continúa donde lo dejaste.',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.auto_awesome_rounded, color: colors.primary),
+                    ],
+                  ),
+                ),
               ),
-
-              const SizedBox(width: 16),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 2),
+              sliver: SliverToBoxAdapter(
+                child: Row(
                   children: [
-                    Text(
-                      character.name,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.bookmarks_rounded,
+                        value: '${campaigns.length}',
+                        label: 'Campañas',
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text('${character.race} · ${character.dndClass.label}'),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Nivel ${character.level}',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.groups_rounded,
+                        value: '${characters.length}',
+                        label: 'Personajes',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.backpack_rounded,
+                        value: '$totalItems',
+                        label: 'Objetos',
                       ),
                     ),
                   ],
                 ),
               ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+              sliver: SliverToBoxAdapter(
+                child: _SectionHeader(
+                  title: 'Mis campañas',
+                  actionLabel: 'Nueva',
+                  icon: Icons.add_rounded,
+                  onPressed: _createCampaign,
+                ),
+              ),
+            ),
+            if (campaigns.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: _EmptyCampaigns(onCreate: _createCampaign),
+                ),
+              )
+            else
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 228,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: campaigns.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 14),
+                    itemBuilder: (context, index) {
+                      final campaign = campaigns[index];
+                      final count = characters
+                          .where((c) => c.campaignId == campaign.id)
+                          .length;
+                      return _CampaignCard(
+                        campaign: campaign,
+                        characterCount: count,
+                        onTap: () => _openCampaign(campaign),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 26, 20, 12),
+              sliver: SliverToBoxAdapter(
+                child: _SectionHeader(
+                  title: 'Mis personajes',
+                  actionLabel: 'Añadir',
+                  icon: Icons.person_add_alt_1_rounded,
+                  onPressed: _createCharacter,
+                ),
+              ),
+            ),
+            if (recentCharacters.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: colors.outlineVariant),
+                    ),
+                    child: const Text(
+                      'Cuando añadas personajes a una campaña aparecerán aquí para acceder a ellos rápidamente.',
+                    ),
+                  ),
+                ),
+              )
+            else
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 178,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: recentCharacters.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 14),
+                    itemBuilder: (context, index) {
+                      final character = recentCharacters[index];
+                      return _CharacterQuickCard(
+                        character: character,
+                        campaignName:
+                            _campaignFor(character)?.name ?? 'Campaña',
+                        onTap: () => _openCharacter(character),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 34),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _QuickAction(
+                        icon: Icons.local_library_rounded,
+                        title: 'Biblioteca',
+                        subtitle: 'Objetos y equipo',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ItemLibraryScreen(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _QuickAction(
+                        icon: Icons.file_download_rounded,
+                        title: 'Importar',
+                        subtitle: 'Añadir personaje',
+                        onTap: _importCharacter,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: campaigns.isEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _createCampaign,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Nueva campaña'),
+            )
+          : null,
+    );
+  }
 
-              PopupMenuButton<String>(
-                tooltip: 'Opciones',
-                onSelected: (value) {
-                  switch (value) {
-                    case 'export':
-                      onExport();
-                      break;
-
-                    case 'duplicate':
-                      onDuplicate();
-                      break;
-
-                    case 'delete':
-                      onDelete();
-                      break;
-                  }
+  void _showMenu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.add_rounded),
+                title: const Text('Nueva campaña'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _createCampaign();
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'export',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.ios_share_rounded),
-                      title: Text('Exportar'),
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'duplicate',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.copy_rounded),
-                      title: Text('Duplicar'),
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.delete_outline_rounded),
-                      title: Text('Eliminar'),
-                    ),
-                  ),
-                ],
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1_rounded),
+                title: const Text('Nuevo personaje'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _createCharacter();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_download_rounded),
+                title: const Text('Importar personaje'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _importCharacter();
+                },
               ),
             ],
           ),
@@ -406,58 +445,392 @@ class _CharacterCard extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  final bool hasSearch;
-  final VoidCallback onCreate;
-
-  const _EmptyState({required this.hasSearch, required this.onCreate});
+class _Header extends StatelessWidget {
+  final VoidCallback onMenu;
+  const _Header({required this.onMenu});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              hasSearch
-                  ? Icons.search_off_rounded
-                  : Icons.person_add_alt_1_rounded,
-              size: 60,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-
-            const SizedBox(height: 18),
-
-            Text(
-              hasSearch
-                  ? 'No encontramos ese personaje'
-                  : 'Todavía no tienes personajes',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            if (!hasSearch)
-              const Text(
-                'Crea tu primer personaje para comenzar la aventura.',
-                textAlign: TextAlign.center,
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [colors.primary, colors.tertiary]),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bienvenido a Asteria',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-
-            if (!hasSearch) ...[
-              const SizedBox(height: 22),
-              FilledButton.icon(
-                onPressed: onCreate,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Crear personaje'),
+              Text(
+                'Tu aventura continúa.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
               ),
             ],
-          ],
+          ),
         ),
+        const SizedBox(width: 6),
+        IconButton.filledTonal(
+          tooltip: 'Más opciones',
+          onPressed: onMenu,
+          icon: const Icon(Icons.more_horiz_rounded),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  const _StatCard({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 22, color: colors.primary),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value, style: Theme.of(context).textTheme.titleMedium),
+                Text(label, style: Theme.of(context).textTheme.labelSmall),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String actionLabel;
+  final IconData icon;
+  final VoidCallback onPressed;
+  const _SectionHeader({
+    required this.title,
+    required this.actionLabel,
+    required this.icon,
+    required this.onPressed,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const Spacer(),
+        TextButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18),
+          label: Text(actionLabel),
+        ),
+      ],
+    );
+  }
+}
+
+class _CampaignCard extends StatelessWidget {
+  final Campaign campaign;
+  final int characterCount;
+  final VoidCallback onTap;
+  const _CampaignCard({
+    required this.campaign,
+    required this.characterCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final hasImage =
+        campaign.imagePath != null && File(campaign.imagePath!).existsSync();
+    return SizedBox(
+      width: 270,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (hasImage)
+                      Image.file(File(campaign.imagePath!), fit: BoxFit.cover)
+                    else
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              colors.primaryContainer,
+                              colors.secondaryContainer,
+                            ],
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.castle_rounded,
+                          size: 62,
+                          color: colors.primary.withValues(alpha: .75),
+                        ),
+                      ),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.surface.withValues(alpha: .88),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.groups_rounded,
+                              size: 15,
+                              color: colors.primary,
+                            ),
+                            const SizedBox(width: 5),
+                            Text('$characterCount'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      campaign.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      campaign.description.isEmpty
+                          ? '$characterCount personajes'
+                          : campaign.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CharacterQuickCard extends StatelessWidget {
+  final Character character;
+  final String campaignName;
+  final VoidCallback onTap;
+  const _CharacterQuickCard({
+    required this.character,
+    required this.campaignName,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final maxHp = character.maxHealth <= 0 ? 1 : character.maxHealth;
+    final progress = (character.currentHealth / maxHp).clamp(0.0, 1.0);
+    final hasAvatar =
+        character.avatarPath != null &&
+        File(character.avatarPath!).existsSync();
+    return SizedBox(
+      width: 132,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 42,
+                backgroundColor: colors.primaryContainer,
+                backgroundImage: hasAvatar
+                    ? FileImage(File(character.avatarPath!))
+                    : null,
+                child: !hasAvatar
+                    ? Text(
+                        character.name.isEmpty
+                            ? '?'
+                            : character.name[0].toUpperCase(),
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      )
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                character.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              Text(
+                '${character.dndClass.label} · Nv. ${character.level}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              Text(
+                campaignName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colors.primary),
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: LinearProgressIndicator(value: progress, minHeight: 5),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _QuickAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: colors.primaryContainer,
+                child: Icon(icon, color: colors.primary),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyCampaigns extends StatelessWidget {
+  final VoidCallback onCreate;
+  const _EmptyCampaigns({required this.onCreate});
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.auto_stories_rounded, size: 52, color: colors.primary),
+          const SizedBox(height: 10),
+          Text(
+            'Crea tu primera campaña',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Los personajes vivirán dentro de sus campañas para tener tus aventuras bien organizadas.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Nueva campaña'),
+          ),
+        ],
       ),
     );
   }

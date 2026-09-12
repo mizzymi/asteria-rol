@@ -5,14 +5,17 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/ability_scores.dart';
 import '../models/character.dart';
+import '../models/campaign.dart';
 import '../models/dnd_class.dart';
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
+import '../services/campaign_storage_service.dart';
 
 class CharacterFormScreen extends StatefulWidget {
   final Character? character;
+  final String? initialCampaignId;
 
-  const CharacterFormScreen({super.key, this.character});
+  const CharacterFormScreen({super.key, this.character, this.initialCampaignId});
 
   @override
   State<CharacterFormScreen> createState() => _CharacterFormScreenState();
@@ -49,6 +52,9 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
 
   late DndClass selectedClass;
 
+  late List<Campaign> campaigns;
+  String? selectedCampaignId;
+
   String? avatarPath;
 
   String? pendingAvatarPath;
@@ -62,6 +68,12 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     super.initState();
 
     final character = widget.character;
+
+    campaigns = CampaignStorageService.getCampaigns();
+    selectedCampaignId = character?.campaignId ?? widget.initialCampaignId;
+    if (selectedCampaignId == null && campaigns.length == 1) {
+      selectedCampaignId = campaigns.first.id;
+    }
 
     nameController = TextEditingController(text: character?.name ?? '');
 
@@ -182,6 +194,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       id: id,
       name: nameController.text.trim(),
       avatarPath: finalAvatarPath,
+      campaignId: selectedCampaignId,
       race: raceController.text.trim(),
       dndClass: selectedClass,
       level: level,
@@ -330,6 +343,28 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
 
                   return null;
                 },
+              ),
+
+              const SizedBox(height: 14),
+
+              DropdownButtonFormField<String>(
+                initialValue: campaigns.any((c) => c.id == selectedCampaignId)
+                    ? selectedCampaignId
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'Campaña',
+                  prefixIcon: Icon(Icons.auto_stories_rounded),
+                ),
+                items: campaigns
+                    .map((campaign) => DropdownMenuItem(
+                          value: campaign.id,
+                          child: Text(campaign.name),
+                        ))
+                    .toList(),
+                onChanged: (value) => setState(() => selectedCampaignId = value),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Selecciona una campaña'
+                    : null,
               ),
 
               const SizedBox(height: 14),

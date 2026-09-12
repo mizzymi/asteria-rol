@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'screens/character_selection_screen.dart';
 import 'services/character_storage_service.dart';
+import 'services/campaign_storage_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await CharacterStorageService.init();
+  await CampaignStorageService.init();
 
   runApp(const AsteriaRoleApp());
 }
