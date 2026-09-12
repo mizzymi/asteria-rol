@@ -60,6 +60,8 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
       description: _descriptionController.text.trim(),
       imagePath: finalImagePath,
       createdAt: widget.campaign?.createdAt,
+      shops: widget.campaign?.shops,
+      missions: widget.campaign?.missions,
     );
     await CampaignStorageService.saveCampaign(campaign);
     if (!mounted) return;

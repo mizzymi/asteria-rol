@@ -7,6 +7,7 @@ import '../models/campaign.dart';
 import '../models/character.dart';
 import '../models/dnd_class.dart';
 import '../services/campaign_storage_service.dart';
+import '../services/campaign_economy_service.dart';
 import '../services/character_import_export_service.dart';
 import '../services/character_storage_service.dart';
 import 'campaign_detail_screen.dart';
@@ -123,7 +124,10 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
         builder: (_) => CharacterFormScreen(initialCampaignId: campaign.id),
       ),
     );
-    if (result != null) _reload();
+    if (result != null) {
+      await CampaignEconomyService.ensureCharacterCurrencies(result, campaign);
+      _reload();
+    }
   }
 
   Future<void> _importCharacter() async {
@@ -144,6 +148,10 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
       );
       character.campaignId = campaign.id;
       await CharacterStorageService.saveCharacter(character);
+      await CampaignEconomyService.ensureCharacterCurrencies(
+        character,
+        campaign,
+      );
       if (!mounted) return;
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -162,9 +170,13 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final totalItems = characters.fold<int>(
+    final totalMissions = campaigns.fold<int>(
       0,
-      (sum, character) => sum + character.inventoryItems.length,
+      (sum, campaign) => sum + campaign.missions.length,
+    );
+    final totalShops = campaigns.fold<int>(
+      0,
+      (sum, campaign) => sum + campaign.shops.length,
     );
     final recentCharacters = characters.take(7).toList();
 
@@ -175,9 +187,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
               sliver: SliverToBoxAdapter(
-                child: _Header(
-                  onMenu: () => _showMenu(context),
-                ),
+                child: _Header(onMenu: () => _showMenu(context)),
               ),
             ),
             SliverPadding(
@@ -261,9 +271,9 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _StatCard(
-                        icon: Icons.backpack_rounded,
-                        value: '$totalItems',
-                        label: 'Objetos',
+                        icon: Icons.storefront_rounded,
+                        value: '$totalShops',
+                        label: 'Tiendas',
                       ),
                     ),
                   ],

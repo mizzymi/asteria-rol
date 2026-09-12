@@ -6,11 +6,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/item.dart';
+import 'portable_image_bundle.dart';
 
 class ItemImportExportService {
   const ItemImportExportService._();
 
-  static const int formatVersion = 2;
+  static const int formatVersion = 3;
 
   static const String formatType = 'asteria-item';
 
@@ -19,40 +20,20 @@ class ItemImportExportService {
   // ===========================================================================
 
   static Future<File> createExportFile(ItemDefinition definition) async {
-    String? encodedImage;
-
-    final imagePath = definition.imagePath;
-    if (imagePath != null && imagePath.trim().isNotEmpty) {
-      final imageFile = File(imagePath);
-      if (await imageFile.exists()) {
-        final bytes = await imageFile.readAsBytes();
-        encodedImage = base64Encode(bytes);
-      }
-    }
-
-    // =========================================================================
-    // LA RUTA LOCAL NO SE EXPORTA
-    // =========================================================================
-
-    final exportDefinition = definition.copyWith(imagePath: '');
-
-    // =========================================================================
-    // PAYLOAD
-    // =========================================================================
+    final definitionMap = Map<String, dynamic>.from(definition.toMap());
+    final images = await PortableImageBundle.extractFrom(definitionMap);
 
     final payload = {
       'type': formatType,
       'version': formatVersion,
-      'definition': exportDefinition.toMap(),
-      'image': encodedImage,
+      'definition': definitionMap,
+      'images': images,
     };
 
     final tempDirectory = await getTemporaryDirectory();
     final safeName = _safeFileName(definition.name);
     final file = File('${tempDirectory.path}/$safeName.asteria-item');
-
     await file.writeAsString(jsonEncode(payload), flush: true);
-
     return file;
   }
 
@@ -141,7 +122,27 @@ class ItemImportExportService {
     }
 
     // =========================================================================
-    // VERSION 2+ · ITEM DEFINITION
+    // VERSION 3 · DEFINICIÓN + TODAS LAS IMÁGENES ANIDADAS
+    // =========================================================================
+
+    if (version >= 3) {
+      final rawDefinition = map['definition'];
+      if (rawDefinition is! Map) {
+        throw const FormatException('La definición del objeto está incompleta.');
+      }
+      final definitionMap = Map<String, dynamic>.from(rawDefinition);
+      if (map['images'] is Map) {
+        await PortableImageBundle.restoreInto(
+          definitionMap,
+          Map<String, dynamic>.from(map['images'] as Map),
+          namespace: 'item',
+        );
+      }
+      return ItemDefinition.fromMap(Map<dynamic, dynamic>.from(definitionMap));
+    }
+
+    // =========================================================================
+    // VERSION 2 · ITEM DEFINITION
     // =========================================================================
 
     if (version >= 2) {

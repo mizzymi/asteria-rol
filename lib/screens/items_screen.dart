@@ -10,6 +10,7 @@ import '../models/character_content_folder.dart';
 
 import '../services/action_resolution_flow.dart';
 import '../services/character_storage_service.dart';
+import '../services/campaign_storage_service.dart';
 import '../services/inventory_service.dart';
 import '../services/item_import_export_service.dart';
 import '../services/item_library_service.dart';
@@ -29,7 +30,7 @@ import '../widgets/items/equipment_slots_config_dialog.dart';
 import '../widgets/items/item_image_viewer.dart';
 
 import 'item_form_screen.dart';
-import 'item_library_screen.dart';
+import 'campaign_shop_detail_screen.dart';
 
 typedef InventoryItemView = ({
   InventoryItem inventory,
@@ -808,7 +809,6 @@ class _ItemsScreenState extends State<ItemsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${definition.name} guardado en la biblioteca.'),
-          action: SnackBarAction(label: 'Abrir', onPressed: openLibrary),
         ),
       );
     } catch (_) {
@@ -914,40 +914,76 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
   }
 
-  Future<void> openLibrary() async {
-    final definition = await Navigator.push<ItemDefinition>(
+  Future<void> openShop() async {
+    final campaignId = character.campaignId;
+    if (campaignId == null || campaignId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Este personaje todavía no pertenece a una campaña.')),
+      );
+      return;
+    }
+
+    final campaign = CampaignStorageService.getCampaign(campaignId);
+    if (campaign == null || campaign.shops.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Esta campaña todavía no tiene tiendas.')),
+      );
+      return;
+    }
+
+    var shop = campaign.shops.first;
+    if (campaign.shops.length > 1) {
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            children: [
+              const ListTile(
+                leading: Icon(Icons.storefront_rounded),
+                title: Text('Tiendas de la campaña'),
+                subtitle: Text('Elige dónde quiere comprar este personaje.'),
+              ),
+              ...campaign.shops.map(
+                (candidate) => ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.store_rounded)),
+                  title: Text(candidate.name),
+                  subtitle: Text(
+                    candidate.description.trim().isEmpty
+                        ? 'Moneda: ${candidate.currencyName}'
+                        : candidate.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.pop(sheetContext, candidate.id),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (selected == null || !mounted) return;
+      shop = campaign.shops.firstWhere((candidate) => candidate.id == selected);
+    }
+
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => const ItemLibraryScreen(mode: ItemLibraryMode.select),
+        builder: (_) => CampaignShopDetailScreen(
+          campaign: campaign,
+          shop: shop,
+          buyer: character,
+        ),
       ),
     );
 
-    if (definition == null || !mounted) return;
-
-    setState(() {
-      _inventoryService.addItem(
-        character: character,
-        definition: definition,
-        quantity: 1,
-      );
-
-      if (character.inventoryItems.isNotEmpty) {
-        final addedItem = character.inventoryItems.lastWhere(
-          (item) => item.itemId == definition.id,
-          orElse: () => character.inventoryItems.last,
-        );
-        addedItem.folderId = _currentFolderId;
-      }
-
-      character.normalizeHealth();
-    });
-
-    await save();
-
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${definition.name} añadido al inventario.')),
-    );
+    setState(() {});
   }
 
   Future<void> openItemFromGrid(
@@ -1322,9 +1358,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
               icon: const Icon(Icons.file_download_rounded),
             ),
             IconButton(
-              tooltip: 'Biblioteca',
-              onPressed: openLibrary,
-              icon: const Icon(Icons.local_library_rounded),
+              tooltip: 'Tiendas',
+              onPressed: openShop,
+              icon: const Icon(Icons.storefront_rounded),
             ),
           ],
         ),
