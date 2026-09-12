@@ -141,8 +141,9 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
       );
       if (result == null || result.files.isEmpty) return;
       final path = result.files.single.path;
-      if (path == null)
+      if (path == null) {
         throw const FormatException('No se pudo acceder al archivo.');
+      }
       final character = await CharacterImportExportService.importFileAsCopy(
         File(path),
       );
@@ -170,10 +171,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final totalMissions = campaigns.fold<int>(
-      0,
-      (sum, campaign) => sum + campaign.missions.length,
-    );
+
     final totalShops = campaigns.fold<int>(
       0,
       (sum, campaign) => sum + campaign.shops.length,
