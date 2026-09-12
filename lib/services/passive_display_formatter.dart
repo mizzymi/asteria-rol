@@ -489,6 +489,7 @@ class PassiveDisplayFormatter {
       case PassiveTriggerActionType.subtractCharge:
       case PassiveTriggerActionType.dealDamage:
       case PassiveTriggerActionType.heal:
+      case PassiveTriggerActionType.mitigateDamage:
         return targetId;
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../models/dice_pool.dart';
@@ -8,6 +10,7 @@ import '../models/ability.dart';
 import '../models/passive.dart';
 import '../models/weapon.dart';
 import '../models/weapon_damage.dart';
+import '../models/character_effect.dart';
 import '../services/character_storage_service.dart';
 import '../services/action_resolution_flow.dart';
 import '../services/ability_library_service.dart';
@@ -16,6 +19,7 @@ import '../widgets/action_resolution/result/action_resolution_result_dialog.dart
 import 'ability_form_screen.dart';
 import 'passive_form_screen.dart';
 import 'pet_form_screen.dart';
+import 'effect_form_screen.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final Character character;
@@ -35,6 +39,43 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Character get character => widget.character;
   Pet get pet => widget.pet;
 
+  Future<void> _addEffect() async {
+    final effect = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EffectFormScreen(character: _toTemporaryCharacter()),
+      ),
+    );
+    if (effect == null) return;
+
+    setState(() {
+      pet.effects.add(effect);
+    });
+    await _save();
+  }
+
+  Future<void> _editEffect(CharacterEffect effect) async {
+    final result = await Navigator.push<CharacterEffect>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EffectFormScreen(
+          effect: effect,
+          character: _toTemporaryCharacter(),
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        final index = pet.effects.indexWhere((e) => e.id == effect.id);
+        if (index != -1) {
+          pet.effects[index] = result;
+        }
+      });
+      await _save();
+    }
+  }
+
   Future<void> _save() async {
     await CharacterStorageService.saveCharacter(character);
     if (mounted) setState(() {});
@@ -51,6 +92,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     setState(() {
       pet.name = result.name;
       pet.species = result.species;
+      pet.avatarPath = result.avatarPath;
+      pet.avatarAlignmentX = result.avatarAlignmentX;
+      pet.avatarAlignmentY = result.avatarAlignmentY;
       pet.maxHealth = result.maxHealth;
       pet.currentHealth = pet.currentHealth.clamp(0, result.maxHealth);
       pet.armorClass = result.armorClass;
@@ -112,14 +156,34 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
   Future<void> _addOrEditWeapon({Weapon? weapon}) async {
     final nameController = TextEditingController(text: weapon?.name ?? '');
-    final diceController = TextEditingController(
-      text: weapon?.damageDice ?? '1d6',
-    );
-    final typeController = TextEditingController(
-      text: weapon?.damageType ?? 'cortante',
-    );
     bool proficient = weapon?.proficient ?? true;
     AbilityType attackAbility = weapon?.attackAbility ?? AbilityType.strength;
+
+    // Clonamos o inicializamos la lista de daños para editarla de forma segura en el diálogo
+    List<WeaponDamage> dialogDamages = weapon != null
+        ? weapon.damages
+              .map(
+                (d) => WeaponDamage(
+                  id: d.id,
+                  name: d.name,
+                  dicePools: List.from(d.dicePools),
+                  damageType: d.damageType,
+                  bonus: d.bonus,
+                  addAbilityModifier: d.addAbilityModifier,
+                  abilityType: d.abilityType,
+                ),
+              )
+              .toList()
+        : [
+            WeaponDamage(
+              id: 'dmg_${DateTime.now().microsecondsSinceEpoch}',
+              name: 'Daño principal',
+              dicePools: [DicePool(count: 1, sides: 6)],
+              damageType: 'cortante',
+              addAbilityModifier: true,
+              abilityType: attackAbility,
+            ),
+          ];
 
     final result = await showDialog<bool>(
       context: context,
@@ -130,87 +194,166 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               title: Text(
                 weapon == null ? 'Nuevo ataque básico' : 'Editar ataque',
               ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nombre del ataque (ej. Mordisco, Garra)',
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          labelText:
+                              'Nombre del ataque (ej. Mordisco de Fuego)',
+                          prefixIcon: Icon(Icons.gavel_rounded),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: diceController,
-                            decoration: const InputDecoration(
-                              labelText: 'Dados de daño (ej. 1d8)',
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<AbilityType>(
+                        initialValue: attackAbility,
+                        decoration: const InputDecoration(
+                          labelText: 'Atributo de ataque',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: AbilityType.strength,
+                            child: Text('Fuerza'),
+                          ),
+                          DropdownMenuItem(
+                            value: AbilityType.dexterity,
+                            child: Text('Destreza'),
+                          ),
+                          DropdownMenuItem(
+                            value: AbilityType.constitution,
+                            child: Text('Constitución'),
+                          ),
+                          DropdownMenuItem(
+                            value: AbilityType.intelligence,
+                            child: Text('Inteligencia'),
+                          ),
+                          DropdownMenuItem(
+                            value: AbilityType.wisdom,
+                            child: Text('Sabiduría'),
+                          ),
+                          DropdownMenuItem(
+                            value: AbilityType.charisma,
+                            child: Text('Carisma'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() {
+                              attackAbility = val;
+                              for (var d in dialogDamages) {
+                                d.abilityType = val;
+                              }
+                            });
+                          }
+                        },
+                      ),
+                      CheckboxListTile(
+                        title: const Text('Competente'),
+                        value: proficient,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => proficient = val);
+                          }
+                        },
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Componentes de Daño',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: typeController,
-                            decoration: const InputDecoration(
-                              labelText: 'Tipo de daño',
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline_rounded),
+                            color: Theme.of(context).colorScheme.primary,
+                            tooltip: 'Añadir otro tipo de daño',
+                            onPressed: () {
+                              setDialogState(() {
+                                dialogDamages.add(
+                                  WeaponDamage(
+                                    id: 'dmg_${DateTime.now().microsecondsSinceEpoch}',
+                                    name: 'Daño adicional',
+                                    dicePools: [DicePool(count: 1, sides: 6)],
+                                    damageType: 'fuego',
+                                    addAbilityModifier:
+                                        false, // Por lo general el secundario no lleva mod extra
+                                    abilityType: attackAbility,
+                                  ),
+                                );
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...dialogDamages.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final dmg = entry.value;
+                        final diceStr = dmg.dicePools
+                            .map((p) => '${p.count}d${p.sides}')
+                            .join(' + ');
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: TextFormField(
+                                    initialValue: diceStr,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Dados (ej. 1d6)',
+                                    ),
+                                    onChanged: (val) {
+                                      final pools = _parseDiceNotation(val);
+                                      dmg.dicePools = pools;
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  flex: 2,
+                                  child: TextFormField(
+                                    initialValue: dmg.damageType,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Tipo (ej. fuego)',
+                                    ),
+                                    onChanged: (val) {
+                                      dmg.damageType = val.trim();
+                                    },
+                                  ),
+                                ),
+                                if (dialogDamages.length > 1)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () {
+                                      setDialogState(() {
+                                        dialogDamages.removeAt(index);
+                                      });
+                                    },
+                                  ),
+                              ],
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<AbilityType>(
-                      initialValue: attackAbility,
-                      decoration: const InputDecoration(
-                        labelText: 'Atributo de ataque',
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: AbilityType.strength,
-                          child: Text('Fuerza'),
-                        ),
-                        DropdownMenuItem(
-                          value: AbilityType.dexterity,
-                          child: Text('Destreza'),
-                        ),
-                        DropdownMenuItem(
-                          value: AbilityType.constitution,
-                          child: Text('Constitución'),
-                        ),
-                        DropdownMenuItem(
-                          value: AbilityType.intelligence,
-                          child: Text('Inteligencia'),
-                        ),
-                        DropdownMenuItem(
-                          value: AbilityType.wisdom,
-                          child: Text('Sabiduría'),
-                        ),
-                        DropdownMenuItem(
-                          value: AbilityType.charisma,
-                          child: Text('Carisma'),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => attackAbility = val);
-                        }
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Competente'),
-                      value: proficient,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => proficient = val);
-                        }
-                      },
-                    ),
-                  ],
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -232,11 +375,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     if (result != true || !mounted) return;
 
     final name = nameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty || dialogDamages.isEmpty) return;
 
-    final diceText = diceController.text.trim();
-    final typeText = typeController.text.trim();
-    final parsedPools = _parseDiceNotation(diceText);
+    // Actualizamos el resumen de texto legacy (damageDice / damageType) tomando el principal para compatibilidad visual
+    final primaryDmg = dialogDamages.first;
+    final primaryDiceStr = primaryDmg.dicePools
+        .map((p) => '${p.count}d${p.sides}')
+        .join(' + ');
 
     setState(() {
       if (weapon == null) {
@@ -244,36 +389,20 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           Weapon(
             id: 'pet_weapon_${DateTime.now().microsecondsSinceEpoch}',
             name: name,
-            damageDice: diceText,
-            damageType: typeText,
+            damageDice: primaryDiceStr,
+            damageType: primaryDmg.damageType,
             attackAbility: attackAbility,
             proficient: proficient,
-            damages: [
-              WeaponDamage(
-                id: 'dmg_1',
-                dicePools: parsedPools,
-                damageType: typeText,
-                addAbilityModifier: true,
-                abilityType: attackAbility,
-              ),
-            ],
+            damages: dialogDamages,
           ),
         );
       } else {
         weapon.name = name;
-        weapon.damageDice = diceText;
-        weapon.damageType = typeText;
+        weapon.damageDice = primaryDiceStr;
+        weapon.damageType = primaryDmg.damageType;
         weapon.attackAbility = attackAbility;
         weapon.proficient = proficient;
-        weapon.damages = [
-          WeaponDamage(
-            id: weapon.damages.isNotEmpty ? weapon.damages.first.id : 'dmg_1',
-            dicePools: parsedPools,
-            damageType: typeText,
-            addAbilityModifier: true,
-            abilityType: attackAbility,
-          ),
-        ];
+        weapon.damages = dialogDamages;
       }
     });
 
@@ -328,6 +457,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       weapons: pet.weapons,
       characterAbilities: pet.characterAbilities,
       passives: pet.passives,
+      effects: pet.effects,
       itemDefinitions: character.itemDefinitions,
       inventoryItems: character.inventoryItems,
     );
@@ -343,6 +473,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       if (execution == null || !mounted) return;
 
       pet.currentHealth = tempChar.currentHealth;
+      pet.effects = List.from(tempChar.effects);
+
       await _save();
       setState(() {});
 
@@ -370,6 +502,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       if (execution == null || !mounted) return;
 
       pet.currentHealth = tempChar.currentHealth;
+      pet.effects = List.from(tempChar.effects);
+
       await _save();
       setState(() {});
 
@@ -438,6 +572,60 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     }
   }
 
+
+  Future<void> _showAvatarFullscreen() async {
+    if (pet.avatarPath.isEmpty || !File(pet.avatarPath).existsSync()) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .94),
+      builder: (dialogContext) {
+        return Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              InteractiveViewer(
+                minScale: 1,
+                maxScale: 5,
+                child: Center(
+                  child: Image.file(
+                    File(pet.avatarPath),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: MediaQuery.paddingOf(dialogContext).top + 8,
+                right: 12,
+                child: IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: .55),
+                    foregroundColor: Colors.white,
+                  ),
+                  tooltip: 'Cerrar',
+                  onPressed: () => Navigator.pop(dialogContext),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ),
+              Positioned(
+                left: 18,
+                right: 70,
+                bottom: MediaQuery.paddingOf(dialogContext).bottom + 18,
+                child: Text(
+                  'Pellizca para ampliar · arrastra para moverte',
+                  style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -454,390 +642,468 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Tarjeta de Estado y Atributos
-          Card(
-            elevation: 0,
-            color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    pet.species.isNotEmpty ? pet.species : 'Compañero',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: colors.primary,
-                    ),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildHero(context)),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildOverviewCard(context),
+                const SizedBox(height: 20),
+                _buildSectionHeader(
+                  context,
+                  title: 'Efectos activos',
+                  icon: Icons.auto_awesome_rounded,
+                  action: FilledButton.tonalIcon(
+                    onPressed: _addEffect,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Añadir'),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    pet.name,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      InkWell(
-                        onTap: _editPetHealth,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          child: _buildStatItem(
-                            context,
-                            'PV (Editar)',
-                            '${pet.currentHealth}/${pet.maxHealth}',
-                            Icons.favorite_rounded,
-                            colors.error,
-                          ),
-                        ),
+                ),
+                const SizedBox(height: 8),
+                if (pet.effects.isEmpty)
+                  _buildEmptyState(context, 'No hay efectos activos asignados.')
+                else
+                  ...pet.effects.map((effect) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Icon(effect.enabled ? Icons.bolt_rounded : Icons.bolt_outlined),
                       ),
-                      _buildStatItem(
-                        context,
-                        'CA',
-                        '${pet.armorClass}',
-                        Icons.shield_rounded,
-                        colors.primary,
-                      ),
-                      _buildStatItem(
-                        context,
-                        'VEL',
-                        '${pet.speed}',
-                        Icons.directions_run_rounded,
-                        colors.tertiary,
-                      ),
-                      _buildStatItem(
-                        context,
-                        'COMP',
-                        '+${pet.proficiencyBonus}',
-                        Icons.military_tech_rounded,
-                        colors.secondary,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Atributos',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildAttributesRow(),
-                  if (pet.notes.isNotEmpty) ...[
-                    const Divider(height: 24),
-                    Text(pet.notes, style: theme.textTheme.bodyMedium),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Sección de Ataques Básicos / Armas
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Ataques Básicos',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: () => _addOrEditWeapon(),
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('Añadir'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (pet.weapons.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Text(
-                'No hay ataques básicos configurados.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            )
-          else
-            ...pet.weapons.expand((weapon) {
-              final atkBonus = pet.weaponAttackBonus(weapon);
-              final atkText = atkBonus >= 0 ? '+$atkBonus' : '$atkBonus';
-              return [
-                Card(
-                  child: ListTile(
-                    onTap: () => _resolvePetWeapon(weapon),
-                    leading: const Icon(Icons.gavel_rounded),
-                    title: Text(
-                      weapon.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      'Atributo: ${weapon.attackAbility.name.toUpperCase()} • Ataque: $atkText • Daño: ${weapon.damageDice} ${weapon.damageType}',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.play_arrow_rounded,
-                            color: Colors.green,
+                      title: Text(effect.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(effect.durationText.isNotEmpty ? effect.durationText : (effect.enabled ? 'Activo' : 'Inactivo')),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Switch.adaptive(
+                            value: effect.enabled,
+                            onChanged: (value) async {
+                              setState(() => effect.enabled = value);
+                              await _save();
+                            },
                           ),
-                          tooltip: 'Atacar',
-                          onPressed: () => _resolvePetWeapon(weapon),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_rounded, size: 20),
-                          onPressed: () => _addOrEditWeapon(weapon: weapon),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            size: 20,
-                          ),
-                          onPressed: () async {
-                            setState(
-                              () => pet.weapons.removeWhere(
-                                (w) => w.id == weapon.id,
-                              ),
-                            );
-                            await _save();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12), // <--- Espacio entre ataques
-              ];
-            }),
-
-          const SizedBox(height: 20),
-
-          // Sección de Habilidades Activas
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Habilidades Activas',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: _addAbility,
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('Añadir'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (pet.characterAbilities.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Text(
-                'No hay habilidades activas asignadas.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            )
-          else
-            ...pet.characterAbilities.expand((ability) {
-              return [
-                Card(
-                  child: ListTile(
-                    onTap: () => _editAbility(ability),
-                    leading: const Icon(Icons.flash_on_rounded),
-                    title: Text(
-                      ability.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      ability.description.isNotEmpty
-                          ? ability.description
-                          : 'Sin descripción',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.play_arrow_rounded,
-                            color: Colors.green,
-                          ),
-                          tooltip: 'Usar habilidad',
-                          onPressed: () => _resolvePetAbility(ability),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_rounded, size: 20),
-                          tooltip: 'Editar',
-                          onPressed: () => _editAbility(ability),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          onPressed: () async {
-                            setState(
-                              () => pet.characterAbilities.removeWhere(
-                                (a) => a.id == ability.id,
-                              ),
-                            );
-                            await _save();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12), // <--- Espacio entre habilidades
-              ];
-            }),
-
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Passivas Activas',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: _addPassive,
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('Añadir'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (pet.passives.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Text(
-                'No hay pasivas asignadas.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            )
-          else
-            ...pet.passives.expand((passive) {
-              return [
-                Card(
-                  child: ListTile(
-                    onTap: () => _editPassive(passive),
-                    leading: const Icon(Icons.auto_awesome_rounded),
-                    title: Text(
-                      passive.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${passive.triggers.length} triggers configurados',
-                        ),
-                        if (passive.hasCharges) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.tertiaryContainer,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'Cargas: ${passive.chargesText}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color:
-                                        theme.colorScheme.onTertiaryContainer,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              if (passive.currentCharges > 0)
-                                InkWell(
-                                  onTap: () async {
-                                    setState(() {
-                                      passive.currentCharges--;
-                                    });
-                                    await _save();
-                                  },
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(4.0),
-                                    child: Icon(
-                                      Icons.remove_circle_outline,
-                                      size: 18,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                ),
-                              if (!passive.chargesFull)
-                                InkWell(
-                                  onTap: () async {
-                                    setState(() {
-                                      passive.currentCharges++;
-                                      passive.normalizeCharges();
-                                    });
-                                    await _save();
-                                  },
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(4.0),
-                                    child: Icon(
-                                      Icons.add_circle_outline,
-                                      size: 18,
-                                      color: Colors.green,
-                                    ),
-                                  ),
-                                ),
+                          PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                await _editEffect(effect);
+                              } else if (value == 'turn') {
+                                setState(() {
+                                  effect.advanceTurn();
+                                  pet.effects.removeWhere((e) => e.hasDuration && e.isExpired);
+                                });
+                                await _save();
+                              } else if (value == 'delete') {
+                                setState(() => pet.effects.removeWhere((e) => e.id == effect.id));
+                                await _save();
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'turn', child: Text('Reducir 1 turno')),
+                              PopupMenuItem(value: 'edit', child: Text('Editar')),
+                              PopupMenuItem(value: 'delete', child: Text('Eliminar')),
                             ],
                           ),
                         ],
-                      ],
+                      ),
+                      onTap: () => _editEffect(effect),
                     ),
-                    isThreeLine: passive.hasCharges,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_rounded, size: 20),
-                          tooltip: 'Editar',
-                          onPressed: () => _editPassive(passive),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          onPressed: () async {
-                            setState(
-                              () => pet.passives.removeWhere(
-                                (p) => p.id == passive.id,
-                              ),
-                            );
-                            await _save();
-                          },
-                        ),
-                      ],
-                    ),
+                  )),
+                const SizedBox(height: 20),
+                _buildSectionHeader(
+                  context,
+                  title: 'Ataques básicos',
+                  icon: Icons.gavel_rounded,
+                  action: FilledButton.tonalIcon(
+                    onPressed: () => _addOrEditWeapon(),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Añadir'),
                   ),
                 ),
-                const SizedBox(height: 12), // <--- Espacio entre pasivas
-              ];
-            }),
-          const SizedBox(height: 28),
+                const SizedBox(height: 8),
+                if (pet.weapons.isEmpty)
+                  _buildEmptyState(context, 'No hay ataques básicos configurados.')
+                else
+                  ...pet.weapons.map((weapon) {
+                    final atkBonus = pet.weaponAttackBonus(weapon);
+                    final atkText = atkBonus >= 0 ? '+$atkBonus' : '$atkBonus';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        onTap: () => _resolvePetWeapon(weapon),
+                        leading: const CircleAvatar(child: Icon(Icons.gavel_rounded)),
+                        title: Text(weapon.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text('Ataque $atkText  •  ${weapon.damageDice} ${weapon.damageType}'),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            if (value == 'use') await _resolvePetWeapon(weapon);
+                            if (value == 'edit') await _addOrEditWeapon(weapon: weapon);
+                            if (value == 'delete') {
+                              setState(() => pet.weapons.removeWhere((w) => w.id == weapon.id));
+                              await _save();
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'use', child: Text('Atacar')),
+                            PopupMenuItem(value: 'edit', child: Text('Editar')),
+                            PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                const SizedBox(height: 20),
+                _buildSectionHeader(
+                  context,
+                  title: 'Habilidades activas',
+                  icon: Icons.flash_on_rounded,
+                  action: FilledButton.tonalIcon(
+                    onPressed: _addAbility,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Añadir'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (pet.characterAbilities.isEmpty)
+                  _buildEmptyState(context, 'No hay habilidades activas asignadas.')
+                else
+                  ...pet.characterAbilities.map((ability) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.flash_on_rounded)),
+                      title: Text(ability.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(ability.description.isNotEmpty ? ability.description : 'Sin descripción', maxLines: 2, overflow: TextOverflow.ellipsis),
+                      onTap: () => _resolvePetAbility(ability),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          if (value == 'use') await _resolvePetAbility(ability);
+                          if (value == 'edit') await _editAbility(ability);
+                          if (value == 'delete') {
+                            setState(() => pet.characterAbilities.removeWhere((a) => a.id == ability.id));
+                            await _save();
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'use', child: Text('Usar')),
+                          PopupMenuItem(value: 'edit', child: Text('Editar')),
+                          PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                        ],
+                      ),
+                    ),
+                  )),
+                const SizedBox(height: 20),
+                _buildSectionHeader(
+                  context,
+                  title: 'Pasivas',
+                  icon: Icons.auto_awesome_rounded,
+                  action: FilledButton.tonalIcon(
+                    onPressed: _addPassive,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Añadir'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (pet.passives.isEmpty)
+                  _buildEmptyState(context, 'No hay pasivas asignadas.')
+                else
+                  ...pet.passives.map((passive) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.auto_awesome_rounded)),
+                      title: Text(passive.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(passive.hasCharges
+                          ? '${passive.triggers.length} triggers  •  Cargas ${passive.chargesText}'
+                          : '${passive.triggers.length} triggers configurados'),
+                      onTap: () => _editPassive(passive),
+                      trailing: passive.hasCharges
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.outlineVariant,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Gastar carga',
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(Icons.remove_rounded, size: 18),
+                                        onPressed: passive.currentCharges <= 0
+                                            ? null
+                                            : () async {
+                                                setState(() {
+                                                  passive.currentCharges--;
+                                                  passive.normalizeCharges();
+                                                });
+                                                await _save();
+                                              },
+                                      ),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(minWidth: 42),
+                                        child: Text(
+                                          passive.chargesText,
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Recuperar carga',
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(Icons.add_rounded, size: 18),
+                                        onPressed: passive.chargesFull
+                                            ? null
+                                            : () async {
+                                                setState(() {
+                                                  passive.currentCharges++;
+                                                  passive.normalizeCharges();
+                                                });
+                                                await _save();
+                                              },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
+                                  onSelected: (value) async {
+                                    if (value == 'edit') await _editPassive(passive);
+                                    if (value == 'delete') {
+                                      setState(() => pet.passives.removeWhere((p) => p.id == passive.id));
+                                      await _save();
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(value: 'edit', child: Text('Editar')),
+                                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : PopupMenuButton<String>(
+                              onSelected: (value) async {
+                                if (value == 'edit') await _editPassive(passive);
+                                if (value == 'delete') {
+                                  setState(() => pet.passives.removeWhere((p) => p.id == passive.id));
+                                  await _save();
+                                }
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(value: 'edit', child: Text('Editar')),
+                                PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                              ],
+                            ),
+                    ),
+                  )),
+              ]),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHero(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final hasImage = pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
+
+    return GestureDetector(
+      onTap: hasImage ? _showAvatarFullscreen : null,
+      child: SizedBox(
+        height: 290,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+          if (hasImage)
+            Image.file(
+              File(pet.avatarPath),
+              fit: BoxFit.cover,
+              alignment: Alignment(pet.avatarAlignmentX, pet.avatarAlignmentY),
+            )
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [colors.primaryContainer, colors.tertiaryContainer],
+                ),
+              ),
+              child: Icon(Icons.pets_rounded, size: 100, color: colors.onPrimaryContainer.withValues(alpha: .55)),
+            ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withValues(alpha: .72)],
+                  stops: const [.35, 1],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (pet.species.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: .28), borderRadius: BorderRadius.circular(999)),
+                    child: Text(pet.species, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ),
+                const SizedBox(height: 8),
+                Text(
+                  pet.name,
+                  style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          ),
+          if (hasImage)
+            Positioned(
+              top: 14,
+              right: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: .45),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.zoom_out_map_rounded, color: Colors.white, size: 17),
+                    SizedBox(width: 6),
+                    Text(
+                      'Ampliar',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+    );
+  }
+
+  Widget _buildOverviewCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final healthRatio = pet.maxHealth <= 0 ? 0.0 : (pet.currentHealth / pet.maxHealth).clamp(0.0, 1.0);
+
+    return Card(
+      elevation: 0,
+      color: colors.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: _editPetHealth,
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.favorite_rounded, color: colors.error),
+                        const SizedBox(width: 8),
+                        Text('Puntos de vida', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                        const Spacer(),
+                        Text('${pet.currentHealth} / ${pet.maxHealth}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(value: healthRatio, minHeight: 9, borderRadius: BorderRadius.circular(99)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(child: _buildMetricTile(context, 'CA', '${pet.armorClass}', Icons.shield_rounded)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildMetricTile(context, 'Velocidad', '${pet.speed}', Icons.directions_run_rounded)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildMetricTile(context, 'Competencia', '+${pet.proficiencyBonus}', Icons.military_tech_rounded)),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text('Atributos', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            _buildAttributesRow(),
+            if (pet.notes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
+                child: Text(pet.notes),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricTile(BuildContext context, String label, String value, IconData icon) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        children: [
+          Icon(icon, color: colors.primary, size: 21),
+          const SizedBox(height: 5),
+          Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, {required String title, required IconData icon, required Widget action}) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 21, color: theme.colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(child: Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
+        action,
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, String text) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Text(text, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic)),
     );
   }
 

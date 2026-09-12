@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../models/ability.dart';
@@ -132,17 +134,35 @@ class _CompactAbilityHeader extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AbilityAttributeColors.strongBackground(
-                  context,
-                  ability.abilityType,
-                ),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(_abilityIcon, color: attributeColor),
+            Builder(
+              builder: (context) {
+                final path = ability.imagePath?.trim();
+                final file = path == null || path.isEmpty ? null : File(path);
+                final hasImage = file?.existsSync() ?? false;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: hasImage
+                        ? Image.file(
+                            file!,
+                            fit: BoxFit.cover,
+                            alignment: Alignment(
+                              ability.imageAlignmentX,
+                              ability.imageAlignmentY,
+                            ),
+                          )
+                        : ColoredBox(
+                            color: AbilityAttributeColors.strongBackground(
+                              context,
+                              ability.abilityType,
+                            ),
+                            child: Icon(_abilityIcon, color: attributeColor),
+                          ),
+                  ),
+                );
+              },
             ),
 
             const SizedBox(width: 12),

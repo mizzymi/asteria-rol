@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/character_content_folder.dart';
 import '../models/item_definition.dart';
@@ -40,7 +43,38 @@ class AbilitiesScreen extends StatefulWidget {
 }
 
 class _AbilitiesScreenState extends State<AbilitiesScreen> {
+  static const String _gridViewPreferenceKey = 'abilities_grid_view';
+
   Character get character => widget.character;
+
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  bool gridView = false;
+  bool viewPreferenceLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadViewPreference();
+  }
+
+  Future<void> _loadViewPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedGridView = prefs.getBool(_gridViewPreferenceKey) ?? false;
+    if (!mounted) return;
+    setState(() {
+      gridView = savedGridView;
+      viewPreferenceLoaded = true;
+    });
+  }
+
+  Future<void> _toggleViewMode() async {
+    final newValue = !gridView;
+    setState(() => gridView = newValue);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_gridViewPreferenceKey, newValue);
+  }
 
   String? _currentFolderId;
 
@@ -145,6 +179,83 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     }
 
     return 'Habilidades y pasivas';
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _normalizeSearchText(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ñ', 'n');
+  }
+
+  Set<String> _abilityFolderSearchScope() {
+    final result = <String>{};
+
+    void visit(String? parentId) {
+      for (final folder in character.abilityFoldersInside(parentId)) {
+        if (result.add(folder.id)) {
+          visit(folder.id);
+        }
+      }
+    }
+
+    visit(_currentFolderId);
+    return result;
+  }
+
+  bool _matchesAbilitySearch(CharacterAbility ability, String query) {
+    final haystack = _normalizeSearchText(
+      '${ability.name} ${ability.description} ${ability.notes} ${ability.actionType.label}',
+    );
+    return haystack.contains(query);
+  }
+
+  bool _matchesPassiveSearch(CharacterPassive passive, String query) {
+    final haystack = _normalizeSearchText(
+      '${passive.name} ${passive.description} ${passive.notes}',
+    );
+    return haystack.contains(query);
+  }
+
+  Widget _buildSearchField() {
+    final colors = Theme.of(context).colorScheme;
+    final searching = _searchQuery.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+      child: SearchBar(
+        controller: _searchController,
+        hintText: 'Buscar aquí y en subcarpetas',
+        leading: const Icon(Icons.search_rounded),
+        trailing: [
+          if (searching)
+            IconButton(
+              tooltip: 'Limpiar búsqueda',
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _searchQuery = '');
+              },
+              icon: const Icon(Icons.close_rounded),
+            ),
+        ],
+        onChanged: (value) => setState(() => _searchQuery = value),
+        backgroundColor: WidgetStatePropertyAll(
+          colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        ),
+        elevation: const WidgetStatePropertyAll(0),
+      ),
+    );
   }
 
   Future<void> _createFolder() async {
@@ -810,6 +921,296 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     }
   }
 
+  Future<void> _showImageFullscreen({
+    required String imagePath,
+    required String title,
+  }) async {
+    final file = File(imagePath);
+    if (!file.existsSync()) return;
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .92),
+      builder: (dialogContext) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: InteractiveViewer(
+                minScale: .8,
+                maxScale: 5,
+                child: Center(child: Image.file(file, fit: BoxFit.contain)),
+              ),
+            ),
+            SafeArea(
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    icon: const Icon(Icons.close_rounded, color: Colors.black),
+                  ),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailImageHero({
+    required String? imagePath,
+    required double alignmentX,
+    required double alignmentY,
+    required String title,
+  }) {
+    final path = imagePath?.trim();
+    if (path == null || path.isEmpty || !File(path).existsSync()) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showImageFullscreen(imagePath: path, title: title),
+            child: SizedBox(
+              height: 220,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(
+                    File(path),
+                    fit: BoxFit.cover,
+                    alignment: Alignment(alignmentX, alignmentY),
+                  ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Color(0x99000000)],
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Color(0x99000000),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(9),
+                        child: Icon(
+                          Icons.zoom_out_map_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAbilityGridDetails(CharacterAbility ability) async {
+    final sourceItem = character.itemForAbility(ability);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.88,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+          child: Column(
+            children: [
+              _detailImageHero(
+                imagePath: ability.imagePath,
+                alignmentX: ability.imageAlignmentX,
+                alignmentY: ability.imageAlignmentY,
+                title: ability.name,
+              ),
+              AbilityCard(
+                ability: ability,
+                character: character,
+                sourceItem: sourceItem,
+                onMove: sourceItem == null ? () => moveAbility(ability) : null,
+                onEdit: sourceItem == null ? () => editAbility(ability) : null,
+                onDelete: sourceItem == null
+                    ? () => deleteAbility(ability)
+                    : null,
+                onRestore: ability.hasLimitedUses
+                    ? () => restoreAbility(ability)
+                    : null,
+                onCombatActions: () => showAbilityCombatActions(ability),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPassiveGridDetails(CharacterPassive passive) async {
+    final sourceItem = character.itemForPassive(passive);
+    final fromItem = sourceItem != null;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.88,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+          child: Column(
+            children: [
+              _detailImageHero(
+                imagePath: passive.imagePath,
+                alignmentX: passive.imageAlignmentX,
+                alignmentY: passive.imageAlignmentY,
+                title: passive.name,
+              ),
+              PassiveCard(
+                passive: passive,
+                sourceItem: sourceItem,
+                showPassiveBadge: true,
+                onMove: fromItem ? null : () => movePassive(passive),
+                onRoll: passive.hasRoll ? () => rollPassive(passive) : null,
+                onApplyLinkedEffects:
+                    passive.linkedEffects.isNotEmpty &&
+                        !passive.hasAutomaticLinkedEffectTriggers
+                    ? () => applyPassiveLinkedEffects(passive)
+                    : null,
+                onRestoreCharges: passive.usesCharges
+                    ? () => restorePassiveCharge(passive)
+                    : null,
+                onToggle: fromItem
+                    ? null
+                    : (value) => togglePassive(passive, value),
+                onEdit: fromItem ? null : () => editPassive(passive),
+                onDelete: fromItem ? null : () => deletePassive(passive),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridContent({
+    required BuildContext context,
+    required bool searching,
+    required List<CharacterContentFolder> folders,
+    required List<ItemDefinition> itemFolders,
+    required bool showObjectsFolder,
+    required List<CharacterAbility> abilities,
+    required List<CharacterPassive> passives,
+  }) {
+    final theme = Theme.of(context);
+    final folderCards = <Widget>[
+      ...folders.map(
+        (folder) => _ContentFolderGridCard(
+          icon: Icons.folder_rounded,
+          name: folder.name,
+          onTap: () => _openFolder(folder.id),
+        ),
+      ),
+      if (showObjectsFolder)
+        _ContentFolderGridCard(
+          icon: Icons.inventory_2_rounded,
+          name: 'Objetos',
+          automatic: true,
+          onTap: _openItemsRoot,
+        ),
+      ...itemFolders.map(
+        (item) => _ContentFolderGridCard(
+          icon: Icons.inventory_2_rounded,
+          name: item.name,
+          automatic: true,
+          onTap: () => _openItemFolder(item),
+        ),
+      ),
+    ];
+
+    final contentCards = <Widget>[
+      ...abilities.map(
+        (ability) => _AbilityGridCard(
+          ability: ability,
+          onTap: () => _showAbilityGridDetails(ability),
+        ),
+      ),
+      ...passives.map(
+        (passive) => _PassiveGridCard(
+          passive: passive,
+          onTap: () => _showPassiveGridDetails(passive),
+        ),
+      ),
+    ];
+
+    Widget grid(List<Widget> children) => LayoutBuilder(
+      builder: (context, constraints) {
+        var columns = 3;
+        if (constraints.maxWidth < 360) {
+          columns = 2;
+        } else if (constraints.maxWidth >= 700) {
+          columns = 4;
+        }
+        return GridView.count(
+          crossAxisCount: columns,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1,
+          children: children,
+        );
+      },
+    );
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 100),
+      children: [
+        if (searching)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Text(
+              '${abilities.length + passives.length} ${(abilities.length + passives.length) == 1 ? 'resultado' : 'resultados'} · Incluye subcarpetas',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        if (folderCards.isNotEmpty) ...[
+          grid(folderCards),
+          if (contentCards.isNotEmpty) const SizedBox(height: 18),
+        ],
+        if (contentCards.isNotEmpty) grid(contentCards),
+      ],
+    );
+  }
+
   // ===========================================================================
   // BUILD
   // ===========================================================================
@@ -817,42 +1218,120 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   @override
   Widget build(BuildContext context) {
     final currentItem = _currentItem;
+    final query = _normalizeSearchText(_searchQuery.trim());
+    final searching = query.isNotEmpty;
 
     final folders =
-        !_showingItemsRoot && !_showingSpellsRoot && currentItem == null
+        !searching &&
+            !_showingItemsRoot &&
+            !_showingSpellsRoot &&
+            currentItem == null
         ? character.contentFoldersInside(_currentFolderId)
         : <CharacterContentFolder>[];
 
-    final abilities = currentItem != null
-        ? currentItem.abilities
-        : (_showingItemsRoot || _showingSpellsRoot)
-        ? const <CharacterAbility>[]
-        : character.abilitiesInFolder(_currentFolderId);
+    late final List<CharacterAbility> abilities;
+    late final List<CharacterPassive> passives;
 
-    final passives = currentItem != null
-        ? currentItem.passives
-        : (_showingItemsRoot || _showingSpellsRoot)
-        ? const <CharacterPassive>[]
-        : character.passivesInFolder(_currentFolderId);
+    if (currentItem != null) {
+      abilities = currentItem.abilities
+          .where(
+            (ability) => !searching || _matchesAbilitySearch(ability, query),
+          )
+          .toList(growable: false);
+      passives = currentItem.passives
+          .where(
+            (passive) => !searching || _matchesPassiveSearch(passive, query),
+          )
+          .toList(growable: false);
+    } else if (_showingItemsRoot) {
+      if (searching) {
+        abilities = character.equippedContentItems
+            .expand((item) => item.abilities)
+            .where((ability) => _matchesAbilitySearch(ability, query))
+            .toList(growable: false);
+        passives = character.equippedContentItems
+            .expand((item) => item.passives)
+            .where((passive) => _matchesPassiveSearch(passive, query))
+            .toList(growable: false);
+      } else {
+        abilities = const <CharacterAbility>[];
+        passives = const <CharacterPassive>[];
+      }
+    } else if (_showingSpellsRoot) {
+      abilities = const <CharacterAbility>[];
+      passives = const <CharacterPassive>[];
+    } else if (searching) {
+      final scope = _abilityFolderSearchScope();
 
-    final itemFolders = _showingItemsRoot
+      // Resultados de las carpetas normales de Habilidades/Pasivas.
+      final matchedAbilities = character.characterAbilities
+          .where((ability) {
+            final folderId = ability.folderId;
+            final inScope =
+                folderId == _currentFolderId ||
+                (folderId != null && scope.contains(folderId));
+            return inScope && _matchesAbilitySearch(ability, query);
+          })
+          .toList();
+
+      final matchedPassives = character.passives
+          .where((passive) {
+            final folderId = passive.folderId;
+            final inScope =
+                folderId == _currentFolderId ||
+                (folderId != null && scope.contains(folderId));
+            return inScope && _matchesPassiveSearch(passive, query);
+          })
+          .toList();
+
+      // "Objetos" es una carpeta virtual que cuelga de la raíz de esta
+      // pantalla. Por tanto, una búsqueda iniciada desde la raíz también debe
+      // entrar en ella y recorrer el contenido de TODOS los objetos equipados.
+      // Antes solo se buscaba aquí al abrir explícitamente "Objetos", por lo
+      // que una pasiva como "Adamantina Pura" dentro de
+      // Objetos/Radiant Choir quedaba fuera de la búsqueda global.
+      if (_currentFolderId == null) {
+        for (final item in character.equippedContentItems) {
+          matchedAbilities.addAll(
+            item.abilities.where(
+              (ability) => _matchesAbilitySearch(ability, query),
+            ),
+          );
+          matchedPassives.addAll(
+            item.passives.where(
+              (passive) => _matchesPassiveSearch(passive, query),
+            ),
+          );
+        }
+      }
+
+      abilities = matchedAbilities;
+      passives = matchedPassives;
+    } else {
+      abilities = character.abilitiesInFolder(_currentFolderId);
+      passives = character.passivesInFolder(_currentFolderId);
+    }
+
+    final itemFolders = !searching && _showingItemsRoot
         ? character.equippedContentItems
         : const <ItemDefinition>[];
 
     final showObjectsFolder =
+        !searching &&
         _currentFolderId == null &&
         !_showingItemsRoot &&
         !_showingSpellsRoot &&
         currentItem == null &&
         character.equippedContentItems.isNotEmpty;
 
-    final hasContent =
-        folders.isNotEmpty ||
-        abilities.isNotEmpty ||
-        passives.isNotEmpty ||
-        itemFolders.isNotEmpty ||
-        showObjectsFolder ||
-        _showingSpellsRoot;
+    final hasContent = searching
+        ? abilities.isNotEmpty || passives.isNotEmpty
+        : folders.isNotEmpty ||
+              abilities.isNotEmpty ||
+              passives.isNotEmpty ||
+              itemFolders.isNotEmpty ||
+              showObjectsFolder ||
+              _showingSpellsRoot;
 
     return PopScope(
       canPop: !_canGoBackInsideContent,
@@ -871,6 +1350,13 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               : null,
           title: Text(_screenTitle),
           actions: [
+            IconButton(
+              tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
+              onPressed: _toggleViewMode,
+              icon: Icon(
+                gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+              ),
+            ),
             if (abilities.any((ability) => ability.hasLimitedUses))
               IconButton(
                 tooltip: 'Restaurar usos',
@@ -913,119 +1399,175 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
             ),
           ],
         ),
-        body: !hasContent
-            ? EmptyState(
-                icon: Icons.auto_awesome_rounded,
-                title: 'Carpeta vacía',
-                message: 'Añade habilidades, pasivas o subcarpetas.',
-                actionLabel: 'Añadir',
-                onAction: _showCreateMenu,
-              )
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+        body: !viewPreferenceLoaded
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
                 children: [
-                  // =============================================================
-                  // SUBCARPETAS REGULARES
-                  // =============================================================
-                  ...folders.map(
-                    (folder) => _ContentFolderTile(
-                      icon: Icons.folder_rounded,
-                      name: folder.name,
-                      count: character.directContentCountInFolder(folder.id),
-                      onTap: () => _openFolder(folder.id),
-                    ),
+                  _buildSearchField(),
+                  Expanded(
+                    child: !hasContent
+                        ? EmptyState(
+                            icon: searching
+                                ? Icons.search_off_rounded
+                                : Icons.auto_awesome_rounded,
+                            title: searching
+                                ? 'Sin resultados'
+                                : 'Carpeta vacía',
+                            message: searching
+                                ? 'No hay habilidades o pasivas que coincidan en esta carpeta ni en sus subcarpetas.'
+                                : 'Añade habilidades, pasivas o subcarpetas.',
+                            actionLabel: searching ? null : 'Añadir',
+                            onAction: searching ? null : _showCreateMenu,
+                          )
+                        : gridView
+                        ? _buildGridContent(
+                            context: context,
+                            searching: searching,
+                            folders: folders,
+                            itemFolders: itemFolders,
+                            showObjectsFolder: showObjectsFolder,
+                            abilities: abilities,
+                            passives: passives,
+                          )
+                        : ListView(
+                            padding: const EdgeInsets.fromLTRB(18, 14, 18, 100),
+                            children: [
+                              if (searching)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: Text(
+                                    '${abilities.length + passives.length} ${(abilities.length + passives.length) == 1 ? 'resultado' : 'resultados'} · Incluye subcarpetas',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ),
+                              // =============================================================
+                              // SUBCARPETAS REGULARES
+                              // =============================================================
+                              ...folders.map(
+                                (folder) => _ContentFolderTile(
+                                  icon: Icons.folder_rounded,
+                                  name: folder.name,
+                                  count: character.directContentCountInFolder(
+                                    folder.id,
+                                  ),
+                                  onTap: () => _openFolder(folder.id),
+                                ),
+                              ),
+
+                              // =============================================================
+                              // OBJETOS ROOT
+                              // =============================================================
+                              if (showObjectsFolder)
+                                _ContentFolderTile(
+                                  icon: Icons.inventory_2_rounded,
+                                  name: 'Objetos',
+                                  count: character.equippedContentItems
+                                      .fold<int>(
+                                        0,
+                                        (sum, item) =>
+                                            sum +
+                                            character.itemContentCount(item),
+                                      ),
+                                  automatic: true,
+                                  onTap: _openItemsRoot,
+                                ),
+
+                              // =============================================================
+                              // CARPETAS DE OBJETO
+                              // =============================================================
+                              ...itemFolders.map(
+                                (item) => _ContentFolderTile(
+                                  icon: Icons.inventory_2_rounded,
+                                  name: item.name,
+                                  count: character.itemContentCount(item),
+                                  automatic: true,
+                                  onTap: () => _openItemFolder(item),
+                                ),
+                              ),
+
+                              // =============================================================
+                              // CONTENIDO (HABILIDADES Y PASIVAS)
+                              // =============================================================
+                              if (abilities.isNotEmpty ||
+                                  passives.isNotEmpty) ...[
+                                if (folders.isNotEmpty ||
+                                    itemFolders.isNotEmpty ||
+                                    showObjectsFolder)
+                                  const SizedBox(height: 14),
+
+                                ...abilities.map((ability) {
+                                  final sourceItem = character.itemForAbility(
+                                    ability,
+                                  );
+                                  return AbilityCard(
+                                    ability: ability,
+                                    character: character,
+                                    sourceItem: sourceItem,
+                                    onMove: sourceItem == null
+                                        ? () => moveAbility(ability)
+                                        : null,
+                                    onEdit: sourceItem == null
+                                        ? () => editAbility(ability)
+                                        : null,
+                                    onDelete: sourceItem == null
+                                        ? () => deleteAbility(ability)
+                                        : null,
+                                    onRestore: ability.hasLimitedUses
+                                        ? () => restoreAbility(ability)
+                                        : null,
+                                    onCombatActions: () =>
+                                        showAbilityCombatActions(ability),
+                                  );
+                                }),
+
+                                ...passives.map((passive) {
+                                  final sourceItem = character.itemForPassive(
+                                    passive,
+                                  );
+                                  final fromItem = sourceItem != null;
+
+                                  return PassiveCard(
+                                    passive: passive,
+                                    sourceItem: sourceItem,
+                                    showPassiveBadge: true,
+                                    onMove: fromItem
+                                        ? null
+                                        : () => movePassive(passive),
+                                    onRoll: passive.hasRoll
+                                        ? () => rollPassive(passive)
+                                        : null,
+                                    onApplyLinkedEffects:
+                                        passive.linkedEffects.isNotEmpty &&
+                                            !passive
+                                                .hasAutomaticLinkedEffectTriggers
+                                        ? () =>
+                                              applyPassiveLinkedEffects(passive)
+                                        : null,
+                                    onRestoreCharges: passive.usesCharges
+                                        ? () => restorePassiveCharge(passive)
+                                        : null,
+                                    onToggle: fromItem
+                                        ? null
+                                        : (value) =>
+                                              togglePassive(passive, value),
+                                    onEdit: fromItem
+                                        ? null
+                                        : () => editPassive(passive),
+                                    onDelete: fromItem
+                                        ? null
+                                        : () => deletePassive(passive),
+                                  );
+                                }),
+                              ],
+                            ],
+                          ),
                   ),
-
-                  // =============================================================
-                  // OBJETOS ROOT
-                  // =============================================================
-                  if (showObjectsFolder)
-                    _ContentFolderTile(
-                      icon: Icons.inventory_2_rounded,
-                      name: 'Objetos',
-                      count: character.equippedContentItems.fold<int>(
-                        0,
-                        (sum, item) => sum + character.itemContentCount(item),
-                      ),
-                      automatic: true,
-                      onTap: _openItemsRoot,
-                    ),
-
-                  // =============================================================
-                  // CARPETAS DE OBJETO
-                  // =============================================================
-                  ...itemFolders.map(
-                    (item) => _ContentFolderTile(
-                      icon: Icons.inventory_2_rounded,
-                      name: item.name,
-                      count: character.itemContentCount(item),
-                      automatic: true,
-                      onTap: () => _openItemFolder(item),
-                    ),
-                  ),
-
-                  // =============================================================
-                  // CONTENIDO (HABILIDADES Y PASIVAS)
-                  // =============================================================
-                  if (abilities.isNotEmpty || passives.isNotEmpty) ...[
-                    if (folders.isNotEmpty ||
-                        itemFolders.isNotEmpty ||
-                        showObjectsFolder)
-                      const SizedBox(height: 14),
-
-                    ...abilities.map((ability) {
-                      final sourceItem = character.itemForAbility(ability);
-                      return AbilityCard(
-                        ability: ability,
-                        character: character,
-                        sourceItem: sourceItem,
-                        onMove: sourceItem == null
-                            ? () => moveAbility(ability)
-                            : null,
-                        onEdit: sourceItem == null
-                            ? () => editAbility(ability)
-                            : null,
-                        onDelete: sourceItem == null
-                            ? () => deleteAbility(ability)
-                            : null,
-                        onRestore: ability.hasLimitedUses
-                            ? () => restoreAbility(ability)
-                            : null,
-                        onCombatActions: () =>
-                            showAbilityCombatActions(ability),
-                      );
-                    }),
-
-                    ...passives.map((passive) {
-                      final sourceItem = character.itemForPassive(passive);
-                      final fromItem = sourceItem != null;
-
-                      return PassiveCard(
-                        passive: passive,
-                        sourceItem: sourceItem,
-                        showPassiveBadge: true,
-                        onMove: fromItem ? null : () => movePassive(passive),
-                        onRoll: passive.hasRoll
-                            ? () => rollPassive(passive)
-                            : null,
-                        onApplyLinkedEffects:
-                            passive.linkedEffects.isNotEmpty &&
-                                !passive.hasAutomaticLinkedEffectTriggers
-                            ? () => applyPassiveLinkedEffects(passive)
-                            : null,
-                        onRestoreCharges: passive.usesCharges
-                            ? () => restorePassiveCharge(passive)
-                            : null,
-                        onToggle: fromItem
-                            ? null
-                            : (value) => togglePassive(passive, value),
-                        onEdit: fromItem ? null : () => editPassive(passive),
-                        onDelete: fromItem
-                            ? null
-                            : () => deletePassive(passive),
-                      );
-                    }),
-                  ],
                 ],
               ),
         floatingActionButton:
@@ -1039,6 +1581,13 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       ),
     );
   }
+}
+
+class _FolderOption {
+  final CharacterContentFolder folder;
+  final int depth;
+
+  const _FolderOption({required this.folder, required this.depth});
 }
 
 class _ContentFolderTile extends StatelessWidget {
@@ -1101,9 +1650,187 @@ class _ContentFolderTile extends StatelessWidget {
   }
 }
 
-class _FolderOption {
-  final CharacterContentFolder folder;
-  final int depth;
+class _ContentFolderGridCard extends StatelessWidget {
+  final IconData icon;
+  final String name;
+  final bool automatic;
+  final VoidCallback onTap;
 
-  const _FolderOption({required this.folder, required this.depth});
+  const _ContentFolderGridCard({
+    required this.icon,
+    required this.name,
+    required this.onTap,
+    this.automatic = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 30, color: colors.primary),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  if (automatic) ...[
+                    const SizedBox(width: 3),
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 13,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AbilityGridCard extends StatelessWidget {
+  final CharacterAbility ability;
+  final VoidCallback onTap;
+
+  const _AbilityGridCard({required this.ability, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return _CompactContentGridCard(
+      name: ability.name,
+      imagePath: ability.imagePath,
+      imageAlignmentX: ability.imageAlignmentX,
+      imageAlignmentY: ability.imageAlignmentY,
+      fallbackIcon: Icons.bolt_rounded,
+      onTap: onTap,
+    );
+  }
+}
+
+class _PassiveGridCard extends StatelessWidget {
+  final CharacterPassive passive;
+  final VoidCallback onTap;
+
+  const _PassiveGridCard({required this.passive, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: passive.enabled ? 1 : 0.62,
+      child: _CompactContentGridCard(
+        name: passive.name,
+        imagePath: passive.imagePath,
+        imageAlignmentX: passive.imageAlignmentX,
+        imageAlignmentY: passive.imageAlignmentY,
+        fallbackIcon: Icons.auto_awesome_rounded,
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _CompactContentGridCard extends StatelessWidget {
+  final String name;
+  final String? imagePath;
+  final double imageAlignmentX;
+  final double imageAlignmentY;
+  final IconData fallbackIcon;
+  final VoidCallback onTap;
+
+  const _CompactContentGridCard({
+    required this.name,
+    required this.imagePath,
+    this.imageAlignmentX = 0,
+    this.imageAlignmentY = 0,
+    required this.fallbackIcon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final path = imagePath?.trim();
+    final file = path == null || path.isEmpty ? null : File(path);
+    final hasImage = file?.existsSync() ?? false;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasImage)
+              Image.file(
+                file!,
+                fit: BoxFit.cover,
+                alignment: Alignment(imageAlignmentX, imageAlignmentY),
+              )
+            else
+              ColoredBox(
+                color: colors.primary,
+                child: Center(
+                  child: Icon(fallbackIcon, size: 34, color: Colors.white),
+                ),
+              ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0.42, 1],
+                  colors: [Colors.transparent, Color(0xCC000000)],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 9),
+                child: Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                    shadows: const [
+                      Shadow(blurRadius: 3, color: Colors.black54),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -75,6 +75,7 @@ enum PassiveTriggerActionType {
   removeEffect,
   dealDamage,
   heal,
+  mitigateDamage,
   incrementCounter,
   setCounter,
 }
@@ -327,6 +328,12 @@ class CharacterPassive {
   String id;
   String name;
   String description;
+  /// Ruta local de la imagen representativa de la pasiva.
+  String? imagePath;
+
+  /// Encuadre visual de la imagen (-1..1). No recorta el archivo original.
+  double imageAlignmentX;
+  double imageAlignmentY;
   String? folderId;
   PassiveSourceType sourceType;
 
@@ -422,6 +429,9 @@ class CharacterPassive {
     required this.id,
     required this.name,
     this.description = '',
+    this.imagePath,
+    this.imageAlignmentX = 0,
+    this.imageAlignmentY = 0,
     this.folderId,
     this.sourceType = PassiveSourceType.custom,
     this.enabled = true,
@@ -617,6 +627,9 @@ class CharacterPassive {
       'id': id,
       'name': name,
       'description': description,
+      'imagePath': imagePath,
+      'imageAlignmentX': imageAlignmentX,
+      'imageAlignmentY': imageAlignmentY,
       'folderId': folderId,
       'sourceType': sourceType.name,
       'enabled': enabled,
@@ -998,6 +1011,11 @@ class CharacterPassive {
 
       description: map['description']?.toString() ?? '',
 
+      imagePath: map['imagePath']?.toString(),
+
+      imageAlignmentX: (map['imageAlignmentX'] as num?)?.toDouble() ?? 0,
+      imageAlignmentY: (map['imageAlignmentY'] as num?)?.toDouble() ?? 0,
+
       folderId: map['folderId']?.toString(),
 
       sourceType: PassiveSourceType.values.firstWhere(
@@ -1147,6 +1165,29 @@ class PassiveTriggerAction {
       case PassiveTriggerActionType.subtractCharge:
       case PassiveTriggerActionType.dealDamage:
       case PassiveTriggerActionType.heal:
+      case PassiveTriggerActionType.mitigateDamage:
+        return false;
+    }
+  }
+
+  bool get requiresNumericValue {
+    switch (type) {
+      case PassiveTriggerActionType.addResource:
+      case PassiveTriggerActionType.subtractResource:
+      case PassiveTriggerActionType.setResource:
+      case PassiveTriggerActionType.addCharge:
+      case PassiveTriggerActionType.subtractCharge:
+      case PassiveTriggerActionType.incrementCounter:
+      case PassiveTriggerActionType.setCounter:
+        return true;
+
+      case PassiveTriggerActionType.dealDamage:
+      case PassiveTriggerActionType.heal:
+      case PassiveTriggerActionType.mitigateDamage:
+        return !hasDice;
+
+      case PassiveTriggerActionType.applyEffect:
+      case PassiveTriggerActionType.removeEffect:
         return false;
     }
   }
@@ -1186,27 +1227,6 @@ class PassiveTriggerAction {
 
       default:
         return null;
-    }
-  }
-
-  bool get requiresNumericValue {
-    switch (type) {
-      case PassiveTriggerActionType.addResource:
-      case PassiveTriggerActionType.subtractResource:
-      case PassiveTriggerActionType.setResource:
-      case PassiveTriggerActionType.addCharge:
-      case PassiveTriggerActionType.subtractCharge:
-      case PassiveTriggerActionType.incrementCounter:
-      case PassiveTriggerActionType.setCounter:
-        return true;
-
-      case PassiveTriggerActionType.dealDamage:
-      case PassiveTriggerActionType.heal:
-        return !hasDice;
-
-      case PassiveTriggerActionType.applyEffect:
-      case PassiveTriggerActionType.removeEffect:
-        return false;
     }
   }
 

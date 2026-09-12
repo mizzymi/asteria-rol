@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../models/character.dart';
@@ -37,13 +39,21 @@ class _PetsScreenState extends State<PetsScreen> {
         character.pets.add(result);
       } else {
         final index = character.pets.indexWhere((p) => p.id == result.id);
-        if (index >= 0) {
-          character.pets[index] = result;
-        }
+        if (index >= 0) character.pets[index] = result;
       }
     });
 
     await _save();
+  }
+
+  Future<void> _openPet(Pet pet) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PetDetailScreen(character: character, pet: pet),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _deletePet(Pet pet) async {
@@ -66,9 +76,7 @@ class _PetsScreenState extends State<PetsScreen> {
     );
 
     if (confirmed == true) {
-      setState(() {
-        character.pets.removeWhere((p) => p.id == pet.id);
-      });
+      setState(() => character.pets.removeWhere((p) => p.id == pet.id));
       await _save();
     }
   }
@@ -79,7 +87,10 @@ class _PetsScreenState extends State<PetsScreen> {
     final pets = character.pets;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mascotas y Compañeros')),
+      appBar: AppBar(
+        title: const Text('Mascotas y compañeros'),
+        scrolledUnderElevation: 0,
+      ),
       body: pets.isEmpty
           ? EmptyState(
               icon: Icons.pets_rounded,
@@ -89,54 +100,134 @@ class _PetsScreenState extends State<PetsScreen> {
               actionLabel: 'Añadir mascota',
               onAction: () => _openForm(),
             )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: pets.map((pet) {
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                      color: theme.colorScheme.outlineVariant.withValues(
-                        alpha: 0.5,
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              itemCount: pets.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              itemBuilder: (context, index) => _buildPetCard(theme, pets[index]),
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openForm(),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Nueva mascota'),
+      ),
+    );
+  }
+
+  Widget _buildPetCard(ThemeData theme, Pet pet) {
+    final colors = theme.colorScheme;
+    final hasImage = pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
+    final healthRatio = pet.maxHealth <= 0
+        ? 0.0
+        : (pet.currentHealth / pet.maxHealth).clamp(0.0, 1.0);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: .55)),
+      ),
+      child: InkWell(
+        onTap: () => _openPet(pet),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 160,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (hasImage)
+                    Image.file(
+                      File(pet.avatarPath),
+                      fit: BoxFit.cover,
+                      alignment: Alignment(
+                        pet.avatarAlignmentX,
+                        pet.avatarAlignmentY,
+                      ),
+                    )
+                  else
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            colors.primaryContainer,
+                            colors.tertiaryContainer,
+                          ],
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.pets_rounded,
+                        size: 68,
+                        color: colors.onPrimaryContainer.withValues(alpha: .6),
+                      ),
+                    ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: .72),
+                          ],
+                          stops: const [.28, 1],
+                        ),
                       ),
                     ),
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(12),
-                    leading: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Icon(
-                        Icons.pets_rounded,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
+                  Positioned(
+                    left: 16,
+                    right: 54,
+                    bottom: 14,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          pet.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        if (pet.species.isNotEmpty)
+                          Text(
+                            pet.species,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.white.withValues(alpha: .85),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
                     ),
-                    title: Text(
-                      pet.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: PopupMenuButton<String>(
+                      iconColor: Colors.white,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black.withValues(alpha: .35),
                       ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        '${pet.species.isNotEmpty ? pet.species : "Compañero"} • PV: ${pet.currentHealth}/${pet.maxHealth} • CA: ${pet.armorClass}',
-                      ),
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (val) {
-                        if (val == 'edit') _openForm(pet: pet);
-                        if (val == 'delete') _deletePet(pet);
+                      onSelected: (value) {
+                        if (value == 'edit') _openForm(pet: pet);
+                        if (value == 'delete') _deletePet(pet);
                       },
                       itemBuilder: (_) => const [
                         PopupMenuItem(
                           value: 'edit',
                           child: ListTile(
                             leading: Icon(Icons.edit_rounded),
-                            title: Text('Editar atributos'),
+                            title: Text('Editar'),
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
@@ -150,24 +241,66 @@ class _PetsScreenState extends State<PetsScreen> {
                         ),
                       ],
                     ),
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              PetDetailScreen(character: character, pet: pet),
-                        ),
-                      );
-                      setState(() {});
-                    },
                   ),
-                );
-              }).toList(),
+                ],
+              ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nueva mascota'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.favorite_rounded, size: 18, color: colors.error),
+                      const SizedBox(width: 7),
+                      Text(
+                        '${pet.currentHealth}/${pet.maxHealth} PV',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Spacer(),
+                      _statChip(context, Icons.shield_rounded, 'CA ${pet.armorClass}'),
+                      const SizedBox(width: 6),
+                      _statChip(context, Icons.directions_run_rounded, '${pet.speed}'),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  LinearProgressIndicator(
+                    value: healthRatio,
+                    minHeight: 7,
+                    borderRadius: BorderRadius.circular(99),
+                    backgroundColor: colors.surfaceContainerHighest,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statChip(BuildContext context, IconData icon, String text) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: colors.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../models/pet.dart';
 import '../models/ability_scores.dart';
 import '../models/ability.dart';
+import '../services/pet_image_service.dart';
 
 class PetFormScreen extends StatefulWidget {
   final Pet? pet;
@@ -22,6 +25,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
   late TextEditingController _speedController;
   late TextEditingController _profBonusController;
   late TextEditingController _notesController;
+  late String _avatarPath;
+  late double _avatarAlignmentX;
+  late double _avatarAlignmentY;
 
   late int _str;
   late int _dex;
@@ -44,6 +50,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
       text: '${p?.proficiencyBonus ?? 2}',
     );
     _notesController = TextEditingController(text: p?.notes ?? '');
+    _avatarPath = p?.avatarPath ?? '';
+    _avatarAlignmentX = p?.avatarAlignmentX ?? 0;
+    _avatarAlignmentY = p?.avatarAlignmentY ?? 0;
 
     _str = p?.strengthScore ?? 10;
     _dex = p?.dexterityScore ?? 10;
@@ -85,6 +94,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
       id: id,
       name: _nameController.text.trim(),
       species: _speciesController.text.trim(),
+      avatarPath: _avatarPath,
+      avatarAlignmentX: _avatarAlignmentX,
+      avatarAlignmentY: _avatarAlignmentY,
       maxHealth: maxHp,
       currentHealth: currentHp,
       armorClass: ac,
@@ -101,10 +113,134 @@ class _PetFormScreenState extends State<PetFormScreen> {
       characterAbilities: widget.pet?.characterAbilities ?? <CharacterAbility>[],
       passives: widget.pet?.passives ?? [],
       weapons: widget.pet?.weapons ?? [],
+      statModifiers: widget.pet?.statModifiers ?? {},
+      effects: widget.pet?.effects ?? [],
       notes: _notesController.text.trim(),
     );
 
     Navigator.pop(context, updatedPet);
+  }
+
+  Future<void> _pickAvatar() async {
+    final imagePath = await PetImageService.pickImage();
+    if (imagePath == null || !mounted) return;
+    setState(() {
+      _avatarPath = imagePath;
+      _avatarAlignmentX = 0;
+      _avatarAlignmentY = 0;
+    });
+    await _adjustAvatarFraming();
+  }
+
+  void _removeAvatar() {
+    setState(() {
+      _avatarPath = '';
+      _avatarAlignmentX = 0;
+      _avatarAlignmentY = 0;
+    });
+  }
+
+  Future<void> _adjustAvatarFraming() async {
+    if (_avatarPath.isEmpty || !File(_avatarPath).existsSync()) return;
+
+    var x = _avatarAlignmentX;
+    var y = _avatarAlignmentY;
+
+    final result = await showDialog<Alignment>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Elegir encuadre'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Arrastra la imagen para elegir qué parte se verá. La foto original no se recorta ni se modifica.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 14),
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate: (details) {
+                          setDialogState(() {
+                            x = (x - details.delta.dx / 120).clamp(-1.0, 1.0);
+                            y = (y - details.delta.dy / 90).clamp(-1.0, 1.0);
+                          });
+                        },
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.file(
+                              File(_avatarPath),
+                              fit: BoxFit.cover,
+                              alignment: Alignment(x, y),
+                            ),
+                            IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.open_with_rounded, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Desliza para recolocar el encuadre',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => setDialogState(() {
+                          x = 0;
+                          y = 0;
+                        }),
+                        child: const Text('Centrar'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, Alignment(x, y)),
+                child: const Text('Guardar encuadre'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      _avatarAlignmentX = result.x;
+      _avatarAlignmentY = result.y;
+    });
   }
 
   @override
@@ -127,6 +263,98 @@ class _PetFormScreenState extends State<PetFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            Card(
+              clipBehavior: Clip.antiAlias,
+              elevation: 0,
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: InkWell(
+                onTap: _pickAvatar,
+                child: SizedBox(
+                  height: 190,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (_avatarPath.isNotEmpty && File(_avatarPath).existsSync())
+                        Image.file(
+                          File(_avatarPath),
+                          fit: BoxFit.cover,
+                          alignment: Alignment(_avatarAlignmentX, _avatarAlignmentY),
+                        )
+                      else
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                theme.colorScheme.primaryContainer,
+                                theme.colorScheme.tertiaryContainer,
+                              ],
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.pets_rounded,
+                            size: 72,
+                            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.72),
+                          ),
+                        ),
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.42),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 16,
+                        right: 12,
+                        bottom: 12,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _avatarPath.isEmpty ? 'Añadir imagen' : 'Cambiar imagen',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            FilledButton.tonalIcon(
+                              onPressed: _pickAvatar,
+                              icon: const Icon(Icons.photo_library_rounded),
+                              label: const Text('Galería'),
+                            ),
+                            if (_avatarPath.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              IconButton.filledTonal(
+                                onPressed: _adjustAvatarFraming,
+                                tooltip: 'Ajustar encuadre',
+                                icon: const Icon(Icons.crop_free_rounded),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton.filledTonal(
+                                onPressed: _removeAvatar,
+                                tooltip: 'Quitar imagen',
+                                icon: const Icon(Icons.delete_outline_rounded),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(

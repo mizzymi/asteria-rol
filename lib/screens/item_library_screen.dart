@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/item_definition.dart';
+import '../models/ability.dart';
 import '../models/item_library_entry.dart';
 
 import '../services/item_import_export_service.dart';
@@ -122,12 +123,32 @@ class _ItemLibraryScreenState extends State<ItemLibraryScreen> {
         // PASSIVES / ABILITIES
         // =====================================================================
         ...item.passives.expand(
-          (passive) => [passive.name, passive.description],
+          (passive) => [
+            passive.name,
+            passive.description,
+            passive.notes,
+            passive.rechargeDescription,
+            passive.sourceType.name,
+            ...passive.triggers.expand(
+              (trigger) => [
+                trigger.event.name,
+                trigger.customEvent ?? '',
+                ...trigger.actions.map((action) => action.type.name),
+              ],
+            ),
+          ],
         ),
 
         ...item.abilities.expand(
-          (ability) => [ability.name, ability.description],
+          (ability) => [
+            ability.name,
+            ability.description,
+            ability.notes,
+            ability.actionType.label,
+          ],
         ),
+
+        if (item.actionDefinition != null) item.actionDefinition!.name,
       ].join(' ').toLowerCase();
 
       return searchable.contains(query);

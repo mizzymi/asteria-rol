@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import '../models/formulas/character_formula.dart';
 import '../models/character.dart';
 import '../models/passive.dart';
 import '../models/character_effect.dart';
@@ -6,6 +9,8 @@ import '../models/formulas/character_formula_context.dart';
 import '../models/dice_pool.dart';
 import '../models/action_trigger_context.dart';
 import '../models/passive_trigger_external_result.dart';
+
+import '../utils/formula_dice_helper.dart';
 
 import 'resource_modifier_resolver.dart';
 import 'formula_evaluator.dart';
@@ -722,6 +727,43 @@ class PassiveTriggerEngine {
         character.heal(amount, dispatchTriggers: true);
 
         return;
+
+      // =========================================================================
+      // MITIGACIÓN DE DAÑO
+      // =========================================================================
+
+      case PassiveTriggerActionType.mitigateDamage:
+        final amount = _resolveTriggerActionAmount(
+          passive,
+          action,
+          eventVariables: eventVariables,
+        );
+
+        if (amount <= 0) {
+          return;
+        }
+
+        final incomingDamage = eventVariables['damage'];
+
+        final mitigationAmount = incomingDamage != null
+            ? amount.toDouble().clamp(0.0, incomingDamage).round()
+            : amount;
+
+        if (mitigationAmount <= 0) {
+          return;
+        }
+
+        // Los triggers damageReceived se despachan DESPUÉS de que el daño ya
+        // haya sido descontado de los PV. Por tanto, aquí no debemos volver a
+        // aplicar el daño restante (eso duplicaría el golpe). La mitigación
+        // post-dispatch se representa restaurando únicamente los PV mitigados.
+        //
+        // En los flujos preventivos (ActionResolutionFlow.resolveHealthChange)
+        // esta rama no se ejecuta: allí la mitigación se calcula antes de
+        // aplicar el daño y takeDamage se llama con dispatchTriggers: false.
+        character.heal(mitigationAmount, dispatchTriggers: false);
+
+        return;
     }
   }
 
@@ -825,20 +867,32 @@ class PassiveTriggerEngine {
     PassiveTriggerAction action, {
     Map<String, double> eventVariables = const {},
   }) {
-    final modifier = _evaluateActionValue(
+    final formulaContext = _buildFormulaContext(
       passive,
-      action,
       eventVariables: eventVariables,
-    ).round();
+    );
 
-    if (!action.hasDice) {
+    final formulaExpr = action.valueFormula?.expression ?? '';
+
+    final extraction = FormulaDiceExtraction.extract(
+      formulaExpr,
+      context: formulaContext,
+    );
+
+    final modifierResult = evaluator.evaluate(
+      CharacterFormula(expression: extraction.cleanedExpression),
+      context: formulaContext,
+    );
+
+    final modifier = modifierResult.valid ? modifierResult.value.round() : 0;
+
+    final allPools = [...action.dicePools, ...extraction.dicePools];
+
+    if (allPools.isEmpty) {
       return modifier;
     }
 
-    final roll = DicePoolRoller.roll(
-      pools: action.dicePools,
-      modifier: modifier,
-    );
+    final roll = DicePoolRoller.roll(pools: allPools, modifier: modifier);
 
     return roll.total;
   }

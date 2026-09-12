@@ -21,6 +21,48 @@ class FormulaInsertBar extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
+        // =====================================================================
+        // MENÚ DE DADOS (NUEVO)
+        // =====================================================================
+        PopupMenuButton<String>(
+          tooltip: 'Insertar dados',
+          onSelected: onInsert,
+          itemBuilder: (_) {
+            return const [
+              PopupMenuItem(value: '1d4', child: Text('1 Dado de 4 (1d4)')),
+              PopupMenuItem(value: '1d6', child: Text('1 Dado de 6 (1d6)')),
+              PopupMenuItem(value: '1d8', child: Text('1 Dado de 8 (1d8)')),
+              PopupMenuItem(value: '1d10', child: Text('1 Dado de 10 (1d10)')),
+              PopupMenuItem(value: '1d12', child: Text('1 Dado de 12 (1d12)')),
+              PopupMenuItem(value: '1d20', child: Text('1 Dado de 20 (1d20)')),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'level*d4',
+                child: Text('Nivel x d4 (level*d4)'),
+              ),
+              PopupMenuItem(
+                value: 'level*d6',
+                child: Text('Nivel x d6 (level*d6)'),
+              ),
+              PopupMenuItem(
+                value: 'level*d8',
+                child: Text('Nivel x d8 (level*d8)'),
+              ),
+              PopupMenuItem(
+                value: 'level*d10',
+                child: Text('Nivel x d10 (level*d10)'),
+              ),
+            ];
+          },
+          child: const Chip(
+            avatar: Icon(Icons.casino_rounded, size: 18),
+            label: Text('Dados'),
+          ),
+        ),
+
+        // =====================================================================
+        // MENÚ DE VARIABLES
+        // =====================================================================
         PopupMenuButton<String>(
           tooltip: 'Insertar variable',
           onSelected: onInsert,
@@ -52,6 +94,9 @@ class FormulaInsertBar extends StatelessWidget {
           ),
         ),
 
+        // =====================================================================
+        // MENÚ DE RECURSOS
+        // =====================================================================
         if (character != null && character.resources.isNotEmpty)
           PopupMenuButton<String>(
             tooltip: 'Insertar recurso',
@@ -82,9 +127,12 @@ class FormulaInsertBar extends StatelessWidget {
             ),
           ),
 
+        // =====================================================================
+        // MENÚ DE CONTADORES
+        // =====================================================================
         if (character != null && character.counters.isNotEmpty)
           PopupMenuButton<String>(
-            tooltip: 'Insertar contador',
+            tooltip: 'Insertار contador',
             onSelected: onInsert,
             itemBuilder: (_) {
               return character.counters.map((counter) {
@@ -100,6 +148,9 @@ class FormulaInsertBar extends StatelessWidget {
             ),
           ),
 
+        // =====================================================================
+        // MENÚ DE FUNCIONES
+        // =====================================================================
         PopupMenuButton<String>(
           tooltip: 'Insertar función',
           onSelected: onInsert,

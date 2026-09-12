@@ -99,6 +99,9 @@ extension PassiveTriggerActionUi on PassiveTriggerActionType {
       case PassiveTriggerActionType.heal:
         return 'Curar';
 
+      case PassiveTriggerActionType.mitigateDamage:
+        return 'Mitigar daño';
+
       case PassiveTriggerActionType.incrementCounter:
         return 'Incrementar contador';
 

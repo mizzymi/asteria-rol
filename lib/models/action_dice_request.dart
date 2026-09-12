@@ -3,6 +3,10 @@ import 'ability_effect_part.dart';
 import 'dice_pool.dart';
 import 'action_critical_profile.dart';
 import 'action_hit_behavior.dart';
+import '../services/formula_evaluator.dart';
+import '../utils/formula_dice_helper.dart';
+import 'formulas/character_formula.dart';
+import 'formulas/formula_context.dart';
 
 // =============================================================================
 // TIPO DE PARTE
@@ -19,7 +23,14 @@ enum ActionDicePartKind {
 // ORIGEN
 // =============================================================================
 
-enum ActionDiceSourceType { ability, weapon, passive, effect, criticalBonus, feature }
+enum ActionDiceSourceType {
+  ability,
+  weapon,
+  passive,
+  effect,
+  criticalBonus,
+  feature,
+}
 
 // =============================================================================
 // REQUEST
@@ -190,7 +201,7 @@ class ActionDiceRequestPart {
 
   /// Política de esta parte respecto al resultado del ataque.
   ///
-  /// El resultado final por target utiliza este dato para filtrar
+  /// El resultado final por target использует este dato para filtrar
   /// una tirada shared sin tener que volver a interpretar su procedencia.
   final ActionHitBehavior hitBehavior;
 
@@ -302,6 +313,57 @@ class ActionDiceRequestPart {
     }
 
     return pieces.join(' · ');
+  }
+}
+
+// =============================================================================
+// FORMULA EXTENSION
+// =============================================================================
+
+extension ActionDiceRequestPartFormula on ActionDiceRequestPart {
+  static ActionDiceRequestPart fromFormula({
+    required String id,
+    required String effectId,
+    required String effectName,
+    required AbilityEffectType effectType,
+    required String formulaExpression,
+    required FormulaContext formulaContext,
+    required ActionHitBehavior hitBehavior,
+    ActionDiceSourceType sourceType = ActionDiceSourceType.feature,
+    String sourceId = '',
+    String sourceName = '',
+    String damageType = '',
+    String? customModifierLabel,
+  }) {
+    final extraction = FormulaDiceExtraction.extract(formulaExpression);
+
+    int calculatedModifier = 0;
+    if (extraction.cleanedExpression.trim().isNotEmpty) {
+      final evalResult = const FormulaEvaluator().evaluate(
+        CharacterFormula(expression: extraction.cleanedExpression),
+        context: formulaContext,
+      );
+
+      if (evalResult.valid) {
+        calculatedModifier = evalResult.value.round();
+      }
+    }
+
+    return ActionDiceRequestPart(
+      id: id,
+      effectId: effectId,
+      effectName: effectName,
+      effectType: effectType,
+      dicePools: extraction.dicePools,
+      modifier: calculatedModifier,
+      modifierLabel:
+          customModifierLabel ?? (calculatedModifier != 0 ? 'Mod' : ''),
+      hitBehavior: hitBehavior,
+      sourceType: sourceType,
+      sourceId: sourceId,
+      sourceName: sourceName,
+      damageType: damageType,
+    );
   }
 }
 

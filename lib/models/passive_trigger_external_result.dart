@@ -13,6 +13,10 @@ class PassiveTriggerExternalResult {
 
   final int damage;
   final int healing;
+  final int mitigation;
+
+  /// Human-readable action/dice breakdown for this trigger.
+  final List<String> breakdown;
 
   final List<CharacterEffect> effects;
 
@@ -27,12 +31,17 @@ class PassiveTriggerExternalResult {
     this.saved = false,
     this.damage = 0,
     this.healing = 0,
+    this.mitigation = 0,
+    this.breakdown = const [],
     this.effects = const [],
     required this.resolutionId,
   });
 
   bool get changedAnything {
-    return damage > 0 || healing > 0 || effects.isNotEmpty;
+    return damage > 0 ||
+        healing > 0 ||
+        mitigation > 0 ||
+        effects.isNotEmpty;
   }
 
   // ===========================================================================
@@ -52,6 +61,8 @@ class PassiveTriggerExternalResult {
 
       'damage': damage,
       'healing': healing,
+      'mitigation': mitigation,
+      'breakdown': breakdown,
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
       'resolutionId': resolutionId,
@@ -95,6 +106,11 @@ class PassiveTriggerExternalResult {
       damage: (map['damage'] as num?)?.toInt() ?? 0,
 
       healing: (map['healing'] as num?)?.toInt() ?? 0,
+      mitigation: (map['mitigation'] as num?)?.toInt() ?? 0,
+      breakdown: (map['breakdown'] as List?)
+              ?.map((value) => value.toString())
+              .toList(growable: false) ??
+          const [],
 
       effects: List<CharacterEffect>.unmodifiable(effects),
 

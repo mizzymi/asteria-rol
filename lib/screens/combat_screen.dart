@@ -186,35 +186,31 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   Future<void> _editHealth() async {
-    final result = await showDialog<int>(
+    final input = await showDialog<({String operation, int amount})>(
       context: context,
       builder: (dialogContext) {
-        return _CombatHealthDialog(
-          currentHealth: character.currentHealth,
-          maxHealth: character.maxHealth,
-          character: character,
-        );
+        return const _SimpleHealthDialog();
       },
     );
 
-    if (result == null || !mounted) {
+    if (input == null || input.amount <= 0 || !mounted) {
       return;
     }
 
-    final before = character.currentHealth;
+    final flow = ActionResolutionFlow(character: character);
+    final isDamage = input.operation == '-';
 
-    if (result < before) {
-      character.takeDamage(before - result);
-    } else if (result > before) {
-      character.heal(result - before);
-    }
+    await flow.resolveHealthChange(
+      context,
+      baseAmount: input.amount,
+      isDamage: isDamage,
+    );
 
     if (!mounted) {
       return;
     }
 
     setState(() {});
-
     await _save();
   }
 
@@ -1349,6 +1345,111 @@ class _CombatResourceDialogState extends State<_CombatResourceDialog> {
             Navigator.pop(context, value);
           },
           child: const Text('Aplicar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SimpleHealthDialog extends StatefulWidget {
+  const _SimpleHealthDialog();
+
+  @override
+  State<_SimpleHealthDialog> createState() => _SimpleHealthDialogState();
+}
+
+class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
+  final amountController = TextEditingController();
+  String operation = '-';
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    super.dispose();
+  }
+
+  int get amount => int.tryParse(amountController.text.trim()) ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.favorite_rounded),
+          SizedBox(width: 10),
+          Text('Modificar Puntos de Golpe'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => setState(() => operation = '-'),
+                  icon: const Icon(Icons.remove_rounded),
+                  label: const Text('Daño'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: operation == '-'
+                        ? colors.errorContainer
+                        : colors.errorContainer.withValues(alpha: 0.35),
+                    foregroundColor: operation == '-'
+                        ? colors.onErrorContainer
+                        : colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => setState(() => operation = '+'),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Curación'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: operation == '+'
+                        ? colors.primaryContainer
+                        : colors.primaryContainer.withValues(alpha: 0.35),
+                    foregroundColor: operation == '+'
+                        ? colors.onPrimaryContainer
+                        : colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: amountController,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              labelText: operation == '-'
+                  ? 'Cantidad de daño'
+                  : 'Cantidad de curación',
+              prefixIcon: Icon(
+                operation == '-'
+                    ? Icons.remove_circle_outline_rounded
+                    : Icons.add_circle_outline_rounded,
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.pop(context, (operation: operation, amount: amount)),
+          child: const Text('Continuar'),
         ),
       ],
     );

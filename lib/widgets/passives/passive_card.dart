@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../utils/number_format.dart';
@@ -163,18 +165,36 @@ class _PassiveHeader extends StatelessWidget {
             // =================================================================
             // ICONO
             // =================================================================
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: PassiveColors.softBackground(
-                  context,
-                  color,
-                  strength: 0.22,
-                ),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(Icons.auto_awesome_rounded, color: color),
+            Builder(
+              builder: (context) {
+                final path = passive.imagePath?.trim();
+                final file = path == null || path.isEmpty ? null : File(path);
+                final hasImage = file?.existsSync() ?? false;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: hasImage
+                        ? Image.file(
+                            file!,
+                            fit: BoxFit.cover,
+                            alignment: Alignment(
+                              passive.imageAlignmentX,
+                              passive.imageAlignmentY,
+                            ),
+                          )
+                        : ColoredBox(
+                            color: PassiveColors.softBackground(
+                              context,
+                              color,
+                              strength: 0.22,
+                            ),
+                            child: Icon(Icons.auto_awesome_rounded, color: color),
+                          ),
+                  ),
+                );
+              },
             ),
 
             const SizedBox(width: 12),

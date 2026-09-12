@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'effect_form_screen.dart';
@@ -18,6 +20,7 @@ import '../widgets/abilities/ability_form/ability_general_section.dart';
 import '../widgets/abilities/ability_form/ability_attack_section.dart';
 import '../widgets/abilities/ability_form/ability_effects_section.dart';
 import '../widgets/abilities/ability_form/ability_uses_section.dart';
+import '../services/ability_image_service.dart';
 
 class AbilityFormScreen extends StatefulWidget {
   final CharacterAbility? ability;
@@ -37,6 +40,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
   late final TextEditingController attackBonusController;
   late final TextEditingController maxUsesController;
   late final TextEditingController notesController;
+
+  String? imagePath;
+  double imageAlignmentX = 0;
+  double imageAlignmentY = 0;
 
   late AbilityActionType actionType;
   late AbilityType abilityType;
@@ -79,6 +86,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     maxUsesController = TextEditingController(text: '${ability?.maxUses ?? 0}');
 
     notesController = TextEditingController(text: ability?.notes ?? '');
+
+    imagePath = ability?.imagePath;
+    imageAlignmentX = ability?.imageAlignmentX ?? 0;
+    imageAlignmentY = ability?.imageAlignmentY ?? 0;
 
     actionType = ability?.actionType ?? AbilityActionType.action;
 
@@ -541,6 +552,120 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     return linkedEffect.saveBehavior;
   }
 
+
+  Future<void> _adjustImageFraming() async {
+    final path = imagePath?.trim();
+    if (path == null || path.isEmpty || !File(path).existsSync()) return;
+
+    var x = imageAlignmentX;
+    var y = imageAlignmentY;
+
+    final result = await showDialog<Alignment>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Elegir encuadre'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Arrastra la imagen para elegir qué parte se verá. La imagen original no se recorta.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 14),
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (details) {
+                        setDialogState(() {
+                          x = (x - details.delta.dx / 120).clamp(-1.0, 1.0).toDouble();
+                          y = (y - details.delta.dy / 90).clamp(-1.0, 1.0).toDouble();
+                        });
+                      },
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(
+                            File(path),
+                            fit: BoxFit.cover,
+                            alignment: Alignment(x, y),
+                          ),
+                          IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.open_with_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Desliza para recolocar')),
+                    TextButton(
+                      onPressed: () => setDialogState(() { x = 0; y = 0; }),
+                      child: const Text('Centrar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, Alignment(x, y)),
+              child: const Text('Guardar encuadre'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      imageAlignmentX = result.x;
+      imageAlignmentY = result.y;
+    });
+  }
+
+  Future<void> _pickImage() async {
+    final path = await AbilityImageService.pickImage();
+    if (path == null || !mounted) return;
+    setState(() {
+      imagePath = path;
+      imageAlignmentX = 0;
+      imageAlignmentY = 0;
+    });
+    await _adjustImageFraming();
+  }
+
+  void _removeImage() {
+    setState(() {
+      imagePath = null;
+      imageAlignmentX = 0;
+      imageAlignmentY = 0;
+    });
+  }
+
   void saveAbility() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -598,6 +723,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       name: nameController.text.trim(),
 
       description: descriptionController.text.trim(),
+
+      imagePath: imagePath,
+      imageAlignmentX: imageAlignmentX,
+      imageAlignmentY: imageAlignmentY,
 
       actionType: actionType,
 
@@ -712,6 +841,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
               AbilityGeneralSection(
                 nameController: nameController,
                 descriptionController: descriptionController,
+                imagePath: imagePath,
+                onPickImage: _pickImage,
+                onRemoveImage: imagePath == null ? null : _removeImage,
+                onAdjustImageFraming: imagePath == null ? null : _adjustImageFraming,
+                imageAlignmentX: imageAlignmentX,
+                imageAlignmentY: imageAlignmentY,
                 actionType: actionType,
                 abilityType: abilityType,
 

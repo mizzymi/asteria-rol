@@ -475,6 +475,13 @@ class CharacterAbility {
 
   String description;
 
+  /// Ruta local de la imagen representativa de la habilidad.
+  String? imagePath;
+
+  /// Encuadre visual de la imagen (-1..1). No recorta el archivo original.
+  double imageAlignmentX;
+  double imageAlignmentY;
+
   AbilityActionType actionType;
 
   String? folderId;
@@ -575,6 +582,9 @@ class CharacterAbility {
     required this.id,
     required this.name,
     this.description = '',
+    this.imagePath,
+    this.imageAlignmentX = 0,
+    this.imageAlignmentY = 0,
     this.actionType = AbilityActionType.action,
     this.folderId,
     this.targetType = AbilityTargetType.external,
@@ -706,6 +716,11 @@ class CharacterAbility {
       'name': name,
 
       'description': description,
+
+      'imagePath': imagePath,
+
+      'imageAlignmentX': imageAlignmentX,
+      'imageAlignmentY': imageAlignmentY,
 
       'actionType': actionType.name,
 
@@ -1090,6 +1105,11 @@ class CharacterAbility {
       name: map['name']?.toString() ?? '',
 
       description: map['description']?.toString() ?? '',
+
+      imagePath: map['imagePath']?.toString(),
+
+      imageAlignmentX: (map['imageAlignmentX'] as num?)?.toDouble() ?? 0,
+      imageAlignmentY: (map['imageAlignmentY'] as num?)?.toDouble() ?? 0,
 
       actionType: AbilityActionType.values.firstWhere(
         (item) => item.name == map['actionType'],

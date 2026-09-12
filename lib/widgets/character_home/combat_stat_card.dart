@@ -10,18 +10,12 @@ class CombatStatCard extends StatelessWidget {
 
   final Color color;
 
-  final VoidCallback? onTap;
-
-  final bool editable;
-
   const CombatStatCard({
     super.key,
     required this.icon,
     required this.title,
     required this.value,
     required this.color,
-    this.onTap,
-    this.editable = false,
   });
 
   @override
@@ -58,7 +52,6 @@ class CombatStatCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
           child: Column(
@@ -99,16 +92,6 @@ class CombatStatCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  if (editable) ...[
-                    const SizedBox(width: 3),
-
-                    Icon(
-                      Icons.edit_rounded,
-                      size: 12,
-                      color: color.withValues(alpha: 0.78),
-                    ),
-                  ],
                 ],
               ),
 

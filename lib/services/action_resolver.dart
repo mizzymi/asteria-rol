@@ -2890,6 +2890,45 @@ class ActionResolver {
     );
   }
 
+  List<PassiveTriggeredExternalOutcome> collectTriggersForEvent(
+    PassiveTriggerEvent event,
+  ) {
+    final outcomes = <PassiveTriggeredExternalOutcome>[];
+
+    for (final passive in character.enabledPassives) {
+      if (!passive.enabled) {
+        continue;
+      }
+
+      for (final trigger in passive.triggers) {
+        if (trigger.event != event) {
+          continue;
+        }
+
+        if (trigger.actions.isEmpty) {
+          continue;
+        }
+
+        outcomes.add(
+          PassiveTriggeredExternalOutcome(
+            passiveId: passive.id,
+            passiveName: passive.name,
+            triggerId: trigger.id,
+            targetId: 'self',
+            targetLabel: character.name,
+            savingThrow: trigger.savingThrow,
+            usageLimit: trigger.usageLimit,
+            actions: trigger.actions
+                .map((action) => PassiveTriggerAction.fromMap(action.toMap()))
+                .toList(),
+          ),
+        );
+      }
+    }
+
+    return List<PassiveTriggeredExternalOutcome>.unmodifiable(outcomes);
+  }
+
   List<CharacterEffectTriggeredExternalOutcome>
   collectEffectTriggeredExternalOutcomesForTarget({
     required ActionTargetResult targetResult,

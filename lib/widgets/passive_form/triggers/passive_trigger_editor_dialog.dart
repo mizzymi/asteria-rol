@@ -1189,6 +1189,10 @@ class _PassiveTriggerActionEditorDialogState
     return action.type == PassiveTriggerActionType.heal;
   }
 
+  bool get _usesMitigation {
+    return action.type == PassiveTriggerActionType.mitigateDamage;
+  }
+
   List<CharacterEffect> get _effectOptions {
     if (action.type == PassiveTriggerActionType.applyEffect) {
       return widget.linkedEffects;
@@ -1214,6 +1218,7 @@ class _PassiveTriggerActionEditorDialogState
 
       case PassiveTriggerActionType.dealDamage:
       case PassiveTriggerActionType.heal:
+      case PassiveTriggerActionType.mitigateDamage:
         return true;
 
       case PassiveTriggerActionType.applyEffect:
@@ -1361,7 +1366,7 @@ class _PassiveTriggerActionEditorDialogState
               // ===============================================================
               // DADOS
               // ===============================================================
-              if (_usesDamage || _usesHealing) ...[
+              if (_usesDamage || _usesHealing || _usesMitigation) ...[
                 const SizedBox(height: 20),
 
                 Text(
@@ -1420,11 +1425,17 @@ class _PassiveTriggerActionEditorDialogState
                       ? 'Modificador de daño'
                       : _usesHealing
                       ? 'Modificador de curación'
+                      : _usesMitigation
+                      ? 'Modificador de mitigación' // <--- Etiqueta específica
                       : 'Valor',
                   label: 'Fórmula',
-                  hint: _usesDamage || _usesHealing ? 'Opcional' : '1',
+                  hint: _usesDamage || _usesHealing || _usesMitigation
+                      ? 'Opcional'
+                      : '1',
                   description: _usesDamage || _usesHealing
                       ? 'Se suma al resultado de los dados.'
+                      : _usesMitigation
+                      ? 'Se suma al resultado de los dados de mitigación.'
                       : 'Valor que aplicará esta acción.',
                 ),
               ],

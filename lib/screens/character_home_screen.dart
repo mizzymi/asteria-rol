@@ -6,6 +6,7 @@ import '../models/character_resource.dart';
 import '../models/character_effect.dart';
 import '../models/passive.dart';
 
+import '../services/action_resolution_flow.dart';
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
 
@@ -274,10 +275,17 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
       return;
     }
 
-    setState(() {
-      character.takeDamage(amount);
-    });
+    if (!mounted) return;
 
+    final flow = ActionResolutionFlow(character: character);
+    await flow.resolveHealthChange(
+      context,
+      baseAmount: amount,
+      isDamage: true,
+    );
+
+    if (!mounted) return;
+    setState(() {});
     await saveCharacter();
   }
 
@@ -292,10 +300,17 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
       return;
     }
 
-    setState(() {
-      character.heal(amount);
-    });
+    if (!mounted) return;
 
+    final flow = ActionResolutionFlow(character: character);
+    await flow.resolveHealthChange(
+      context,
+      baseAmount: amount,
+      isDamage: false,
+    );
+
+    if (!mounted) return;
+    setState(() {});
     await saveCharacter();
   }
 
@@ -535,8 +550,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                     title: 'PG',
                     value: '${character.currentHealth}/${character.maxHealth}',
                     color: CharacterHomeColors.health,
-                    onTap: editHealth,
-                    editable: true,
                   ),
                 ),
 

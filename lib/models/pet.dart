@@ -3,12 +3,15 @@ import 'ability.dart';
 import 'passive.dart';
 import 'ability_scores.dart';
 import 'weapon.dart';
+import 'character_effect.dart';
 
 class Pet {
   String id;
   String name;
   String species;
   String avatarPath;
+  double avatarAlignmentX;
+  double avatarAlignmentY;
 
   // Estadísticas vitales base
   int currentHealth;
@@ -25,6 +28,7 @@ class Pet {
   List<CharacterPassive> passives;
   List<Weapon> weapons; // <--- Ataques básicos / armas de la mascota
   Map<String, int> statModifiers;
+  List<CharacterEffect> effects;
 
   String notes;
 
@@ -33,6 +37,8 @@ class Pet {
     required this.name,
     this.species = '',
     this.avatarPath = '',
+    this.avatarAlignmentX = 0,
+    this.avatarAlignmentY = 0,
     this.currentHealth = 10,
     this.maxHealth = 10,
     this.armorClass = 12,
@@ -43,12 +49,14 @@ class Pet {
     List<CharacterPassive>? passives,
     List<Weapon>? weapons,
     Map<String, int>? statModifiers,
+    List<CharacterEffect>? effects,
     this.notes = '',
   }) : abilities = abilities ?? AbilityScores(),
        characterAbilities = characterAbilities ?? [],
        passives = passives ?? [],
        weapons = weapons ?? [],
-       statModifiers = statModifiers ?? {};
+       statModifiers = statModifiers ?? {},
+       effects = effects ?? [];
 
   // Helpers de atributos y modificadores
   int get strengthScore => abilities.strength;
@@ -80,6 +88,8 @@ class Pet {
       'name': name,
       'species': species,
       'avatarPath': avatarPath,
+      'avatarAlignmentX': avatarAlignmentX,
+      'avatarAlignmentY': avatarAlignmentY,
       'currentHealth': currentHealth,
       'maxHealth': maxHealth,
       'armorClass': armorClass,
@@ -90,6 +100,7 @@ class Pet {
       'passives': passives.map((p) => p.toMap()).toList(),
       'weapons': weapons.map((w) => w.toMap()).toList(),
       'statModifiers': statModifiers,
+      'effects': effects.map((e) => e.toMap()).toList(),
       'notes': notes,
     };
   }
@@ -150,11 +161,25 @@ class Pet {
       });
     }
 
+    final effects = <CharacterEffect>[];
+    final rawEffects = map['effects'];
+    if (rawEffects is List) {
+      for (final raw in rawEffects) {
+        if (raw is Map) {
+          try {
+            effects.add(CharacterEffect.fromMap(Map<dynamic, dynamic>.from(raw)));
+          } catch (_) {}
+        }
+      }
+    }
+
     return Pet(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
       species: map['species']?.toString() ?? '',
       avatarPath: map['avatarPath']?.toString() ?? '',
+      avatarAlignmentX: (map['avatarAlignmentX'] as num?)?.toDouble() ?? 0,
+      avatarAlignmentY: (map['avatarAlignmentY'] as num?)?.toDouble() ?? 0,
       currentHealth: (map['currentHealth'] as num?)?.toInt() ?? 10,
       maxHealth: (map['maxHealth'] as num?)?.toInt() ?? 10,
       armorClass: (map['armorClass'] as num?)?.toInt() ?? 12,
@@ -165,6 +190,7 @@ class Pet {
       passives: passives,
       weapons: weapons,
       statModifiers: statModifiers,
+      effects: effects,
       notes: map['notes']?.toString() ?? '',
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:math' as math;
 
 import '../services/resource_modifier_resolver.dart';
 import '../services/formula_evaluator.dart';
@@ -2117,7 +2118,26 @@ class Character {
       return;
     }
 
-    setHealth(currentHealth - amount, dispatchTriggers: dispatchTriggers);
+    int totalMitigation = 0;
+    for (final passive in enabledPassives) {
+      if (!passive.enabled) continue;
+      for (final trigger in passive.triggers) {
+        for (final action in trigger.actions) {
+          if (action.type == PassiveTriggerActionType.mitigateDamage) {
+            final value = action.valueFormula != null ? 0 : 0;
+            totalMitigation += value;
+          }
+        }
+      }
+    }
+
+    final int netDamage = math.max(0, amount - totalMitigation);
+
+    if (netDamage <= 0) {
+      return;
+    }
+
+    setHealth(currentHealth - netDamage, dispatchTriggers: dispatchTriggers);
   }
 
   void fullHeal({bool dispatchTriggers = true}) {

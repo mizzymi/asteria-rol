@@ -307,7 +307,8 @@ class _RestScreenState extends State<RestScreen> {
                     });
                     await _save();
 
-                    if (!dialogContext.mounted) return;
+                    if (!mounted) return;
+
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -316,7 +317,9 @@ class _RestScreenState extends State<RestScreen> {
                       ),
                     );
 
-                    Navigator.pop(ctx);
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                    }
                   },
                   child: Text(
                     _shortRestRule == 'single'
@@ -396,156 +399,423 @@ class _RestScreenState extends State<RestScreen> {
     );
   }
 
+  String get _shortRestRuleLabel {
+    switch (_shortRestRule) {
+      case 'all_available':
+        return 'Todos los dados + CON por dado';
+      case 'level_dice_single_con':
+        return 'Nivel de dados + CON una vez';
+      case 'single':
+      default:
+        return '1 dado + CON';
+    }
+  }
+
+  double get _healthProgress {
+    if (character.maxHealth <= 0) return 0;
+    return (character.currentHealth / character.maxHealth).clamp(0.0, 1.0);
+  }
+
+  Widget _buildBenefitChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    bool emphasized = false,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: emphasized
+            ? colors.primaryContainer
+            : colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: emphasized
+              ? colors.primary.withValues(alpha: 0.18)
+              : colors.outlineVariant.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 15,
+            color: emphasized ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: emphasized
+                      ? colors.onPrimaryContainer
+                      : colors.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRestCard(
+    BuildContext context, {
+    required String eyebrow,
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color accent,
+    required Color accentContainer,
+    required Color onAccentContainer,
+    required List<Widget> benefits,
+    required Widget footer,
+  }) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.55),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withValues(alpha: 0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 7,
+            color: accent,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: accentContainer,
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Icon(icon, color: onAccentContainer, size: 28),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            eyebrow.toUpperCase(),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              letterSpacing: 1.05,
+                              fontWeight: FontWeight.w800,
+                              color: accent,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            title,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: benefits,
+                ),
+                const SizedBox(height: 18),
+                footer,
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final hpMissing = (character.maxHealth - character.currentHealth).clamp(0, character.maxHealth);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Zona de Descanso - ${character.name}'),
+        title: const Text('Descanso'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            tooltip: 'Configurar Reglas de Descanso',
+          IconButton.filledTonal(
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Configurar descanso corto',
             onPressed: _configureShortRestRules,
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: colors.outlineVariant.withValues(alpha: 0.7),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colors.primaryContainer,
+                  colors.tertiaryContainer.withValues(alpha: 0.82),
+                ],
               ),
+              borderRadius: BorderRadius.circular(28),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: colors.tertiaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.bedtime_outlined,
-                          color: colors.onTertiaryContainer,
-                          size: 28,
-                        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: colors.surface.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Descanso Corto',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Pausa de 1 hora para gastar dados de golpe y recuperar habilidades específicas.',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: Icon(
+                        Icons.nights_stay_rounded,
+                        color: colors.onPrimaryContainer,
+                        size: 27,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonal(
-                      onPressed: _performShortRest,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.hourglass_bottom_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text('Tomar Descanso Corto'),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            character.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: colors.onPrimaryContainer,
+                            ),
+                          ),
+                          Text(
+                            'Recupera fuerzas antes de volver a la aventura',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onPrimaryContainer.withValues(alpha: 0.78),
+                            ),
+                          ),
                         ],
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Puntos de golpe',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: colors.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${character.currentHealth} / ${character.maxHealth} PV',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: colors.onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: _healthProgress,
+                    minHeight: 10,
+                    backgroundColor: colors.surface.withValues(alpha: 0.5),
+                    color: colors.primary,
                   ),
-                ],
+                ),
+                const SizedBox(height: 13),
+                Row(
+                  children: [
+                    _buildBenefitChip(
+                      context,
+                      icon: Icons.favorite_rounded,
+                      label: hpMissing == 0 ? 'Salud completa' : 'Faltan $hpMissing PV',
+                      emphasized: hpMissing > 0,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildBenefitChip(
+                      context,
+                      icon: Icons.shield_outlined,
+                      label: 'Nv. ${character.level}',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Elige cómo descansar',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _configureShortRestRules,
+                icon: const Icon(Icons.settings_rounded, size: 17),
+                label: const Text('Reglas'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildRestCard(
+            context,
+            eyebrow: 'Recuperación rápida',
+            title: 'Descanso corto',
+            description:
+                'Gasta dados de golpe para recuperar PV y recarga las pasivas que vuelven tras un descanso corto.',
+            icon: Icons.hourglass_bottom_rounded,
+            accent: colors.tertiary,
+            accentContainer: colors.tertiaryContainer,
+            onAccentContainer: colors.onTertiaryContainer,
+            benefits: [
+              _buildBenefitChip(
+                context,
+                icon: Icons.casino_rounded,
+                label: _shortRestRuleLabel,
+              ),
+              _buildBenefitChip(
+                context,
+                icon: Icons.favorite_outline_rounded,
+                label: 'Recupera PV',
+              ),
+              _buildBenefitChip(
+                context,
+                icon: Icons.bolt_rounded,
+                label: 'Recarga pasivas',
+              ),
+            ],
+            footer: FilledButton.tonalIcon(
+              onPressed: _performShortRest,
+              icon: const Icon(Icons.local_cafe_rounded),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 13),
+                child: Text('Tomar descanso corto'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          _buildRestCard(
+            context,
+            eyebrow: 'Recuperación completa',
+            title: 'Descanso largo',
+            description:
+                'Una noche de descanso restaura tus PV al máximo y recupera las cargas y recursos del personaje.',
+            icon: Icons.bedtime_rounded,
+            accent: colors.primary,
+            accentContainer: colors.primaryContainer,
+            onAccentContainer: colors.onPrimaryContainer,
+            benefits: [
+              _buildBenefitChip(
+                context,
+                icon: Icons.favorite_rounded,
+                label: 'PV al máximo',
+                emphasized: true,
+              ),
+              _buildBenefitChip(
+                context,
+                icon: Icons.battery_charging_full_rounded,
+                label: 'Cargas',
+              ),
+              _buildBenefitChip(
+                context,
+                icon: Icons.auto_awesome_rounded,
+                label: 'Recursos',
+              ),
+              _buildBenefitChip(
+                context,
+                icon: Icons.schedule_rounded,
+                label: '8 horas',
+              ),
+            ],
+            footer: FilledButton.icon(
+              onPressed: _performLongRest,
+              icon: const Icon(Icons.hotel_rounded),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 13),
+                child: Text('Tomar descanso largo'),
               ),
             ),
           ),
           const SizedBox(height: 20),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: colors.outlineVariant.withValues(alpha: 0.7),
-              ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: colors.primaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.hotel_rounded,
-                          color: colors.onPrimaryContainer,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Descanso Largo',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '8 horas de descanso profundo. Restaura toda la salud, ranuras y cargas.',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _performLongRest,
-                      icon: const Icon(Icons.wb_sunny_rounded),
-                      label: const Text('Tomar Descanso Largo'),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Text(
+                    'La regla del descanso corto se puede cambiar en cualquier momento desde “Reglas”. Antes de tirar podrás elegir dados físicos o digitales.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      height: 1.4,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],

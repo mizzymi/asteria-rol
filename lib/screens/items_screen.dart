@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/character.dart';
+import '../models/ability.dart';
 import '../models/item.dart';
 import '../models/character_content_folder.dart';
 
@@ -49,7 +50,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
   static const String _gridViewPreferenceKey = 'items_grid_view';
   final _inventoryService = const InventoryService();
+  final TextEditingController _searchController = TextEditingController();
 
+  String _searchQuery = '';
   bool gridView = false;
   bool viewPreferenceLoaded = false;
 
@@ -85,6 +88,102 @@ class _ItemsScreenState extends State<ItemsScreen> {
       return folder.name;
     }
     return 'Objetos';
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _normalizeSearchText(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ñ', 'n');
+  }
+
+  Set<String> _itemFolderSearchScope() {
+    final result = <String>{};
+
+    void visit(String? parentId) {
+      for (final folder in character.itemFoldersInside(parentId)) {
+        if (result.add(folder.id)) {
+          visit(folder.id);
+        }
+      }
+    }
+
+    visit(_currentFolderId);
+    return result;
+  }
+
+  bool _matchesItemSearch(InventoryItemView entry, String query) {
+    final inventory = entry.inventory;
+    final definition = entry.definition;
+
+    // La búsqueda de un objeto también incluye el contenido que concede:
+    // habilidades activas y pasivas. Así, por ejemplo, buscar el nombre de
+    // una pasiva devuelve el objeto que la contiene.
+    final abilitySearchText = definition.abilities.map((ability) {
+      return '${ability.name} ${ability.description} ${ability.notes} ${ability.actionType.label}';
+    }).join(' ');
+
+    final passiveSearchText = definition.passives.map((passive) {
+      final triggerText = passive.triggers.map((trigger) {
+        final actionText = trigger.actions
+            .map((action) => action.type.name)
+            .join(' ');
+        return '${trigger.event.name} ${trigger.customEvent ?? ''} $actionText';
+      }).join(' ');
+
+      return '${passive.name} ${passive.description} ${passive.notes} '
+          '${passive.rechargeDescription} ${passive.sourceType.name} $triggerText';
+    }).join(' ');
+
+    final haystack = _normalizeSearchText(
+      '${inventory.customName ?? ''} ${inventory.notes ?? ''} '
+      '${definition.name} ${definition.description} ${definition.notes} '
+      '${definition.type.label} ${definition.actionDefinition?.name ?? ''} '
+      '$abilitySearchText $passiveSearchText',
+    );
+
+    return haystack.contains(query);
+  }
+
+  Widget _buildSearchField() {
+    final colors = Theme.of(context).colorScheme;
+    final searching = _searchQuery.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+      child: SearchBar(
+        controller: _searchController,
+        hintText: 'Buscar en esta carpeta y subcarpetas',
+        leading: const Icon(Icons.search_rounded),
+        trailing: [
+          if (searching)
+            IconButton(
+              tooltip: 'Limpiar búsqueda',
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _searchQuery = '');
+              },
+              icon: const Icon(Icons.close_rounded),
+            ),
+        ],
+        onChanged: (value) => setState(() => _searchQuery = value),
+        backgroundColor: WidgetStatePropertyAll(
+          colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        ),
+        elevation: const WidgetStatePropertyAll(0),
+      ),
+    );
   }
 
   // ===========================================================================
@@ -1115,14 +1214,28 @@ class _ItemsScreenState extends State<ItemsScreen> {
   @override
   Widget build(BuildContext context) {
     final allItems = _resolvedInventory;
+    final query = _normalizeSearchText(_searchQuery.trim());
+    final searching = query.isNotEmpty;
 
-    // Obtenemos solo las subcarpetas de objetos de la carpeta actual
-    final folders = character.itemFoldersInside(_currentFolderId);
+    // En modo normal solo mostramos el nivel actual. Durante una búsqueda,
+    // el alcance incluye este nivel y todas sus subcarpetas descendientes.
+    final folders = searching
+        ? <CharacterContentFolder>[]
+        : character.itemFoldersInside(_currentFolderId);
 
-    // Filtramos los objetos que están exactamente en este nivel de carpetas
-    final itemsInFolder = allItems
-        .where((entry) => entry.inventory.folderId == _currentFolderId)
-        .toList(growable: false);
+    final searchFolderIds = searching ? _itemFolderSearchScope() : <String>{};
+
+    final itemsInFolder = allItems.where((entry) {
+      if (!searching) {
+        return entry.inventory.folderId == _currentFolderId;
+      }
+
+      final folderId = entry.inventory.folderId;
+      final inScope = folderId == _currentFolderId ||
+          (folderId != null && searchFolderIds.contains(folderId));
+
+      return inScope && _matchesItemSearch(entry, query);
+    }).toList(growable: false);
 
     final equipped = itemsInFolder
         .where((entry) => entry.inventory.equipped)
@@ -1132,7 +1245,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
         .where((entry) => !entry.inventory.equipped)
         .toList(growable: false);
 
-    final hasContent = folders.isNotEmpty || itemsInFolder.isNotEmpty;
+    final hasContent = searching
+        ? itemsInFolder.isNotEmpty
+        : folders.isNotEmpty || itemsInFolder.isNotEmpty;
 
     return PopScope(
       canPop: !_canGoBackInsideContent,
@@ -1215,17 +1330,38 @@ class _ItemsScreenState extends State<ItemsScreen> {
         ),
         body: !viewPreferenceLoaded
             ? const Center(child: CircularProgressIndicator())
-            : !hasContent
-            ? EmptyState(
-                icon: Icons.inventory_2_rounded,
-                title: 'Carpeta vacía',
-                message: 'Añade objetos, equipo o subcarpetas.',
-                actionLabel: 'Añadir',
-                onAction: _showCreateMenu,
-              )
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+            : Column(
                 children: [
+                  _buildSearchField(),
+                  Expanded(
+                    child: !hasContent
+                        ? EmptyState(
+                            icon: searching
+                                ? Icons.search_off_rounded
+                                : Icons.inventory_2_rounded,
+                            title: searching
+                                ? 'Sin resultados'
+                                : 'Carpeta vacía',
+                            message: searching
+                                ? 'No hay objetos que coincidan en esta carpeta ni en sus subcarpetas.'
+                                : 'Añade objetos, equipo o subcarpetas.',
+                            actionLabel: searching ? null : 'Añadir',
+                            onAction: searching ? null : _showCreateMenu,
+                          )
+                        : ListView(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 100),
+                children: [
+                  if (searching)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Text(
+                        '${itemsInFolder.length} ${itemsInFolder.length == 1 ? 'resultado' : 'resultados'} · Incluye subcarpetas',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
                   // =======================================================================
                   // SUBCARPETAS
                   // =======================================================
@@ -1372,6 +1508,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
                         );
                       }),
                   ],
+                ],
+              ),
+                  ),
                 ],
               ),
         floatingActionButton: FloatingActionButton.extended(

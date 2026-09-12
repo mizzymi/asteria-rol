@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/passive.dart';
+import '../../abilities/ability_image_selector.dart';
 
 class PassiveIdentitySection extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController descriptionController;
+
+  final String? imagePath;
+  final VoidCallback onPickImage;
+  final VoidCallback? onRemoveImage;
+  final VoidCallback? onAdjustImageFraming;
+  final double imageAlignmentX;
+  final double imageAlignmentY;
 
   final PassiveSourceType sourceType;
 
@@ -17,6 +25,12 @@ class PassiveIdentitySection extends StatelessWidget {
     super.key,
     required this.nameController,
     required this.descriptionController,
+    required this.imagePath,
+    required this.onPickImage,
+    this.onRemoveImage,
+    this.onAdjustImageFraming,
+    this.imageAlignmentX = 0,
+    this.imageAlignmentY = 0,
     required this.sourceType,
     required this.enabled,
     required this.onSourceTypeChanged,
@@ -40,6 +54,19 @@ class PassiveIdentitySection extends StatelessWidget {
             ),
 
             const SizedBox(height: 16),
+
+            AbilityImageSelector(
+              imagePath: imagePath,
+              onPick: onPickImage,
+              onRemove: onRemoveImage,
+              onAdjustFraming: onAdjustImageFraming,
+              alignmentX: imageAlignmentX,
+              alignmentY: imageAlignmentY,
+              fallbackIcon: Icons.auto_awesome_rounded,
+              label: 'Añadir imagen',
+            ),
+
+            const SizedBox(height: 14),
 
             TextFormField(
               controller: nameController,

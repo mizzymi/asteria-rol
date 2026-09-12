@@ -2,11 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../../models/ability.dart';
 import '../../../models/skill.dart';
+import '../ability_image_selector.dart';
 
 class AbilityGeneralSection extends StatelessWidget {
   final TextEditingController nameController;
 
   final TextEditingController descriptionController;
+
+  final String? imagePath;
+  final VoidCallback onPickImage;
+  final VoidCallback? onRemoveImage;
+  final VoidCallback? onAdjustImageFraming;
+  final double imageAlignmentX;
+  final double imageAlignmentY;
 
   final AbilityActionType actionType;
   final AbilityType abilityType;
@@ -19,6 +27,12 @@ class AbilityGeneralSection extends StatelessWidget {
     super.key,
     required this.nameController,
     required this.descriptionController,
+    required this.imagePath,
+    required this.onPickImage,
+    this.onRemoveImage,
+    this.onAdjustImageFraming,
+    this.imageAlignmentX = 0,
+    this.imageAlignmentY = 0,
     required this.actionType,
     required this.abilityType,
     required this.onActionTypeChanged,
@@ -33,6 +47,19 @@ class AbilityGeneralSection extends StatelessWidget {
         _SectionTitle(
           icon: Icons.auto_awesome_rounded,
           title: 'Información general',
+        ),
+
+        const SizedBox(height: 14),
+
+        AbilityImageSelector(
+          imagePath: imagePath,
+          onPick: onPickImage,
+          onRemove: onRemoveImage,
+          onAdjustFraming: onAdjustImageFraming,
+          alignmentX: imageAlignmentX,
+          alignmentY: imageAlignmentY,
+          fallbackIcon: Icons.bolt_rounded,
+          label: 'Añadir imagen',
         ),
 
         const SizedBox(height: 14),
