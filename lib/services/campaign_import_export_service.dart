@@ -73,6 +73,10 @@ class CampaignImportExportService {
     if (map['type'] != formatType || map['campaign'] is! Map) {
       throw const FormatException('El archivo no es una campaña de Asteria.');
     }
+    final version = (map['version'] as num?)?.toInt() ?? 0;
+    if (version <= 0 || version > formatVersion) {
+      throw FormatException('Versión de campaña no compatible: $version');
+    }
 
     final root = <String, dynamic>{
       'campaign': Map<String, dynamic>.from(map['campaign'] as Map),
@@ -99,6 +103,95 @@ class CampaignImportExportService {
         .map((e) => Character.fromMap(Map<dynamic, dynamic>.from(e)))
         .toList();
     return (campaign: campaign, characters: characters);
+  }
+
+  /// Importa una campaña portable como una copia independiente.
+  ///
+  /// Se regeneran los IDs de la campaña y de todas sus fichas para evitar
+  /// sobrescribir datos existentes cuando se importa una campaña exportada
+  /// desde este mismo dispositivo. El contenido y las imágenes se conservan.
+  static Future<({Campaign campaign, List<Character> characters})>
+      importPortableAsCopy(String raw) async {
+    final decoded = await decodePortable(raw);
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final newCampaignId = 'campaign_$stamp';
+
+    final characterIdMap = <String, String>{};
+    final newCharacterIds = <String>[];
+    for (var i = 0; i < decoded.characters.length; i++) {
+      final newId = 'character_${stamp}_$i';
+      newCharacterIds.add(newId);
+      final oldId = decoded.characters[i].id;
+      if (oldId.isNotEmpty) characterIdMap[oldId] = newId;
+    }
+
+    final campaignMap = Map<String, dynamic>.from(decoded.campaign.toMap());
+    campaignMap['id'] = newCampaignId;
+    _remapCharacterReferences(campaignMap, characterIdMap);
+    final campaign = Campaign.fromMap(Map<dynamic, dynamic>.from(campaignMap));
+
+    final characters = <Character>[];
+    for (var i = 0; i < decoded.characters.length; i++) {
+      final characterMap = Map<String, dynamic>.from(
+        decoded.characters[i].toMap(),
+      );
+      characterMap['id'] = newCharacterIds[i];
+      characterMap['campaignId'] = newCampaignId;
+      _remapCharacterReferences(characterMap, characterIdMap);
+      characters.add(
+        Character.fromMap(Map<dynamic, dynamic>.from(characterMap)),
+      );
+    }
+
+    return (campaign: campaign, characters: characters);
+  }
+
+  /// Importa una campaña conservando los IDs del archivo exportado.
+  ///
+  /// Esto permite reconocer posteriores importaciones de la misma campaña y
+  /// actualizarla en lugar de crear copias con IDs distintos.
+  static Future<({Campaign campaign, List<Character> characters})>
+      importPortable(String raw) async {
+    return decodePortable(raw);
+  }
+
+  static Future<({Campaign campaign, List<Character> characters})>
+      importFile(File file) async {
+    return importPortable(await file.readAsString());
+  }
+
+  static Future<({Campaign campaign, List<Character> characters})>
+      importFileAsCopy(File file) async {
+    return importPortableAsCopy(await file.readAsString());
+  }
+
+  static void _remapCharacterReferences(
+    dynamic node,
+    Map<String, String> idMap,
+  ) {
+    if (node is Map) {
+      for (final key in node.keys.toList()) {
+        final keyText = key.toString();
+        final value = node[key];
+        if (keyText == 'characterId' && value is String) {
+          node[key] = idMap[value] ?? value;
+          continue;
+        }
+        if (keyText == 'acceptedCharacterIds' && value is List) {
+          node[key] = value
+              .map((id) => idMap[id.toString()] ?? id.toString())
+              .toList();
+          continue;
+        }
+        _remapCharacterReferences(value, idMap);
+      }
+      return;
+    }
+    if (node is List) {
+      for (final value in node) {
+        _remapCharacterReferences(value, idMap);
+      }
+    }
   }
 
   static String _safeName(String value) {

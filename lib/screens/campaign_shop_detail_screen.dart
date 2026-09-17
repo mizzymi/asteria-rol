@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/campaign.dart';
 import '../models/campaign_shop.dart';
 import '../models/character.dart';
+import '../models/dnd_class.dart';
 import '../models/inventory_item.dart';
 import '../models/item_definition.dart';
 import '../services/campaign_economy_service.dart';
@@ -57,6 +58,8 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
           !d.name.toLowerCase().contains(query) &&
           !d.description.toLowerCase().contains(query) &&
           !d.type.label.toLowerCase().contains(query) &&
+          !d.recommendedClasses.any(
+              (className) => className.toLowerCase().contains(query)) &&
           !d.abilities.any((a) =>
               a.name.toLowerCase().contains(query) ||
               a.description.toLowerCase().contains(query)) &&
@@ -135,7 +138,11 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
     var prohibited = _prohibited;
     var classFilters = Set<String>.from(_classFilters);
     var groupByClass = _groupByClass;
-    final classOptions = shop.products.expand((p) => p.definition.recommendedClasses).toSet().toList()..sort();
+    final classOptions = <String>{
+      ...DndClass.values.map((dndClass) => dndClass.label),
+      ...shop.products.expand((p) => p.definition.recommendedClasses),
+    }.toList()
+      ..sort();
     var sort = _sort;
     final applied = await showModalBottomSheet<bool>(
       context: context,
@@ -191,23 +198,47 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
               triChoice('Con pasivas', hasPassives, (v) => modalSetState(() => hasPassives = v)),
               const SizedBox(height: 14),
               triChoice('Objetos prohibidos', prohibited, (v) => modalSetState(() => prohibited = v)),
-              if (classOptions.isNotEmpty) ...[
-                const SizedBox(height: 18),
-                Text('Clase recomendada', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                Wrap(spacing: 7, runSpacing: 7, children: classOptions.map((name) => FilterChip(
-                  label: Text(name), selected: classFilters.contains(name),
-                  onSelected: (v) => modalSetState(() => v ? classFilters.add(name) : classFilters.remove(name)),
-                )).toList()),
-                const SizedBox(height: 10),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Separar por clase'),
-                  subtitle: const Text('Crea apartados como “Recomendado para Guerreros”'),
-                  value: groupByClass,
-                  onChanged: (v) => modalSetState(() => groupByClass = v),
+              const SizedBox(height: 18),
+              Text(
+                'Buscar por clase',
+                style: Theme.of(ctx)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Muestra objetos recomendados para cualquiera de las clases seleccionadas.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: classOptions
+                    .map(
+                      (name) => FilterChip(
+                        label: Text(name),
+                        selected: classFilters.contains(name),
+                        onSelected: (v) => modalSetState(
+                          () => v
+                              ? classFilters.add(name)
+                              : classFilters.remove(name),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 10),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Separar por clase'),
+                subtitle: const Text(
+                  'Crea apartados como “Recomendado para Guerrero”',
                 ),
-              ],
+                value: groupByClass,
+                onChanged: (v) => modalSetState(() => groupByClass = v),
+              ),
               const SizedBox(height: 18),
               DropdownButtonFormField<String>(
                 value: sort,
@@ -618,7 +649,7 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
                 children: [
                   TextField(
                     decoration: InputDecoration(
-                      hintText: 'Buscar por nombre, descripción, habilidad…',
+                      hintText: 'Buscar por nombre, clase, descripción, habilidad…',
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _search.isEmpty ? null : IconButton(
                         onPressed: () => setState(() => _search = ''),

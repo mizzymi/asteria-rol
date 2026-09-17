@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/campaign.dart';
 import '../models/character.dart';
 import '../services/campaign_storage_service.dart';
+import '../services/campaign_import_export_service.dart';
+import '../services/campaign_economy_service.dart';
 import '../services/app_mode_service.dart';
 import '../services/character_storage_service.dart';
 import 'campaign_form_screen.dart';
@@ -37,6 +40,96 @@ class _MasterScreenState extends State<MasterScreen> {
       MaterialPageRoute(builder: (_) => const CampaignFormScreen()),
     );
     _reload();
+  }
+
+  Future<void> _importCampaign() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria-campaign', 'json'],
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final path = result.files.single.path;
+      if (path == null) {
+        throw const FormatException('No se pudo acceder al archivo.');
+      }
+
+      final imported = await CampaignImportExportService.importFile(File(path));
+      final campaignId = imported.campaign.id;
+      if (campaignId.isEmpty) {
+        throw const FormatException(
+          'La campaña importada no tiene un ID válido.',
+        );
+      }
+
+      final existingCampaign = CampaignStorageService.getCampaign(campaignId);
+      final isUpdate = existingCampaign != null;
+      final importedCharacterIds = <String>{};
+
+      // Validamos todos los IDs antes de tocar el almacenamiento local.
+      for (final character in imported.characters) {
+        if (character.id.isEmpty) {
+          throw const FormatException(
+            'La campaña contiene una ficha sin un ID válido.',
+          );
+        }
+        if (!importedCharacterIds.add(character.id)) {
+          throw FormatException(
+            'La campaña contiene el ID de ficha duplicado: ${character.id}',
+          );
+        }
+        final localCharacter = CharacterStorageService.getCharacter(
+          character.id,
+        );
+        if (localCharacter != null && localCharacter.campaignId != campaignId) {
+          throw FormatException(
+            'El ID de ficha ${character.id} ya pertenece a otra campaña.',
+          );
+        }
+      }
+
+      await CampaignStorageService.saveCampaign(imported.campaign);
+      for (final character in imported.characters) {
+        character.campaignId = campaignId;
+        await CharacterStorageService.saveCharacter(character);
+      }
+
+      // El archivo de campaña es una instantánea completa. Si la campaña ya
+      // existe, eliminamos al final las fichas locales ausentes en el archivo.
+      if (isUpdate) {
+        final existingCharacters = CharacterStorageService.getCharacters()
+            .where((character) => character.campaignId == campaignId)
+            .toList();
+        for (final character in existingCharacters) {
+          if (!importedCharacterIds.contains(character.id)) {
+            await CharacterStorageService.deleteCharacter(character.id);
+          }
+        }
+      }
+
+      await CampaignEconomyService.syncCampaignCurrencies(imported.campaign);
+
+      if (!mounted) return;
+      _reload();
+      final count = imported.characters.length;
+      final action = isUpdate ? 'actualizada' : 'importada';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            count == 1
+                ? 'Campaña “${imported.campaign.name}” $action con 1 ficha.'
+                : 'Campaña “${imported.campaign.name}” $action con $count fichas.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar la campaña: $error')),
+      );
+    }
   }
 
   int _npcCount(String campaignId) => characters
@@ -95,6 +188,12 @@ class _MasterScreenState extends State<MasterScreen> {
                         ],
                       ),
                     ),
+                    IconButton.filledTonal(
+                      onPressed: _importCampaign,
+                      tooltip: 'Importar campaña',
+                      icon: const Icon(Icons.file_download_rounded),
+                    ),
+                    const SizedBox(width: 8),
                     IconButton.filledTonal(
                       onPressed: _newCampaign,
                       tooltip: 'Nueva campaña',
@@ -165,6 +264,11 @@ class _MasterScreenState extends State<MasterScreen> {
                       ),
                     ),
                     TextButton.icon(
+                      onPressed: _importCampaign,
+                      icon: const Icon(Icons.file_download_rounded),
+                      label: const Text('Importar'),
+                    ),
+                    TextButton.icon(
                       onPressed: _newCampaign,
                       icon: const Icon(Icons.add_rounded),
                       label: const Text('Nueva'),
@@ -176,7 +280,10 @@ class _MasterScreenState extends State<MasterScreen> {
             if (campaigns.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _EmptyCampaigns(onCreate: _newCampaign),
+                child: _EmptyCampaigns(
+                  onCreate: _newCampaign,
+                  onImport: _importCampaign,
+                ),
               )
             else
               SliverPadding(
@@ -459,7 +566,8 @@ class _CountChip extends StatelessWidget {
 
 class _EmptyCampaigns extends StatelessWidget {
   final VoidCallback onCreate;
-  const _EmptyCampaigns({required this.onCreate});
+  final VoidCallback onImport;
+  const _EmptyCampaigns({required this.onCreate, required this.onImport});
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
@@ -481,13 +589,25 @@ class _EmptyCampaigns extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Crea tu primera campaña para empezar a preparar el mundo.',
+            'Crea una campaña nueva o importa una copia exportada desde Asteria.',
           ),
           const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: onCreate,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Crear campaña'),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onImport,
+                icon: const Icon(Icons.file_download_rounded),
+                label: const Text('Importar campaña'),
+              ),
+              FilledButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Crear campaña'),
+              ),
+            ],
           ),
         ],
       ),
