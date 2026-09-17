@@ -56,15 +56,24 @@ class PortableImageBundle {
                     images[_pathKey(nextPath)] = base64Encode(bytes);
                   }
                 } catch (_) {
-                  // A broken/unreadable local path must never make the whole
-                  // character/shop/item export fail.
+                  // Keep walking. We only clear the local path when its bytes
+                  // were actually embedded in the portable JSON.
                 }
               }
             }
 
-            // Never export a device-specific path. The importer will replace
-            // this with the restored path on the destination device.
-            node[rawKey] = '';
+            // IMPORTANT: do not silently erase an image from the JSON when its
+            // file cannot be read. Older exports did that, so an item could
+            // visibly have an image in Asteria but be exported with an empty
+            // imagePath and without bytes in `images`.
+            //
+            // When embedding succeeds we clear the device-specific path as
+            // before. If it fails, keep the original value in the JSON. This
+            // makes the problem explicit and, at minimum, preserves same-device
+            // compatibility instead of destroying the only image reference.
+            if (images.containsKey(_pathKey(nextPath))) {
+              node[rawKey] = '';
+            }
           } else {
             await walk(value, nextPath);
           }
