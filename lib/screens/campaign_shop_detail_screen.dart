@@ -466,12 +466,59 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
                                         ?.copyWith(fontWeight: FontWeight.w900),
                                   ),
                                   const SizedBox(height: 3),
-                                  Text(
-                                    d.type.label,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colors.primary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          d.type.label,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: colors.primary,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      ),
+                                      if (d.type == ItemType.armor &&
+                                          d.armor != null) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: colors.primaryContainer,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.shield_rounded,
+                                                size: 14,
+                                                color:
+                                                    colors.onPrimaryContainer,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${d.armor!.category.label} · CA ${d.armor!.baseArmorClass}',
+                                                style: theme
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: colors
+                                                          .onPrimaryContainer,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                   if (product.prohibited) ...[
                                     const SizedBox(height: 5),
@@ -722,6 +769,13 @@ class _ProductDetails extends StatelessWidget {
             runSpacing: 8,
             children: [
               Chip(label: Text(definition.type.label)),
+              if (definition.type == ItemType.armor && definition.armor != null)
+                Chip(
+                  avatar: const Icon(Icons.shield_rounded, size: 18),
+                  label: Text(
+                    '${definition.armor!.category.label} · CA ${definition.armor!.baseArmorClass}',
+                  ),
+                ),
               Chip(
                 avatar: const Icon(Icons.paid_rounded, size: 18),
                 label: Text('$price $currencyName'),
@@ -762,11 +816,14 @@ class _ProductDetails extends StatelessWidget {
             if (definition.abilities.isNotEmpty) ...[
               Text(
                 'Habilidades activas',
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               ...definition.abilities.map((ability) {
-                final abilityImage = ability.imagePath != null &&
+                final abilityImage =
+                    ability.imagePath != null &&
                     ability.imagePath!.trim().isNotEmpty &&
                     File(ability.imagePath!).existsSync();
                 return Card(
@@ -774,10 +831,17 @@ class _ProductDetails extends StatelessWidget {
                   child: ExpansionTile(
                     leading: CircleAvatar(
                       backgroundColor: colors.primaryContainer,
-                      backgroundImage: abilityImage ? FileImage(File(ability.imagePath!)) : null,
-                      child: abilityImage ? null : const Icon(Icons.auto_awesome_rounded),
+                      backgroundImage: abilityImage
+                          ? FileImage(File(ability.imagePath!))
+                          : null,
+                      child: abilityImage
+                          ? null
+                          : const Icon(Icons.auto_awesome_rounded),
                     ),
-                    title: Text(ability.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    title: Text(
+                      ability.name,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     subtitle: Text(ability.actionType.name),
                     childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     expandedCrossAxisAlignment: CrossAxisAlignment.start,
@@ -795,9 +859,15 @@ class _ProductDetails extends StatelessWidget {
                           if (ability.requiresAttackRoll)
                             const Chip(label: Text('Tirada de ataque')),
                           if (ability.effects.isNotEmpty)
-                            Chip(label: Text('${ability.effects.length} efectos')),
+                            Chip(
+                              label: Text('${ability.effects.length} efectos'),
+                            ),
                           if (ability.linkedEffects.isNotEmpty)
-                            Chip(label: Text('${ability.linkedEffects.length} efectos vinculados')),
+                            Chip(
+                              label: Text(
+                                '${ability.linkedEffects.length} efectos vinculados',
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -809,11 +879,14 @@ class _ProductDetails extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Habilidades pasivas',
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               ...definition.passives.map((passive) {
-                final passiveImage = passive.imagePath != null &&
+                final passiveImage =
+                    passive.imagePath != null &&
                     passive.imagePath!.trim().isNotEmpty &&
                     File(passive.imagePath!).existsSync();
                 return Card(
@@ -821,10 +894,17 @@ class _ProductDetails extends StatelessWidget {
                   child: ExpansionTile(
                     leading: CircleAvatar(
                       backgroundColor: colors.primaryContainer,
-                      backgroundImage: passiveImage ? FileImage(File(passive.imagePath!)) : null,
-                      child: passiveImage ? null : const Icon(Icons.shield_rounded),
+                      backgroundImage: passiveImage
+                          ? FileImage(File(passive.imagePath!))
+                          : null,
+                      child: passiveImage
+                          ? null
+                          : const Icon(Icons.shield_rounded),
                     ),
-                    title: Text(passive.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    title: Text(
+                      passive.name,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     subtitle: Text(passive.enabled ? 'Activa' : 'Desactivada'),
                     childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     expandedCrossAxisAlignment: CrossAxisAlignment.start,
@@ -839,13 +919,29 @@ class _ProductDetails extends StatelessWidget {
                         runSpacing: 8,
                         children: [
                           if (passive.triggers.isNotEmpty)
-                            Chip(label: Text('${passive.triggers.length} triggers')),
+                            Chip(
+                              label: Text(
+                                '${passive.triggers.length} triggers',
+                              ),
+                            ),
                           if (passive.hasCharges)
-                            Chip(label: Text('Cargas: ${passive.currentCharges}/${passive.maxCharges}')),
+                            Chip(
+                              label: Text(
+                                'Cargas: ${passive.currentCharges}/${passive.maxCharges}',
+                              ),
+                            ),
                           if (passive.linkedEffects.isNotEmpty)
-                            Chip(label: Text('${passive.linkedEffects.length} efectos vinculados')),
+                            Chip(
+                              label: Text(
+                                '${passive.linkedEffects.length} efectos vinculados',
+                              ),
+                            ),
                           if (passive.damageBonuses.isNotEmpty)
-                            Chip(label: Text('${passive.damageBonuses.length} bonus de daño')),
+                            Chip(
+                              label: Text(
+                                '${passive.damageBonuses.length} bonus de daño',
+                              ),
+                            ),
                         ],
                       ),
                     ],
