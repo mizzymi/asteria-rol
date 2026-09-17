@@ -37,6 +37,217 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
   late CampaignShop shop;
   List<Character> characters = [];
 
+  String _search = '';
+  final Set<ItemType> _typeFilters = <ItemType>{};
+  final Set<ArmorCategory> _armorFilters = <ArmorCategory>{};
+  int? _minPrice;
+  int? _maxPrice;
+  bool? _hasAbilities;
+  bool? _hasPassives;
+  bool? _prohibited;
+  final Set<String> _classFilters = <String>{};
+  bool _groupByClass = false;
+  String _sort = 'name';
+
+  List<CampaignShopProduct> get _filteredProducts {
+    final query = _search.trim().toLowerCase();
+    final result = shop.products.where((product) {
+      final d = product.definition;
+      if (query.isNotEmpty &&
+          !d.name.toLowerCase().contains(query) &&
+          !d.description.toLowerCase().contains(query) &&
+          !d.type.label.toLowerCase().contains(query) &&
+          !d.abilities.any((a) =>
+              a.name.toLowerCase().contains(query) ||
+              a.description.toLowerCase().contains(query)) &&
+          !d.passives.any((p) =>
+              p.name.toLowerCase().contains(query) ||
+              p.description.toLowerCase().contains(query))) return false;
+      if (_typeFilters.isNotEmpty && !_typeFilters.contains(d.type)) return false;
+      if (_armorFilters.isNotEmpty &&
+          (d.armor == null || !_armorFilters.contains(d.armor!.category))) {
+        return false;
+      }
+      if (_minPrice != null && product.price < _minPrice!) return false;
+      if (_maxPrice != null && product.price > _maxPrice!) return false;
+      if (_hasAbilities != null && d.abilities.isNotEmpty != _hasAbilities!) return false;
+      if (_hasPassives != null && d.passives.isNotEmpty != _hasPassives!) return false;
+      if (_prohibited != null && product.prohibited != _prohibited!) return false;
+      if (_classFilters.isNotEmpty && !d.recommendedClasses.any(_classFilters.contains)) return false;
+      return true;
+    }).toList();
+    result.sort((a, b) {
+      switch (_sort) {
+        case 'priceAsc': return a.price.compareTo(b.price);
+        case 'priceDesc': return b.price.compareTo(a.price);
+        case 'nameDesc': return b.definition.name.toLowerCase().compareTo(a.definition.name.toLowerCase());
+        case 'caDesc': return (b.definition.armor?.baseArmorClass ?? -1).compareTo(a.definition.armor?.baseArmorClass ?? -1);
+        default: return a.definition.name.toLowerCase().compareTo(b.definition.name.toLowerCase());
+      }
+    });
+    return result;
+  }
+
+  List<Object> get _displayEntries {
+    final products = _filteredProducts;
+    if (!_groupByClass) return List<Object>.from(products);
+    final entries = <Object>[];
+    final classes = products.expand((p) => p.definition.recommendedClasses).toSet().toList()..sort();
+    for (final className in classes) {
+      final matching = products.where((p) => p.definition.recommendedClasses.contains(className)).toList();
+      if (matching.isEmpty) continue;
+      entries.add('Recomendado para $className');
+      entries.addAll(matching);
+    }
+    final unclassified = products.where((p) => p.definition.recommendedClasses.isEmpty).toList();
+    if (unclassified.isNotEmpty) {
+      entries.add('Otros objetos');
+      entries.addAll(unclassified);
+    }
+    return entries;
+  }
+
+  int get _activeFilterCount =>
+      _typeFilters.length + _armorFilters.length +
+      (_minPrice != null ? 1 : 0) + (_maxPrice != null ? 1 : 0) +
+      (_hasAbilities != null ? 1 : 0) + (_hasPassives != null ? 1 : 0) +
+      (_prohibited != null ? 1 : 0) + _classFilters.length + (_groupByClass ? 1 : 0);
+
+  void _clearFilters() => setState(() {
+    _typeFilters.clear();
+    _armorFilters.clear();
+    _minPrice = null;
+    _maxPrice = null;
+    _hasAbilities = null;
+    _hasPassives = null;
+    _prohibited = null;
+    _classFilters.clear();
+    _groupByClass = false;
+  });
+
+  Future<void> _showFilters() async {
+    var types = Set<ItemType>.from(_typeFilters);
+    var armors = Set<ArmorCategory>.from(_armorFilters);
+    var minPrice = _minPrice?.toString() ?? '';
+    var maxPrice = _maxPrice?.toString() ?? '';
+    var hasAbilities = _hasAbilities;
+    var hasPassives = _hasPassives;
+    var prohibited = _prohibited;
+    var classFilters = Set<String>.from(_classFilters);
+    var groupByClass = _groupByClass;
+    final classOptions = shop.products.expand((p) => p.definition.recommendedClasses).toSet().toList()..sort();
+    var sort = _sort;
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, modalSetState) {
+        Widget triChoice(String title, bool? value, ValueChanged<bool?> onChanged) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            SegmentedButton<bool?>(
+              segments: const [
+                ButtonSegment(value: null, label: Text('Todos')),
+                ButtonSegment(value: true, label: Text('Sí')),
+                ButtonSegment(value: false, label: Text('No')),
+              ],
+              selected: {value},
+              onSelectionChanged: (v) => onChanged(v.first),
+            ),
+          ],
+        );
+        return FractionallySizedBox(
+          heightFactor: .9,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+            children: [
+              Text('Filtrar productos', style: Theme.of(ctx).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 18),
+              Text('Tipo de objeto', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 7, runSpacing: 7, children: ItemType.values.map((type) => FilterChip(
+                label: Text(type.label), selected: types.contains(type),
+                onSelected: (v) => modalSetState(() => v ? types.add(type) : types.remove(type)),
+              )).toList()),
+              const SizedBox(height: 18),
+              Text('Tipo de armadura', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 7, runSpacing: 7, children: ArmorCategory.values.map((cat) => FilterChip(
+                label: Text(cat.label), selected: armors.contains(cat),
+                onSelected: (v) => modalSetState(() => v ? armors.add(cat) : armors.remove(cat)),
+              )).toList()),
+              const SizedBox(height: 18),
+              Row(children: [
+                Expanded(child: TextFormField(initialValue: minPrice, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Precio mínimo', prefixIcon: Icon(Icons.paid_rounded)), onChanged: (v) => minPrice = v)),
+                const SizedBox(width: 12),
+                Expanded(child: TextFormField(initialValue: maxPrice, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Precio máximo', prefixIcon: Icon(Icons.paid_rounded)), onChanged: (v) => maxPrice = v)),
+              ]),
+              const SizedBox(height: 18),
+              triChoice('Con habilidades activas', hasAbilities, (v) => modalSetState(() => hasAbilities = v)),
+              const SizedBox(height: 14),
+              triChoice('Con pasivas', hasPassives, (v) => modalSetState(() => hasPassives = v)),
+              const SizedBox(height: 14),
+              triChoice('Objetos prohibidos', prohibited, (v) => modalSetState(() => prohibited = v)),
+              if (classOptions.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text('Clase recomendada', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 7, runSpacing: 7, children: classOptions.map((name) => FilterChip(
+                  label: Text(name), selected: classFilters.contains(name),
+                  onSelected: (v) => modalSetState(() => v ? classFilters.add(name) : classFilters.remove(name)),
+                )).toList()),
+                const SizedBox(height: 10),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Separar por clase'),
+                  subtitle: const Text('Crea apartados como “Recomendado para Guerreros”'),
+                  value: groupByClass,
+                  onChanged: (v) => modalSetState(() => groupByClass = v),
+                ),
+              ],
+              const SizedBox(height: 18),
+              DropdownButtonFormField<String>(
+                value: sort,
+                decoration: const InputDecoration(labelText: 'Ordenar por', prefixIcon: Icon(Icons.sort_rounded)),
+                items: const [
+                  DropdownMenuItem(value: 'name', child: Text('Nombre A–Z')),
+                  DropdownMenuItem(value: 'nameDesc', child: Text('Nombre Z–A')),
+                  DropdownMenuItem(value: 'priceAsc', child: Text('Precio: menor a mayor')),
+                  DropdownMenuItem(value: 'priceDesc', child: Text('Precio: mayor a menor')),
+                  DropdownMenuItem(value: 'caDesc', child: Text('CA: mayor a menor')),
+                ],
+                onChanged: (v) => modalSetState(() => sort = v ?? 'name'),
+              ),
+              const SizedBox(height: 22),
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(onPressed: () {
+                  modalSetState(() { types.clear(); armors.clear(); minPrice=''; maxPrice=''; hasAbilities=null; hasPassives=null; prohibited=null; classFilters.clear(); groupByClass=false; });
+                }, icon: const Icon(Icons.filter_alt_off_rounded), label: const Text('Limpiar'))),
+                const SizedBox(width: 12),
+                Expanded(child: FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.check_rounded), label: const Text('Aplicar'))),
+              ]),
+            ],
+          ),
+        );
+      }),
+    );
+    if (applied == true && mounted) setState(() {
+      _typeFilters..clear()..addAll(types);
+      _armorFilters..clear()..addAll(armors);
+      _minPrice = int.tryParse(minPrice.trim());
+      _maxPrice = int.tryParse(maxPrice.trim());
+      _hasAbilities = hasAbilities;
+      _hasPassives = hasPassives;
+      _prohibited = prohibited;
+      _classFilters..clear()..addAll(classFilters);
+      _groupByClass = groupByClass;
+      _sort = sort;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -401,6 +612,39 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
             ),
           ),
           SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Buscar por nombre, descripción, habilidad…',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: _search.isEmpty ? null : IconButton(
+                        onPressed: () => setState(() => _search = ''),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+                    ),
+                    onChanged: (value) => setState(() => _search = value),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: FilledButton.tonalIcon(
+                      onPressed: _showFilters,
+                      icon: const Icon(Icons.tune_rounded),
+                      label: Text(_activeFilterCount == 0 ? 'Filtros' : 'Filtros ($_activeFilterCount)'),
+                    )),
+                    if (_activeFilterCount > 0) ...[
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(onPressed: _clearFilters, tooltip: 'Limpiar filtros', icon: const Icon(Icons.filter_alt_off_rounded)),
+                    ],
+                  ]),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
             padding: const EdgeInsets.fromLTRB(18, 24, 18, 10),
             sliver: SliverToBoxAdapter(
               child: Row(
@@ -414,7 +658,7 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
                     ),
                   ),
                   Text(
-                    '${shop.products.length}',
+                    '${_filteredProducts.length}',
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: colors.primary,
                       fontWeight: FontWeight.w800,
@@ -427,21 +671,28 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
           if (shop.products.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('Esta tienda todavía no tiene productos.'),
-                ),
-              ),
+              child: Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Esta tienda todavía no tiene productos.'))),
+            )
+          else if (_filteredProducts.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: Padding(padding: EdgeInsets.all(24), child: Text('No hay productos que coincidan con los filtros.'))),
             )
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
               sliver: SliverList.separated(
-                itemCount: shop.products.length,
+                itemCount: _displayEntries.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (_, index) {
-                  final product = shop.products[index];
+                  final entry = _displayEntries[index];
+                  if (entry is String) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 2),
+                      child: Text(entry, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: colors.primary)),
+                    );
+                  }
+                  final product = entry as CampaignShopProduct;
                   final d = product.definition;
                   return Card(
                     margin: EdgeInsets.zero,

@@ -294,6 +294,8 @@ class ItemDefinition {
   final List<CharacterAbility> abilities;
   final ActionDefinition? actionDefinition;
   final Map<String, dynamic> customProperties;
+  /// Clases para las que se recomienda este objeto (p. ej. Guerrero, Mago).
+  final List<String> recommendedClasses;
 
   /// ID del conocimiento que contiene o enseña este objeto (libros, pergaminos, etc.)
   final String? relatedKnowledgeId;
@@ -320,6 +322,7 @@ class ItemDefinition {
     this.abilities = const [],
     this.actionDefinition,
     this.customProperties = const {},
+    this.recommendedClasses = const [],
     this.relatedKnowledgeId,
   });
 
@@ -352,6 +355,7 @@ class ItemDefinition {
     List<CharacterAbility>? abilities,
     ActionDefinition? actionDefinition,
     Map<String, dynamic>? customProperties,
+    List<String>? recommendedClasses,
     String? relatedKnowledgeId,
   }) {
     return ItemDefinition(
@@ -376,6 +380,7 @@ class ItemDefinition {
       abilities: abilities ?? this.abilities,
       actionDefinition: actionDefinition ?? this.actionDefinition,
       customProperties: customProperties ?? this.customProperties,
+      recommendedClasses: recommendedClasses ?? this.recommendedClasses,
       relatedKnowledgeId: relatedKnowledgeId ?? this.relatedKnowledgeId,
     );
   }
@@ -404,6 +409,7 @@ class ItemDefinition {
         ? {'id': actionDefinition!.id}
         : null,
     'customProperties': customProperties,
+    'recommendedClasses': recommendedClasses,
     if (relatedKnowledgeId != null) 'relatedKnowledgeId': relatedKnowledgeId,
   };
 
@@ -470,6 +476,7 @@ class ItemDefinition {
       customProperties: map['customProperties'] != null
           ? Map<String, dynamic>.from(map['customProperties'] as Map)
           : const {},
+      recommendedClasses: (map['recommendedClasses'] as List<dynamic>?)?.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList() ?? const [],
       relatedKnowledgeId: map['relatedKnowledgeId']?.toString(),
     );
   }
