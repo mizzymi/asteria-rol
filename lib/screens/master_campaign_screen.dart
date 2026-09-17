@@ -8,6 +8,7 @@ import '../services/campaign_storage_service.dart';
 import '../services/character_storage_service.dart';
 import '../services/campaign_economy_service.dart';
 import '../services/campaign_shop_import_export_service.dart';
+import '../services/campaign_import_export_service.dart';
 import 'character_form_screen.dart';
 import 'character_home_screen.dart';
 import 'pet_form_screen.dart';
@@ -60,47 +61,6 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       ),
     );
     if (x != null) _reload();
-  }
-
-  Future<void> _duplicateNpcAsPlayer(Character npc) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.content_copy_rounded),
-        title: const Text('Duplicar como PJ'),
-        content: Text(
-          'Se creará una copia jugable de “${npc.name}”. El NPC original seguirá existiendo en el Modo Master.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            icon: const Icon(Icons.person_add_alt_1_rounded),
-            label: const Text('Duplicar'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    // Clonamos mediante el mapa para conservar la ficha completa: atributos,
-    // inventario, habilidades, pasivas, mascotas, recursos, imágenes, etc.
-    final map = Map<dynamic, dynamic>.from(npc.toMap());
-    map['id'] = 'player_${DateTime.now().microsecondsSinceEpoch}';
-    map['ownerType'] = 'player';
-    map['campaignId'] = campaign.id;
-    map['name'] = '${npc.name} (PJ)';
-    final playerCopy = Character.fromMap(map);
-    await CharacterStorageService.saveCharacter(playerCopy);
-
-    if (!mounted) return;
-    _reload();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('“${npc.name}” se ha duplicado como PJ.')),
-    );
   }
 
   Future<void> _newCreature() async {
@@ -204,6 +164,17 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
   int get _creatureCount =>
       creatureHosts.fold<int>(0, (sum, h) => sum + h.pets.length);
 
+  Future<void> _exportCampaign() async {
+    try {
+      await CampaignImportExportService.shareCampaign(campaign);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar la campaña: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -217,6 +188,11 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       appBar: AppBar(
         title: Text(campaign.name),
         actions: [
+          IconButton(
+            onPressed: _exportCampaign,
+            tooltip: 'Exportar campaña completa',
+            icon: const Icon(Icons.ios_share_rounded),
+          ),
           IconButton(
             onPressed: _reload,
             tooltip: 'Actualizar',
@@ -437,11 +413,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
             childAspectRatio: .78,
           ),
           itemBuilder: (_, i) =>
-              _NpcCard(
-                character: npcs[i],
-                onTap: () => _openNpc(npcs[i]),
-                onDuplicateAsPlayer: () => _duplicateNpcAsPlayer(npcs[i]),
-              ),
+              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i])),
         );
       },
     ),
@@ -768,57 +740,19 @@ class _OverviewTile extends StatelessWidget {
 class _NpcCard extends StatelessWidget {
   final Character character;
   final VoidCallback onTap;
-  final VoidCallback onDuplicateAsPlayer;
-  const _NpcCard({
-    required this.character,
-    required this.onTap,
-    required this.onDuplicateAsPlayer,
-  });
-
+  const _NpcCard({required this.character, required this.onTap});
   @override
   Widget build(BuildContext context) {
     final has =
         character.avatarPath != null &&
         character.avatarPath!.isNotEmpty &&
         File(character.avatarPath!).existsSync();
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: _ImageEntityCard(
-            imagePath: has ? character.avatarPath : null,
-            fallbackIcon: Icons.person_rounded,
-            title: character.name,
-            subtitle: '${character.race} · Nivel ${character.level}',
-            onTap: onTap,
-          ),
-        ),
-        Positioned(
-          top: 7,
-          right: 7,
-          child: Material(
-            color: Theme.of(context).colorScheme.surface.withValues(alpha: .90),
-            shape: const CircleBorder(),
-            child: PopupMenuButton<String>(
-              tooltip: 'Opciones del NPC',
-              icon: const Icon(Icons.more_vert_rounded),
-              onSelected: (value) {
-                if (value == 'duplicate_player') onDuplicateAsPlayer();
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'duplicate_player',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.content_copy_rounded),
-                    title: Text('Duplicar como PJ'),
-                    subtitle: Text('Conservar el NPC original'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+    return _ImageEntityCard(
+      imagePath: has ? character.avatarPath : null,
+      fallbackIcon: Icons.person_rounded,
+      title: character.name,
+      subtitle: '${character.race} · Nivel ${character.level}',
+      onTap: onTap,
     );
   }
 }

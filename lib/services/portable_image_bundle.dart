@@ -27,7 +27,11 @@ class PortableImageBundle {
         lower.endsWith('avatarpath') ||
         lower.endsWith('portraitpath') ||
         lower.endsWith('coverpath') ||
-        lower.endsWith('photopath');
+        lower.endsWith('photopath') ||
+        lower.endsWith('thumbnailpath') ||
+        lower.endsWith('iconpath') ||
+        lower.endsWith('bannerpath') ||
+        lower.endsWith('backgroundpath');
   }
 
   static Future<Map<String, String>> extractFrom(
