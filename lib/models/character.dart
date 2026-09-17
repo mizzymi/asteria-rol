@@ -45,6 +45,11 @@ class Character {
   /// Campaña a la que pertenece el personaje.
   String? campaignId;
 
+  /// Quién controla esta ficha: player, npc o creatureHost.
+  /// creatureHost es una ficha técnica oculta que permite reutilizar toda la
+  /// mecánica de Pet para las criaturas del Master.
+  String ownerType;
+
   String race;
 
   /// Una o varias clases.
@@ -197,6 +202,7 @@ class Character {
     required this.name,
     this.avatarPath,
     this.campaignId,
+    this.ownerType = 'player',
     this.race = '',
 
     /// Nuevo sistema.
@@ -3323,6 +3329,7 @@ class Character {
       'name': name,
       'avatarPath': avatarPath,
       'campaignId': campaignId,
+      'ownerType': ownerType,
       'race': race,
       'classes': classes.map((item) => item.toMap()).toList(),
       'dndClass': primaryClass.name,
@@ -3807,6 +3814,7 @@ class Character {
       name: map['name']?.toString() ?? '',
       avatarPath: map['avatarPath']?.toString(),
       campaignId: map['campaignId']?.toString(),
+      ownerType: map['ownerType']?.toString() ?? 'player',
       race: map['race']?.toString() ?? '',
       classes: classes,
       abilities: abilities,

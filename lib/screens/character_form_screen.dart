@@ -14,8 +14,14 @@ import '../services/campaign_storage_service.dart';
 class CharacterFormScreen extends StatefulWidget {
   final Character? character;
   final String? initialCampaignId;
+  final String ownerType;
 
-  const CharacterFormScreen({super.key, this.character, this.initialCampaignId});
+  const CharacterFormScreen({
+    super.key,
+    this.character,
+    this.initialCampaignId,
+    this.ownerType = 'player',
+  });
 
   @override
   State<CharacterFormScreen> createState() => _CharacterFormScreenState();
@@ -195,6 +201,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       name: nameController.text.trim(),
       avatarPath: finalAvatarPath,
       campaignId: selectedCampaignId,
+      ownerType: oldCharacter?.ownerType ?? widget.ownerType,
       race: raceController.text.trim(),
       dndClass: selectedClass,
       level: level,
@@ -208,6 +215,27 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       savingThrowProficiencies: oldCharacter?.savingThrowProficiencies,
       weapons: oldCharacter?.weapons,
       characterAbilities: oldCharacter?.characterAbilities,
+      passives: oldCharacter?.passives,
+      contentFolders: oldCharacter?.contentFolders,
+      journalEntries: oldCharacter?.journalEntries,
+      diceHistory: oldCharacter?.diceHistory,
+      items: oldCharacter?.items,
+      itemDefinitions: oldCharacter?.itemDefinitions,
+      inventoryItems: oldCharacter?.inventoryItems,
+      resources: oldCharacter?.resources,
+      effects: oldCharacter?.effects,
+      knowledges: oldCharacter?.knowledges,
+      spellSlots: oldCharacter?.spellSlots,
+      pets: oldCharacter?.pets,
+      counters: oldCharacter?.counters,
+      customMaxHealth: oldCharacter?.customMaxHealth,
+      combatActive: oldCharacter?.combatActive ?? false,
+      combatRound: oldCharacter?.combatRound ?? 1,
+      turnActive: oldCharacter?.turnActive ?? false,
+      combatTurnSequence: oldCharacter?.combatTurnSequence ?? 0,
+      criticalMinimumNaturalRoll:
+          oldCharacter?.criticalMinimumNaturalRoll ?? 20,
+      shortRestRule: oldCharacter?.shortRestRule ?? 'single',
     );
 
     character.normalizeHealth();
@@ -356,12 +384,15 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
                   prefixIcon: Icon(Icons.auto_stories_rounded),
                 ),
                 items: campaigns
-                    .map((campaign) => DropdownMenuItem(
-                          value: campaign.id,
-                          child: Text(campaign.name),
-                        ))
+                    .map(
+                      (campaign) => DropdownMenuItem(
+                        value: campaign.id,
+                        child: Text(campaign.name),
+                      ),
+                    )
                     .toList(),
-                onChanged: (value) => setState(() => selectedCampaignId = value),
+                onChanged: (value) =>
+                    setState(() => selectedCampaignId = value),
                 validator: (value) => value == null || value.isEmpty
                     ? 'Selecciona una campaña'
                     : null,

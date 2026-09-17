@@ -442,17 +442,19 @@ class _RestScreenState extends State<RestScreen> {
           Icon(
             icon,
             size: 15,
-            color: emphasized ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+            color: emphasized
+                ? colors.onPrimaryContainer
+                : colors.onSurfaceVariant,
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: emphasized
-                      ? colors.onPrimaryContainer
-                      : colors.onSurfaceVariant,
-                ),
+              fontWeight: FontWeight.w700,
+              color: emphasized
+                  ? colors.onPrimaryContainer
+                  : colors.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -493,10 +495,7 @@ class _RestScreenState extends State<RestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            height: 7,
-            color: accent,
-          ),
+          Container(height: 7, color: accent),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
             child: Column(
@@ -549,11 +548,7 @@ class _RestScreenState extends State<RestScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: benefits,
-                ),
+                Wrap(spacing: 8, runSpacing: 8, children: benefits),
                 const SizedBox(height: 18),
                 footer,
               ],
@@ -568,7 +563,10 @@ class _RestScreenState extends State<RestScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final hpMissing = (character.maxHealth - character.currentHealth).clamp(0, character.maxHealth);
+    final hpMissing = (character.maxHealth - character.currentHealth).clamp(
+      0,
+      character.maxHealth,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -633,7 +631,9 @@ class _RestScreenState extends State<RestScreen> {
                           Text(
                             'Recupera fuerzas antes de volver a la aventura',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onPrimaryContainer.withValues(alpha: 0.78),
+                              color: colors.onPrimaryContainer.withValues(
+                                alpha: 0.78,
+                              ),
                             ),
                           ),
                         ],
@@ -678,7 +678,9 @@ class _RestScreenState extends State<RestScreen> {
                     _buildBenefitChip(
                       context,
                       icon: Icons.favorite_rounded,
-                      label: hpMissing == 0 ? 'Salud completa' : 'Faltan $hpMissing PV',
+                      label: hpMissing == 0
+                          ? 'Salud completa'
+                          : 'Faltan $hpMissing PV',
                       emphasized: hpMissing > 0,
                     ),
                     const SizedBox(width: 8),
@@ -693,24 +695,6 @@ class _RestScreenState extends State<RestScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Elige cómo descansar',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: _configureShortRestRules,
-                icon: const Icon(Icons.settings_rounded, size: 17),
-                label: const Text('Reglas'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
           _buildRestCard(
             context,
             eyebrow: 'Recuperación rápida',

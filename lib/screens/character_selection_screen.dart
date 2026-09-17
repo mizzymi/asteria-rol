@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/campaign.dart';
 import '../models/character.dart';
 import '../models/dnd_class.dart';
+import '../services/app_mode_service.dart';
 import '../services/campaign_storage_service.dart';
 import '../services/campaign_economy_service.dart';
 import '../services/character_import_export_service.dart';
@@ -15,6 +16,7 @@ import 'campaign_form_screen.dart';
 import 'character_form_screen.dart';
 import 'character_home_screen.dart';
 import 'item_library_screen.dart';
+import 'master_screen.dart';
 
 class CharacterSelectionScreen extends StatefulWidget {
   const CharacterSelectionScreen({super.key});
@@ -38,7 +40,9 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
     if (!mounted) return;
     setState(() {
       campaigns = CampaignStorageService.getCampaigns();
-      characters = CharacterStorageService.getCharacters();
+      characters = CharacterStorageService.getCharacters()
+          .where((c) => c.ownerType == 'player')
+          .toList();
     });
   }
 
@@ -75,6 +79,17 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
       ),
     );
     _reload();
+  }
+
+  Future<void> _exportCharacter(Character character) async {
+    try {
+      await CharacterImportExportService.shareCharacter(character);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar el personaje: $error')),
+      );
+    }
   }
 
   Future<Campaign?> _chooseCampaign({String title = 'Elegir campaña'}) async {
@@ -148,6 +163,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
         File(path),
       );
       character.campaignId = campaign.id;
+      character.ownerType = 'player';
       await CharacterStorageService.saveCharacter(character);
       await CampaignEconomyService.ensureCharacterCurrencies(
         character,
@@ -363,6 +379,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         campaignName:
                             _campaignFor(character)?.name ?? 'Campaña',
                         onTap: () => _openCharacter(character),
+                        onExport: () => _exportCharacter(character),
                       );
                     },
                   ),
@@ -421,6 +438,23 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.shield_rounded),
+                title: const Text('Entrar como Master'),
+                subtitle: const Text(
+                  'Gestionar NPC, criaturas, tiendas y misiones',
+                ),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  await AppModeService.setMode(AsteriaAppMode.master);
+                  if (!context.mounted) return;
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const MasterScreen()),
+                    (_) => false,
+                  );
+                },
+              ),
+              const Divider(),
               ListTile(
                 leading: const Icon(Icons.add_rounded),
                 title: const Text('Nueva campaña'),
@@ -686,10 +720,12 @@ class _CharacterQuickCard extends StatelessWidget {
   final Character character;
   final String campaignName;
   final VoidCallback onTap;
+  final VoidCallback onExport;
   const _CharacterQuickCard({
     required this.character,
     required this.campaignName,
     required this.onTap,
+    required this.onExport,
   });
 
   @override
@@ -709,20 +745,52 @@ class _CharacterQuickCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Column(
             children: [
-              CircleAvatar(
-                radius: 42,
-                backgroundColor: colors.primaryContainer,
-                backgroundImage: hasAvatar
-                    ? FileImage(File(character.avatarPath!))
-                    : null,
-                child: !hasAvatar
-                    ? Text(
-                        character.name.isEmpty
-                            ? '?'
-                            : character.name[0].toUpperCase(),
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      )
-                    : null,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  CircleAvatar(
+                    radius: 42,
+                    backgroundColor: colors.primaryContainer,
+                    backgroundImage: hasAvatar
+                        ? FileImage(File(character.avatarPath!))
+                        : null,
+                    child: !hasAvatar
+                        ? Text(
+                            character.name.isEmpty
+                                ? '?'
+                                : character.name[0].toUpperCase(),
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    right: -8,
+                    top: -8,
+                    child: Material(
+                      color: colors.surfaceContainerHighest,
+                      shape: const CircleBorder(),
+                      elevation: 2,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Opciones del personaje',
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                        onSelected: (value) {
+                          if (value == 'export') onExport();
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'export',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.ios_share_rounded),
+                              title: Text('Exportar PJ'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(

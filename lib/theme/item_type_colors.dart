@@ -19,6 +19,8 @@ class ItemTypeColors {
 
   static const Color boots = Color(0xFF55B96B);
 
+  static const Color cape = Color(0xFF7B68B5);
+
   static const Color ring = Color(0xFFF2C94C);
 
   static const Color amulet = Color(0xFF9A6BE8);
@@ -59,6 +61,9 @@ class ItemTypeColors {
 
       case ItemType.boots:
         return boots;
+
+      case ItemType.cape:
+        return cape;
 
       case ItemType.ring:
         return ring;
@@ -120,6 +125,9 @@ class ItemTypeColors {
 
       case ItemType.boots:
         return Icons.hiking_rounded;
+
+      case ItemType.cape:
+        return Icons.checkroom_rounded;
 
       case ItemType.ring:
         return Icons.circle_outlined;

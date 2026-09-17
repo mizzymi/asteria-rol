@@ -6,18 +6,21 @@ class CampaignShopProduct {
   String id;
   ItemDefinition definition;
   int price;
+  bool prohibited;
 
   CampaignShopProduct({
     required this.id,
     required this.definition,
     this.price = 0,
+    this.prohibited = false,
   });
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'definition': definition.toMap(),
-        'price': price,
-      };
+    'id': id,
+    'definition': definition.toMap(),
+    'price': price,
+    'prohibited': prohibited,
+  };
 
   factory CampaignShopProduct.fromMap(Map<dynamic, dynamic> map) {
     return CampaignShopProduct(
@@ -26,6 +29,7 @@ class CampaignShopProduct {
         Map<dynamic, dynamic>.from(map['definition'] as Map? ?? const {}),
       ),
       price: (map['price'] as num?)?.toInt() ?? 0,
+      prohibited: map['prohibited'] == true,
     );
   }
 }
@@ -50,14 +54,14 @@ class CampaignShop {
   }) : products = products ?? <CampaignShopProduct>[];
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'currencyKind': currencyKind.name,
-        'currencyName': currencyName,
-        'currencyItem': currencyItem?.toMap(),
-        'products': products.map((e) => e.toMap()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'currencyKind': currencyKind.name,
+    'currencyName': currencyName,
+    'currencyItem': currencyItem?.toMap(),
+    'products': products.map((e) => e.toMap()).toList(),
+  };
 
   factory CampaignShop.fromMap(Map<dynamic, dynamic> map) {
     final rawProducts = map['products'];
@@ -77,9 +81,13 @@ class CampaignShop {
           : null,
       products: rawProducts is List
           ? rawProducts
-              .whereType<Map>()
-              .map((e) => CampaignShopProduct.fromMap(Map<dynamic, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) => CampaignShopProduct.fromMap(
+                    Map<dynamic, dynamic>.from(e),
+                  ),
+                )
+                .toList()
           : <CampaignShopProduct>[],
     );
   }

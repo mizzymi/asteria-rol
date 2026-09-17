@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../models/campaign.dart';
 import '../models/campaign_mission.dart';
@@ -11,6 +12,7 @@ import '../services/campaign_image_service.dart';
 import '../services/campaign_shop_import_export_service.dart';
 import '../services/campaign_storage_service.dart';
 import '../services/character_storage_service.dart';
+import '../services/character_import_export_service.dart';
 import 'campaign_form_screen.dart';
 import 'campaign_mission_detail_screen.dart';
 import 'campaign_mission_form_screen.dart';
@@ -40,9 +42,117 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
   void _reload() {
     campaign = CampaignStorageService.getCampaign(campaign.id) ?? campaign;
     characters = CharacterStorageService.getCharacters()
-        .where((c) => c.campaignId == campaign.id)
+        .where((c) => c.campaignId == campaign.id && c.ownerType == 'player')
         .toList();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _addCharacter() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Añadir personaje',
+                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Crea un PJ nuevo o importa una ficha de Asteria directamente en esta campaña.',
+                style: Theme.of(sheetContext).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1_rounded)),
+                  title: const Text('Crear PJ'),
+                  subtitle: const Text('Crear una ficha nueva en esta campaña'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.pop(sheetContext, 'create'),
+                ),
+              ),
+              Card(
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.file_download_rounded)),
+                  title: const Text('Importar PJ'),
+                  subtitle: const Text('Importar un archivo .asteria o .json'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.pop(sheetContext, 'import'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'create') await _createCharacter();
+    if (action == 'import') await _importCharacterIntoCampaign();
+  }
+
+  Future<void> _importCharacterIntoCampaign() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria', 'json'],
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null) throw const FormatException('No se pudo acceder al archivo.');
+      final character = await CharacterImportExportService.importFileAsCopy(File(path));
+      character.campaignId = campaign.id;
+      character.ownerType = 'player';
+      await CharacterStorageService.saveCharacter(character);
+      await CampaignEconomyService.ensureCharacterCurrencies(character, campaign);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${character.name} importado en ${campaign.name}.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar el personaje: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteCharacter(Character character) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.delete_outline_rounded),
+        title: const Text('Eliminar personaje'),
+        content: Text('¿Quieres eliminar “${character.name}”? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_rounded),
+            label: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await CharacterStorageService.deleteCharacter(character.id);
+    if (!mounted) return;
+    _reload();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${character.name} eliminado de la campaña.')),
+    );
   }
 
   Future<void> _createCharacter() async {
@@ -64,6 +174,17 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
       MaterialPageRoute(builder: (_) => CharacterHomeScreen(character: c)),
     );
     _reload();
+  }
+
+  Future<void> _exportCharacter(Character character) async {
+    try {
+      await CharacterImportExportService.shareCharacter(character);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar el personaje: $error')),
+      );
+    }
   }
 
   Future<void> _editCampaign() async {
@@ -398,7 +519,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               title: 'Personajes',
               actions: [
                 FilledButton.tonalIcon(
-                  onPressed: _createCharacter,
+                  onPressed: _addCharacter,
                   icon: const Icon(Icons.add_rounded),
                   label: const Text('Añadir'),
                 ),
@@ -446,7 +567,41 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                       ),
                       title: Text(c.name),
                       subtitle: Text('${c.race} · Nivel ${c.level}'),
-                      trailing: const Icon(Icons.chevron_right_rounded),
+                      trailing: PopupMenuButton<String>(
+                        tooltip: 'Opciones del personaje',
+                        onSelected: (value) {
+                          if (value == 'open') _openCharacter(c);
+                          if (value == 'export') _exportCharacter(c);
+                          if (value == 'delete') _deleteCharacter(c);
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'open',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.person_rounded),
+                              title: Text('Abrir ficha'),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'export',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.ios_share_rounded),
+                              title: Text('Exportar PJ'),
+                            ),
+                          ),
+                          PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.delete_outline_rounded),
+                              title: Text('Eliminar PJ'),
+                            ),
+                          ),
+                        ],
+                      ),
                       onTap: () => _openCharacter(c),
                     ),
                   );

@@ -552,7 +552,6 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     return linkedEffect.saveBehavior;
   }
 
-
   Future<void> _adjustImageFraming() async {
     final path = imagePath?.trim();
     if (path == null || path.isEmpty || !File(path).existsSync()) return;
@@ -583,8 +582,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                       behavior: HitTestBehavior.opaque,
                       onPanUpdate: (details) {
                         setDialogState(() {
-                          x = (x - details.delta.dx / 120).clamp(-1.0, 1.0).toDouble();
-                          y = (y - details.delta.dy / 90).clamp(-1.0, 1.0).toDouble();
+                          x = (x - details.delta.dx / 120)
+                              .clamp(-1.0, 1.0)
+                              .toDouble();
+                          y = (y - details.delta.dy / 90)
+                              .clamp(-1.0, 1.0)
+                              .toDouble();
                         });
                       },
                       child: Stack(
@@ -618,7 +621,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                     const SizedBox(width: 8),
                     const Expanded(child: Text('Desliza para recolocar')),
                     TextButton(
-                      onPressed: () => setDialogState(() { x = 0; y = 0; }),
+                      onPressed: () => setDialogState(() {
+                        x = 0;
+                        y = 0;
+                      }),
                       child: const Text('Centrar'),
                     ),
                   ],
@@ -727,6 +733,11 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       imagePath: imagePath,
       imageAlignmentX: imageAlignmentX,
       imageAlignmentY: imageAlignmentY,
+
+      // Al editar, conserva la carpeta actual. Sin esto, el formulario
+      // devolvía una habilidad con folderId == null y updateCharacterAbility
+      // la movía a la raíz.
+      folderId: widget.ability?.folderId,
 
       actionType: actionType,
 
@@ -844,7 +855,9 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                 imagePath: imagePath,
                 onPickImage: _pickImage,
                 onRemoveImage: imagePath == null ? null : _removeImage,
-                onAdjustImageFraming: imagePath == null ? null : _adjustImageFraming,
+                onAdjustImageFraming: imagePath == null
+                    ? null
+                    : _adjustImageFraming,
                 imageAlignmentX: imageAlignmentX,
                 imageAlignmentY: imageAlignmentY,
                 actionType: actionType,

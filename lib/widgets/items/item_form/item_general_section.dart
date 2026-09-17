@@ -121,6 +121,9 @@ class ItemGeneralSection extends StatelessWidget {
       case ItemType.boots:
         return 'Objeto pensado para el slot de pies.';
 
+      case ItemType.cape:
+        return 'Capa equipable en el slot de espalda.';
+
       case ItemType.ring:
         return 'Anillo equipable.';
 

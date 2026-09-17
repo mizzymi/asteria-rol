@@ -13,6 +13,7 @@ enum ItemType {
   helmet,
   gloves,
   boots,
+  cape,
   ring,
   amulet,
   consumable,
@@ -41,6 +42,8 @@ enum ItemType {
         return 'Guantes';
       case ItemType.boots:
         return 'Botas';
+      case ItemType.cape:
+        return 'Capa';
       case ItemType.ring:
         return 'Anillo';
       case ItemType.amulet:
@@ -78,6 +81,7 @@ enum ItemType {
       case ItemType.helmet:
       case ItemType.gloves:
       case ItemType.boots:
+      case ItemType.cape:
       case ItemType.ring:
       case ItemType.amulet:
       case ItemType.accessory:
@@ -95,6 +99,7 @@ enum ItemType {
       case ItemType.helmet:
       case ItemType.gloves:
       case ItemType.boots:
+      case ItemType.cape:
       case ItemType.ring:
       case ItemType.amulet:
       case ItemType.accessory:
@@ -111,6 +116,7 @@ enum ItemType {
       case ItemType.helmet:
       case ItemType.gloves:
       case ItemType.boots:
+      case ItemType.cape:
       case ItemType.amulet:
         return true;
 
@@ -133,6 +139,8 @@ enum ItemType {
         return 'hands';
       case ItemType.boots:
         return 'feet';
+      case ItemType.cape:
+        return 'back';
       case ItemType.ring:
         return 'ring_1';
       case ItemType.amulet:
@@ -189,6 +197,8 @@ extension ItemTypeSlotCompatibility on ItemType {
         return {EquipmentSlotCategory.hands};
       case ItemType.boots:
         return {EquipmentSlotCategory.feet};
+      case ItemType.cape:
+        return {EquipmentSlotCategory.back};
       case ItemType.amulet:
         return {EquipmentSlotCategory.neck};
       case ItemType.ring:

@@ -9,6 +9,7 @@ enum EquipmentSlotCategory {
   feet,
   hands,
   neck,
+  back,
   ring,
   waist,
   custom,
@@ -124,6 +125,12 @@ const defaultEquipmentSlots = <EquipmentSlotDefinition>[
     id: 'neck',
     name: 'Cuello / Amuleto',
     category: EquipmentSlotCategory.neck,
+    maxEquipped: 1,
+  ),
+  EquipmentSlotDefinition(
+    id: 'back',
+    name: 'Espalda / Capa',
+    category: EquipmentSlotCategory.back,
     maxEquipped: 1,
   ),
   EquipmentSlotDefinition(
