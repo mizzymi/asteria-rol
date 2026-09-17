@@ -127,6 +127,28 @@ class FormulaInsertBar extends StatelessWidget {
             ),
           ),
 
+        PopupMenuButton<String>(
+          tooltip: 'Insertar cargas',
+          onSelected: onInsert,
+          itemBuilder: (_) {
+            return const [
+              PopupMenuItem(value: 'charges', child: Text('Cargas actuales')),
+              PopupMenuItem(
+                value: 'max_charges',
+                child: Text('Cargas máximas'),
+              ),
+              PopupMenuItem(
+                value: 'charges_percent',
+                child: Text('% de cargas'),
+              ),
+            ];
+          },
+          child: const Chip(
+            avatar: Icon(Icons.bolt_rounded, size: 18),
+            label: Text('Cargas'),
+          ),
+        ),
+
         // =====================================================================
         // MENÚ DE CONTADORES
         // =====================================================================
