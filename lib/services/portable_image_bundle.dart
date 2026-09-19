@@ -4,6 +4,16 @@ import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
+class PortableImageFileReference {
+  const PortableImageFileReference({
+    required this.key,
+    required this.file,
+  });
+
+  final String key;
+  final File file;
+}
+
 /// Makes Asteria exports portable between devices.
 ///
 /// Every local image referenced anywhere inside a serialized model is embedded
@@ -32,6 +42,93 @@ class PortableImageBundle {
         lower.endsWith('iconpath') ||
         lower.endsWith('bannerpath') ||
         lower.endsWith('backgroundpath');
+  }
+
+  /// Detaches local image paths from [root] without reading the image bytes.
+  ///
+  /// This is intended for streaming export formats: the serialized model is
+  /// made portable immediately, while callers can copy each returned file to
+  /// the export one at a time without ever keeping all images in memory.
+  static Future<List<PortableImageFileReference>> detachFileReferences(
+    Map<String, dynamic> root,
+  ) async {
+    final references = <PortableImageFileReference>[];
+
+    Future<void> walk(dynamic node, List<String> path) async {
+      if (node is Map) {
+        for (final rawKey in node.keys.toList()) {
+          final key = rawKey.toString();
+          final value = node[rawKey];
+          final nextPath = [...path, key];
+
+          if (_isImagePathKey(key)) {
+            if (value is String && value.trim().isNotEmpty) {
+              final file = _fileFromStoredPath(value.trim());
+              if (file != null) {
+                try {
+                  final stat = await file.stat();
+                  if (stat.type == FileSystemEntityType.file && stat.size > 0) {
+                    references.add(
+                      PortableImageFileReference(
+                        key: _pathKey(nextPath),
+                        file: file,
+                      ),
+                    );
+                  }
+                } catch (_) {
+                  // Ignore broken or inaccessible paths. The exported model
+                  // remains valid; it will simply have no image at this key.
+                }
+              }
+            }
+
+            node[rawKey] = '';
+          } else {
+            await walk(value, nextPath);
+          }
+        }
+      } else if (node is List) {
+        for (var i = 0; i < node.length; i++) {
+          await walk(node[i], [...path, '#$i']);
+        }
+      }
+    }
+
+    await walk(root, const []);
+    return references;
+  }
+
+  /// Restores image paths previously detached from a serialized model.
+  ///
+  /// [pathsByKey] maps the same recursive bundle keys used by
+  /// [detachFileReferences] to files already written on the destination
+  /// device. Missing keys are left blank so source-device paths can never leak
+  /// into an imported model.
+  static void restoreFilePathsInto(
+    Map<String, dynamic> root,
+    Map<String, String> pathsByKey,
+  ) {
+    void walk(dynamic node, List<String> path) {
+      if (node is Map) {
+        for (final rawKey in node.keys.toList()) {
+          final key = rawKey.toString();
+          final value = node[rawKey];
+          final nextPath = [...path, key];
+
+          if (_isImagePathKey(key)) {
+            node[rawKey] = pathsByKey[_pathKey(nextPath)] ?? '';
+          } else {
+            walk(value, nextPath);
+          }
+        }
+      } else if (node is List) {
+        for (var i = 0; i < node.length; i++) {
+          walk(node[i], [...path, '#$i']);
+        }
+      }
+    }
+
+    walk(root, const []);
   }
 
   static Future<Map<String, String>> extractFrom(
