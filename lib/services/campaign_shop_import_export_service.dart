@@ -13,12 +13,15 @@ class CampaignShopImportExportService {
   const CampaignShopImportExportService._();
 
   static const String formatType = 'asteria-shop';
-  static const int formatVersion = 2;
+  static const int formatVersion = 3;
 
   static Future<File> createExportFile(CampaignShop shop) async {
     final shopMap = Map<String, dynamic>.from(shop.toMap());
     shopMap['id'] = '';
-    final images = await PortableImageBundle.extractFrom(shopMap);
+    final images = await PortableImageBundle.extractFrom(
+      shopMap,
+      deduplicate: true,
+    );
 
     final payload = {
       'type': formatType,
@@ -28,7 +31,9 @@ class CampaignShopImportExportService {
     };
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/${_safeName(shop.name)}.asteria-shop');
-    await file.writeAsString(jsonEncode(payload), flush: true);
+    final encoded = utf8.encode(jsonEncode(payload));
+    final compressed = gzip.encode(encoded);
+    await file.writeAsBytes(compressed, flush: true);
     return file;
   }
 
@@ -36,7 +41,7 @@ class CampaignShopImportExportService {
     final file = await createExportFile(shop);
     await SharePlus.instance.share(
       ShareParams(
-        files: [XFile(file.path, mimeType: 'application/json')],
+        files: [XFile(file.path, mimeType: 'application/octet-stream')],
         subject: 'Tienda de Asteria: ${shop.name}',
         text: 'Importa esta tienda en una campaña de Asteria.',
       ),
@@ -52,7 +57,9 @@ class CampaignShopImportExportService {
   }
 
   static Future<CampaignShop> importFromFile(File file) async {
-    final decoded = jsonDecode(await file.readAsString());
+    final bytes = await file.readAsBytes();
+    final raw = _decodeExportBytes(bytes);
+    final decoded = jsonDecode(raw);
     if (decoded is! Map) throw const FormatException('El archivo de tienda no es válido.');
     final root = Map<String, dynamic>.from(decoded);
     if (root['type'] != formatType) {
@@ -131,6 +138,14 @@ class CampaignShopImportExportService {
       currencyItem: currencyItem,
       products: importedProducts,
     );
+  }
+
+
+  static String _decodeExportBytes(List<int> bytes) {
+    if (bytes.length >= 2 && bytes[0] == 0x1F && bytes[1] == 0x8B) {
+      return utf8.decode(gzip.decode(bytes));
+    }
+    return utf8.decode(bytes);
   }
 
   static Future<String> _saveLegacyImage(String itemId, String? encoded) async {

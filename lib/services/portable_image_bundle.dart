@@ -35,9 +35,11 @@ class PortableImageBundle {
   }
 
   static Future<Map<String, String>> extractFrom(
-    Map<String, dynamic> root,
-  ) async {
+    Map<String, dynamic> root, {
+    bool deduplicate = false,
+  }) async {
     final images = <String, String>{};
+    final canonicalByEncoded = <String, String>{};
 
     Future<void> walk(dynamic node, List<String> path) async {
       if (node is Map) {
@@ -53,7 +55,19 @@ class PortableImageBundle {
                 try {
                   final bytes = await file.readAsBytes();
                   if (bytes.isNotEmpty) {
-                    images[_pathKey(nextPath)] = base64Encode(bytes);
+                    final pathKey = _pathKey(nextPath);
+                    final encoded = base64Encode(bytes);
+                    if (deduplicate) {
+                      final canonicalKey = canonicalByEncoded[encoded];
+                      if (canonicalKey != null) {
+                        images[pathKey] = '@ref:$canonicalKey';
+                      } else {
+                        canonicalByEncoded[encoded] = pathKey;
+                        images[pathKey] = encoded;
+                      }
+                    } else {
+                      images[pathKey] = encoded;
+                    }
                   }
                 } catch (_) {
                   // A broken/unreadable local path must never make the whole
@@ -97,7 +111,10 @@ class PortableImageBundle {
           final nextPath = [...path, key];
 
           if (_isImagePathKey(key)) {
-            final encoded = images[_pathKey(nextPath)];
+            final encoded = _resolveEncodedImage(
+              images,
+              _pathKey(nextPath),
+            );
             if (encoded != null && encoded.isNotEmpty) {
               try {
                 node[rawKey] = await _saveBytes(
@@ -124,6 +141,23 @@ class PortableImageBundle {
     }
 
     await walk(root, const []);
+  }
+
+
+  static String? _resolveEncodedImage(
+    Map<String, String> images,
+    String key, [
+    Set<String>? visited,
+  ]) {
+    final value = images[key];
+    if (value == null || value.isEmpty) return value;
+    if (!value.startsWith('@ref:')) return value;
+
+    final target = value.substring(5);
+    if (target.isEmpty) return null;
+    final seen = visited ?? <String>{};
+    if (!seen.add(key)) return null;
+    return _resolveEncodedImage(images, target, seen);
   }
 
   static File? _fileFromStoredPath(String value) {

@@ -59,13 +59,20 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
           !d.description.toLowerCase().contains(query) &&
           !d.type.label.toLowerCase().contains(query) &&
           !d.recommendedClasses.any(
-              (className) => className.toLowerCase().contains(query)) &&
-          !d.abilities.any((a) =>
-              a.name.toLowerCase().contains(query) ||
-              a.description.toLowerCase().contains(query)) &&
-          !d.passives.any((p) =>
-              p.name.toLowerCase().contains(query) ||
-              p.description.toLowerCase().contains(query))) return false;
+            (className) => className.toLowerCase().contains(query),
+          ) &&
+          !d.abilities.any(
+            (a) =>
+                a.name.toLowerCase().contains(query) ||
+                a.description.toLowerCase().contains(query),
+          ) &&
+          !d.passives.any(
+            (p) =>
+                p.name.toLowerCase().contains(query) ||
+                p.description.toLowerCase().contains(query),
+          )) {
+        return false;
+      }
       if (_typeFilters.isNotEmpty && !_typeFilters.contains(d.type)) return false;
       if (_armorFilters.isNotEmpty &&
           (d.armor == null || !_armorFilters.contains(d.armor!.category))) {
@@ -241,7 +248,7 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
               ),
               const SizedBox(height: 18),
               DropdownButtonFormField<String>(
-                value: sort,
+                initialValue: sort,
                 decoration: const InputDecoration(labelText: 'Ordenar por', prefixIcon: Icon(Icons.sort_rounded)),
                 items: const [
                   DropdownMenuItem(value: 'name', child: Text('Nombre A–Z')),
@@ -265,18 +272,20 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
         );
       }),
     );
-    if (applied == true && mounted) setState(() {
-      _typeFilters..clear()..addAll(types);
-      _armorFilters..clear()..addAll(armors);
-      _minPrice = int.tryParse(minPrice.trim());
-      _maxPrice = int.tryParse(maxPrice.trim());
-      _hasAbilities = hasAbilities;
-      _hasPassives = hasPassives;
-      _prohibited = prohibited;
-      _classFilters..clear()..addAll(classFilters);
-      _groupByClass = groupByClass;
-      _sort = sort;
-    });
+    if (applied == true && mounted) {
+      setState(() {
+        _typeFilters..clear()..addAll(types);
+        _armorFilters..clear()..addAll(armors);
+        _minPrice = int.tryParse(minPrice.trim());
+        _maxPrice = int.tryParse(maxPrice.trim());
+        _hasAbilities = hasAbilities;
+        _hasPassives = hasPassives;
+        _prohibited = prohibited;
+        _classFilters..clear()..addAll(classFilters);
+        _groupByClass = groupByClass;
+        _sort = sort;
+      });
+    }
   }
 
   @override
@@ -714,7 +723,7 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
               sliver: SliverList.separated(
                 itemCount: _displayEntries.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (_, index) {
                   final entry = _displayEntries[index];
                   if (entry is String) {
@@ -939,7 +948,7 @@ class _ProductDetails extends StatelessWidget {
                       child: Image.file(
                         File(path),
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(
+                        errorBuilder: (_, _, _) => const Icon(
                           Icons.broken_image_rounded,
                           color: Colors.white70,
                           size: 72,

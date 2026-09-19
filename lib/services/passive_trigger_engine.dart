@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import '../models/formulas/character_formula.dart';
 import '../models/character.dart';
 import '../models/passive.dart';

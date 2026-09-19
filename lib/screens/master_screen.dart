@@ -290,7 +290,7 @@ class _MasterScreenState extends State<MasterScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                 sliver: SliverList.separated(
                   itemCount: campaigns.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                  separatorBuilder: (_, _) => const SizedBox(height: 14),
                   itemBuilder: (_, i) {
                     final campaign = campaigns[i];
                     return _CampaignCard(

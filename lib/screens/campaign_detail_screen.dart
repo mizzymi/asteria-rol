@@ -431,7 +431,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       scrollDirection: Axis.horizontal,
                       itemCount: campaign.shops.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
                       itemBuilder: (_, i) {
                         final shop = campaign.shops[i];
                         return _ShopCard(

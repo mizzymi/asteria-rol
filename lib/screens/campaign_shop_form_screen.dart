@@ -585,7 +585,7 @@ class _ProductEditorCard extends StatelessWidget {
                   width: 72,
                   height: 72,
                   child: hasImage
-                      ? Image.file(File(path!), fit: BoxFit.cover)
+                      ? Image.file(File(path), fit: BoxFit.cover)
                       : Container(
                           color: colors.primaryContainer,
                           child: Icon(Icons.inventory_2_rounded, color: colors.primary, size: 30),

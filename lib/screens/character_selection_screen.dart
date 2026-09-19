@@ -320,7 +320,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     scrollDirection: Axis.horizontal,
                     itemCount: campaigns.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 14),
+                    separatorBuilder: (_, _) => const SizedBox(width: 14),
                     itemBuilder: (context, index) {
                       final campaign = campaigns[index];
                       final count = characters
@@ -371,7 +371,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     scrollDirection: Axis.horizontal,
                     itemCount: recentCharacters.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 14),
+                    separatorBuilder: (_, _) => const SizedBox(width: 14),
                     itemBuilder: (context, index) {
                       final character = recentCharacters[index];
                       return _CharacterQuickCard(

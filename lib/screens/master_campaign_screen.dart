@@ -372,7 +372,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: npcs.take(6).length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
                     itemBuilder: (_, i) => _NpcMiniCard(
                       character: npcs[i],
                       onTap: () => _openNpc(npcs[i]),
@@ -395,6 +395,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     emptyIcon: Icons.people_alt_rounded,
     onAdd: _newNpc,
     addLabel: 'Nuevo NPC',
+    isEmpty: npcs.isEmpty,
     child: LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 800
@@ -417,7 +418,6 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
         );
       },
     ),
-    isEmpty: npcs.isEmpty,
   );
 
   Widget _creaturesPage() {
@@ -435,6 +435,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       emptyIcon: Icons.pets_rounded,
       onAdd: _newCreature,
       addLabel: 'Nueva criatura',
+      isEmpty: entries.isEmpty,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final columns = constraints.maxWidth >= 800
@@ -460,7 +461,6 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
           );
         },
       ),
-      isEmpty: entries.isEmpty,
     );
   }
 
@@ -477,6 +477,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       tooltip: 'Importar tienda',
       icon: const Icon(Icons.file_download_rounded),
     ),
+    isEmpty: campaign.shops.isEmpty,
     child: Column(
       children: campaign.shops
           .map(
@@ -524,7 +525,6 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
           )
           .toList(),
     ),
-    isEmpty: campaign.shops.isEmpty,
   );
 
   Widget _missionsPage() => _VisualSection(
@@ -536,6 +536,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     emptyIcon: Icons.flag_rounded,
     onAdd: _newMission,
     addLabel: 'Nueva misión',
+    isEmpty: campaign.missions.isEmpty,
     child: Column(
       children: campaign.missions
           .map(
@@ -570,7 +571,6 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
           )
           .toList(),
     ),
-    isEmpty: campaign.missions.isEmpty,
   );
 
   Future<void> _openNpc(Character character) async {
