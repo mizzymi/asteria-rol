@@ -311,7 +311,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
               color: isMastered
-                  ? Colors.green.withValues(alpha: 0.4)
+                  ? Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.4)
                   : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
             ),
           ),
@@ -327,7 +327,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                           ? Icons.check_circle_rounded
                           : Icons.menu_book_rounded,
                       color: isMastered
-                          ? Colors.green
+                          ? Theme.of(context).colorScheme.tertiary
                           : theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 10),

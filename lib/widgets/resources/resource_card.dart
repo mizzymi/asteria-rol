@@ -11,6 +11,7 @@ class ResourceCard extends StatelessWidget {
 
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
+  final VoidCallback onCalculator;
   final VoidCallback onTap;
 
   final int? effectiveCurrentValue;
@@ -21,6 +22,7 @@ class ResourceCard extends StatelessWidget {
     required this.resource,
     required this.onDecrease,
     required this.onIncrease,
+    required this.onCalculator,
     required this.onTap,
     this.effectiveCurrentValue,
     this.effectiveMaxValue,
@@ -30,7 +32,7 @@ class ResourceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = resource.color;
+    final color = resource.colorFor(context);
 
     final shownCurrent = effectiveCurrentValue ?? resource.currentValue;
 
@@ -104,7 +106,7 @@ class ResourceCard extends StatelessWidget {
 
           Row(
             children: [
-              if (resource.spendable)
+              if (resource.spendable) ...[
                 Expanded(
                   child: FilledButton.tonalIcon(
                     onPressed: resource.currentValue > 0 ? onDecrease : null,
@@ -112,8 +114,8 @@ class ResourceCard extends StatelessWidget {
                     label: const Text('Gastar'),
                   ),
                 ),
-
-              const SizedBox(width: 10),
+                const SizedBox(width: 10),
+              ],
 
               Expanded(
                 child: OutlinedButton.icon(
@@ -126,6 +128,17 @@ class ResourceCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+
+          const SizedBox(height: 10),
+
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onCalculator,
+              icon: const Icon(Icons.calculate_rounded),
+              label: const Text('Calculadora'),
+            ),
           ),
         ],
       ),

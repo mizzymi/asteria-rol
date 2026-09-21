@@ -113,7 +113,7 @@ extension AbilityActionTypeData on AbilityActionType {
   }
 }
 
-enum AbilityEffectType { damage, healing, none }
+enum AbilityEffectType { damage, healing, mitigation, none }
 
 extension AbilityEffectTypeData on AbilityEffectType {
   String get label {
@@ -124,6 +124,9 @@ extension AbilityEffectTypeData on AbilityEffectType {
       case AbilityEffectType.healing:
         return 'Curación';
 
+      case AbilityEffectType.mitigation:
+        return 'Mitigación de daño';
+
       case AbilityEffectType.none:
         return 'Sin daño/curación';
     }
@@ -131,6 +134,19 @@ extension AbilityEffectTypeData on AbilityEffectType {
 }
 
 enum SaveSuccessEffect { full, half, none }
+
+enum AbilityEffectActivationCondition { always, damageFullyMitigated }
+
+extension AbilityEffectActivationConditionData on AbilityEffectActivationCondition {
+  String get label {
+    switch (this) {
+      case AbilityEffectActivationCondition.always:
+        return 'Siempre';
+      case AbilityEffectActivationCondition.damageFullyMitigated:
+        return 'Solo si el daño se mitiga por completo';
+    }
+  }
+}
 
 extension SaveSuccessEffectData on SaveSuccessEffect {
   String get label {
@@ -205,6 +221,12 @@ class AbilityEffect {
 
   SaveSuccessEffect saveSuccessEffect;
 
+  /// Condición especial de activación del efecto.
+  /// `damageFullyMitigated` se usa sobre todo en reacciones defensivas: el
+  /// efecto se resuelve únicamente si la mitigación de la propia reacción
+  /// absorbe todo el daño entrante.
+  AbilityEffectActivationCondition activationCondition;
+
   AbilityEffect({
     required this.id,
     this.name = '',
@@ -219,6 +241,7 @@ class AbilityEffect {
     this.savingThrowAbility = AbilityType.dexterity,
     this.saveDcBonus = 0,
     this.saveSuccessEffect = SaveSuccessEffect.half,
+    this.activationCondition = AbilityEffectActivationCondition.always,
     List<AbilityEffectPart>? parts,
   }) : dicePools = dicePools ?? [],
        parts = parts ?? [],
@@ -251,6 +274,15 @@ class AbilityEffect {
 
   bool get heals {
     return effectType == AbilityEffectType.healing;
+  }
+
+  bool get mitigatesDamage {
+    return effectType == AbilityEffectType.mitigation;
+  }
+
+  bool get onlyWhenDamageFullyMitigated {
+    return activationCondition ==
+        AbilityEffectActivationCondition.damageFullyMitigated;
   }
 
   String get diceNotation {
@@ -313,6 +345,8 @@ class AbilityEffect {
       'saveDcBonus': saveDcBonus,
 
       'saveSuccessEffect': saveSuccessEffect.name,
+
+      'activationCondition': activationCondition.name,
     };
   }
 
@@ -457,6 +491,11 @@ class AbilityEffect {
       saveSuccessEffect: SaveSuccessEffect.values.firstWhere(
         (item) => item.name == map['saveSuccessEffect'],
         orElse: () => SaveSuccessEffect.half,
+      ),
+
+      activationCondition: AbilityEffectActivationCondition.values.firstWhere(
+        (item) => item.name == map['activationCondition']?.toString(),
+        orElse: () => AbilityEffectActivationCondition.always,
       ),
 
       parts: parts,
@@ -657,6 +696,18 @@ class CharacterAbility {
 
     // Compatibilidad legacy.
     return effectType == AbilityEffectType.healing;
+  }
+
+  bool get mitigatesDamage {
+    if (effects.isNotEmpty) {
+      return effects.any((effect) => effect.mitigatesDamage && effect.hasEffect);
+    }
+
+    return effectType == AbilityEffectType.mitigation;
+  }
+
+  bool get isMitigationReaction {
+    return actionType == AbilityActionType.reaction && mitigatesDamage;
   }
 
   String get diceNotation {

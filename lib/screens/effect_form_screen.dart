@@ -230,6 +230,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       pieces.add('${trigger.healingBonuses.length} curación');
     }
 
+    if (trigger.mitigationBonuses.isNotEmpty) {
+      pieces.add('${trigger.mitigationBonuses.length} mitigación');
+    }
+
     if (trigger.linkedEffects.isNotEmpty) {
       pieces.add('${trigger.linkedEffects.length} efecto(s)');
     }
@@ -705,7 +709,7 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                       children: [
                         Icon(
                           _effectTypeIcon(type),
-                          color: _effectTypeColor(type),
+                          color: _effectTypeColor(context, type),
                           size: 20,
                         ),
 
@@ -1331,19 +1335,19 @@ class _MapBonusSection<T> extends StatelessWidget {
   }
 }
 
-Color _effectTypeColor(CharacterEffectType type) {
+Color _effectTypeColor(BuildContext context, CharacterEffectType type) {
   switch (type) {
     case CharacterEffectType.buff:
-      return const Color(0xFF4CAF7D);
+      return Theme.of(context).colorScheme.tertiary;
 
     case CharacterEffectType.debuff:
-      return const Color(0xFFE45D68);
+      return Theme.of(context).colorScheme.error;
 
     case CharacterEffectType.condition:
-      return const Color(0xFF9B6CE8);
+      return Theme.of(context).colorScheme.primary;
 
     case CharacterEffectType.neutral:
-      return const Color(0xFF5F8FD8);
+      return Theme.of(context).colorScheme.secondary;
   }
 }
 
@@ -1743,8 +1747,13 @@ class _DamageBonusDialogState extends State<_DamageBonusDialog> {
 class _HealingBonusDialog extends StatefulWidget {
   final HealingBonus bonus;
   final Character? character;
+  final bool mitigation;
 
-  const _HealingBonusDialog({required this.bonus, this.character});
+  const _HealingBonusDialog({
+    required this.bonus,
+    this.character,
+    this.mitigation = false,
+  });
 
   @override
   State<_HealingBonusDialog> createState() => _HealingBonusDialogState();
@@ -1845,8 +1854,12 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _BonusDialogHeader(
-              icon: Icons.favorite_rounded,
-              title: 'Curación extra',
+              icon: widget.mitigation
+                  ? Icons.shield_rounded
+                  : Icons.favorite_rounded,
+              title: widget.mitigation
+                  ? 'Mitigación de daño'
+                  : 'Curación extra',
               onClose: () {
                 Navigator.pop(context);
               },
@@ -1861,10 +1874,12 @@ class _HealingBonusDialogState extends State<_HealingBonusDialog> {
                   children: [
                     TextFormField(
                       controller: nameController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Nombre',
-                        hintText: 'Ej: Regeneración',
-                        prefixIcon: Icon(Icons.edit_rounded),
+                        hintText: widget.mitigation
+                            ? 'Ej: Escudo arcano'
+                            : 'Ej: Regeneración',
+                        prefixIcon: const Icon(Icons.edit_rounded),
                       ),
                     ),
 
@@ -2288,6 +2303,8 @@ class _EffectTriggerDialogState extends State<_EffectTriggerDialog> {
 
   late List<HealingBonus> healingBonuses;
 
+  late List<HealingBonus> mitigationBonuses;
+
   late List<CharacterEffect> linkedEffects;
 
   late final TextEditingController conditionController;
@@ -2309,6 +2326,10 @@ class _EffectTriggerDialogState extends State<_EffectTriggerDialog> {
         .toList();
 
     healingBonuses = trigger.healingBonuses
+        .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+        .toList();
+
+    mitigationBonuses = trigger.mitigationBonuses
         .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
         .toList();
 
@@ -2452,6 +2473,64 @@ class _EffectTriggerDialogState extends State<_EffectTriggerDialog> {
   }
 
   // ===========================================================================
+  // MITIGACIÓN
+  // ===========================================================================
+
+  Future<void> _addMitigation() async {
+    final bonus = HealingBonus(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+    );
+
+    final result = await showDialog<HealingBonus>(
+      context: context,
+      builder: (_) {
+        return _HealingBonusDialog(
+          bonus: bonus,
+          character: widget.character,
+          mitigation: true,
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      mitigationBonuses.add(result);
+    });
+  }
+
+  Future<void> _editMitigation(HealingBonus bonus) async {
+    final copy = HealingBonus.fromMap(bonus.toMap());
+
+    final result = await showDialog<HealingBonus>(
+      context: context,
+      builder: (_) {
+        return _HealingBonusDialog(
+          bonus: copy,
+          character: widget.character,
+          mitigation: true,
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    final index = mitigationBonuses.indexOf(bonus);
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      mitigationBonuses[index] = result;
+    });
+  }
+
+  // ===========================================================================
   // EFECTOS VINCULADOS
   // ===========================================================================
 
@@ -2522,6 +2601,11 @@ class _EffectTriggerDialogState extends State<_EffectTriggerDialog> {
           .toList(),
 
       healingBonuses: healingBonuses
+          .where((bonus) => bonus.hasHealing)
+          .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+          .toList(),
+
+      mitigationBonuses: mitigationBonuses
           .where((bonus) => bonus.hasHealing)
           .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
           .toList(),
@@ -2857,6 +2941,41 @@ class _EffectTriggerDialogState extends State<_EffectTriggerDialog> {
                       }).toList(),
 
                       onAdd: _addHealing,
+                    ),
+
+                    const SizedBox(height: 26),
+
+                    // =========================================================
+                    // MITIGACIÓN
+                    // =========================================================
+                    _BonusListSection(
+                      title: 'Mitigación de daño',
+                      description:
+                          'Daño absorbido cuando se activa este trigger. Para '
+                          'mitigar daño recibido, usa el evento “Daño recibido”.',
+                      icon: Icons.shield_rounded,
+
+                      items: mitigationBonuses.map((bonus) {
+                        return _BonusListItem(
+                          title: bonus.name.trim().isNotEmpty
+                              ? bonus.name.trim()
+                              : 'Mitigación',
+
+                          subtitle: _healingText(bonus),
+
+                          onEdit: () {
+                            _editMitigation(bonus);
+                          },
+
+                          onDelete: () {
+                            setState(() {
+                              mitigationBonuses.remove(bonus);
+                            });
+                          },
+                        );
+                      }).toList(),
+
+                      onAdd: _addMitigation,
                     ),
 
                     const SizedBox(height: 26),

@@ -3,23 +3,37 @@ import 'package:flutter/material.dart';
 class AppTheme {
   const AppTheme._();
 
-  // ===========================================================================
-  // PALETA BASE
-  // ===========================================================================
+  // La paleta real vive únicamente en el Theme. Los widgets consumen
+  // ColorScheme y nunca necesitan conocer valores de color concretos.
+  static const Color _purpleSeed = Color(0xFF7B5CE7);
 
-  static const Color primary = Color(0xFF9B6CE8);
+  static ColorScheme _purpleScheme(Brightness brightness) {
+    final base = ColorScheme.fromSeed(
+      seedColor: _purpleSeed,
+      brightness: brightness,
+    );
 
-  static const Color secondary = Color(0xFF4D8FE8);
+    final isDark = brightness == Brightness.dark;
 
-  static const Color tertiary = Color(0xFFE45AA7);
+    Color tint(Color source, double lightAmount, double darkAmount) {
+      return Color.lerp(
+            source,
+            base.primary,
+            isDark ? darkAmount : lightAmount,
+          ) ??
+          source;
+    }
 
-  static const Color success = Color(0xFF55B96B);
-
-  static const Color warning = Color(0xFFF29E4C);
-
-  static const Color danger = Color(0xFFE85D68);
-
-  static const Color info = Color(0xFF42B8C8);
+    return base.copyWith(
+      surface: tint(base.surface, 0.025, 0.10),
+      surfaceContainerLowest: tint(base.surfaceContainerLowest, 0.035, 0.09),
+      surfaceContainerLow: tint(base.surfaceContainerLow, 0.055, 0.12),
+      surfaceContainer: tint(base.surfaceContainer, 0.070, 0.15),
+      surfaceContainerHigh: tint(base.surfaceContainerHigh, 0.085, 0.18),
+      surfaceContainerHighest: tint(base.surfaceContainerHighest, 0.105, 0.22),
+      outlineVariant: tint(base.outlineVariant, 0.12, 0.20),
+    );
+  }
 
   static ThemeData _buildTheme({
     required ColorScheme scheme,
@@ -107,9 +121,9 @@ class AppTheme {
       // APP BAR
       // =========================================================================
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
+        backgroundColor: scheme.surfaceContainerLowest,
         foregroundColor: scheme.onSurface,
-        surfaceTintColor: Colors.transparent,
+        surfaceTintColor: scheme.surface.withValues(alpha: 0),
         elevation: 0,
         centerTitle: false,
 
@@ -119,9 +133,9 @@ class AppTheme {
           fontWeight: FontWeight.w900,
         ),
 
-        iconTheme: IconThemeData(color: scheme.onSurface),
+        iconTheme: IconThemeData(color: scheme.primary),
 
-        actionsIconTheme: IconThemeData(color: scheme.onSurface),
+        actionsIconTheme: IconThemeData(color: scheme.primary),
       ),
 
       // =========================================================================
@@ -143,7 +157,7 @@ class AppTheme {
       // =========================================================================
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
-        surfaceTintColor: Colors.transparent,
+        surfaceTintColor: scheme.surface.withValues(alpha: 0),
 
         titleTextStyle: TextStyle(
           color: scheme.onSurface,
@@ -162,7 +176,7 @@ class AppTheme {
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surface,
         modalBackgroundColor: scheme.surface,
-        surfaceTintColor: Colors.transparent,
+        surfaceTintColor: scheme.surface.withValues(alpha: 0),
         showDragHandle: true,
 
         shape: const RoundedRectangleBorder(
@@ -183,8 +197,8 @@ class AppTheme {
 
         helperStyle: TextStyle(color: scheme.onSurfaceVariant),
 
-        prefixIconColor: scheme.onSurfaceVariant,
-        suffixIconColor: scheme.onSurfaceVariant,
+        prefixIconColor: scheme.primary,
+        suffixIconColor: scheme.primary,
 
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
@@ -232,8 +246,8 @@ class AppTheme {
       // =========================================================================
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          foregroundColor: scheme.onSurface,
-          backgroundColor: scheme.surfaceContainerHigh,
+          foregroundColor: scheme.onPrimaryContainer,
+          backgroundColor: scheme.primaryContainer,
 
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
 
@@ -276,8 +290,8 @@ class AppTheme {
       // =========================================================================
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          foregroundColor: scheme.onSurface,
-          backgroundColor: scheme.surfaceContainerLow,
+          foregroundColor: scheme.primary,
+          backgroundColor: scheme.primaryContainer.withValues(alpha: 0.55),
         ),
       ),
 
@@ -308,7 +322,7 @@ class AppTheme {
       // =========================================================================
       listTileTheme: ListTileThemeData(
         textColor: scheme.onSurface,
-        iconColor: scheme.onSurfaceVariant,
+        iconColor: scheme.primary,
 
         titleTextStyle: TextStyle(
           color: scheme.onSurface,
@@ -320,6 +334,50 @@ class AppTheme {
           color: scheme.onSurfaceVariant,
           fontSize: 14,
         ),
+      ),
+
+      // =========================================================================
+      // CONTROLES / ACCIONES
+      // =========================================================================
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primaryContainer,
+        foregroundColor: scheme.onPrimaryContainer,
+      ),
+
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? scheme.onPrimary
+              : scheme.outline;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.surfaceContainerHighest;
+        }),
+      ),
+
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.surfaceContainerHighest;
+        }),
+        checkColor: WidgetStatePropertyAll(scheme.onPrimary),
+      ),
+
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.onSurfaceVariant;
+        }),
+      ),
+
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: scheme.primary,
+        linearTrackColor: scheme.primaryContainer,
+        circularTrackColor: scheme.primaryContainer,
       ),
 
       // =========================================================================
@@ -369,38 +427,7 @@ class AppTheme {
   // ===========================================================================
 
   static ThemeData get light {
-    final scheme =
-        ColorScheme.fromSeed(
-          seedColor: primary,
-          brightness: Brightness.light,
-        ).copyWith(
-          primary: primary,
-          secondary: secondary,
-          tertiary: tertiary,
-
-          surface: const Color(0xFFFFFBFF),
-
-          surfaceContainerLowest: const Color(0xFFFFFFFF),
-
-          surfaceContainerLow: const Color(0xFFFFF7FF),
-
-          surfaceContainer: const Color(0xFFF9F2FF),
-
-          surfaceContainerHigh: const Color(0xFFF4EBFF),
-
-          surfaceContainerHighest: const Color(0xFFEFE4FA),
-
-          onSurface: const Color(0xFF1E1A22),
-
-          onSurfaceVariant: const Color(0xFF6C6371),
-
-          outline: const Color(0xFFC8BBD6),
-
-          outlineVariant: const Color(0xFFE5DAEE),
-
-          error: danger,
-        );
-
+    final scheme = _purpleScheme(Brightness.light);
     return _buildTheme(scheme: scheme, brightness: Brightness.light);
   }
 
@@ -411,38 +438,7 @@ class AppTheme {
   // ===========================================================================
 
   static ThemeData get dark {
-    final scheme =
-        ColorScheme.fromSeed(
-          seedColor: primary,
-          brightness: Brightness.dark,
-        ).copyWith(
-          primary: const Color(0xFFC9A9FF),
-          secondary: const Color(0xFF9AB7FF),
-          tertiary: const Color(0xFFFF9ED2),
-
-          surface: const Color(0xFF151218),
-
-          surfaceContainerLowest: const Color(0xFF100D12),
-
-          surfaceContainerLow: const Color(0xFF1C1820),
-
-          surfaceContainer: const Color(0xFF231E28),
-
-          surfaceContainerHigh: const Color(0xFF2A2430),
-
-          surfaceContainerHighest: const Color(0xFF332C3A),
-
-          onSurface: const Color(0xFFF4EDF7),
-
-          onSurfaceVariant: const Color(0xFFD1C5D6),
-
-          outline: const Color(0xFF8C7F92),
-
-          outlineVariant: const Color(0xFF4B424F),
-
-          error: const Color(0xFFFF8A95),
-        );
-
+    final scheme = _purpleScheme(Brightness.dark);
     return _buildTheme(scheme: scheme, brightness: Brightness.dark);
   }
 }

@@ -17,6 +17,10 @@ class CharacterResource {
   bool visible;
   bool spendable;
 
+  /// Si es true, un descanso largo restaura este recurso a su máximo.
+  /// Por defecto está desactivado.
+  bool restoreOnLongRest;
+
   CharacterResource({
     required this.id,
     required this.name,
@@ -24,12 +28,33 @@ class CharacterResource {
     this.maxValue = 0,
     this.hasMaximum = true,
     this.icon = Icons.bolt_rounded,
-    this.colorValue = 0xFF8B5CF6,
+    this.colorValue = 0,
     this.visible = true,
     this.spendable = true,
+    this.restoreOnLongRest = false,
   });
 
-  Color get color => Color(colorValue);
+  Color colorFor(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    switch (colorValue.abs() % 8) {
+      case 0:
+        return scheme.primary;
+      case 1:
+        return scheme.secondary;
+      case 2:
+        return scheme.tertiary;
+      case 3:
+        return scheme.error;
+      case 4:
+        return scheme.primaryContainer;
+      case 5:
+        return scheme.secondaryContainer;
+      case 6:
+        return scheme.tertiaryContainer;
+      default:
+        return scheme.onSurfaceVariant;
+    }
+  }
 
   bool get isEmpty => currentValue <= 0;
 
@@ -62,6 +87,7 @@ class CharacterResource {
   void normalize() {
     if (!hasMaximum) {
       maxValue = 0;
+      restoreOnLongRest = false;
 
       if (currentValue < 0) {
         currentValue = 0;
@@ -129,6 +155,7 @@ class CharacterResource {
       'colorValue': colorValue,
       'visible': visible,
       'spendable': spendable,
+      'restoreOnLongRest': restoreOnLongRest,
     };
   }
 
@@ -148,11 +175,15 @@ class CharacterResource {
 
       icon: iconFromId(iconId),
 
-      colorValue: (map['colorValue'] as num?)?.toInt() ?? 0xFF8B5CF6,
+      colorValue: (map['colorValue'] as num?)?.toInt() ?? 0,
 
       visible: map['visible'] as bool? ?? true,
 
       spendable: map['spendable'] as bool? ?? true,
+
+      // Compatibilidad: los recursos creados antes de esta opción no se
+      // recuperan automáticamente durante un descanso largo.
+      restoreOnLongRest: map['restoreOnLongRest'] as bool? ?? false,
     );
 
     resource.normalize();

@@ -219,6 +219,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       saveDcBonus: effect.saveDcBonus,
 
       saveSuccessEffect: effect.saveSuccessEffect,
+
+      activationCondition: effect.activationCondition,
     );
   }
 
@@ -1148,7 +1150,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                           children: [
                             Icon(
                               resource.icon,
-                              color: resource.color,
+                              color: resource.colorFor(context),
                               size: 20,
                             ),
 

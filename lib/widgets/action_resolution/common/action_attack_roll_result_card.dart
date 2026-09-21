@@ -24,15 +24,15 @@ class ActionAttackRollResultCard extends StatelessWidget {
 
     final accentColor = ability == null
         ? theme.colorScheme.primary
-        : AbilityColors.of(ability!);
+        : AbilityColors.of(context, ability!);
 
     final backgroundColor = ability == null
         ? theme.colorScheme.primaryContainer.withValues(alpha: 0.25)
-        : AbilityColors.soft(ability!, alpha: 0.10);
+        : AbilityColors.soft(context, ability!, alpha: 0.10);
 
     final borderColor = ability == null
         ? theme.colorScheme.primary.withValues(alpha: 0.28)
-        : AbilityColors.border(ability!, alpha: 0.32);
+        : AbilityColors.border(context, ability!, alpha: 0.32);
 
     final modifier = attackResult.modifier;
 

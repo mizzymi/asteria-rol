@@ -97,7 +97,7 @@ class AppCard extends StatelessWidget {
     final interactiveContent = onTap == null
         ? content
         : Material(
-            color: Colors.transparent,
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
             child: InkWell(onTap: onTap, child: content),
           );
 

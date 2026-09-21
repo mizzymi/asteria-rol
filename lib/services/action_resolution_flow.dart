@@ -950,6 +950,12 @@ class ActionResolutionFlow {
     BuildContext context, {
     required CharacterAbility ability,
   }) async {
+    if (ability.actionType == AbilityActionType.reaction &&
+        !character.reactionAvailable) {
+      _showError(context, 'Ya has usado tu reacción en este turno.');
+      return null;
+    }
+
     final resolver = ActionResolver(character: character);
     final source = ActionSource.ability(ability);
     final definition = ActionDefinition.fromAbility(ability);
@@ -1057,6 +1063,213 @@ class ActionResolutionFlow {
       prepared: prepared,
       diceMode: diceMode,
     );
+  }
+
+  Future<ActionExecutionResult?> resolveMitigationReaction(
+    BuildContext context, {
+    required CharacterAbility ability,
+    required int incomingDamage,
+  }) async {
+    if (!ability.isMitigationReaction || incomingDamage <= 0) {
+      return null;
+    }
+
+    if (!character.reactionAvailable) {
+      _showError(context, 'Ya has usado tu reacción en este turno.');
+      return null;
+    }
+
+    if (ability.requiresAttackRoll) {
+      _showError(
+        context,
+        'Una reacción de mitigación no puede requerir tirada de ataque.',
+      );
+      return null;
+    }
+
+    final resolver = ActionResolver(character: character);
+    final source = ActionSource.ability(ability);
+    final definition = ActionDefinition.fromAbility(ability);
+    final content = ActionContent.fromAbility(ability);
+
+    try {
+      resolver.validatePassiveTriggerTargetScopes(
+        definition: definition,
+        content: content,
+      );
+    } on StateError catch (error) {
+      _showError(context, error.message.toString());
+      return null;
+    }
+
+    final actionContext = ActionResolutionContext(
+      character: character,
+      targets: const [ActionTarget.self(participatesInAttackRoll: false)],
+      externalVariables: {'damage': incomingDamage.toDouble()},
+    );
+
+    actionContext.populateKnownTargetVariables();
+
+    final requirementsCompleted = await _collectExternalRequirements(
+      context,
+      resolver: resolver,
+      source: source,
+      definition: definition,
+      content: content,
+      actionContext: actionContext,
+    );
+
+    if (!requirementsCompleted || !context.mounted) {
+      return null;
+    }
+
+    final initialPlan = resolver.prepareAbilityPlan(
+      ability: ability,
+      context: actionContext,
+    );
+
+    final optionalCompleted = await _collectOptionalChoices(
+      context,
+      resolver: resolver,
+      plan: initialPlan,
+      actionContext: actionContext,
+    );
+
+    if (!optionalCompleted || !context.mounted) {
+      return null;
+    }
+
+    final prepared = resolver.prepareAbilityAction(
+      ability: ability,
+      context: actionContext,
+    );
+
+    final validation = resolver.validatePreparedActionCosts(prepared);
+
+    if (!validation.valid) {
+      _showError(
+        context,
+        validation.error ?? 'No puedes pagar los costes de esta reacción.',
+      );
+      return null;
+    }
+
+    final selectedDiceMode = await showActionDiceModeSheet(context);
+
+    if (selectedDiceMode == null || !context.mounted) {
+      return null;
+    }
+
+    return _resolveWithoutAttack(
+      context,
+      resolver: resolver,
+      prepared: prepared,
+      diceMode: selectedDiceMode,
+    );
+  }
+
+  Future<int> _offerDamageMitigationReaction(
+    BuildContext context, {
+    required int incomingDamage,
+  }) async {
+    if (incomingDamage <= 0 || !character.reactionAvailable) {
+      return 0;
+    }
+
+    final reactions = character.availableAbilities
+        .where((ability) => ability.isMitigationReaction)
+        .toList(growable: false);
+
+    if (reactions.isEmpty || !context.mounted) {
+      return 0;
+    }
+
+    CharacterAbility? selected;
+
+    if (reactions.length == 1) {
+      final reaction = reactions.first;
+      final useReaction = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('¿Usar reacción?'),
+            content: Text(
+              'Vas a recibir $incomingDamage de daño. '
+              '¿Quieres usar ${reaction.name} para mitigarlo?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('No'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                icon: const Icon(Icons.shield_rounded),
+                label: const Text('Usar reacción'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (useReaction == true) {
+        selected = reaction;
+      }
+    } else {
+      selected = await showDialog<CharacterAbility>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('¿Usar una reacción?'),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Vas a recibir $incomingDamage de daño.'),
+                  const SizedBox(height: 12),
+                  ...reactions.map(
+                    (reaction) => Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.shield_rounded),
+                        title: Text(reaction.name),
+                        subtitle: const Text('Reacción · Mitigación de daño'),
+                        onTap: () => Navigator.pop(dialogContext, reaction),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('No usar reacción'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    if (selected == null || !context.mounted) {
+      return 0;
+    }
+
+    final execution = await resolveMitigationReaction(
+      context,
+      ability: selected,
+      incomingDamage: incomingDamage,
+    );
+
+    if (execution == null || !context.mounted) {
+      return 0;
+    }
+
+    final mitigation = execution.resolution.selfResult?.mitigation ?? 0;
+
+    return math.min(incomingDamage, math.max(0, mitigation));
   }
 
   ActionExecutionResult _mergePassiveTriggeredResults({
@@ -1355,6 +1568,7 @@ class ActionResolutionFlow {
 
       var damage = 0;
       var healing = 0;
+      var mitigation = 0;
 
       // =======================================================================
       // DAÑO
@@ -1380,6 +1594,32 @@ class ActionResolutionFlow {
         }
 
         damage += amount;
+      }
+
+      // =======================================================================
+      // MITIGACIÓN
+      // =======================================================================
+
+      for (final bonus in outcome.mitigationBonuses) {
+        if (!context.mounted) {
+          return null;
+        }
+
+        final amount = await _resolveEffectTriggerMitigation(
+          context,
+          bonus: bonus,
+          sourceEffectId: outcome.sourceEffectId,
+          sourceEffectName: outcome.sourceEffectName,
+          target: target,
+          actionContext: actionContext,
+          diceMode: diceMode,
+        );
+
+        if (amount == null) {
+          return null;
+        }
+
+        mitigation += amount;
       }
 
       // =======================================================================
@@ -1425,6 +1665,7 @@ class ActionResolutionFlow {
           targetLabel: outcome.targetLabel,
           damage: damage,
           healing: healing,
+          mitigation: mitigation,
           effects: List<CharacterEffect>.unmodifiable(effects),
           resolutionId: externalResultId,
         ),
@@ -1577,6 +1818,88 @@ class ActionResolutionFlow {
           title: sourceEffectName.trim().isNotEmpty
               ? sourceEffectName.trim()
               : 'Trigger de efecto',
+          request: request,
+        ),
+      ],
+    );
+
+    if (inputsBySection == null || !context.mounted) {
+      return null;
+    }
+
+    final inputs = inputsBySection[sectionId];
+    if (inputs == null) {
+      return null;
+    }
+
+    final result = const ActionDiceResolver().resolvePhysical(
+      request: request,
+      inputs: inputs,
+    );
+
+    return result.parts.fold<int>(0, (sum, part) => sum + part.total);
+  }
+
+  Future<int?> _resolveEffectTriggerMitigation(
+    BuildContext context, {
+    required HealingBonus bonus,
+    required String sourceEffectId,
+    required String sourceEffectName,
+    required ActionTarget target,
+    required ActionResolutionContext actionContext,
+    required ActionDiceMode diceMode,
+  }) async {
+    final formulaContext = actionContext.buildFormulaContext(target: target);
+
+    final modifier = character.healingBonusModifier(
+      bonus,
+      formulaContext: formulaContext,
+    );
+
+    final partId =
+        'effect-trigger-mitigation:'
+        '$sourceEffectId:'
+        '${bonus.id}:'
+        '${target.id}';
+
+    final request = ActionDiceRequest(
+      parts: [
+        ActionDiceRequestPart(
+          id: partId,
+          effectId: 'effect-trigger:$sourceEffectId',
+          effectName: bonus.name.trim().isNotEmpty
+              ? bonus.name.trim()
+              : sourceEffectName,
+          effectType: AbilityEffectType.mitigation,
+          dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
+          modifier: modifier,
+          hitBehavior: ActionHitBehavior.ignoreHit,
+          sourceType: ActionDiceSourceType.effect,
+          sourceId: sourceEffectId,
+          sourceName: sourceEffectName,
+        ),
+      ],
+    );
+
+    if (diceMode == ActionDiceMode.digital) {
+      final result = const ActionDiceResolver().rollDigital(request);
+      return result.parts.fold<int>(0, (sum, part) => sum + part.total);
+    }
+
+    final sectionId =
+        'effect-trigger-mitigation-section:'
+        '$sourceEffectId:'
+        '${bonus.id}:'
+        '${target.id}';
+
+    final inputsBySection = await showPhysicalDiceDialog(
+      context,
+      sections: [
+        PhysicalDiceSection(
+          id: sectionId,
+          title: sourceEffectName.trim().isNotEmpty
+              ? sourceEffectName.trim()
+              : 'Mitigación de efecto',
           request: request,
         ),
       ],
@@ -2605,7 +2928,7 @@ class ActionResolutionFlow {
                             ),
                             Theme(
                               data: theme.copyWith(
-                                dividerColor: Colors.transparent,
+                                dividerColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
                               ),
                               child: ExpansionTile(
                                 tilePadding: const EdgeInsets.symmetric(
@@ -2775,24 +3098,53 @@ class ActionResolutionFlow {
     required int baseAmount,
     required bool isDamage,
   }) async {
-    final resolver = ActionResolver(character: character);
     final healthBefore = character.currentHealth;
+
+    var effectiveBaseAmount = baseAmount;
+    var reactionMitigation = 0;
+
+    // La reacción defensiva se ofrece ANTES de evaluar pasivas o efectos
+    // disparados por damageReceived. De este modo el daño que reciben esos
+    // triggers ya es el daño restante tras la reacción.
+    if (isDamage && baseAmount > 0) {
+      reactionMitigation = await _offerDamageMitigationReaction(
+        context,
+        incomingDamage: baseAmount,
+      );
+
+      if (!context.mounted) {
+        return false;
+      }
+
+      effectiveBaseAmount = math.max(0, baseAmount - reactionMitigation);
+
+      if (effectiveBaseAmount == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              reactionMitigation > 0
+                  ? 'La reacción ha mitigado todo el daño ($baseAmount).'
+                  : 'No hay daño que aplicar.',
+            ),
+          ),
+        );
+
+        character.refreshPassiveTriggers();
+        return true;
+      }
+    }
+
+    final resolver = ActionResolver(character: character);
     final event = isDamage
         ? PassiveTriggerEvent.damageReceived
         : PassiveTriggerEvent.healingReceived;
 
     final outcomes = collectTriggersForEvent(event);
-    final deathTriggers = isDamage ? collectDeathTriggers() : const <PassiveTriggeredExternalOutcome>[];
 
-    // Para daño manual podemos saber de antemano si el golpe base dejaría al
-    // personaje a 0. En ese caso el diálogo de daño y el de muerte se unifican.
-    final projectedLethal =
-        isDamage && character.currentHealth - baseAmount <= 0;
-
-    final confirmationOutcomes = <PassiveTriggeredExternalOutcome>[
-      ...outcomes,
-      if (projectedLethal) ...deathTriggers,
-    ];
+    // La muerte se evalúa únicamente DESPUÉS de resolver toda la mitigación y
+    // aplicar el daño restante. Así nunca se ofrece una pasiva de muerte por
+    // un golpe que finalmente queda mitigado.
+    final confirmationOutcomes = <PassiveTriggeredExternalOutcome>[...outcomes];
 
     var selectedOutcomes = List<PassiveTriggeredExternalOutcome>.from(
       confirmationOutcomes,
@@ -2804,9 +3156,9 @@ class ActionResolutionFlow {
       final selectedKeys = await _selectHealthPassiveTriggers(
         context,
         isDamage: isDamage,
-        lethalDamage: projectedLethal,
+        lethalDamage: false,
         regularOutcomes: outcomes,
-        deathOutcomes: deathTriggers,
+        deathOutcomes: const <PassiveTriggeredExternalOutcome>[],
       );
 
       if (selectedKeys == null || !context.mounted) {
@@ -2819,14 +3171,6 @@ class ActionResolutionFlow {
     }
 
     final selectedRegularOutcomes = outcomes
-        .where(
-          (outcome) => selectedOutcomes.any(
-            (selected) => selected.usageKey == outcome.usageKey,
-          ),
-        )
-        .toList();
-
-    final selectedDeathOutcomes = deathTriggers
         .where(
           (outcome) => selectedOutcomes.any(
             (selected) => selected.usageKey == outcome.usageKey,
@@ -2855,7 +3199,7 @@ class ActionResolutionFlow {
         character: character,
         targets: [ActionTarget(id: 'self', kind: ActionTargetKind.self)],
         externalVariables: {
-          isDamage ? 'damage' : 'healing': baseAmount.toDouble(),
+          isDamage ? 'damage' : 'healing': effectiveBaseAmount.toDouble(),
         },
       );
 
@@ -2907,11 +3251,28 @@ class ActionResolutionFlow {
       // La mitigación modifica únicamente el golpe que originó el evento.
       final int finalDamage = math.max(
         0,
-        baseAmount - totalMitigation + extraDamage,
+        effectiveBaseAmount - totalMitigation + extraDamage,
       );
       appliedDamage = finalDamage;
       if (finalDamage > 0) {
+        final beforeDamage = character.currentHealth;
         character.takeDamage(finalDamage, dispatchTriggers: false);
+        final afterDamage = character.currentHealth;
+
+        // Las pasivas se han resuelto de forma preventiva arriba. Los triggers
+        // de efectos se despachan aquí por separado para no ejecutar las
+        // pasivas dos veces. Un efecto de mitigación puede restaurar parte de
+        // este mismo golpe.
+        CharacterEffectTriggerEngine(character: character).dispatch(
+          PassiveTriggerEvent.damageReceived,
+          eventVariables: {
+            'damage': finalDamage.toDouble(),
+            'health_before': beforeDamage.toDouble(),
+            'health_after': afterDamage.toDouble(),
+          },
+        );
+
+        appliedDamage = math.max(0, beforeDamage - character.currentHealth);
       }
 
       // Las curaciones generadas por los triggers se aplican DESPUÉS del golpe.
@@ -2945,8 +3306,12 @@ class ActionResolutionFlow {
       final summary = <String>[
         'PV: $healthBefore → $healthAfter',
         if (isDamage) 'Daño inicial: $baseAmount',
+        if (reactionMitigation > 0)
+          'Mitigación de reacción: -$reactionMitigation',
+        if (isDamage && effectiveBaseAmount != baseAmount)
+          'Daño tras reacción: $effectiveBaseAmount',
         if (!isDamage) 'Curación inicial: +$baseAmount',
-        if (totalMitigation > 0) 'Mitigación total: -$totalMitigation',
+        if (totalMitigation > 0) 'Mitigación de pasivas: -$totalMitigation',
         if (extraDamage > 0) 'Daño de pasivas: +$extraDamage',
         if (extraHealing > 0) 'Curación de pasivas: +$extraHealing',
         if (isDamage) 'Daño final aplicado: $appliedDamage',
@@ -2960,22 +3325,9 @@ class ActionResolutionFlow {
       );
     }
 
-    if (isDamage && character.currentHealth <= 0 && deathTriggers.isNotEmpty) {
+    if (isDamage && healthBefore > 0 && character.currentHealth <= 0) {
       if (!context.mounted) return true;
-
-      if (projectedLethal) {
-        // Las pasivas de muerte ya estaban incluidas en la única confirmación.
-        await _applyDeathPassiveOutcomes(
-          context,
-          resolver: resolver,
-          deathTriggers: selectedDeathOutcomes,
-          diceMode: diceMode,
-        );
-      } else {
-        // Caso raro: el daño base no era letal, pero una pasiva añadió daño y
-        // terminó provocando la caída. Aquí sí hace falta confirmar la muerte.
-        await handleCharacterDeath(context, resolver: resolver);
-      }
+      await handleCharacterDeath(context, resolver: resolver);
     }
 
     return true;
@@ -3014,9 +3366,9 @@ class ActionResolutionFlow {
                         value: selected,
                         contentPadding: EdgeInsets.zero,
                         controlAffinity: ListTileControlAffinity.leading,
-                        secondary: const Icon(
+                        secondary: Icon(
                           Icons.warning_amber_rounded,
-                          color: Colors.orange,
+                          color: Theme.of(context).colorScheme.secondary,
                         ),
                         title: Text(o.passiveName),
                         subtitle: Text(
@@ -3081,6 +3433,11 @@ class ActionResolutionFlow {
   }) async {
     try {
       var execution = resolver.commitResolution(resolution);
+
+      final sourceAbility = prepared.source.ability;
+      if (sourceAbility?.actionType == AbilityActionType.reaction) {
+        character.consumeReaction();
+      }
 
       final triggerEngine = PassiveTriggerEngine(character: character);
 

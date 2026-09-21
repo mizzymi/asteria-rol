@@ -15,7 +15,7 @@ class ItemAbilityPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = AbilityAttributeColors.color(ability.abilityType);
+    final color = AbilityAttributeColors.color(context, ability.abilityType);
 
     return Container(
       width: double.infinity,

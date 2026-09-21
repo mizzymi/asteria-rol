@@ -3,56 +3,30 @@ import 'package:flutter/material.dart';
 class CharacterHomeColors {
   const CharacterHomeColors._();
 
-  // ===========================================================================
-  // COLORES SEMÁNTICOS
-  //
-  // Estos identifican conceptos y pueden mantenerse entre temas.
-  // ===========================================================================
+  static Color health(BuildContext context) => Theme.of(context).colorScheme.error;
+  static Color armor(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color initiative(BuildContext context) => Theme.of(context).colorScheme.secondary;
+  static Color speed(BuildContext context) => Theme.of(context).colorScheme.tertiary;
+  static Color proficiency(BuildContext context) => Theme.of(context).colorScheme.primary;
 
-  static const Color health = Color(0xFFE84A8A);
-  static const Color armor = Color(0xFF934DE8);
-  static const Color initiative = Color(0xFF4C68F2);
-  static const Color speed = Color(0xFF55B9B6);
-  static const Color proficiency = Color(0xFF7BE86F);
+  static Color stats(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color abilities(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color effects(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color counters(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color items(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color story(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color journal(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color resources(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color dice(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color knowledge(BuildContext context) => Theme.of(context).colorScheme.primary;
 
-  static const Color stats = Color(0xFF9B6CE8);
-  static const Color abilities = Color(0xFF554BE1);
-  static const Color effects = Color(0xFF5E86EA);
-  static const Color counters = Color(0xFF42B8C8);
-  static const Color items = Color(0xFF18A6A6);
-  static const Color story = Color(0xFF55B96B);
-  static const Color journal = Color(0xFFF29E4C);
-  static const Color resources = Color(0xFFE85D5D);
-  static const Color dice = Color(0xFFE45AA7);
-  static const Color knowledge = Color(0xFFB95EF4);
+  static Color combat(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color rest(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color notes(BuildContext context) => Theme.of(context).colorScheme.primary;
 
-  // ===========================================================================
-  // ACCIONES RÁPIDAS
-  // ===========================================================================
-
-  static const Color combat = Color(0xFFE85D68);
-  static const Color rest = Color(0xFF8B6FE8);
-  static const Color notes = Color(0xFF42A879);
-
-  // ===========================================================================
-  // SUPERFICIES ADAPTATIVAS
-  // ===========================================================================
-
-  static Color panel(BuildContext context) {
-    return Theme.of(context).colorScheme.surfaceContainerLow;
-  }
-
-  static Color elevatedPanel(BuildContext context) {
-    return Theme.of(context).colorScheme.surfaceContainer;
-  }
-
-  static Color border(BuildContext context) {
-    return Theme.of(context).colorScheme.outlineVariant;
-  }
-
-  // ===========================================================================
-  // TINTE SEMÁNTICO ADAPTATIVO
-  // ===========================================================================
+  static Color panel(BuildContext context) => Theme.of(context).colorScheme.surfaceContainerLow;
+  static Color elevatedPanel(BuildContext context) => Theme.of(context).colorScheme.surfaceContainer;
+  static Color border(BuildContext context) => Theme.of(context).colorScheme.outlineVariant;
 
   static Color tintedSurface(
     BuildContext context,
@@ -61,15 +35,8 @@ class CharacterHomeColors {
     double darkStrength = 0.16,
   }) {
     final theme = Theme.of(context);
-
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Color.lerp(
-          theme.colorScheme.surface,
-          accent,
-          isDark ? darkStrength : lightStrength,
-        ) ??
-        theme.colorScheme.surface;
+    final strength = theme.brightness == Brightness.dark ? darkStrength : lightStrength;
+    return Color.lerp(theme.colorScheme.surface, accent, strength) ?? theme.colorScheme.surface;
   }
 
   static Color tintedBorder(
@@ -78,8 +45,7 @@ class CharacterHomeColors {
     double lightAlpha = 0.20,
     double darkAlpha = 0.32,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return accent.withValues(alpha: isDark ? darkAlpha : lightAlpha);
+    final theme = Theme.of(context);
+    return accent.withValues(alpha: theme.brightness == Brightness.dark ? darkAlpha : lightAlpha);
   }
 }

@@ -222,13 +222,13 @@ class ActionResolutionResult {
 
   int get affectedTargetCount {
     return actionTargetResults.where((result) {
-      return result.damage > 0 || result.healing > 0 || result.hasEffects;
+      return result.damage > 0 || result.healing > 0 || result.mitigation > 0 || result.hasEffects;
     }).length;
   }
 
   int get externalAffectedTargetCount {
     return externalTargetResults.where((result) {
-      return result.damage > 0 || result.healing > 0 || result.hasEffects;
+      return result.damage > 0 || result.healing > 0 || result.mitigation > 0 || result.hasEffects;
     }).length;
   }
 
@@ -270,6 +270,10 @@ class ActionResolutionResult {
     return targetResults.fold<int>(0, (sum, result) => sum + result.healing);
   }
 
+  int get totalMitigationAcrossTargets {
+    return targetResults.fold<int>(0, (sum, result) => sum + result.mitigation);
+  }
+
   int get totalExternalDamage {
     return externalTargetResults.fold<int>(
       0,
@@ -284,6 +288,13 @@ class ActionResolutionResult {
     );
   }
 
+  int get totalExternalMitigation {
+    return externalTargetResults.fold<int>(
+      0,
+      (sum, result) => sum + result.mitigation,
+    );
+  }
+
   // ===========================================================================
   // RESULTADO GLOBAL
   // ===========================================================================
@@ -294,6 +305,10 @@ class ActionResolutionResult {
 
   bool get healed {
     return targetResults.any((result) => result.healed);
+  }
+
+  bool get mitigatedDamage {
+    return targetResults.any((result) => result.mitigatedDamage);
   }
 
   bool get appliedEffects {

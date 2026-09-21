@@ -110,7 +110,7 @@ class _ResourceEditDialogContentState
     return AlertDialog(
       title: Row(
         children: [
-          Icon(resource.icon, color: resource.color),
+          Icon(resource.icon, color: resource.colorFor(context)),
 
           const SizedBox(width: 10),
 
@@ -130,7 +130,7 @@ class _ResourceEditDialogContentState
               formatThousands(value),
               style: theme.textTheme.displaySmall?.copyWith(
                 fontWeight: FontWeight.w900,
-                color: resource.color,
+                color: resource.colorFor(context),
               ),
             ),
 
@@ -153,8 +153,8 @@ class _ResourceEditDialogContentState
                       ? 0
                       : (value / resource.maxValue).clamp(0.0, 1.0),
                   minHeight: 8,
-                  color: resource.color,
-                  backgroundColor: resource.color.withValues(alpha: 0.12),
+                  color: resource.colorFor(context),
+                  backgroundColor: resource.colorFor(context).withValues(alpha: 0.12),
                 ),
               ),
             ],

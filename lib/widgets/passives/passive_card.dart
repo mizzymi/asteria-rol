@@ -5,13 +5,13 @@ import 'package:flutter/material.dart';
 import '../../utils/number_format.dart';
 
 import '../../models/formulas/formula_bonus.dart';
+import '../../models/character.dart';
 import '../../models/character_effect.dart';
-import '../../models/damage_bonus.dart';
-import '../../models/critical_damage_bonus.dart';
-import '../../models/healing_bonus.dart';
 import '../../models/item.dart';
 import '../../models/passive.dart';
 import '../../models/skill.dart';
+
+import '../../services/passive_display_formatter.dart';
 
 import '../common/app_card.dart';
 import '../common/info_badge.dart';
@@ -22,6 +22,7 @@ import 'passive_disabled_banner.dart';
 
 class PassiveCard extends StatefulWidget {
   final CharacterPassive passive;
+  final Character? character;
 
   final ItemDefinition? sourceItem;
 
@@ -45,6 +46,7 @@ class PassiveCard extends StatefulWidget {
   const PassiveCard({
     super.key,
     required this.passive,
+    this.character,
     this.sourceItem,
     this.showPassiveBadge = false,
     this.onToggle,
@@ -67,7 +69,7 @@ class _PassiveCardState extends State<PassiveCard> {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = PassiveColors.sourceColor(passive);
+    final baseColor = PassiveColors.sourceColor(context, passive);
 
     final color = passive.enabled
         ? baseColor
@@ -107,6 +109,7 @@ class _PassiveCardState extends State<PassiveCard> {
               firstChild: const SizedBox(width: double.infinity),
               secondChild: _PassiveExpandedContent(
                 passive: passive,
+                character: widget.character,
                 color: color,
                 isItemPassive: widget.isItemPassive,
                 onToggle: widget.onToggle,
@@ -315,6 +318,7 @@ class _PassiveBadge extends StatelessWidget {
 
 class _PassiveExpandedContent extends StatelessWidget {
   final CharacterPassive passive;
+  final Character? character;
 
   final Color color;
 
@@ -330,6 +334,7 @@ class _PassiveExpandedContent extends StatelessWidget {
 
   const _PassiveExpandedContent({
     required this.passive,
+    required this.character,
     required this.color,
     required this.isItemPassive,
     required this.onToggle,
@@ -379,7 +384,8 @@ class _PassiveExpandedContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final effects = _buildEffects();
+    final effects = _buildEffects(context);
+    final advancedEffects = _buildAdvancedEffects();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -652,7 +658,7 @@ class _PassiveExpandedContent extends StatelessWidget {
           // ===================================================================
           // EFECTOS
           // ===================================================================
-          if (effects.isNotEmpty) ...[
+          if (effects.isNotEmpty || advancedEffects.isNotEmpty) ...[
             const SizedBox(height: 18),
 
             _SectionLabel(
@@ -663,13 +669,29 @@ class _PassiveExpandedContent extends StatelessWidget {
 
             const SizedBox(height: 9),
 
-            Wrap(spacing: 8, runSpacing: 8, children: effects),
+            if (effects.isNotEmpty)
+              Wrap(spacing: 8, runSpacing: 8, children: effects),
+
+            if (effects.isNotEmpty && advancedEffects.isNotEmpty)
+              const SizedBox(height: 10),
+
+            if (advancedEffects.isNotEmpty)
+              Column(
+                children: [
+                  for (var i = 0; i < advancedEffects.length; i++) ...[
+                    advancedEffects[i],
+                    if (i < advancedEffects.length - 1)
+                      const SizedBox(height: 8),
+                  ],
+                ],
+              ),
           ],
 
           // ===================================================================
           // SIN EFECTOS MECÁNICOS
           // ===================================================================
           if (effects.isEmpty &&
+              advancedEffects.isEmpty &&
               !passive.hasRoll &&
               passive.linkedEffects.isEmpty) ...[
             const SizedBox(height: 18),
@@ -852,7 +874,7 @@ class _PassiveExpandedContent extends StatelessWidget {
   // EFECTOS
   // ===========================================================================
 
-  List<Widget> _buildEffects() {
+  List<Widget> _buildEffects(BuildContext context) {
     final effects = <Widget>[];
 
     // CA
@@ -861,7 +883,7 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.shield_rounded,
           label: '${_formulaBonusText(passive.armorClassBonus)} CA',
-          color: PassiveColors.armorClass,
+          color: PassiveColors.armorClass(context),
         ),
       );
     }
@@ -872,7 +894,7 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.bolt_rounded,
           label: '${_formulaBonusText(passive.initiativeBonus)} iniciativa',
-          color: PassiveColors.initiative,
+          color: PassiveColors.initiative(context),
         ),
       );
     }
@@ -883,7 +905,7 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.directions_run_rounded,
           label: '${_formulaBonusText(passive.speedBonus)} pies',
-          color: PassiveColors.speed,
+          color: PassiveColors.speed(context),
         ),
       );
     }
@@ -894,7 +916,7 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.favorite_rounded,
           label: '${_formulaBonusText(passive.maxHealthBonus)} PG máx.',
-          color: PassiveColors.health,
+          color: PassiveColors.health(context),
         ),
       );
     }
@@ -905,7 +927,27 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.gps_fixed_rounded,
           label: '${_formulaBonusText(passive.attackBonus)} al golpe',
-          color: PassiveColors.attack,
+          color: PassiveColors.attack(context),
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // PUNTUACIONES BASE DE ATRIBUTO
+    // -------------------------------------------------------------------------
+
+    for (final entry in passive.abilityScoreBonuses.entries) {
+      final bonus = entry.value;
+
+      if (!bonus.hasValue) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: Icons.straighten_rounded,
+          label: '${_formulaBonusText(bonus)} ${entry.key.shortLabel} base',
+          color: PassiveColors.skill(context),
         ),
       );
     }
@@ -925,7 +967,7 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.psychology_rounded,
           label: '${_formulaBonusText(bonus)} ${entry.key.shortLabel}',
-          color: PassiveColors.skill,
+          color: PassiveColors.skill(context),
         ),
       );
     }
@@ -945,7 +987,7 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.bar_chart_rounded,
           label: '${_formulaBonusText(bonus)} ${entry.key.label}',
-          color: PassiveColors.skill,
+          color: PassiveColors.skill(context),
         ),
       );
     }
@@ -965,61 +1007,31 @@ class _PassiveExpandedContent extends StatelessWidget {
         PassiveEffectBadge(
           icon: Icons.security_rounded,
           label: '${_formulaBonusText(bonus)} Salv. ${entry.key.shortLabel}',
-          color: PassiveColors.savingThrow,
+          color: PassiveColors.savingThrow(context),
         ),
       );
     }
 
     // -------------------------------------------------------------------------
-    // DAÑO ADICIONAL
+    // CRÍTICO
     // -------------------------------------------------------------------------
 
-    for (final bonus in passive.damageBonuses) {
-      if (!bonus.hasDamage) {
-        continue;
-      }
-
+    if (passive.criticalMinimumNaturalRoll < 20) {
       effects.add(
         PassiveEffectBadge(
-          icon: Icons.local_fire_department_rounded,
-          label: _damageBonusLabel(bonus),
-          color: PassiveColors.attack,
+          icon: Icons.adjust_rounded,
+          label: 'Crítico ${passive.criticalMinimumNaturalRoll}–20',
+          color: PassiveColors.attack(context),
         ),
       );
     }
 
-    // -------------------------------------------------------------------------
-    // DAÑO CRÍTICO
-    // -------------------------------------------------------------------------
-
-    for (final bonus in passive.criticalDamageBonuses) {
-      if (!bonus.canTrigger) {
-        continue;
-      }
-
+    if (passive.empoweredCritical) {
       effects.add(
         PassiveEffectBadge(
-          icon: Icons.flash_on_rounded,
-          label: _criticalDamageBonusLabel(bonus),
-          color: PassiveColors.attack,
-        ),
-      );
-    }
-
-    // -------------------------------------------------------------------------
-    // CURACIÓN
-    // -------------------------------------------------------------------------
-
-    for (final bonus in passive.healingBonuses) {
-      if (!bonus.hasHealing) {
-        continue;
-      }
-
-      effects.add(
-        PassiveEffectBadge(
-          icon: Icons.favorite_rounded,
-          label: _healingBonusLabel(bonus),
-          color: PassiveColors.health,
+          icon: Icons.whatshot_rounded,
+          label: 'Crítico potenciado',
+          color: PassiveColors.attack(context),
         ),
       );
     }
@@ -1027,109 +1039,99 @@ class _PassiveExpandedContent extends StatelessWidget {
     return effects;
   }
 
+  List<Widget> _buildAdvancedEffects() {
+    final effects = <Widget>[];
+
+    for (final bonus in passive.damageBonuses) {
+      if (!bonus.hasDamage) {
+        continue;
+      }
+
+      effects.add(
+        _PassiveMechanicTile(
+          icon: Icons.local_fire_department_rounded,
+          title: 'Daño adicional',
+          text: PassiveDisplayFormatter.damageBonus(
+            bonus,
+            character: character,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    for (final bonus in passive.criticalDamageBonuses) {
+      if (!bonus.canTrigger) {
+        continue;
+      }
+
+      effects.add(
+        _PassiveMechanicTile(
+          icon: Icons.flash_on_rounded,
+          title: 'Daño crítico adicional',
+          text: PassiveDisplayFormatter.criticalDamageBonus(
+            bonus,
+            character: character,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    for (final bonus in passive.healingBonuses) {
+      if (!bonus.hasHealing) {
+        continue;
+      }
+
+      effects.add(
+        _PassiveMechanicTile(
+          icon: Icons.favorite_rounded,
+          title: 'Curación adicional',
+          text: PassiveDisplayFormatter.healingBonus(
+            bonus,
+            character: character,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    for (final modifier in passive.resourceModifiers) {
+      effects.add(
+        _PassiveMechanicTile(
+          icon: Icons.account_balance_wallet_rounded,
+          title: 'Modificador de recurso',
+          text: PassiveDisplayFormatter.resourceModifier(
+            modifier,
+            character: character,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    for (final trigger in passive.triggers) {
+      effects.add(
+        _PassiveMechanicTile(
+          icon: Icons.bolt_rounded,
+          title: 'Trigger',
+          text: PassiveDisplayFormatter.trigger(
+            trigger,
+            character: character,
+            linkedEffects: passive.linkedEffects,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    return effects;
+  }
+
+
   // ===========================================================================
   // HELPERS
   // ===========================================================================
-  static String _damageBonusLabel(DamageBonus bonus) {
-    final pieces = <String>[];
-
-    if (bonus.diceNotation.isNotEmpty) {
-      pieces.add(bonus.diceNotation);
-    }
-
-    for (final entry in bonus.abilityModifierMultipliers.entries) {
-      if (entry.value == 0) {
-        continue;
-      }
-
-      if (entry.value == 1) {
-        pieces.add(entry.key.shortLabel);
-      } else {
-        pieces.add('${entry.value}×${entry.key.shortLabel}');
-      }
-    }
-
-    if (bonus.flatBonus != 0) {
-      pieces.add(
-        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
-      );
-    }
-
-    var formula = pieces.isEmpty
-        ? 'Daño adicional'
-        : pieces.join(' + ').replaceAll('+ -', '- ');
-
-    if (bonus.damageType.trim().isNotEmpty) {
-      formula += ' ${bonus.damageType.trim()}';
-    }
-
-    if (bonus.name.trim().isNotEmpty) {
-      return '${bonus.name}: $formula';
-    }
-
-    return formula;
-  }
-
-  static String _criticalDamageBonusLabel(CriticalDamageBonus bonus) {
-    final pieces = <String>[];
-
-    if (bonus.diceNotation.isNotEmpty) {
-      pieces.add(bonus.diceNotation);
-    }
-
-    if (bonus.damageType.trim().isNotEmpty) {
-      pieces.add(bonus.damageType.trim());
-    }
-
-    if (!bonus.alwaysTriggers) {
-      pieces.add('${bonus.chancePercent}%');
-    }
-
-    final formula = pieces.isEmpty ? 'Daño crítico' : pieces.join(' · ');
-
-    if (bonus.name.trim().isNotEmpty) {
-      return '${bonus.name}: $formula';
-    }
-
-    return formula;
-  }
-
-  static String _healingBonusLabel(HealingBonus bonus) {
-    final pieces = <String>[];
-
-    if (bonus.diceNotation.isNotEmpty) {
-      pieces.add(bonus.diceNotation);
-    }
-
-    for (final entry in bonus.abilityModifierMultipliers.entries) {
-      if (entry.value == 0) {
-        continue;
-      }
-
-      if (entry.value == 1) {
-        pieces.add(entry.key.shortLabel);
-      } else {
-        pieces.add('${entry.value}×${entry.key.shortLabel}');
-      }
-    }
-
-    if (bonus.flatBonus != 0) {
-      pieces.add(
-        bonus.flatBonus > 0 ? '+${bonus.flatBonus}' : '${bonus.flatBonus}',
-      );
-    }
-
-    final formula = pieces.isEmpty
-        ? 'Curación adicional'
-        : pieces.join(' + ').replaceAll('+ -', '- ');
-
-    if (bonus.name.trim().isNotEmpty) {
-      return '${bonus.name}: $formula';
-    }
-
-    return formula;
-  }
-
   static String _bonusText(int value) {
     return value >= 0 ? '+$value' : '$value';
   }
@@ -1172,6 +1174,68 @@ class _PassiveExpandedContent extends StatelessWidget {
       case PassiveSourceType.custom:
         return Icons.tune_rounded;
     }
+  }
+}
+
+
+class _PassiveMechanicTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  final Color color;
+
+  const _PassiveMechanicTile({
+    required this.icon,
+    required this.title,
+    required this.text,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: PassiveColors.softBackground(
+          context,
+          color,
+          strength: 0.08,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  text,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

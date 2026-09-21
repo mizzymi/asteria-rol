@@ -194,6 +194,10 @@ class ActionResultViewData {
     return targets.fold<int>(0, (sum, target) => sum + target.healing);
   }
 
+  int get totalResolvedMitigation {
+    return targets.fold<int>(0, (sum, target) => sum + target.mitigation);
+  }
+
   int get totalResolvedEffects {
     return targets.fold<int>(0, (sum, target) => sum + target.effects.length);
   }
@@ -204,6 +208,10 @@ class ActionResultViewData {
 
   bool get hasHealing {
     return totalResolvedHealing > 0;
+  }
+
+  bool get hasMitigation {
+    return totalResolvedMitigation > 0;
   }
 
   bool get hasEffects {

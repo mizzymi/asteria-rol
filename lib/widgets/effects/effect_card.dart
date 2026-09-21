@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 
+import '../../models/character.dart';
 import '../../models/character_effect.dart';
+import '../../models/passive.dart';
 import '../../models/skill.dart';
+
+import '../../services/formula_display_formatter.dart';
+import '../../services/passive_display_formatter.dart';
+
+import '../passive_form/triggers/passive_trigger_labels.dart';
 
 import '../common/app_card.dart';
 import '../common/info_badge.dart';
 
 class EffectCard extends StatefulWidget {
   final CharacterEffect effect;
+  final Character? character;
 
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -21,6 +29,7 @@ class EffectCard extends StatefulWidget {
   const EffectCard({
     super.key,
     required this.effect,
+    this.character,
     this.onEdit,
     this.onDelete,
     this.onToggle,
@@ -40,25 +49,25 @@ class _EffectCardState extends State<EffectCard> {
 
   Color get color {
     if (!effect.enabled) {
-      return Colors.grey;
+      return Theme.of(context).colorScheme.onSurfaceVariant;
     }
 
     if (effect.expired) {
-      return Colors.grey;
+      return Theme.of(context).colorScheme.onSurfaceVariant;
     }
 
     switch (effect.type) {
       case CharacterEffectType.buff:
-        return const Color(0xFF4CAF7D);
+        return Theme.of(context).colorScheme.tertiary;
 
       case CharacterEffectType.debuff:
-        return const Color(0xFFE45D68);
+        return Theme.of(context).colorScheme.error;
 
       case CharacterEffectType.condition:
-        return const Color(0xFF9B6CE8);
+        return Theme.of(context).colorScheme.primary;
 
       case CharacterEffectType.neutral:
-        return const Color(0xFF5F8FD8);
+        return Theme.of(context).colorScheme.secondary;
     }
   }
 
@@ -90,6 +99,7 @@ class _EffectCardState extends State<EffectCard> {
             firstChild: const SizedBox(width: double.infinity),
             secondChild: _EffectExpandedContent(
               effect: effect,
+              character: widget.character,
               color: color,
               onEdit: widget.onEdit,
               onDelete: widget.onDelete,
@@ -263,6 +273,7 @@ class _EffectBadge extends StatelessWidget {
 
 class _EffectExpandedContent extends StatelessWidget {
   final CharacterEffect effect;
+  final Character? character;
   final Color color;
 
   final VoidCallback? onEdit;
@@ -276,6 +287,7 @@ class _EffectExpandedContent extends StatelessWidget {
 
   const _EffectExpandedContent({
     required this.effect,
+    required this.character,
     required this.color,
     required this.onEdit,
     required this.onDelete,
@@ -288,6 +300,7 @@ class _EffectExpandedContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bonuses = _buildBonuses();
+    final advancedBonuses = _buildAdvancedBonuses();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -378,7 +391,7 @@ class _EffectExpandedContent extends StatelessWidget {
           // ===================================================================
           // BONIFICACIONES
           // ===================================================================
-          if (bonuses.isNotEmpty) ...[
+          if (bonuses.isNotEmpty || advancedBonuses.isNotEmpty) ...[
             const SizedBox(height: 18),
 
             Text(
@@ -390,7 +403,22 @@ class _EffectExpandedContent extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            Wrap(spacing: 8, runSpacing: 8, children: bonuses),
+            if (bonuses.isNotEmpty)
+              Wrap(spacing: 8, runSpacing: 8, children: bonuses),
+
+            if (bonuses.isNotEmpty && advancedBonuses.isNotEmpty)
+              const SizedBox(height: 10),
+
+            if (advancedBonuses.isNotEmpty)
+              Column(
+                children: [
+                  for (var i = 0; i < advancedBonuses.length; i++) ...[
+                    advancedBonuses[i],
+                    if (i < advancedBonuses.length - 1)
+                      const SizedBox(height: 8),
+                  ],
+                ],
+              ),
           ],
 
           // ===================================================================
@@ -553,7 +581,158 @@ class _EffectExpandedContent extends StatelessWidget {
       );
     }
 
+    if (effect.criticalMinimumNaturalRoll < 20) {
+      result.add(
+        InfoBadge(
+          icon: Icons.adjust_rounded,
+          text: 'Crítico ${effect.criticalMinimumNaturalRoll}–20',
+          highlighted: true,
+        ),
+      );
+    }
+
+    if (effect.empoweredCritical) {
+      result.add(
+        const InfoBadge(
+          icon: Icons.whatshot_rounded,
+          text: 'Crítico potenciado',
+          highlighted: true,
+        ),
+      );
+    }
+
     return result;
+  }
+
+  List<Widget> _buildAdvancedBonuses() {
+    final result = <Widget>[];
+
+    for (final bonus in effect.damageBonuses) {
+      if (!bonus.hasDamage) {
+        continue;
+      }
+
+      result.add(
+        _EffectMechanicTile(
+          icon: Icons.local_fire_department_rounded,
+          title: 'Daño adicional',
+          text: PassiveDisplayFormatter.damageBonus(
+            bonus,
+            character: character,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    for (final bonus in effect.criticalDamageBonuses) {
+      if (!bonus.canTrigger) {
+        continue;
+      }
+
+      result.add(
+        _EffectMechanicTile(
+          icon: Icons.flash_on_rounded,
+          title: 'Daño crítico adicional',
+          text: PassiveDisplayFormatter.criticalDamageBonus(
+            bonus,
+            character: character,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    for (final bonus in effect.healingBonuses) {
+      if (!bonus.hasHealing) {
+        continue;
+      }
+
+      result.add(
+        _EffectMechanicTile(
+          icon: Icons.favorite_rounded,
+          title: 'Curación adicional',
+          text: PassiveDisplayFormatter.healingBonus(
+            bonus,
+            character: character,
+          ),
+          color: color,
+        ),
+      );
+    }
+
+    for (final trigger in effect.triggers) {
+      if (!trigger.hasMechanicalEffects) {
+        continue;
+      }
+
+      result.add(
+        _EffectMechanicTile(
+          icon: Icons.bolt_rounded,
+          title: 'Trigger · ${trigger.event.label}',
+          text: _triggerText(trigger),
+          color: color,
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  String _triggerText(CharacterEffectTrigger trigger) {
+    final pieces = <String>[];
+
+    pieces.add(
+      trigger.target == PassiveTriggerTarget.self
+          ? 'Objetivo: propio personaje'
+          : 'Objetivo: objetivo de la acción',
+    );
+
+    switch (trigger.usageLimit) {
+      case TriggerUsageLimit.unlimited:
+        break;
+      case TriggerUsageLimit.oncePerTurn:
+        pieces.add('Una vez por turno');
+        break;
+      case TriggerUsageLimit.oncePerRound:
+        pieces.add('Una vez por ronda');
+        break;
+    }
+
+    if (trigger.mode == PassiveTriggerMode.whileCondition) {
+      pieces.add('Mientras se cumpla');
+    }
+
+    if (trigger.hasCondition) {
+      final formatted = FormulaDisplayFormatter.format(
+        trigger.condition!.expression,
+        character,
+      );
+      pieces.add('Si: $formatted');
+    }
+
+    for (final bonus in trigger.damageBonuses) {
+      if (bonus.hasDamage) {
+        pieces.add(
+          'Daño: ${PassiveDisplayFormatter.damageBonus(bonus, character: character)}',
+        );
+      }
+    }
+
+    for (final bonus in trigger.healingBonuses) {
+      if (bonus.hasHealing) {
+        pieces.add(
+          'Curación: ${PassiveDisplayFormatter.healingBonus(bonus, character: character)}',
+        );
+      }
+    }
+
+    for (final linked in trigger.linkedEffects) {
+      final name = linked.name.trim();
+      pieces.add('Efecto: ${name.isEmpty ? 'Efecto vinculado' : name}');
+    }
+
+    return pieces.join(' · ');
   }
 
   static String _bonus(int value) {
@@ -586,5 +765,62 @@ IconData _effectIcon(CharacterEffect effect) {
 
     case CharacterEffectType.neutral:
       return Icons.auto_awesome_rounded;
+  }
+}
+
+class _EffectMechanicTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  final Color color;
+
+  const _EffectMechanicTile({
+    required this.icon,
+    required this.title,
+    required this.text,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  text,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

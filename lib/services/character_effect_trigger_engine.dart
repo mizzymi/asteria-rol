@@ -726,6 +726,40 @@ class CharacterEffectTriggerEngine {
       character.heal(amount, dispatchTriggers: true);
     }
 
+    // La mitigación de un efecto se resuelve sobre el daño que acaba de
+    // originar el evento. Como los triggers se despachan después de descontar
+    // los PV, restauramos únicamente la parte mitigada. En los flujos
+    // interactivos la reacción de habilidad ya se habrá resuelto antes.
+    final incomingDamage = eventVariables['damage'];
+
+    if (incomingDamage != null && incomingDamage > 0) {
+      var remainingMitigatable = incomingDamage.round();
+
+      for (final bonus in trigger.mitigationBonuses) {
+        if (remainingMitigatable <= 0) {
+          break;
+        }
+
+        final amount = _resolveHealingBonus(
+          bonus,
+          eventVariables: eventVariables,
+        );
+
+        if (amount <= 0) {
+          continue;
+        }
+
+        final mitigated = amount.clamp(0, remainingMitigatable).toInt();
+
+        if (mitigated <= 0) {
+          continue;
+        }
+
+        character.heal(mitigated, dispatchTriggers: false);
+        remainingMitigatable -= mitigated;
+      }
+    }
+
     for (final template in trigger.linkedEffects) {
       _applyLinkedEffect(sourceEffect, trigger, template);
     }

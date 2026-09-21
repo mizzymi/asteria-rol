@@ -64,17 +64,17 @@ class KnowledgeInsertBar extends StatelessWidget {
 
             // Opción fija para crear un nuevo saber
             items.add(
-              const PopupMenuItem<String>(
+              PopupMenuItem<String>(
                 value: '__create_new__',
                 child: Row(
                   children: [
-                    Icon(Icons.add_rounded, size: 16, color: Colors.blue),
+                    Icon(Icons.add_rounded, size: 16, color: Theme.of(context).colorScheme.secondary),
                     SizedBox(width: 8),
                     Text(
                       '¿Deseas crear uno nuevo?',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        color: Theme.of(context).colorScheme.secondary,
                       ),
                     ),
                   ],

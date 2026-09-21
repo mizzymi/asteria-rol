@@ -7,19 +7,20 @@ class AbilityActionBadge extends StatelessWidget {
 
   const AbilityActionBadge({super.key, required this.type});
 
-  Color _color() {
+  Color _color(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     switch (type) {
       case AbilityActionType.action:
-        return const Color(0xFF4D8FE8);
+        return scheme.secondary;
 
       case AbilityActionType.bonusAction:
-        return const Color(0xFFF29E4C);
+        return scheme.secondary;
 
       case AbilityActionType.reaction:
-        return const Color(0xFFE45AA7);
+        return scheme.tertiary;
 
       case AbilityActionType.passive:
-        return const Color(0xFF8B6FE8);
+        return scheme.primary;
     }
   }
 
@@ -41,7 +42,7 @@ class AbilityActionBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _color();
+    final color = _color(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),

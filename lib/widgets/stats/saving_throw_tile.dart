@@ -28,7 +28,7 @@ class SavingThrowTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = StatsColors.abilityColor(ability);
+    final color = StatsColors.abilityColor(context, ability);
 
     final proficient = character.isSavingThrowProficient(ability);
 
@@ -99,7 +99,7 @@ class SavingThrowTile extends StatelessWidget {
           const SizedBox(width: 8),
 
           Material(
-            color: Colors.transparent,
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
               onTap: onRoll,

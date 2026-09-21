@@ -77,7 +77,7 @@ class _RestScreenState extends State<RestScreen> {
                         isSelected
                             ? Icons.radio_button_checked_rounded
                             : Icons.radio_button_unchecked_rounded,
-                        color: isSelected ? colors.primary : Colors.grey,
+                        color: isSelected ? colors.primary : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -95,7 +95,7 @@ class _RestScreenState extends State<RestScreen> {
                               subtitle,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey[600],
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -195,7 +195,7 @@ class _RestScreenState extends State<RestScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Modificador de Constitución: ${conMod >= 0 ? '+$conMod' : conMod}',
-                      style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                     ),
                     const Divider(height: 24),
                     Text(
@@ -204,19 +204,19 @@ class _RestScreenState extends State<RestScreen> {
                           : _shortRestRule == 'all_available'
                           ? 'Regla: Gastar todos los dados ($maxHitDice × d8) + Constitución por cada dado.'
                           : 'Regla: Tirar nivel de dados ($maxHitDice × d8) + Constitución única al total.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
-                        color: Colors.blueGrey,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Modo de tirada: ${selectedDiceMode == ActionDiceMode.digital ? 'Digital' : 'Físico'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.indigo,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ],
@@ -356,7 +356,7 @@ class _RestScreenState extends State<RestScreen> {
         title: const Text('Descanso Largo'),
         content: const Text(
           'Un descanso largo es un período de descanso extendido de al menos 8 horas. '
-          'Esto restaurará tus Puntos de Golpe al máximo y recargará todas tus cargas y recursos.',
+          'Restaurará tus Puntos de Golpe al máximo. Los recursos solo se recuperarán si tienen activada esa opción; las cargas no se modifican.',
         ),
         actions: [
           TextButton(
@@ -376,14 +376,13 @@ class _RestScreenState extends State<RestScreen> {
     setState(() {
       character.currentHealth = character.maxHealth;
 
-      for (final passive in character.passives) {
-        if (passive.hasCharges) {
-          passive.currentCharges = passive.maxCharges;
-        }
-      }
-
       for (final resource in character.resources) {
-        resource.currentValue = resource.maxValue;
+        if (resource.hasMaximum && resource.restoreOnLongRest) {
+          character.restoreResourceFull(
+            resource.id,
+            dispatchTriggers: false,
+          );
+        }
       }
     });
 
@@ -393,7 +392,7 @@ class _RestScreenState extends State<RestScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          '¡Descanso largo completado! Salud y recursos restaurados.',
+          '¡Descanso largo completado! Salud restaurada y recursos configurados recuperados.',
         ),
       ),
     );
@@ -737,7 +736,7 @@ class _RestScreenState extends State<RestScreen> {
             eyebrow: 'Recuperación completa',
             title: 'Descanso largo',
             description:
-                'Una noche de descanso restaura tus PV al máximo y recupera las cargas y recursos del personaje.',
+                'Una noche de descanso restaura tus PV al máximo. Solo recupera los recursos que tengan activada esa opción y no modifica las cargas.',
             icon: Icons.bedtime_rounded,
             accent: colors.primary,
             accentContainer: colors.primaryContainer,
@@ -751,13 +750,8 @@ class _RestScreenState extends State<RestScreen> {
               ),
               _buildBenefitChip(
                 context,
-                icon: Icons.battery_charging_full_rounded,
-                label: 'Cargas',
-              ),
-              _buildBenefitChip(
-                context,
                 icon: Icons.auto_awesome_rounded,
-                label: 'Recursos',
+                label: 'Recursos marcados',
               ),
               _buildBenefitChip(
                 context,

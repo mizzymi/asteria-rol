@@ -305,8 +305,8 @@ class _PetFormScreenState extends State<PetFormScreen> {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: 0.42),
+                                Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                                Theme.of(context).colorScheme.scrim.withValues(alpha: 0.42),
                               ],
                             ),
                           ),
@@ -322,7 +322,7 @@ class _PetFormScreenState extends State<PetFormScreen> {
                               child: Text(
                                 _avatarPath.isEmpty ? 'Añadir imagen' : 'Cambiar imagen',
                                 style: theme.textTheme.titleMedium?.copyWith(
-                                  color: Colors.white,
+                                  color: Theme.of(context).colorScheme.onInverseSurface,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -483,7 +483,7 @@ class _PetFormScreenState extends State<PetFormScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.4)),
+        border: Border.all(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -501,7 +501,7 @@ class _PetFormScreenState extends State<PetFormScreen> {
               ),
               Text(
                 modText,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ],
           ),

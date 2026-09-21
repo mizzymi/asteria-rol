@@ -34,7 +34,7 @@ class CombatWeaponCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final color = CharacterHomeColors.combat;
+    final color = CharacterHomeColors.combat(context);
 
     final background = CharacterHomeColors.tintedSurface(
       context,

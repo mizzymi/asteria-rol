@@ -31,7 +31,7 @@ class _JournalEntryCardState extends State<JournalEntryCard> {
 
   @override
   Widget build(BuildContext context) {
-    final color = JournalColors.color(entry.type);
+    final color = JournalColors.color(context, entry.type);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 12),

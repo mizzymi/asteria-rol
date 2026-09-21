@@ -20,7 +20,7 @@ class CombatHealthCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final color = CharacterHomeColors.health;
+    final color = CharacterHomeColors.health(context);
 
     final progress = character.maxHealth > 0
         ? (character.currentHealth / character.maxHealth).clamp(0.0, 1.0)

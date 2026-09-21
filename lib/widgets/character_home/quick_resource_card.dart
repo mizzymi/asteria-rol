@@ -39,21 +39,21 @@ class QuickResourceCard extends StatelessWidget {
 
     final background = CharacterHomeColors.tintedSurface(
       context,
-      resource.color,
+      resource.colorFor(context),
       lightStrength: 0.14,
       darkStrength: 0.22,
     );
 
     final iconBackground = CharacterHomeColors.tintedSurface(
       context,
-      resource.color,
+      resource.colorFor(context),
       lightStrength: 0.26,
       darkStrength: 0.32,
     );
 
     final borderColor = CharacterHomeColors.tintedBorder(
       context,
-      resource.color,
+      resource.colorFor(context),
       lightAlpha: 0.22,
       darkAlpha: 0.36,
     );
@@ -84,7 +84,7 @@ class QuickResourceCard extends StatelessWidget {
                       color: iconBackground,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(resource.icon, size: 20, color: resource.color),
+                    child: Icon(resource.icon, size: 20, color: resource.colorFor(context)),
                   ),
 
                   const SizedBox(width: 10),
@@ -112,7 +112,7 @@ class QuickResourceCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleLarge?.copyWith(
-                            color: resource.color,
+                            color: resource.colorFor(context),
                             fontWeight: FontWeight.w900,
                             height: 1,
                           ),
@@ -130,7 +130,7 @@ class QuickResourceCard extends StatelessWidget {
                     width: 26,
                     height: 26,
                     decoration: BoxDecoration(
-                      color: resource.color.withValues(
+                      color: resource.colorFor(context).withValues(
                         alpha: theme.brightness == Brightness.dark
                             ? 0.16
                             : 0.10,
@@ -140,7 +140,7 @@ class QuickResourceCard extends StatelessWidget {
                     child: Icon(
                       Icons.edit_rounded,
                       size: 13,
-                      color: resource.color,
+                      color: resource.colorFor(context),
                     ),
                   ),
                 ],
@@ -157,7 +157,7 @@ class QuickResourceCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: progress.toDouble(),
                     minHeight: 5,
-                    color: resource.color,
+                    color: resource.colorFor(context),
                     backgroundColor: colors.surfaceContainerHighest,
                   ),
                 ),

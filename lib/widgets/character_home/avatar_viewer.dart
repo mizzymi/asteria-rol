@@ -27,7 +27,7 @@ class AvatarViewer extends StatelessWidget {
       context,
       PageRouteBuilder(
         opaque: false,
-        barrierColor: Colors.black.withValues(alpha: 0.92),
+        barrierColor: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.92),
         pageBuilder: (_, _, _) {
           return AvatarViewer(imagePath: imagePath, heroTag: heroTag);
         },
@@ -40,7 +40,7 @@ class AvatarViewer extends StatelessWidget {
     final file = File(imagePath);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Theme.of(context).colorScheme.scrim,
       body: SafeArea(
         child: Stack(
           children: [

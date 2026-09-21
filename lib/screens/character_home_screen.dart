@@ -17,6 +17,7 @@ import '../widgets/character_home/active_effect_chip.dart';
 import '../widgets/character_home/resource_edit_dialog.dart';
 import '../widgets/character_home/avatar_viewer.dart';
 import '../widgets/character_home/character_header_card.dart';
+import '../widgets/character_home/character_home_header_background.dart';
 import '../widgets/character_home/character_home_colors.dart';
 import '../widgets/character_home/combat_stat_card.dart';
 import '../widgets/character_home/health_edit_dialog.dart';
@@ -468,7 +469,6 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
     final quickResources = character.resources
         .where((resource) => resource.visible)
-        .take(2)
         .toList(growable: false);
 
     final homeEffectStacks = stackedEnabledEffects
@@ -480,13 +480,14 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
     return Scaffold(
       backgroundColor: colors.surface,
+      extendBodyBehindAppBar: true,
 
       // =========================================================================
       // APP BAR
       // =========================================================================
       appBar: AppBar(
-        backgroundColor: colors.surface,
-        surfaceTintColor: Colors.transparent,
+        backgroundColor: colors.surface.withValues(alpha: 0),
+        surfaceTintColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
         elevation: 0,
 
         title: InkWell(
@@ -521,10 +522,18 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
       // =========================================================================
       // BODY
       // =========================================================================
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 40),
-          children: [
+      body: Stack(
+        children: [
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: CharacterHomeHeaderBackground(height: 320),
+          ),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 84, 18, 40),
+              children: [
             // ===================================================================
             // PERSONAJE
             // ===================================================================
@@ -549,7 +558,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                     icon: Icons.favorite_rounded,
                     title: 'PG',
                     value: '${character.currentHealth}/${character.maxHealth}',
-                    color: CharacterHomeColors.health,
+                    color: CharacterHomeColors.health(context),
                   ),
                 ),
 
@@ -560,7 +569,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                     icon: Icons.shield_rounded,
                     title: 'CA',
                     value: '${character.calculatedArmorClass}',
-                    color: CharacterHomeColors.armor,
+                    color: CharacterHomeColors.armor(context),
                   ),
                 ),
 
@@ -571,7 +580,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                     icon: Icons.bolt_rounded,
                     title: 'INI',
                     value: _signed(character.initiative),
-                    color: CharacterHomeColors.initiative,
+                    color: CharacterHomeColors.initiative(context),
                   ),
                 ),
 
@@ -582,7 +591,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                     icon: Icons.directions_run_rounded,
                     title: 'VEL',
                     value: '${character.totalSpeed}',
-                    color: CharacterHomeColors.speed,
+                    color: CharacterHomeColors.speed(context),
                   ),
                 ),
               ],
@@ -614,43 +623,31 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
               const SizedBox(height: 8),
 
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: QuickResourceCard(
-                      resource: quickResources[0],
-                      effectiveCurrent: character.resourceEffectiveCurrent(
-                        quickResources[0],
-                      ),
-                      effectiveMax: character.resourceEffectiveMax(
-                        quickResources[0],
-                      ),
-                      onTap: () {
-                        editResourceQuick(quickResources[0]);
-                      },
-                    ),
-                  ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const spacing = 8.0;
+                  final cardWidth = (constraints.maxWidth - spacing) / 2;
 
-                  if (quickResources.length > 1) ...[
-                    const SizedBox(width: 8),
-
-                    Expanded(
-                      child: QuickResourceCard(
-                        resource: quickResources[1],
-                        effectiveCurrent: character.resourceEffectiveCurrent(
-                          quickResources[1],
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: quickResources.map((resource) {
+                      return SizedBox(
+                        width: cardWidth,
+                        child: QuickResourceCard(
+                          resource: resource,
+                          effectiveCurrent: character.resourceEffectiveCurrent(
+                            resource,
+                          ),
+                          effectiveMax: character.resourceEffectiveMax(resource),
+                          onTap: () {
+                            editResourceQuick(resource);
+                          },
                         ),
-                        effectiveMax: character.resourceEffectiveMax(
-                          quickResources[1],
-                        ),
-                        onTap: () {
-                          editResourceQuick(quickResources[1]);
-                        },
-                      ),
-                    ),
-                  ],
-                ],
+                      );
+                    }).toList(growable: false),
+                  );
+                },
               ),
             ],
 
@@ -782,8 +779,10 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
                 openScreen(KnowledgeScreen(character: character));
               },
             ),
-          ],
-        ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

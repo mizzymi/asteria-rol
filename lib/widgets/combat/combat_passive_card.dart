@@ -28,7 +28,7 @@ class CombatPassiveCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final color = CharacterHomeColors.effects;
+    final color = CharacterHomeColors.effects(context);
 
     final background = CharacterHomeColors.tintedSurface(
       context,
@@ -114,7 +114,7 @@ class CombatPassiveCard extends StatelessWidget {
               Icon(
                 Icons.check_circle_rounded,
                 size: 19,
-                color: CharacterHomeColors.notes,
+                color: CharacterHomeColors.notes(context),
               ),
             ],
           ),

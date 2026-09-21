@@ -28,22 +28,27 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
 
   bool hasMaximum = true;
 
+  bool restoreOnLongRest = false;
+
   bool get editing => widget.resource != null;
 
   // ===========================================================================
   // COLORES
   // ===========================================================================
 
-  static const availableColors = [
-    Color(0xFF8B5CF6),
-    Color(0xFF4D8FE8),
-    Color(0xFFE84A8A),
-    Color(0xFFF29E4C),
-    Color(0xFF55B96B),
-    Color(0xFF42B8C8),
-    Color(0xFFE45AA7),
-    Color(0xFFE85D5D),
-  ];
+  List<Color> get availableColors {
+    final scheme = Theme.of(context).colorScheme;
+    return [
+      scheme.primary,
+      scheme.secondary,
+      scheme.tertiary,
+      scheme.error,
+      scheme.primaryContainer,
+      scheme.secondaryContainer,
+      scheme.tertiaryContainer,
+      scheme.onSurfaceVariant,
+    ];
+  }
 
   // ===========================================================================
   // ICONOS
@@ -80,13 +85,15 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
 
     currentValue = resource?.currentValue ?? 1;
 
-    colorValue = resource?.colorValue ?? availableColors.first.toARGB32();
+    colorValue = resource?.colorValue ?? 0;
 
     selectedIcon = resource?.icon ?? availableIcons.first;
 
     visible = resource?.visible ?? true;
 
     hasMaximum = resource?.hasMaximum ?? true;
+
+    restoreOnLongRest = resource?.restoreOnLongRest ?? false;
   }
 
   // ===========================================================================
@@ -122,6 +129,8 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
       colorValue: colorValue,
 
       visible: visible,
+
+      restoreOnLongRest: hasMaximum && restoreOnLongRest,
     );
 
     resource.normalize();
@@ -179,7 +188,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = Color(colorValue);
+    final color = availableColors[colorValue.abs() % availableColors.length];
 
     final max = int.tryParse(maxController.text) ?? 1;
 
@@ -305,6 +314,10 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                   setState(() {
                     hasMaximum = !value;
 
+                    if (!hasMaximum) {
+                      restoreOnLongRest = false;
+                    }
+
                     if (hasMaximum) {
                       var max = int.tryParse(maxController.text) ?? 1;
 
@@ -364,6 +377,25 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                       icon: const Icon(Icons.add_rounded),
                     ),
                   ],
+                ),
+              ],
+
+              if (hasMaximum) ...[
+                const SizedBox(height: 18),
+
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: restoreOnLongRest,
+                  title: const Text('Recuperar al máximo en descanso largo'),
+                  subtitle: const Text(
+                    'Si está activado, este recurso se rellenará al completar un descanso largo. Por defecto no se recupera.',
+                  ),
+                  secondary: const Icon(Icons.bedtime_rounded),
+                  onChanged: (value) {
+                    setState(() {
+                      restoreOnLongRest = value;
+                    });
+                  },
                 ),
               ],
 
@@ -429,14 +461,16 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: availableColors.map((option) {
-                  final selected = option.toARGB32() == colorValue;
+                children: availableColors.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final option = entry.value;
+                  final selected = index == colorValue.abs() % availableColors.length;
 
                   return InkWell(
                     borderRadius: BorderRadius.circular(50),
                     onTap: () {
                       setState(() {
-                        colorValue = option.toARGB32();
+                        colorValue = index;
                       });
                     },
                     child: Container(
@@ -448,12 +482,12 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                         border: Border.all(
                           color: selected
                               ? theme.colorScheme.onSurface
-                              : Colors.transparent,
+                              : Theme.of(context).colorScheme.surface.withValues(alpha: 0),
                           width: 3,
                         ),
                       ),
                       child: selected
-                          ? const Icon(Icons.check_rounded, color: Colors.white)
+                          ? Icon(Icons.check_rounded, color: Theme.of(context).colorScheme.onInverseSurface)
                           : null,
                     ),
                   );
@@ -503,7 +537,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                                   .withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: selected ? color : Colors.transparent,
+                          color: selected ? color : Theme.of(context).colorScheme.surface.withValues(alpha: 0),
                         ),
                       ),
                       child: Icon(

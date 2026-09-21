@@ -344,10 +344,10 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
                           backgroundColor: Theme.of(
                             context,
                           ).colorScheme.primary,
-                          child: const Icon(
+                          child: Icon(
                             Icons.camera_alt_rounded,
                             size: 19,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onInverseSurface,
                           ),
                         ),
                       ),

@@ -96,11 +96,11 @@ class _HealthEditDialogState extends State<HealthEditDialog> {
 
   Color get changeColor {
     if (receivedHealing) {
-      return CharacterHomeColors.speed;
+      return CharacterHomeColors.speed(context);
     }
 
     if (receivedDamage) {
-      return CharacterHomeColors.health;
+      return CharacterHomeColors.health(context);
     }
 
     return Theme.of(context).colorScheme.onSurfaceVariant;
@@ -209,7 +209,7 @@ class _HealthEditDialogState extends State<HealthEditDialog> {
                     decoration: BoxDecoration(
                       color: CharacterHomeColors.tintedSurface(
                         context,
-                        CharacterHomeColors.health,
+                        CharacterHomeColors.health(context),
                         lightStrength: 0.14,
                         darkStrength: 0.20,
                       ),
@@ -217,9 +217,9 @@ class _HealthEditDialogState extends State<HealthEditDialog> {
                       borderRadius: BorderRadius.circular(15),
                     ),
 
-                    child: const Icon(
+                    child: Icon(
                       Icons.favorite_rounded,
-                      color: CharacterHomeColors.health,
+                      color: CharacterHomeColors.health(context),
                     ),
                   ),
 
@@ -277,7 +277,7 @@ class _HealthEditDialogState extends State<HealthEditDialog> {
                 decoration: BoxDecoration(
                   color: CharacterHomeColors.tintedSurface(
                     context,
-                    CharacterHomeColors.health,
+                    CharacterHomeColors.health(context),
                     lightStrength: 0.08,
                     darkStrength: 0.13,
                   ),
@@ -287,7 +287,7 @@ class _HealthEditDialogState extends State<HealthEditDialog> {
                   border: Border.all(
                     color: CharacterHomeColors.tintedBorder(
                       context,
-                      CharacterHomeColors.health,
+                      CharacterHomeColors.health(context),
                     ),
                   ),
                 ),
@@ -316,8 +316,8 @@ class _HealthEditDialogState extends State<HealthEditDialog> {
                           TextSpan(
                             text: '${widget.currentHealth}',
 
-                            style: const TextStyle(
-                              color: CharacterHomeColors.health,
+                            style: TextStyle(
+                              color: CharacterHomeColors.health(context),
                             ),
                           ),
 
@@ -352,7 +352,7 @@ class _HealthEditDialogState extends State<HealthEditDialog> {
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
 
-                  color: CharacterHomeColors.health,
+                  color: CharacterHomeColors.health(context),
                 ),
 
                 decoration: InputDecoration(

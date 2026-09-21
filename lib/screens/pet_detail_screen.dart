@@ -337,9 +337,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                 ),
                                 if (dialogDamages.length > 1)
                                   IconButton(
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.delete_outline_rounded,
-                                      color: Colors.red,
+                                      color: Theme.of(context).colorScheme.error,
                                     ),
                                     onPressed: () {
                                       setDialogState(() {
@@ -578,10 +578,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
     await showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: .94),
+      barrierColor: Theme.of(context).colorScheme.scrim.withValues(alpha: .94),
       builder: (dialogContext) {
         return Dialog.fullscreen(
-          backgroundColor: Colors.black,
+          backgroundColor: Theme.of(context).colorScheme.scrim,
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -600,8 +600,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 right: 12,
                 child: IconButton.filled(
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.black.withValues(alpha: .55),
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.scrim.withValues(alpha: .55),
+                    foregroundColor: Theme.of(context).colorScheme.onInverseSurface,
                   ),
                   tooltip: 'Cerrar',
                   onPressed: () => Navigator.pop(dialogContext),
@@ -615,7 +615,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 child: Text(
                   'Pellizca para ampliar · arrastra para moverte',
                   style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white70,
+                    color: Theme.of(context).colorScheme.onInverseSurface.withValues(alpha: 0.70),
                   ),
                 ),
               ),
@@ -941,7 +941,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withValues(alpha: .72)],
+                  colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: .72)],
                   stops: const [.35, 1],
                 ),
               ),
@@ -957,13 +957,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 if (pet.species.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: .28), borderRadius: BorderRadius.circular(999)),
-                    child: Text(pet.species, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.scrim.withValues(alpha: .28), borderRadius: BorderRadius.circular(999)),
+                    child: Text(pet.species, style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface, fontWeight: FontWeight.w700)),
                   ),
                 const SizedBox(height: 8),
                 Text(
                   pet.name,
-                  style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
+                  style: theme.textTheme.headlineMedium?.copyWith(color: Theme.of(context).colorScheme.onInverseSurface, fontWeight: FontWeight.w900),
                 ),
               ],
             ),
@@ -975,17 +975,17 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: .45),
+                  color: Theme.of(context).colorScheme.scrim.withValues(alpha: .45),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.zoom_out_map_rounded, color: Colors.white, size: 17),
+                    Icon(Icons.zoom_out_map_rounded, color: Theme.of(context).colorScheme.onInverseSurface, size: 17),
                     SizedBox(width: 6),
                     Text(
                       'Ampliar',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface, fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
@@ -1123,10 +1123,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           children: [
             Text(
               attr.$1,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 2),
@@ -1136,7 +1136,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             ),
             Text(
               modText,
-              style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         );

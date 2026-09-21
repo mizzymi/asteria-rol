@@ -467,8 +467,8 @@ class _CampaignCard extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: .72),
+                          Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                          Theme.of(context).colorScheme.scrim.withValues(alpha: .72),
                         ],
                       ),
                     ),
@@ -482,7 +482,7 @@ class _CampaignCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onInverseSurface,
                         fontWeight: FontWeight.w900,
                       ),
                     ),

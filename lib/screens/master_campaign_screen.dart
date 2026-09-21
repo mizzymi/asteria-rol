@@ -267,8 +267,8 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: .8),
+                        Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                        Theme.of(context).colorScheme.scrim.withValues(alpha: .8),
                       ],
                     ),
                   ),
@@ -283,7 +283,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                       Text(
                         campaign.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onInverseSurface,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -293,7 +293,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                           campaign.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white70),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface.withValues(alpha: 0.70)),
                         ),
                       ],
                     ],

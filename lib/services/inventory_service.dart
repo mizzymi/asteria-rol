@@ -53,13 +53,31 @@ class InventoryService {
     if (index < 0) return false;
 
     final item = character.inventoryItems[index];
-    if (item.quantity <= quantity) {
+    final removeWholeStack = item.quantity <= quantity;
+
+    if (removeWholeStack) {
       if (item.equipped) {
         character.unequipInventoryItem(item);
       }
       character.inventoryItems.removeAt(index);
     } else {
       item.quantity -= quantity;
+    }
+
+    // Compatibilidad defensiva con personajes que aún tengan datos legacy en
+    // memoria. Esa lista ya no se persiste, pero mantenerla sincronizada evita
+    // que otro flujo antiguo pueda volver a materializar el objeto antes del
+    // siguiente guardado.
+    final legacyIndex = character.items.indexWhere(
+      (legacyItem) => legacyItem.id == inventoryItemId,
+    );
+    if (legacyIndex >= 0) {
+      final legacyItem = character.items[legacyIndex];
+      if (removeWholeStack || legacyItem.quantity <= quantity) {
+        character.items.removeAt(legacyIndex);
+      } else {
+        legacyItem.quantity -= quantity;
+      }
     }
 
     return true;

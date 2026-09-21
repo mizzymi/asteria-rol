@@ -414,6 +414,10 @@ class ActionResolver {
         .where((part) => part.request.effectType == AbilityEffectType.healing)
         .fold<int>(0, (sum, part) => sum + part.total);
 
+    final resolvedMitigation = resolvedDiceResult.parts
+        .where((part) => part.request.effectType == AbilityEffectType.mitigation)
+        .fold<int>(0, (sum, part) => sum + part.total);
+
     return ActionTargetResult(
       target: target,
       diceResult: resolvedDiceResult,
@@ -422,6 +426,7 @@ class ActionResolver {
       effects: List.unmodifiable(effects),
       resolvedDamage: resolvedDamage,
       resolvedHealing: resolvedHealing,
+      resolvedMitigation: resolvedMitigation,
       auxiliary: auxiliary,
     );
   }
@@ -1112,6 +1117,10 @@ class ActionResolver {
       );
 
       for (final effect in prepared.plan.content.effects) {
+        if (!_abilityEffectEnabledForContext(effect, prepared.context)) {
+          continue;
+        }
+
         if (!_effectNeedsSavingThrowForTarget(
           prepared: prepared,
           effect: effect,
@@ -1381,7 +1390,7 @@ class ActionResolver {
     return total;
   }
 
-  ({int damage, int healing}) _resolveTargetFinalValues({
+  ({int damage, int healing, int mitigation}) _resolveTargetFinalValues({
     required ActionTarget target,
     required ActionDiceResult diceResult,
     required List<ActionSavingThrowResult> savingThrowResults,
@@ -1397,6 +1406,12 @@ class ActionResolver {
         target: target,
         diceResult: diceResult,
         effectType: AbilityEffectType.healing,
+        savingThrowResults: savingThrowResults,
+      ),
+      mitigation: _resolveTargetTotalForEffectType(
+        target: target,
+        diceResult: diceResult,
+        effectType: AbilityEffectType.mitigation,
         savingThrowResults: savingThrowResults,
       ),
     );
@@ -1494,6 +1509,8 @@ class ActionResolver {
           resolvedDamage: finalValues.damage,
 
           resolvedHealing: finalValues.healing,
+
+          resolvedMitigation: finalValues.mitigation,
         ),
       );
     }
@@ -1598,6 +1615,8 @@ class ActionResolver {
           resolvedDamage: finalValues.damage,
 
           resolvedHealing: finalValues.healing,
+
+          resolvedMitigation: finalValues.mitigation,
         ),
       );
     }
@@ -2023,8 +2042,9 @@ class ActionResolver {
 
       selected = <AbilityEffectPart>[
         for (final effect in plan.content.effects)
-          for (final part in effect.parts)
-            if (_partCanApplyToAnyTarget(
+          if (_abilityEffectEnabledForContext(effect, context))
+            for (final part in effect.parts)
+              if (_partCanApplyToAnyTarget(
               plan: plan,
               context: context,
               part: part,
@@ -2164,6 +2184,10 @@ class ActionResolver {
     }
 
     for (final effect in plan.content.effects) {
+      if (!_abilityEffectEnabledForContext(effect, context)) {
+        continue;
+      }
+
       for (final part in effect.parts) {
         if (!selected.contains(part)) {
           continue;
@@ -3024,6 +3048,10 @@ class ActionResolver {
                 .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
                 .toList(),
 
+            mitigationBonuses: trigger.mitigationBonuses
+                .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+                .toList(),
+
             linkedEffects: trigger.linkedEffects
                 .map((effect) => CharacterEffect.fromMap(effect.toMap()))
                 .toList(),
@@ -3554,6 +3582,17 @@ class ActionResolver {
     );
   }
 
+  bool _abilityEffectEnabledForContext(
+    AbilityEffect effect,
+    ActionResolutionContext context,
+  ) {
+    if (!effect.onlyWhenDamageFullyMitigated) {
+      return true;
+    }
+
+    return context.externalFlag('damage_fully_mitigated') == true;
+  }
+
   List<AbilityEffectPart> selectedParts({
     required ActionResolutionPlan plan,
     required ActionResolutionContext context,
@@ -3563,6 +3602,10 @@ class ActionResolver {
     final result = <AbilityEffectPart>[];
 
     for (final effect in plan.content.effects) {
+      if (!_abilityEffectEnabledForContext(effect, context)) {
+        continue;
+      }
+
       for (final part in effect.parts) {
         // =======================================================================
         // 1. CONDICIÓN + OPCIONALIDAD
@@ -3939,6 +3982,10 @@ class ActionResolver {
     final result = <AbilityEffectPart>[];
 
     for (final effect in plan.content.effects) {
+      if (!_abilityEffectEnabledForContext(effect, context)) {
+        continue;
+      }
+
       for (final part in effect.parts) {
         if (!part.optional) {
           continue;
@@ -4270,6 +4317,10 @@ class ActionResolver {
     // ===========================================================================
 
     for (final effect in plan.content.effects) {
+      if (!_abilityEffectEnabledForContext(effect, context)) {
+        continue;
+      }
+
       for (final part in effect.parts) {
         if (!part.optional) {
           continue;

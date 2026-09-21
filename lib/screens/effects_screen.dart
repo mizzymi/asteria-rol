@@ -242,6 +242,7 @@ class _EffectsScreenState extends State<EffectsScreen> {
 
                 return EffectCard(
                   effect: effect,
+                  character: character,
 
                   onToggle: (value) {
                     toggleEffect(effect, value);

@@ -47,7 +47,7 @@ class _LibraryItemCardState extends State<LibraryItemCard> {
   Widget build(BuildContext context) {
     final item = widget.entry.definition;
 
-    final color = ItemTypeColors.of(item.type);
+    final color = ItemTypeColors.of(context, item.type);
 
     final theme = Theme.of(context);
 
@@ -534,10 +534,10 @@ class _DefinitionImage extends StatelessWidget {
       context,
       PageRouteBuilder(
         opaque: false,
-        barrierColor: Colors.black.withValues(alpha: 0.92),
+        barrierColor: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.92),
         pageBuilder: (_, _, _) {
           return Scaffold(
-            backgroundColor: Colors.black,
+            backgroundColor: Theme.of(context).colorScheme.scrim,
             body: SafeArea(
               child: Stack(
                 children: [
@@ -576,7 +576,7 @@ class _DefinitionImage extends StatelessWidget {
                       definition.name,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onInverseSurface,
                         fontWeight: FontWeight.w900,
                       ),
                     ),

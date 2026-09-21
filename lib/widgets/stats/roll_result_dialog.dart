@@ -35,7 +35,7 @@ class RollResultDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = StatsColors.abilityColor(ability);
+    final color = StatsColors.abilityColor(context, ability);
 
     final failure = naturalRoll == 1;
 

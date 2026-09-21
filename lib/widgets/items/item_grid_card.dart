@@ -26,7 +26,7 @@ class ItemGridCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = ItemTypeColors.of(definition.type);
+    final color = ItemTypeColors.of(context, definition.type);
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
@@ -51,8 +51,8 @@ class ItemGridCard extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.72),
+                        Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                        Theme.of(context).colorScheme.scrim.withValues(alpha: 0.72),
                       ],
                     ),
                   ),
@@ -66,13 +66,13 @@ class ItemGridCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.72),
+                  color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.72),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '×${formatThousands(inventoryItem.quantity)}',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onInverseSurface,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -90,10 +90,10 @@ class ItemGridCard extends StatelessWidget {
                     color: color,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.check_rounded,
                     size: 18,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onInverseSurface,
                   ),
                 ),
               ),

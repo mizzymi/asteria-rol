@@ -25,7 +25,7 @@ class ItemImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = ItemTypeColors.of(definition.type);
+    final color = ItemTypeColors.of(context, definition.type);
 
     final imagePath = definition.imagePath;
     final hasImage =

@@ -72,7 +72,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           icon: Icons.bar_chart_rounded,
           title: 'Stats',
           subtitle: 'Atributos, salvaciones y habilidades',
-          color: CharacterHomeColors.stats,
+          color: CharacterHomeColors.stats(context),
           onTap: onStats,
         ),
 
@@ -85,7 +85,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           icon: Icons.flash_on_rounded,
           title: 'Habilidades',
           subtitle: 'Ataques, poderes y técnicas',
-          color: CharacterHomeColors.abilities,
+          color: CharacterHomeColors.abilities(context),
           onTap: onAbilities,
         ),
 
@@ -102,7 +102,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
               : activeEffectsCount == 1
               ? '1 efecto activo'
               : '$activeEffectsCount efectos activos',
-          color: CharacterHomeColors.effects,
+          color: CharacterHomeColors.effects(context),
           onTap: onEffects,
         ),
 
@@ -119,7 +119,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
               : counterCount == 1
               ? '1 contador configurado'
               : '$counterCount contadores configurados',
-          color: CharacterHomeColors.counters,
+          color: CharacterHomeColors.counters(context),
           onTap: onCounters,
         ),
 
@@ -132,7 +132,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           icon: Icons.inventory_2_rounded,
           title: 'Objetos',
           subtitle: 'Inventario y equipo',
-          color: CharacterHomeColors.items,
+          color: CharacterHomeColors.items(context),
           onTap: onItems,
         ),
 
@@ -145,7 +145,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           icon: Icons.menu_book_rounded,
           title: 'Historia',
           subtitle: 'Trasfondo, personalidad y objetivos',
-          color: CharacterHomeColors.story,
+          color: CharacterHomeColors.story(context),
           onTap: onStory,
         ),
 
@@ -158,7 +158,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           icon: Icons.history_edu_rounded,
           title: 'Diario',
           subtitle: 'Sesiones, misiones y acontecimientos',
-          color: CharacterHomeColors.journal,
+          color: CharacterHomeColors.journal(context),
           onTap: onJournal,
         ),
 
@@ -175,7 +175,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
               : resourceCount == 1
               ? '1 recurso configurado'
               : '$resourceCount recursos configurados',
-          color: CharacterHomeColors.resources,
+          color: CharacterHomeColors.resources(context),
           onTap: onResources,
         ),
 
@@ -188,7 +188,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           icon: Icons.casino_rounded,
           title: 'Dados',
           subtitle: 'd4, d6, d8, d10, d12, d20 y d100',
-          color: CharacterHomeColors.dice,
+          color: CharacterHomeColors.dice(context),
           onTap: onDice,
         ),
 
@@ -201,7 +201,7 @@ class CharacterHomeNavigationSection extends StatelessWidget {
           icon: Icons.auto_stories_rounded,
           title: 'Compendio de Saberes',
           subtitle: 'Libros, recetas, historia y conocimientos',
-          color: CharacterHomeColors.knowledge,
+          color: CharacterHomeColors.knowledge(context),
           onTap: onKnowledge,
         ),
       ],

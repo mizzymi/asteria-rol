@@ -58,12 +58,12 @@ class AbilityImageSelector extends StatelessWidget {
                       ),
                     ),
                   if (exists)
-                    const DecoratedBox(
+                    DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Color(0x99000000)],
+                          colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60)],
                         ),
                       ),
                     ),
@@ -77,7 +77,7 @@ class AbilityImageSelector extends StatelessWidget {
                           child: Text(
                             exists ? 'Cambiar imagen' : label,
                             style: theme.textTheme.labelLarge?.copyWith(
-                              color: exists ? Colors.white : colors.onSurfaceVariant,
+                              color: exists ? Theme.of(context).colorScheme.onInverseSurface : colors.onSurfaceVariant,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -85,7 +85,7 @@ class AbilityImageSelector extends StatelessWidget {
                         Icon(
                           Icons.photo_library_outlined,
                           size: 20,
-                          color: exists ? Colors.white : colors.onSurfaceVariant,
+                          color: exists ? Theme.of(context).colorScheme.onInverseSurface : colors.onSurfaceVariant,
                         ),
                       ],
                     ),

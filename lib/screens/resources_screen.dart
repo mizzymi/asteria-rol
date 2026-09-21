@@ -8,6 +8,7 @@ import '../services/character_storage_service.dart';
 
 import '../widgets/common/empty_state.dart';
 import '../widgets/resources/resource_card.dart';
+import '../widgets/character_home/resource_edit_dialog.dart';
 
 import 'resource_form_screen.dart';
 
@@ -92,6 +93,24 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   Future<void> increaseResource(CharacterResource resource) async {
     setState(() {
       character.addResourceValue(resource.id, 1);
+    });
+
+    await save();
+  }
+
+  // ===========================================================================
+  // CALCULADORA
+  // ===========================================================================
+
+  Future<void> openResourceCalculator(CharacterResource resource) async {
+    final result = await ResourceEditDialog.show(context, resource: resource);
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      character.setResourceValue(resource.id, result);
     });
 
     await save();
@@ -198,6 +217,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                     },
                     onIncrease: () {
                       increaseResource(resource);
+                    },
+                    onCalculator: () {
+                      openResourceCalculator(resource);
                     },
                     onTap: () {
                       editResource(resource);

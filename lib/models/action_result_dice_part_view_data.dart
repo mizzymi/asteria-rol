@@ -376,7 +376,10 @@ class ActionResultDicePartViewData {
       case AbilityEffectType.healing:
         return 'Curación';
 
-      default:
+      case AbilityEffectType.mitigation:
+        return 'Mitigación';
+
+      case AbilityEffectType.none:
         return 'Componente';
     }
   }

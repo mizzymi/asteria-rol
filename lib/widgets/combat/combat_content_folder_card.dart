@@ -24,7 +24,7 @@ class CombatContentFolderCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final color = CharacterHomeColors.abilities;
+    final color = CharacterHomeColors.abilities(context);
 
     final background = CharacterHomeColors.tintedSurface(
       context,

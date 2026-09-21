@@ -23,7 +23,7 @@ class CombatStateCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final combatColor = CharacterHomeColors.combat;
+    final combatColor = CharacterHomeColors.combat(context);
 
     return Container(
       padding: const EdgeInsets.all(16),

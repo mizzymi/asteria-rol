@@ -42,6 +42,8 @@ class ActionResultTargetViewData {
 
   final int healing;
 
+  final int mitigation;
+
   // ===========================================================================
   // DESGLOSE
   // ===========================================================================
@@ -64,6 +66,7 @@ class ActionResultTargetViewData {
     required this.hit,
     required this.damage,
     required this.healing,
+    required this.mitigation,
     required this.diceResult,
     required this.diceParts,
     required this.savingThrows,
@@ -108,6 +111,8 @@ class ActionResultTargetViewData {
       damage: result.damage,
 
       healing: result.healing,
+
+      mitigation: result.mitigation,
 
       diceResult: result.diceResult,
 
@@ -156,6 +161,10 @@ class ActionResultTargetViewData {
     return healing > 0;
   }
 
+  bool get hasMitigation {
+    return mitigation > 0;
+  }
+
   bool get hasSavingThrows {
     return savingThrows.isNotEmpty;
   }
@@ -171,6 +180,7 @@ class ActionResultTargetViewData {
   bool get hasResolvedContent {
     return hasDamage ||
         hasHealing ||
+        hasMitigation ||
         hasSavingThrows ||
         hasEffects ||
         hasDiceBreakdown;

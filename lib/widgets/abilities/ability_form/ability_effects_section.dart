@@ -223,6 +223,8 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
       saveDcBonus: source.saveDcBonus,
 
       saveSuccessEffect: source.saveSuccessEffect,
+
+      activationCondition: source.activationCondition,
     );
   }
 
@@ -260,7 +262,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
           flatBonus: 0,
 
-          typeName: effect.heals ? 'Curación' : '',
+          typeName: effect.mitigatesDamage
+              ? 'Mitigación'
+              : (effect.heals ? 'Curación' : ''),
         ),
       );
     });
@@ -450,9 +454,10 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
                     _buildExtraEffectSection(),
 
-                    const SizedBox(height: 18),
-
-                    _buildSavingThrowSection(),
+                    if (!effect.mitigatesDamage) ...[
+                      const SizedBox(height: 18),
+                      _buildSavingThrowSection(),
+                    ],
                   ],
 
                   const SizedBox(height: 18),
@@ -503,6 +508,18 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             setState(() {
               effect.effectType = value;
 
+              if (value != AbilityEffectType.healing) {
+                effect.activationCondition =
+                    AbilityEffectActivationCondition.always;
+              }
+
+              if (value == AbilityEffectType.mitigation) {
+                // La mitigación es una respuesta defensiva propia; no utiliza
+                // salvación ni transformación crítica.
+                effect.usesSavingThrow = false;
+                effect.extraParticipatesInCritical = false;
+              }
+
               if (value == AbilityEffectType.none) {
                 // Sistema moderno.
                 effect.parts.clear();
@@ -534,6 +551,43 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             notifyParent();
           },
         ),
+
+        if (effect.heals) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<AbilityEffectActivationCondition>(
+            initialValue: effect.activationCondition,
+            decoration: const InputDecoration(
+              labelText: 'Cuándo se aplica esta curación',
+              prefixIcon: Icon(Icons.rule_rounded),
+            ),
+            items: AbilityEffectActivationCondition.values.map((condition) {
+              return DropdownMenuItem(
+                value: condition,
+                child: Text(condition.label),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+
+              setState(() {
+                effect.activationCondition = value;
+              });
+
+              notifyParent();
+            },
+          ),
+          if (effect.onlyWhenDamageFullyMitigated) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Pensado para reacciones defensivas: esta curación solo se tira '
+              'si la mitigación de la propia habilidad absorbe todo el daño '
+              'entrante.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
       ],
     );
   }
@@ -549,7 +603,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
         Row(
           children: [
             Icon(
-              effect.heals ? Icons.favorite_rounded : Icons.flash_on_rounded,
+              effect.mitigatesDamage
+                  ? Icons.shield_rounded
+                  : (effect.heals ? Icons.favorite_rounded : Icons.flash_on_rounded),
               color: Theme.of(context).colorScheme.primary,
             ),
 
@@ -557,9 +613,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
             Expanded(
               child: Text(
-                effect.heals
-                    ? 'Componentes de curación'
-                    : 'Componentes de daño',
+                effect.mitigatesDamage
+                    ? 'Componentes de mitigación'
+                    : (effect.heals
+                          ? 'Componentes de curación'
+                          : 'Componentes de daño'),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -582,9 +640,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
         const SizedBox(height: 6),
 
         Text(
-          effect.heals
-              ? 'Cada componente puede tener sus propios dados, atributos, recursos y bonus fijo.'
-              : 'Cada tipo de daño puede tener sus propios dados, atributos, recursos y bonus fijo.',
+          effect.mitigatesDamage
+              ? 'Cada componente indica cuánto daño puede absorber esta habilidad.'
+              : (effect.heals
+                    ? 'Cada componente puede tener sus propios dados, atributos, recursos y bonus fijo.'
+                    : 'Cada tipo de daño puede tener sus propios dados, atributos, recursos y bonus fijo.'),
           style: Theme.of(context).textTheme.bodySmall,
         ),
 
@@ -601,9 +661,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Text(
-              effect.heals
-                  ? 'Todavía no hay componentes de curación.'
-                  : 'Todavía no hay componentes de daño.',
+              effect.mitigatesDamage
+                  ? 'Todavía no hay componentes de mitigación.'
+                  : (effect.heals
+                        ? 'Todavía no hay componentes de curación.'
+                        : 'Todavía no hay componentes de daño.'),
               textAlign: TextAlign.center,
             ),
           )
@@ -641,7 +703,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             onPressed: addPart,
             icon: const Icon(Icons.add_rounded),
             label: Text(
-              effect.heals ? 'Añadir curación' : 'Añadir tipo de daño',
+              effect.mitigatesDamage
+                  ? 'Añadir mitigación'
+                  : (effect.heals ? 'Añadir curación' : 'Añadir tipo de daño'),
             ),
           ),
         ),
@@ -678,7 +742,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
               Expanded(
                 child: Text(
-                  effect.heals ? 'Curación extra' : 'Daño extra',
+                  effect.mitigatesDamage
+                      ? 'Mitigación extra'
+                      : (effect.heals ? 'Curación extra' : 'Daño extra'),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
@@ -695,9 +761,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
           const SizedBox(height: 4),
 
           Text(
-            effect.heals
-                ? 'Este bonus se suma una sola vez al resultado total de este efecto.'
-                : 'Este daño se suma una sola vez al resultado total de este efecto.',
+            effect.mitigatesDamage
+                ? 'Esta mitigación se suma una sola vez al total que absorberá la reacción.'
+                : (effect.heals
+                      ? 'Este bonus se suma una sola vez al resultado total de este efecto.'
+                      : 'Este daño se suma una sola vez al resultado total de este efecto.'),
             style: theme.textTheme.bodySmall,
           ),
 
@@ -709,9 +777,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
           TextFormField(
             controller: extraDiceController,
             decoration: InputDecoration(
-              labelText: effect.heals
-                  ? 'Dados de curación extra'
-                  : 'Dados de daño extra',
+              labelText: effect.mitigatesDamage
+                  ? 'Dados de mitigación extra'
+                  : (effect.heals
+                        ? 'Dados de curación extra'
+                        : 'Dados de daño extra'),
               hintText: 'Ej: 1d6 + 1d4',
               prefixIcon: const Icon(Icons.casino_rounded),
               helperText: 'Déjalo vacío si el extra no usa dados.',
@@ -727,12 +797,14 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
           TextFormField(
             controller: extraTypeController,
             decoration: InputDecoration(
-              labelText: effect.heals
-                  ? 'Tipo de curación extra'
-                  : 'Tipo de daño extra',
-              hintText: effect.heals
-                  ? 'Curación mágica'
-                  : 'Fuego, radiante, veneno...',
+              labelText: effect.mitigatesDamage
+                  ? 'Descripción de la mitigación'
+                  : (effect.heals
+                        ? 'Tipo de curación extra'
+                        : 'Tipo de daño extra'),
+              hintText: effect.mitigatesDamage
+                  ? 'Escudo, bloqueo, reducción...'
+                  : (effect.heals ? 'Curación mágica' : 'Fuego, radiante, veneno...'),
             ),
             onChanged: (_) {
               notifyParent();
@@ -748,9 +820,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             controller: extraBonusController,
             keyboardType: const TextInputType.numberWithOptions(signed: true),
             decoration: InputDecoration(
-              labelText: effect.heals
-                  ? 'Bonus fijo de curación extra'
-                  : 'Bonus fijo de daño extra',
+              labelText: effect.mitigatesDamage
+                  ? 'Mitigación fija extra'
+                  : (effect.heals
+                        ? 'Bonus fijo de curación extra'
+                        : 'Bonus fijo de daño extra'),
               hintText: '0',
               prefixIcon: const Icon(Icons.exposure_plus_1_rounded),
             ),
@@ -765,9 +839,11 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
           // ATRIBUTOS DEL EXTRA
           // ===================================================================
           _PartAbilityModifiersEditor(
-            title: effect.heals
-                ? 'Modificadores de la curación extra'
-                : 'Modificadores del daño extra',
+            title: effect.mitigatesDamage
+                ? 'Modificadores de la mitigación extra'
+                : (effect.heals
+                      ? 'Modificadores de la curación extra'
+                      : 'Modificadores del daño extra'),
 
             multipliers: effect.abilityModifierMultipliers,
 
@@ -784,7 +860,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             },
           ),
 
-          if (!effect.heals && !effect.usesSavingThrow) ...[
+          if (effect.dealsDamage && !effect.usesSavingThrow) ...[
             const SizedBox(height: 14),
 
             SwitchListTile(
@@ -1016,6 +1092,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
       case AbilityEffectType.healing:
         return Icons.favorite_rounded;
 
+      case AbilityEffectType.mitigation:
+        return Icons.shield_rounded;
+
       case AbilityEffectType.none:
         return Icons.auto_awesome_rounded;
     }
@@ -1027,7 +1106,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
   String get _summary {
     if (effect.effectType == AbilityEffectType.none) {
-      return 'Sin daño ni curación';
+      return 'Sin daño, curación ni mitigación';
     }
 
     final pieces = <String>[];
@@ -1044,6 +1123,10 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     // Bonus extra.
     if (_hasExtraEffectBonus) {
       pieces.add('Extra: $_extraSummary');
+    }
+
+    if (effect.onlyWhenDamageFullyMitigated) {
+      pieces.add('Solo si mitiga todo el daño');
     }
 
     // Salvación.
@@ -1163,7 +1246,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     }
 
     if (result.isEmpty) {
-      return effect.heals ? 'Sin curación extra' : 'Sin daño extra';
+      return effect.mitigatesDamage
+          ? 'Sin mitigación extra'
+          : (effect.heals ? 'Sin curación extra' : 'Sin daño extra');
     }
 
     return result;
@@ -1751,18 +1836,22 @@ class _AbilityEffectPartCardState extends State<_AbilityEffectPartCard> {
           Row(
             children: [
               Icon(
-                widget.effectType == AbilityEffectType.healing
-                    ? Icons.favorite_rounded
-                    : Icons.flash_on_rounded,
+                widget.effectType == AbilityEffectType.mitigation
+                    ? Icons.shield_rounded
+                    : (widget.effectType == AbilityEffectType.healing
+                          ? Icons.favorite_rounded
+                          : Icons.flash_on_rounded),
               ),
 
               const SizedBox(width: 8),
 
               Expanded(
                 child: Text(
-                  widget.effectType == AbilityEffectType.healing
-                      ? 'Componente de curación'
-                      : 'Componente de daño',
+                  widget.effectType == AbilityEffectType.mitigation
+                      ? 'Componente de mitigación'
+                      : (widget.effectType == AbilityEffectType.healing
+                            ? 'Componente de curación'
+                            : 'Componente de daño'),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),

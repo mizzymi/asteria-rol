@@ -475,7 +475,7 @@ class _CombatScreenState extends State<CombatScreen> {
                     icon: Icons.shield_rounded,
                     title: 'CA',
                     value: '${character.calculatedArmorClass}',
-                    color: CharacterHomeColors.armor,
+                    color: CharacterHomeColors.armor(context),
                   ),
                 ),
 
@@ -487,7 +487,7 @@ class _CombatScreenState extends State<CombatScreen> {
                     title: 'INI',
                     value:
                         '${character.initiative >= 0 ? '+' : ''}${character.initiative}',
-                    color: CharacterHomeColors.initiative,
+                    color: CharacterHomeColors.initiative(context),
                   ),
                 ),
 
@@ -498,7 +498,7 @@ class _CombatScreenState extends State<CombatScreen> {
                     icon: Icons.directions_run_rounded,
                     title: 'VEL',
                     value: '${character.totalSpeed}',
-                    color: CharacterHomeColors.speed,
+                    color: CharacterHomeColors.speed(context),
                   ),
                 ),
               ],
@@ -876,7 +876,7 @@ class _CombatHealthDialogState extends State<_CombatHealthDialog> {
     final resultColor = difference < 0
         ? colors.error
         : difference > 0
-        ? CharacterHomeColors.notes
+        ? CharacterHomeColors.notes(context)
         : colors.onSurfaceVariant;
 
     return AlertDialog(
@@ -1206,7 +1206,7 @@ class _CombatResourceDialogState extends State<_CombatResourceDialog> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final color = widget.resource.color;
+    final color = widget.resource.colorFor(context);
 
     final diff = difference;
 

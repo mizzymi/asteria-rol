@@ -15,6 +15,8 @@ class CharacterEffectTriggerExternalResult {
 
   final int healing;
 
+  final int mitigation;
+
   final List<CharacterEffect> effects;
 
   final String resolutionId;
@@ -27,12 +29,13 @@ class CharacterEffectTriggerExternalResult {
     this.targetLabel,
     this.damage = 0,
     this.healing = 0,
+    this.mitigation = 0,
     this.effects = const [],
     required this.resolutionId,
   });
 
   bool get changedAnything {
-    return damage > 0 || healing > 0 || effects.isNotEmpty;
+    return damage > 0 || healing > 0 || mitigation > 0 || effects.isNotEmpty;
   }
 
   // ===========================================================================
@@ -54,6 +57,8 @@ class CharacterEffectTriggerExternalResult {
       'damage': damage,
 
       'healing': healing,
+
+      'mitigation': mitigation,
 
       'effects': effects.map((effect) => effect.toMap()).toList(),
 
@@ -98,6 +103,8 @@ class CharacterEffectTriggerExternalResult {
       damage: (map['damage'] as num?)?.toInt() ?? 0,
 
       healing: (map['healing'] as num?)?.toInt() ?? 0,
+
+      mitigation: (map['mitigation'] as num?)?.toInt() ?? 0,
 
       effects: List<CharacterEffect>.unmodifiable(effects),
 

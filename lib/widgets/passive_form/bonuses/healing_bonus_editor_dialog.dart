@@ -21,6 +21,8 @@ Future<HealingBonus?> showHealingBonusEditorDialog(
   CharacterPassive? passive,
   required String ownerPassiveId,
   required bool ownerUsesCharges,
+  String title = 'Curación adicional',
+  String formulaDescription = 'Se suma a la curación.',
 }) {
   return showDialog<HealingBonus>(
     context: context,
@@ -32,6 +34,8 @@ Future<HealingBonus?> showHealingBonusEditorDialog(
         passive: passive,
         ownerPassiveId: ownerPassiveId,
         ownerUsesCharges: ownerUsesCharges,
+        title: title,
+        formulaDescription: formulaDescription,
       );
     },
   );
@@ -48,6 +52,10 @@ class HealingBonusEditorDialog extends StatefulWidget {
 
   final bool ownerUsesCharges;
 
+  final String title;
+
+  final String formulaDescription;
+
   const HealingBonusEditorDialog({
     super.key,
     required this.bonus,
@@ -55,6 +63,8 @@ class HealingBonusEditorDialog extends StatefulWidget {
     this.passive,
     required this.ownerPassiveId,
     required this.ownerUsesCharges,
+    this.title = 'Curación adicional',
+    this.formulaDescription = 'Se suma a la curación.',
   });
 
   @override
@@ -127,7 +137,7 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Curación adicional'),
+      title: Text(widget.title),
 
       content: SizedBox(
         width: 560,
@@ -198,7 +208,7 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
 
                 hint: 'SAB_MOD * 2',
 
-                description: 'Se suma a la curación.',
+                description: widget.formulaDescription,
               ),
 
               const SizedBox(height: 24),

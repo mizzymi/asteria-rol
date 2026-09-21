@@ -50,7 +50,7 @@ class _AbilityCardState extends State<AbilityCard> {
   bool expanded = false;
   @override
   Widget build(BuildContext context) {
-    final attributeColor = AbilityAttributeColors.color(
+    final attributeColor = AbilityAttributeColors.color(context, 
       widget.ability.abilityType,
     );
     return AppCard(
@@ -125,7 +125,7 @@ class _CompactAbilityHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final attributeColor = AbilityAttributeColors.color(ability.abilityType);
+    final attributeColor = AbilityAttributeColors.color(context, ability.abilityType);
     return InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: onTap,
@@ -429,7 +429,7 @@ class _AbilityMeta extends StatelessWidget {
       InfoBadge(
         icon: Icons.psychology_rounded,
         text: ability.abilityType.shortLabel,
-        color: AbilityAttributeColors.color(ability.abilityType),
+        color: AbilityAttributeColors.color(context, ability.abilityType),
         highlighted: true,
       ),
     ];
@@ -450,7 +450,7 @@ class _AbilityMeta extends StatelessWidget {
                     '${resource.currentValue}/${resource.maxValue}'
               : 'Recurso no disponible',
 
-          color: resource?.color,
+          color: resource?.colorFor(context),
 
           highlighted: true,
         ),

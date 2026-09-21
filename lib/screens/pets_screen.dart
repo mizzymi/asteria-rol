@@ -173,8 +173,8 @@ class _PetsScreenState extends State<PetsScreen> {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: .72),
+                            Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                            Theme.of(context).colorScheme.scrim.withValues(alpha: .72),
                           ],
                           stops: const [.28, 1],
                         ),
@@ -193,7 +193,7 @@ class _PetsScreenState extends State<PetsScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onInverseSurface,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -203,7 +203,7 @@ class _PetsScreenState extends State<PetsScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors.white.withValues(alpha: .85),
+                              color: Theme.of(context).colorScheme.onInverseSurface.withValues(alpha: .85),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -214,9 +214,9 @@ class _PetsScreenState extends State<PetsScreen> {
                     top: 8,
                     right: 8,
                     child: PopupMenuButton<String>(
-                      iconColor: Colors.white,
+                      iconColor: Theme.of(context).colorScheme.onInverseSurface,
                       style: IconButton.styleFrom(
-                        backgroundColor: Colors.black.withValues(alpha: .35),
+                        backgroundColor: Theme.of(context).colorScheme.scrim.withValues(alpha: .35),
                       ),
                       onSelected: (value) {
                         if (value == 'edit') _openForm(pet: pet);

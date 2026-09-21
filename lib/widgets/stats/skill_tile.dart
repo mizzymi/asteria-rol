@@ -30,7 +30,7 @@ class SkillTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final ability = skill.ability;
 
-    final color = StatsColors.abilityColor(ability);
+    final color = StatsColors.abilityColor(context, ability);
 
     final proficiency = character.skillProficiency(skill);
 

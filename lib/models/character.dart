@@ -107,6 +107,10 @@ class Character {
 
   int combatTurnSequence;
 
+  /// Secuencia del último turno en el que se consumió la reacción.
+  /// -1 significa que la reacción está disponible.
+  int reactionUsedTurnSequence;
+
   /// Progreso de conocimientos descubiertos o aprendidos por el personaje
   List<CharacterKnowledge> knowledges;
 
@@ -245,6 +249,7 @@ class Character {
     this.combatRound = 1,
     this.turnActive = false,
     this.combatTurnSequence = 0,
+    this.reactionUsedTurnSequence = -1,
     List<CharacterCounter>? counters,
     this.criticalMinimumNaturalRoll = 20,
     this.shortRestRule = 'single',
@@ -686,6 +691,7 @@ class Character {
     combatActive = true;
     combatRound = 1;
     turnActive = false;
+    reactionUsedTurnSequence = -1;
 
     dispatchPassiveTrigger(
       PassiveTriggerEvent.roundStarted,
@@ -783,8 +789,31 @@ class Character {
     );
 
     combatRound = 1;
+    reactionUsedTurnSequence = -1;
 
     refreshPassiveTriggers();
+  }
+
+  bool get reactionAvailable {
+    if (!combatActive) {
+      return true;
+    }
+
+    return reactionUsedTurnSequence != combatTurnSequence;
+  }
+
+  bool get reactionUsedThisTurn => !reactionAvailable;
+
+  void consumeReaction() {
+    if (!combatActive) {
+      return;
+    }
+
+    reactionUsedTurnSequence = combatTurnSequence;
+  }
+
+  void restoreReaction() {
+    reactionUsedTurnSequence = -1;
   }
 
   String get combatStatusText {
@@ -3363,7 +3392,10 @@ class Character {
       'passives': passives.map((passive) => passive.toMap()).toList(),
       'journalEntries': journalEntries.map((entry) => entry.toMap()).toList(),
       'diceHistory': diceHistory.map((entry) => entry.toMap()).toList(),
-      'items': items.map((item) => item.toMap()).toList(),
+      // `items` es el formato legacy. El inventario moderno (`inventoryItems`)
+      // es la única fuente autoritativa. Persistir aquí la copia antigua hacía
+      // que un objeto eliminado pudiera reaparecer al volver a abrir la app.
+      'items': const <Map<String, dynamic>>[],
       'itemDefinitions': itemDefinitions
           .map((definition) => definition.toMap())
           .toList(),
@@ -3375,6 +3407,7 @@ class Character {
       'combatRound': combatRound,
       'turnActive': turnActive,
       'combatTurnSequence': combatTurnSequence,
+      'reactionUsedTurnSequence': reactionUsedTurnSequence,
       'counters': counters.map((counter) => counter.toMap()).toList(),
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
       'knowledges': knowledges.map((k) => k.toMap()).toList(),
@@ -3501,7 +3534,15 @@ class Character {
     final items = <CharacterItem>[];
     final rawItems = map['items'];
 
-    if (rawItems is List) {
+    // `items` es el formato anterior a ItemDefinition + InventoryItem.
+    // Solo debe migrarse cuando el guardado NO contiene todavía la clave
+    // `inventoryItems`. Si esa clave existe (aunque la lista esté vacía), el
+    // inventario moderno es autoritativo. Esto es importante para distinguir
+    // "inventario vacío porque el usuario borró el objeto" de "guardado viejo
+    // que todavía necesita migración".
+    final shouldMigrateLegacyItems = !map.containsKey('inventoryItems');
+
+    if (shouldMigrateLegacyItems && rawItems is List) {
       for (final rawItem in rawItems) {
         if (rawItem is! Map) {
           continue;
@@ -3511,8 +3552,6 @@ class Character {
           final legacyItem = CharacterItem.fromMap(
             Map<dynamic, dynamic>.from(rawItem),
           );
-
-          items.add(legacyItem);
 
           final definition = legacyItem.toDefinition();
 
@@ -3808,6 +3847,8 @@ class Character {
     final turnActive = map['turnActive'] == true;
     final combatTurnSequence =
         (map['combatTurnSequence'] as num?)?.toInt() ?? 0;
+    final reactionUsedTurnSequence =
+        (map['reactionUsedTurnSequence'] as num?)?.toInt() ?? -1;
 
     final character = Character(
       id: map['id']?.toString() ?? '',
@@ -3847,6 +3888,7 @@ class Character {
       combatRound: combatRound,
       turnActive: turnActive,
       combatTurnSequence: combatTurnSequence,
+      reactionUsedTurnSequence: reactionUsedTurnSequence,
       counters: counters,
       criticalMinimumNaturalRoll:
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,

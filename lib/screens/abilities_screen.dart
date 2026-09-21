@@ -929,9 +929,9 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     if (!file.existsSync()) return;
     await showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: .92),
+      barrierColor: Theme.of(context).colorScheme.scrim.withValues(alpha: .92),
       builder: (dialogContext) => Dialog.fullscreen(
-        backgroundColor: Colors.black,
+        backgroundColor: Theme.of(context).colorScheme.scrim,
         child: Stack(
           children: [
             Positioned.fill(
@@ -946,7 +946,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(dialogContext),
-                    icon: const Icon(Icons.close_rounded, color: Colors.black),
+                    icon: Icon(Icons.close_rounded, color: Theme.of(context).colorScheme.scrim),
                   ),
                   Expanded(
                     child: Text(
@@ -954,7 +954,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onInverseSurface,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -983,7 +983,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: Material(
-          color: Colors.transparent,
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
           child: InkWell(
             onTap: () => _showImageFullscreen(imagePath: path, title: title),
             child: SizedBox(
@@ -996,28 +996,28 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                     fit: BoxFit.cover,
                     alignment: Alignment(alignmentX, alignmentY),
                   ),
-                  const DecoratedBox(
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0x99000000)],
+                        colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60)],
                       ),
                     ),
                   ),
-                  const Positioned(
+                  Positioned(
                     right: 12,
                     bottom: 12,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Color(0x99000000),
+                        color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60),
                         shape: BoxShape.circle,
                       ),
                       child: Padding(
                         padding: EdgeInsets.all(9),
                         child: Icon(
                           Icons.zoom_out_map_rounded,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onInverseSurface,
                         ),
                       ),
                     ),
@@ -1093,6 +1093,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
               ),
               PassiveCard(
                 passive: passive,
+                character: character,
                 sourceItem: sourceItem,
                 showPassiveBadge: true,
                 onMove: fromItem ? null : () => movePassive(passive),
@@ -1534,6 +1535,7 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
 
                                   return PassiveCard(
                                     passive: passive,
+                                    character: character,
                                     sourceItem: sourceItem,
                                     showPassiveBadge: true,
                                     onMove: fromItem
@@ -1795,16 +1797,16 @@ class _CompactContentGridCard extends StatelessWidget {
               ColoredBox(
                 color: colors.primary,
                 child: Center(
-                  child: Icon(fallbackIcon, size: 34, color: Colors.white),
+                  child: Icon(fallbackIcon, size: 34, color: Theme.of(context).colorScheme.onInverseSurface),
                 ),
               ),
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   stops: [0.42, 1],
-                  colors: [Colors.transparent, Color(0xCC000000)],
+                  colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.80)],
                 ),
               ),
             ),
@@ -1818,11 +1820,11 @@ class _CompactContentGridCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onInverseSurface,
                     fontWeight: FontWeight.w900,
                     height: 1.05,
-                    shadows: const [
-                      Shadow(blurRadius: 3, color: Colors.black54),
+                    shadows:  [
+                      Shadow(blurRadius: 3, color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.54)),
                     ],
                   ),
                 ),

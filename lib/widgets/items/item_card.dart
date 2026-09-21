@@ -61,7 +61,7 @@ class _ItemCardState extends State<ItemCard> {
 
   @override
   Widget build(BuildContext context) {
-    final color = ItemTypeColors.of(definition.type);
+    final color = ItemTypeColors.of(context, definition.type);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 14),

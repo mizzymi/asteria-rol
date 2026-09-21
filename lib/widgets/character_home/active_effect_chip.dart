@@ -169,16 +169,16 @@ class ActiveEffectChip extends StatelessWidget {
 
     switch (effect.type) {
       case CharacterEffectType.buff:
-        return const Color(0xFF4CAF7D);
+        return Theme.of(context).colorScheme.tertiary;
 
       case CharacterEffectType.debuff:
-        return const Color(0xFFE45D68);
+        return Theme.of(context).colorScheme.error;
 
       case CharacterEffectType.condition:
-        return const Color(0xFF9B6CE8);
+        return Theme.of(context).colorScheme.primary;
 
       case CharacterEffectType.neutral:
-        return const Color(0xFF5F8FD8);
+        return Theme.of(context).colorScheme.secondary;
     }
   }
 

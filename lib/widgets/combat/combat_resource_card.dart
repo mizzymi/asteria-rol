@@ -39,21 +39,21 @@ class CombatResourceCard extends StatelessWidget {
 
     final background = CharacterHomeColors.tintedSurface(
       context,
-      resource.color,
+      resource.colorFor(context),
       lightStrength: 0.12,
       darkStrength: 0.20,
     );
 
     final iconBackground = CharacterHomeColors.tintedSurface(
       context,
-      resource.color,
+      resource.colorFor(context),
       lightStrength: 0.24,
       darkStrength: 0.30,
     );
 
     final borderColor = CharacterHomeColors.tintedBorder(
       context,
-      resource.color,
+      resource.colorFor(context),
       lightAlpha: 0.20,
       darkAlpha: 0.34,
     );
@@ -80,7 +80,7 @@ class CombatResourceCard extends StatelessWidget {
                       color: iconBackground,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(resource.icon, size: 20, color: resource.color),
+                    child: Icon(resource.icon, size: 20, color: resource.colorFor(context)),
                   ),
 
                   const SizedBox(width: 10),
@@ -103,7 +103,7 @@ class CombatResourceCard extends StatelessWidget {
                         Text(
                           valueText,
                           style: theme.textTheme.titleLarge?.copyWith(
-                            color: resource.color,
+                            color: resource.colorFor(context),
                             fontWeight: FontWeight.w900,
                             height: 1,
                           ),
@@ -116,7 +116,7 @@ class CombatResourceCard extends StatelessWidget {
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: resource.color.withValues(
+                      color: resource.colorFor(context).withValues(
                         alpha: theme.brightness == Brightness.dark
                             ? 0.16
                             : 0.10,
@@ -126,7 +126,7 @@ class CombatResourceCard extends StatelessWidget {
                     child: Icon(
                       Icons.edit_rounded,
                       size: 14,
-                      color: resource.color,
+                      color: resource.colorFor(context),
                     ),
                   ),
                 ],
@@ -140,7 +140,7 @@ class CombatResourceCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: progress.toDouble(),
                     minHeight: 6,
-                    color: resource.color,
+                    color: resource.colorFor(context),
                     backgroundColor: colors.surfaceContainerHighest,
                   ),
                 ),

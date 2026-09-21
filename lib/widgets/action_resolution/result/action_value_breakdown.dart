@@ -70,7 +70,7 @@ class _ActionValueBreakdownState extends State<ActionValueBreakdown> {
 
     final accentColor = widget.ability == null
         ? widget.fallbackColor ?? theme.colorScheme.primary
-        : AbilityColors.of(widget.ability!);
+        : AbilityColors.of(context, widget.ability!);
 
     final rawTotal = widget.parts.fold<int>(0, (sum, part) => sum + part.total);
 
@@ -479,11 +479,11 @@ class _TotalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final background = ability == null
         ? accentColor.withValues(alpha: 0.10)
-        : AbilityColors.soft(ability!, alpha: 0.10);
+        : AbilityColors.soft(context, ability!, alpha: 0.10);
 
     final border = ability == null
         ? accentColor.withValues(alpha: 0.30)
-        : AbilityColors.border(ability!, alpha: 0.32);
+        : AbilityColors.border(context, ability!, alpha: 0.32);
 
     return Container(
       width: double.infinity,

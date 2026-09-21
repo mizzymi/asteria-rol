@@ -3,28 +3,17 @@ import 'package:flutter/material.dart';
 class StoryColors {
   const StoryColors._();
 
-  static const Color backstory = Color(0xFF8B6FE8);
+  static Color backstory(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color appearance(BuildContext context) => Theme.of(context).colorScheme.secondary;
+  static Color personality(BuildContext context) => Theme.of(context).colorScheme.tertiary;
+  static Color ideals(BuildContext context) => Theme.of(context).colorScheme.secondary;
+  static Color bonds(BuildContext context) => Theme.of(context).colorScheme.tertiary;
+  static Color flaws(BuildContext context) => Theme.of(context).colorScheme.error;
+  static Color goals(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color notes(BuildContext context) => Theme.of(context).colorScheme.onSurfaceVariant;
 
-  static const Color appearance = Color(0xFF4D8FE8);
-
-  static const Color personality = Color(0xFFE45AA7);
-
-  static const Color ideals = Color(0xFFF2C94C);
-
-  static const Color bonds = Color(0xFF55B96B);
-
-  static const Color flaws = Color(0xFFE85D5D);
-
-  static const Color goals = Color(0xFF4F80E8);
-
-  static const Color notes = Color(0xFF8E7CC3);
-
-  static Color background(
-    BuildContext context,
-    Color color, {
-    double strength = 0.12,
-  }) {
-    return Color.lerp(Theme.of(context).colorScheme.surface, color, strength) ??
-        color;
+  static Color background(BuildContext context, Color color, {double strength = 0.12}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Color.lerp(scheme.surface, color, strength) ?? scheme.surface;
   }
 }

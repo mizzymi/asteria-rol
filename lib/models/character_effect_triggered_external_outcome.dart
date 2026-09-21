@@ -18,6 +18,8 @@ class CharacterEffectTriggeredExternalOutcome {
 
   final List<HealingBonus> healingBonuses;
 
+  final List<HealingBonus> mitigationBonuses;
+
   final List<CharacterEffect> linkedEffects;
 
   final TriggerUsageLimit usageLimit;
@@ -30,6 +32,7 @@ class CharacterEffectTriggeredExternalOutcome {
     this.targetLabel,
     this.damageBonuses = const [],
     this.healingBonuses = const [],
+    this.mitigationBonuses = const [],
     this.linkedEffects = const [],
     this.usageLimit = TriggerUsageLimit.unlimited,
   });
@@ -42,12 +45,16 @@ class CharacterEffectTriggeredExternalOutcome {
     return healingBonuses.any((bonus) => bonus.hasHealing);
   }
 
+  bool get hasMitigation {
+    return mitigationBonuses.any((bonus) => bonus.hasHealing);
+  }
+
   bool get hasEffects {
     return linkedEffects.isNotEmpty;
   }
 
   bool get changedAnything {
-    return hasDamage || hasHealing || hasEffects;
+    return hasDamage || hasHealing || hasMitigation || hasEffects;
   }
 
   String get usageKey {

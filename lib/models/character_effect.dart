@@ -815,6 +815,7 @@ class CharacterEffectTrigger {
 
   final List<DamageBonus> damageBonuses;
   final List<HealingBonus> healingBonuses;
+  final List<HealingBonus> mitigationBonuses;
   final List<CharacterEffect> linkedEffects;
 
   const CharacterEffectTrigger({
@@ -826,6 +827,7 @@ class CharacterEffectTrigger {
     this.condition,
     this.damageBonuses = const [],
     this.healingBonuses = const [],
+    this.mitigationBonuses = const [],
     this.linkedEffects = const [],
   });
 
@@ -848,7 +850,8 @@ class CharacterEffectTrigger {
   bool get supportsPersistentMode {
     return linkedEffects.isNotEmpty &&
         damageBonuses.every((bonus) => !bonus.hasDamage) &&
-        healingBonuses.every((bonus) => !bonus.hasHealing);
+        healingBonuses.every((bonus) => !bonus.hasHealing) &&
+        mitigationBonuses.every((bonus) => !bonus.hasHealing);
   }
 
   String usageKey(String sourceEffectId) {
@@ -864,6 +867,7 @@ class CharacterEffectTrigger {
   bool get hasMechanicalEffects {
     return damageBonuses.any((bonus) => bonus.hasDamage) ||
         healingBonuses.any((bonus) => bonus.hasHealing) ||
+        mitigationBonuses.any((bonus) => bonus.hasHealing) ||
         linkedEffects.isNotEmpty;
   }
 
@@ -883,6 +887,10 @@ class CharacterEffectTrigger {
       'damageBonuses': damageBonuses.map((bonus) => bonus.toMap()).toList(),
 
       'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
+
+      'mitigationBonuses': mitigationBonuses
+          .map((bonus) => bonus.toMap())
+          .toList(),
 
       'linkedEffects': linkedEffects.map((effect) => effect.toMap()).toList(),
     };
@@ -948,6 +956,30 @@ class CharacterEffectTrigger {
     }
 
     // =========================================================================
+    // MITIGACIÓN
+    // =========================================================================
+
+    final mitigationBonuses = <HealingBonus>[];
+
+    final rawMitigationBonuses = map['mitigationBonuses'];
+
+    if (rawMitigationBonuses is List) {
+      for (final rawBonus in rawMitigationBonuses) {
+        if (rawBonus is! Map) {
+          continue;
+        }
+
+        try {
+          mitigationBonuses.add(
+            HealingBonus.fromMap(Map<dynamic, dynamic>.from(rawBonus)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    // =========================================================================
     // EFECTOS VINCULADOS
     // =========================================================================
 
@@ -1003,6 +1035,8 @@ class CharacterEffectTrigger {
       damageBonuses: damageBonuses,
 
       healingBonuses: healingBonuses,
+
+      mitigationBonuses: mitigationBonuses,
 
       linkedEffects: linkedEffects,
     );

@@ -9,6 +9,7 @@ import '../models/skill.dart';
 import '../models/dice_pool.dart';
 import '../models/formulas/formula_modifier.dart';
 import '../models/action_cost.dart';
+import '../models/action_hit_behavior.dart';
 import '../models/passive_charge_dice_scaling.dart';
 
 import '../widgets/passive_form/triggers/passive_trigger_labels.dart';
@@ -70,6 +71,32 @@ class PassiveDisplayFormatter {
     }
 
     // ===========================================================================
+    // CONDICIONES Y COMPORTAMIENTO
+    // ===========================================================================
+
+    if (bonus.hasCondition) {
+      final condition = FormulaDisplayFormatter.format(
+        bonus.condition!.expression,
+        character,
+      );
+
+      pieces.add('Si: $condition');
+    }
+
+    if (bonus.optional) {
+      final label = bonus.optionalLabel.trim();
+      pieces.add(label.isEmpty ? 'Opcional' : 'Opcional: $label');
+    }
+
+    if (bonus.hitBehavior == ActionHitBehavior.ignoreHit) {
+      pieces.add(bonus.hitBehavior.label);
+    }
+
+    if (!bonus.participatesInCritical) {
+      pieces.add('No se transforma con crítico');
+    }
+
+    // ===========================================================================
     // RESULTADO
     // ===========================================================================
 
@@ -108,6 +135,26 @@ class PassiveDisplayFormatter {
 
     if (!bonus.alwaysTriggers) {
       result += ' · ${bonus.chancePercent}%';
+    }
+
+    if (bonus.hasCondition) {
+      final condition = FormulaDisplayFormatter.format(
+        bonus.condition!.expression,
+        character,
+      );
+
+      result += ' · Si: $condition';
+    }
+
+    if (bonus.optional) {
+      final label = bonus.optionalLabel.trim();
+      result += label.isEmpty ? ' · Opcional' : ' · Opcional: $label';
+    }
+
+    final description = bonus.description.trim();
+
+    if (description.isNotEmpty) {
+      result += ' · $description';
     }
 
     final name = bonus.name.trim();

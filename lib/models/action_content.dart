@@ -114,4 +114,10 @@ class ActionContent {
       (effect) => effect.effectType == AbilityEffectType.healing,
     );
   }
+
+  bool get mitigatesDamage {
+    return effects.any(
+      (effect) => effect.effectType == AbilityEffectType.mitigation,
+    );
+  }
 }

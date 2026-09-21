@@ -28,7 +28,7 @@ class AttributeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = StatsColors.abilityColor(ability);
+    final color = StatsColors.abilityColor(context, ability);
 
     return AppCard(
       onTap: onTap,

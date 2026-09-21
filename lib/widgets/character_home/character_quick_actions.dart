@@ -56,7 +56,7 @@ class CharacterQuickActions extends StatelessWidget {
                 child: _QuickActionButton(
                   icon: Icons.sports_martial_arts_rounded,
                   label: 'Combate',
-                  color: CharacterHomeColors.combat,
+                  color: CharacterHomeColors.combat(context),
                   onTap: onCombat,
                 ),
               ),
@@ -67,7 +67,7 @@ class CharacterQuickActions extends StatelessWidget {
                 child: _QuickActionButton(
                   icon: Icons.local_fire_department_rounded,
                   label: 'Descansar',
-                  color: CharacterHomeColors.rest,
+                  color: CharacterHomeColors.rest(context),
                   onTap: onRest,
                 ),
               ),
@@ -81,8 +81,7 @@ class CharacterQuickActions extends StatelessWidget {
                 child: _QuickActionButton(
                   icon: Icons.pets_rounded,
                   label: petCount > 0 ? 'Mascotas ($petCount)' : 'Mascotas',
-                  color: CharacterHomeColors
-                      .effects, // Color cohesivo con efectos/magia
+                  color: CharacterHomeColors.effects(context), // Color cohesivo con efectos/magia
                   onTap: onPets,
                 ),
               ),

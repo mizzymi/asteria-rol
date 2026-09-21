@@ -62,7 +62,7 @@ class _StoryScreenState extends State<StoryScreen> {
       hint:
           'Cuenta el pasado del personaje, de dónde viene, qué le ocurrió y cómo llegó hasta aquí...',
       icon: Icons.history_edu_rounded,
-      color: StoryColors.backstory,
+      color: StoryColors.backstory(context),
       onSaved: (value) {
         character.backstory = value;
       },
@@ -75,7 +75,7 @@ class _StoryScreenState extends State<StoryScreen> {
       value: character.appearance,
       hint: 'Describe su aspecto, ropa, rasgos distintivos, cicatrices...',
       icon: Icons.visibility_rounded,
-      color: StoryColors.appearance,
+      color: StoryColors.appearance(context),
       onSaved: (value) {
         character.appearance = value;
       },
@@ -88,7 +88,7 @@ class _StoryScreenState extends State<StoryScreen> {
       value: character.personality,
       hint: '¿Cómo se comporta? ¿Cómo habla? ¿Cómo trata a los demás?',
       icon: Icons.psychology_rounded,
-      color: StoryColors.personality,
+      color: StoryColors.personality(context),
       onSaved: (value) {
         character.personality = value;
       },
@@ -101,7 +101,7 @@ class _StoryScreenState extends State<StoryScreen> {
       value: character.ideals,
       hint: '¿En qué cree? ¿Qué principios intenta seguir?',
       icon: Icons.lightbulb_rounded,
-      color: StoryColors.ideals,
+      color: StoryColors.ideals(context),
       onSaved: (value) {
         character.ideals = value;
       },
@@ -115,7 +115,7 @@ class _StoryScreenState extends State<StoryScreen> {
       hint:
           'Personas, lugares, organizaciones o recuerdos importantes para el personaje...',
       icon: Icons.link_rounded,
-      color: StoryColors.bonds,
+      color: StoryColors.bonds(context),
       onSaved: (value) {
         character.bonds = value;
       },
@@ -129,7 +129,7 @@ class _StoryScreenState extends State<StoryScreen> {
       hint:
           'Miedos, debilidades, malos hábitos, prejuicios o problemas personales...',
       icon: Icons.warning_amber_rounded,
-      color: StoryColors.flaws,
+      color: StoryColors.flaws(context),
       onSaved: (value) {
         character.flaws = value;
       },
@@ -143,7 +143,7 @@ class _StoryScreenState extends State<StoryScreen> {
       hint:
           '¿Qué quiere conseguir? ¿Qué objetivos tiene a corto o largo plazo?',
       icon: Icons.flag_rounded,
-      color: StoryColors.goals,
+      color: StoryColors.goals(context),
       onSaved: (value) {
         character.goals = value;
       },
@@ -156,7 +156,7 @@ class _StoryScreenState extends State<StoryScreen> {
       value: character.storyNotes,
       hint: 'Cualquier información adicional sobre el personaje...',
       icon: Icons.notes_rounded,
-      color: StoryColors.notes,
+      color: StoryColors.notes(context),
       onSaved: (value) {
         character.storyNotes = value;
       },
@@ -185,7 +185,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.history_edu_rounded,
-              color: StoryColors.backstory,
+              color: StoryColors.backstory(context),
               title: 'Historia',
               value: character.backstory,
               emptyText: 'Todavía no has escrito su historia.',
@@ -194,7 +194,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.visibility_rounded,
-              color: StoryColors.appearance,
+              color: StoryColors.appearance(context),
               title: 'Apariencia',
               value: character.appearance,
               emptyText: 'Sin descripción física.',
@@ -203,7 +203,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.psychology_rounded,
-              color: StoryColors.personality,
+              color: StoryColors.personality(context),
               title: 'Personalidad',
               value: character.personality,
               emptyText: 'Sin personalidad definida.',
@@ -222,7 +222,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.lightbulb_rounded,
-              color: StoryColors.ideals,
+              color: StoryColors.ideals(context),
               title: 'Ideales',
               value: character.ideals,
               emptyText: 'Sin ideales definidos.',
@@ -231,7 +231,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.link_rounded,
-              color: StoryColors.bonds,
+              color: StoryColors.bonds(context),
               title: 'Vínculos',
               value: character.bonds,
               emptyText: 'Sin vínculos definidos.',
@@ -240,7 +240,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.warning_amber_rounded,
-              color: StoryColors.flaws,
+              color: StoryColors.flaws(context),
               title: 'Defectos',
               value: character.flaws,
               emptyText: 'Sin defectos definidos.',
@@ -259,7 +259,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.flag_rounded,
-              color: StoryColors.goals,
+              color: StoryColors.goals(context),
               title: 'Objetivos',
               value: character.goals,
               emptyText: 'Todavía no tiene objetivos escritos.',
@@ -268,7 +268,7 @@ class _StoryScreenState extends State<StoryScreen> {
 
             StorySectionCard(
               icon: Icons.notes_rounded,
-              color: StoryColors.notes,
+              color: StoryColors.notes(context),
               title: 'Notas',
               value: character.storyNotes,
               emptyText: 'Sin notas adicionales.',

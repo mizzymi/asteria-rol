@@ -33,7 +33,7 @@ class JournalFilterBar extends StatelessWidget {
           const SizedBox(width: 8),
 
           ...JournalEntryType.values.map((type) {
-            final color = JournalColors.color(type);
+            final color = JournalColors.color(context, type);
 
             return Padding(
               padding: const EdgeInsets.only(right: 8),

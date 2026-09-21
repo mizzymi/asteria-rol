@@ -20,6 +20,8 @@ class ActionTargetResult {
 
   final int resolvedHealing;
 
+  final int resolvedMitigation;
+
   final bool auxiliary;
 
   const ActionTargetResult({
@@ -30,9 +32,11 @@ class ActionTargetResult {
     this.effects = const [],
     this.resolvedDamage = 0,
     this.resolvedHealing = 0,
+    this.resolvedMitigation = 0,
     this.auxiliary = false,
   }) : assert(resolvedDamage >= 0),
-       assert(resolvedHealing >= 0);
+       assert(resolvedHealing >= 0),
+       assert(resolvedMitigation >= 0);
 
   // ===========================================================================
   // ESTADO
@@ -58,6 +62,10 @@ class ActionTargetResult {
     return healingParts.fold<int>(0, (sum, part) => sum + part.total);
   }
 
+  int get rawMitigation {
+    return mitigationParts.fold<int>(0, (sum, part) => sum + part.total);
+  }
+
   // ===========================================================================
   // PARTES DEL RESULTADO
   // ===========================================================================
@@ -74,6 +82,12 @@ class ActionTargetResult {
         .toList(growable: false);
   }
 
+  List<ActionDicePartResult> get mitigationParts {
+    return diceResult.parts
+        .where((part) => part.request.effectType == AbilityEffectType.mitigation)
+        .toList(growable: false);
+  }
+
   // ===========================================================================
   // RESULTADOS
   // ===========================================================================
@@ -82,7 +96,11 @@ class ActionTargetResult {
 
   int get healing => resolvedHealing;
 
+  int get mitigation => resolvedMitigation;
+
   bool get dealtDamage => damage > 0;
 
   bool get healed => healing > 0;
+
+  bool get mitigatedDamage => mitigation > 0;
 }

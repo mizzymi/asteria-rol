@@ -22,7 +22,7 @@ class ItemPassivePreview extends StatelessWidget {
         InfoBadge(
           icon: Icons.shield_rounded,
           text: '${_formulaBonus(passive.armorClassBonus)} CA',
-          color: const Color(0xFF4D8FE8),
+          color: Theme.of(context).colorScheme.secondary,
           highlighted: true,
         ),
       );
@@ -33,7 +33,7 @@ class ItemPassivePreview extends StatelessWidget {
         InfoBadge(
           icon: Icons.bolt_rounded,
           text: '${_formulaBonus(passive.initiativeBonus)} iniciativa',
-          color: const Color(0xFFF2C94C),
+          color: Theme.of(context).colorScheme.secondary,
           highlighted: true,
         ),
       );
@@ -44,7 +44,7 @@ class ItemPassivePreview extends StatelessWidget {
         InfoBadge(
           icon: Icons.directions_run_rounded,
           text: '${_formulaBonus(passive.speedBonus)} pies',
-          color: const Color(0xFF55B96B),
+          color: Theme.of(context).colorScheme.tertiary,
           highlighted: true,
         ),
       );
@@ -55,7 +55,7 @@ class ItemPassivePreview extends StatelessWidget {
         InfoBadge(
           icon: Icons.favorite_rounded,
           text: '${_formulaBonus(passive.maxHealthBonus)} PG máx.',
-          color: const Color(0xFFE84A8A),
+          color: Theme.of(context).colorScheme.tertiary,
           highlighted: true,
         ),
       );
@@ -66,7 +66,7 @@ class ItemPassivePreview extends StatelessWidget {
         InfoBadge(
           icon: Icons.gps_fixed_rounded,
           text: '${_formulaBonus(passive.attackBonus)} al golpe',
-          color: const Color(0xFFE85D5D),
+          color: Theme.of(context).colorScheme.error,
           highlighted: true,
         ),
       );
@@ -83,7 +83,7 @@ class ItemPassivePreview extends StatelessWidget {
         InfoBadge(
           icon: Icons.bar_chart_rounded,
           text: '${_formulaBonus(bonus)} ${entry.key.label}',
-          color: const Color(0xFF8B6FE8),
+          color: Theme.of(context).colorScheme.primary,
         ),
       );
     }
@@ -99,7 +99,7 @@ class ItemPassivePreview extends StatelessWidget {
         InfoBadge(
           icon: Icons.security_rounded,
           text: '${_formulaBonus(bonus)} Salv. ${entry.key.shortLabel}',
-          color: const Color(0xFF4D8FE8),
+          color: Theme.of(context).colorScheme.secondary,
         ),
       );
     }

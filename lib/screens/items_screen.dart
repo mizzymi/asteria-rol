@@ -997,7 +997,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
       useSafeArea: true,
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
-        final color = ItemTypeColors.of(definition.type);
+        final color = ItemTypeColors.of(context, definition.type);
 
         return FractionallySizedBox(
           heightFactor: 0.92,
@@ -1008,7 +1008,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
               children: [
                 if (definition.hasImage) ...[
                   Material(
-                    color: Colors.transparent,
+                    color: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
                     borderRadius: BorderRadius.circular(22),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(

@@ -933,9 +933,9 @@ class _ProductDetails extends StatelessWidget {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         opaque: false,
-        barrierColor: Colors.black,
+        barrierColor: Theme.of(context).colorScheme.scrim,
         pageBuilder: (context, animation, secondaryAnimation) => Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Theme.of(context).colorScheme.scrim,
           body: SafeArea(
             child: Stack(
               children: [
@@ -948,9 +948,9 @@ class _ProductDetails extends StatelessWidget {
                       child: Image.file(
                         File(path),
                         fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const Icon(
+                        errorBuilder: (_, _, _) => Icon(
                           Icons.broken_image_rounded,
-                          color: Colors.white70,
+                          color: Theme.of(context).colorScheme.onInverseSurface.withValues(alpha: 0.70),
                           size: 72,
                         ),
                       ),
@@ -994,7 +994,7 @@ class _ProductDetails extends StatelessWidget {
               aspectRatio: 16 / 9,
               child: hasImage
                   ? Material(
-                      color: Colors.transparent,
+                      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
                       child: InkWell(
                         onTap: () => _openFullscreenImage(context, path),
                         child: Stack(
@@ -1010,22 +1010,22 @@ class _ProductDetails extends StatelessWidget {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: .62),
+                                  color: Theme.of(context).colorScheme.scrim.withValues(alpha: .62),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
                                       Icons.zoom_out_map_rounded,
-                                      color: Colors.white,
+                                      color: Theme.of(context).colorScheme.onInverseSurface,
                                       size: 17,
                                     ),
                                     SizedBox(width: 5),
                                     Text(
                                       'Ver imagen',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: Theme.of(context).colorScheme.onInverseSurface,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),

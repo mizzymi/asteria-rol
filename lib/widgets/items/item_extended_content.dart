@@ -45,7 +45,7 @@ class ItemExtendedContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = ItemTypeColors.of(definition.type);
+    final color = ItemTypeColors.of(context, definition.type);
 
     final weapon = definition.weapon;
 
@@ -674,7 +674,7 @@ class _CalculationPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final color = ItemTypeColors.of(definition.type);
+    final color = ItemTypeColors.of(context, definition.type);
 
     return Container(
       width: double.infinity,
