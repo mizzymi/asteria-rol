@@ -415,7 +415,9 @@ class ActionResolver {
         .fold<int>(0, (sum, part) => sum + part.total);
 
     final resolvedMitigation = resolvedDiceResult.parts
-        .where((part) => part.request.effectType == AbilityEffectType.mitigation)
+        .where(
+          (part) => part.request.effectType == AbilityEffectType.mitigation,
+        )
         .fold<int>(0, (sum, part) => sum + part.total);
 
     return ActionTargetResult(
@@ -2045,11 +2047,11 @@ class ActionResolver {
           if (_abilityEffectEnabledForContext(effect, context))
             for (final part in effect.parts)
               if (_partCanApplyToAnyTarget(
-              plan: plan,
-              context: context,
-              part: part,
-            ))
-              part,
+                plan: plan,
+                context: context,
+                part: part,
+              ))
+                part,
       ];
     } else {
       selected = selectedParts(

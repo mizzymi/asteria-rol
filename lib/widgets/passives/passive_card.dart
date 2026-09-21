@@ -193,7 +193,10 @@ class _PassiveHeader extends StatelessWidget {
                               color,
                               strength: 0.22,
                             ),
-                            child: Icon(Icons.auto_awesome_rounded, color: color),
+                            child: Icon(
+                              Icons.auto_awesome_rounded,
+                              color: color,
+                            ),
                           ),
                   ),
                 );
@@ -1128,7 +1131,6 @@ class _PassiveExpandedContent extends StatelessWidget {
     return effects;
   }
 
-
   // ===========================================================================
   // HELPERS
   // ===========================================================================
@@ -1177,7 +1179,6 @@ class _PassiveExpandedContent extends StatelessWidget {
   }
 }
 
-
 class _PassiveMechanicTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -1199,11 +1200,7 @@ class _PassiveMechanicTile extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: PassiveColors.softBackground(
-          context,
-          color,
-          strength: 0.08,
-        ),
+        color: PassiveColors.softBackground(context, color, strength: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.16)),
       ),

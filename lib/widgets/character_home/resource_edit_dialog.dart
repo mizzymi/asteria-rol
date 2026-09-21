@@ -154,7 +154,9 @@ class _ResourceEditDialogContentState
                       : (value / resource.maxValue).clamp(0.0, 1.0),
                   minHeight: 8,
                   color: resource.colorFor(context),
-                  backgroundColor: resource.colorFor(context).withValues(alpha: 0.12),
+                  backgroundColor: resource
+                      .colorFor(context)
+                      .withValues(alpha: 0.12),
                 ),
               ),
             ],

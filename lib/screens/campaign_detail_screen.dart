@@ -60,9 +60,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
             children: [
               Text(
                 'Añadir personaje',
-                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 6),
               Text(
@@ -72,7 +72,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               const SizedBox(height: 16),
               Card(
                 child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1_rounded)),
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.person_add_alt_1_rounded),
+                  ),
                   title: const Text('Crear PJ'),
                   subtitle: const Text('Crear una ficha nueva en esta campaña'),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -81,7 +83,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               ),
               Card(
                 child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.file_download_rounded)),
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.file_download_rounded),
+                  ),
                   title: const Text('Importar PJ'),
                   subtitle: const Text('Importar un archivo .asteria o .json'),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -93,9 +97,15 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
         ),
       ),
     );
-    if (!mounted || action == null) return;
-    if (action == 'create') await _createCharacter();
-    if (action == 'import') await _importCharacterIntoCampaign();
+    if (!mounted || action == null) {
+      return;
+    }
+    if (action == 'create') {
+      await _createCharacter();
+    }
+    if (action == 'import') {
+      await _importCharacterIntoCampaign();
+    }
   }
 
   Future<void> _importCharacterIntoCampaign() async {
@@ -105,21 +115,36 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
         allowedExtensions: ['asteria', 'json'],
         allowMultiple: false,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
       final path = result.files.single.path;
-      if (path == null) throw const FormatException('No se pudo acceder al archivo.');
-      final character = await CharacterImportExportService.importFileAsCopy(File(path));
+      if (path == null) {
+        throw const FormatException('No se pudo acceder al archivo.');
+      }
+      final character = await CharacterImportExportService.importFileAsCopy(
+        File(path),
+      );
       character.campaignId = campaign.id;
       character.ownerType = 'player';
       await CharacterStorageService.saveCharacter(character);
-      await CampaignEconomyService.ensureCharacterCurrencies(character, campaign);
-      if (!mounted) return;
+      await CampaignEconomyService.ensureCharacterCurrencies(
+        character,
+        campaign,
+      );
+      if (!mounted) {
+        return;
+      }
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${character.name} importado en ${campaign.name}.')),
+        SnackBar(
+          content: Text('${character.name} importado en ${campaign.name}.'),
+        ),
       );
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo importar el personaje: $error')),
       );
@@ -132,7 +157,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.delete_outline_rounded),
         title: const Text('Eliminar personaje'),
-        content: Text('¿Quieres eliminar “${character.name}”? Esta acción no se puede deshacer.'),
+        content: Text(
+          '¿Quieres eliminar “${character.name}”? Esta acción no se puede deshacer.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -146,9 +173,13 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) {
+      return;
+    }
     await CharacterStorageService.deleteCharacter(character.id);
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     _reload();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${character.name} eliminado de la campaña.')),
@@ -180,7 +211,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
     try {
       await CharacterImportExportService.shareCharacter(character);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo exportar el personaje: $error')),
       );
@@ -200,7 +233,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
       context,
       MaterialPageRoute(builder: (_) => const CampaignShopFormScreen()),
     );
-    if (shop == null) return;
+    if (shop == null) {
+      return;
+    }
     campaign.shops.add(shop);
     await CampaignStorageService.saveCampaign(campaign);
     await CampaignEconomyService.syncCampaignCurrencies(campaign);
@@ -210,17 +245,23 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
   Future<void> _importShop() async {
     try {
       final shop = await CampaignShopImportExportService.pickAndImportShop();
-      if (shop == null) return;
+      if (shop == null) {
+        return;
+      }
       campaign.shops.add(shop);
       await CampaignStorageService.saveCampaign(campaign);
       await CampaignEconomyService.syncCampaignCurrencies(campaign);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Tienda “${shop.name}” importada.')),
       );
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo importar la tienda: $error')),
       );
@@ -232,7 +273,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
       context,
       MaterialPageRoute(builder: (_) => const CampaignMissionFormScreen()),
     );
-    if (mission == null) return;
+    if (mission == null) {
+      return;
+    }
     campaign.missions.add(mission);
     await CampaignStorageService.saveCampaign(campaign);
     _reload();
@@ -266,10 +309,14 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true) {
+      return;
+    }
     await CampaignImageService.deleteImage(campaign.imagePath);
     await CampaignStorageService.deleteCampaign(campaign.id);
-    if (mounted) Navigator.pop(context, true);
+    if (mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   @override
@@ -284,8 +331,12 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
             actions: [
               PopupMenuButton<String>(
                 onSelected: (v) {
-                  if (v == 'edit') _editCampaign();
-                  if (v == 'delete') _deleteCampaign();
+                  if (v == 'edit') {
+                    _editCampaign();
+                  }
+                  if (v == 'delete') {
+                    _deleteCampaign();
+                  }
                 },
                 itemBuilder: (_) => const [
                   PopupMenuItem(
@@ -329,8 +380,12 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                          Theme.of(context).colorScheme.scrim.withValues(alpha: .72),
+                          Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0),
+                          Theme.of(
+                            context,
+                          ).colorScheme.scrim.withValues(alpha: .72),
                         ],
                       ),
                     ),
@@ -346,7 +401,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                           campaign.name,
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
-                                color: Theme.of(context).colorScheme.onInverseSurface,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onInverseSurface,
                                 fontWeight: FontWeight.w900,
                               ),
                         ),
@@ -356,7 +413,12 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                             campaign.description,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface.withValues(alpha: 0.70)),
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onInverseSurface
+                                  .withValues(alpha: 0.70),
+                            ),
                           ),
                         ],
                       ],
@@ -570,9 +632,15 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                       trailing: PopupMenuButton<String>(
                         tooltip: 'Opciones del personaje',
                         onSelected: (value) {
-                          if (value == 'open') _openCharacter(c);
-                          if (value == 'export') _exportCharacter(c);
-                          if (value == 'delete') _deleteCharacter(c);
+                          if (value == 'open') {
+                            _openCharacter(c);
+                          }
+                          if (value == 'export') {
+                            _exportCharacter(c);
+                          }
+                          if (value == 'delete') {
+                            _deleteCharacter(c);
+                          }
                         },
                         itemBuilder: (_) => const [
                           PopupMenuItem(

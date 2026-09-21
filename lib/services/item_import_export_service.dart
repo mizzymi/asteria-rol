@@ -128,7 +128,9 @@ class ItemImportExportService {
     if (version >= 3) {
       final rawDefinition = map['definition'];
       if (rawDefinition is! Map) {
-        throw const FormatException('La definición del objeto está incompleta.');
+        throw const FormatException(
+          'La definición del objeto está incompleta.',
+        );
       }
       final definitionMap = Map<String, dynamic>.from(rawDefinition);
       if (map['images'] is Map) {

@@ -93,14 +93,14 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
 
     final result = await Navigator.push<CharacterAbility>(
       context,
-      MaterialPageRoute(
-        builder: (_) => AbilityFormScreen(ability: ability),
-      ),
+      MaterialPageRoute(builder: (_) => AbilityFormScreen(ability: ability)),
     );
 
     if (result != null) {
       await AbilityLibraryService.saveAbility(result);
-      setState(() {}); // Refresca la vista para mostrar el nombre actualizado si cambió
+      setState(
+        () {},
+      ); // Refresca la vista para mostrar el nombre actualizado si cambió
     }
   }
 
@@ -126,14 +126,14 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
 
     final result = await Navigator.push<CharacterPassive>(
       context,
-      MaterialPageRoute(
-        builder: (_) => PassiveFormScreen(passive: passive),
-      ),
+      MaterialPageRoute(builder: (_) => PassiveFormScreen(passive: passive)),
     );
 
     if (result != null) {
       await PassiveLibraryService.savePassive(result);
-      setState(() {}); // Refresca la vista para mostrar el nombre actualizado si cambió
+      setState(
+        () {},
+      ); // Refresca la vista para mostrar el nombre actualizado si cambió
     }
   }
 
@@ -145,9 +145,9 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
     final id = widget.definition?.id.isNotEmpty == true
         ? widget.definition!.id
         : _nameController.text.trim().toLowerCase().replaceAll(
-      RegExp(r'\s+'),
-      '_',
-    );
+            RegExp(r'\s+'),
+            '_',
+          );
 
     final updated = KnowledgeDefinition(
       id: id,
@@ -212,10 +212,10 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
               items: KnowledgeCategory.values
                   .map(
                     (cat) => DropdownMenuItem(
-                  value: cat,
-                  child: Text(cat.name.toUpperCase()),
-                ),
-              )
+                      value: cat,
+                      child: Text(cat.name.toUpperCase()),
+                    ),
+                  )
                   .toList(),
               onChanged: (val) {
                 if (val != null) setState(() => _category = val);

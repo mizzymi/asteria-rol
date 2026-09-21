@@ -946,7 +946,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(dialogContext),
-                    icon: Icon(Icons.close_rounded, color: Theme.of(context).colorScheme.scrim),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: Theme.of(context).colorScheme.scrim,
+                    ),
                   ),
                   Expanded(
                     child: Text(
@@ -1001,7 +1004,14 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60)],
+                        colors: [
+                          Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0),
+                          Theme.of(
+                            context,
+                          ).colorScheme.scrim.withValues(alpha: 0.60),
+                        ],
                       ),
                     ),
                   ),
@@ -1010,7 +1020,9 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                     bottom: 12,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.scrim.withValues(alpha: 0.60),
                         shape: BoxShape.circle,
                       ),
                       child: Padding(
@@ -1265,25 +1277,21 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       final scope = _abilityFolderSearchScope();
 
       // Resultados de las carpetas normales de Habilidades/Pasivas.
-      final matchedAbilities = character.characterAbilities
-          .where((ability) {
-            final folderId = ability.folderId;
-            final inScope =
-                folderId == _currentFolderId ||
-                (folderId != null && scope.contains(folderId));
-            return inScope && _matchesAbilitySearch(ability, query);
-          })
-          .toList();
+      final matchedAbilities = character.characterAbilities.where((ability) {
+        final folderId = ability.folderId;
+        final inScope =
+            folderId == _currentFolderId ||
+            (folderId != null && scope.contains(folderId));
+        return inScope && _matchesAbilitySearch(ability, query);
+      }).toList();
 
-      final matchedPassives = character.passives
-          .where((passive) {
-            final folderId = passive.folderId;
-            final inScope =
-                folderId == _currentFolderId ||
-                (folderId != null && scope.contains(folderId));
-            return inScope && _matchesPassiveSearch(passive, query);
-          })
-          .toList();
+      final matchedPassives = character.passives.where((passive) {
+        final folderId = passive.folderId;
+        final inScope =
+            folderId == _currentFolderId ||
+            (folderId != null && scope.contains(folderId));
+        return inScope && _matchesPassiveSearch(passive, query);
+      }).toList();
 
       // "Objetos" es una carpeta virtual que cuelga de la raíz de esta
       // pantalla. Por tanto, una búsqueda iniciada desde la raíz también debe
@@ -1797,7 +1805,11 @@ class _CompactContentGridCard extends StatelessWidget {
               ColoredBox(
                 color: colors.primary,
                 child: Center(
-                  child: Icon(fallbackIcon, size: 34, color: Theme.of(context).colorScheme.onInverseSurface),
+                  child: Icon(
+                    fallbackIcon,
+                    size: 34,
+                    color: Theme.of(context).colorScheme.onInverseSurface,
+                  ),
                 ),
               ),
             DecoratedBox(
@@ -1806,7 +1818,10 @@ class _CompactContentGridCard extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   stops: [0.42, 1],
-                  colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.80)],
+                  colors: [
+                    Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                    Theme.of(context).colorScheme.scrim.withValues(alpha: 0.80),
+                  ],
                 ),
               ),
             ),
@@ -1823,8 +1838,13 @@ class _CompactContentGridCard extends StatelessWidget {
                     color: Theme.of(context).colorScheme.onInverseSurface,
                     fontWeight: FontWeight.w900,
                     height: 1.05,
-                    shadows:  [
-                      Shadow(blurRadius: 3, color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.54)),
+                    shadows: [
+                      Shadow(
+                        blurRadius: 3,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.scrim.withValues(alpha: 0.54),
+                      ),
                     ],
                   ),
                 ),

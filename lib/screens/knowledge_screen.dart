@@ -311,7 +311,9 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
               color: isMastered
-                  ? Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.4)
+                  ? Theme.of(
+                      context,
+                    ).colorScheme.tertiary.withValues(alpha: 0.4)
                   : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
             ),
           ),

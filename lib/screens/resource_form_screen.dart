@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/character_resource.dart';
+import '../theme/resource_palette.dart';
 
 class ResourceFormScreen extends StatefulWidget {
   final CharacterResource? resource;
@@ -36,19 +37,7 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
   // COLORES
   // ===========================================================================
 
-  List<Color> get availableColors {
-    final scheme = Theme.of(context).colorScheme;
-    return [
-      scheme.primary,
-      scheme.secondary,
-      scheme.tertiary,
-      scheme.error,
-      scheme.primaryContainer,
-      scheme.secondaryContainer,
-      scheme.tertiaryContainer,
-      scheme.onSurfaceVariant,
-    ];
-  }
+  List<Color> get availableColors => ResourcePalette.colors(context);
 
   // ===========================================================================
   // ICONOS
@@ -464,31 +453,69 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                 children: availableColors.asMap().entries.map((entry) {
                   final index = entry.key;
                   final option = entry.value;
-                  final selected = index == colorValue.abs() % availableColors.length;
+                  final selected =
+                      index == colorValue.abs() % availableColors.length;
 
                   return InkWell(
-                    borderRadius: BorderRadius.circular(50),
+                    borderRadius: BorderRadius.circular(18),
                     onTap: () {
                       setState(() {
                         colorValue = index;
                       });
                     },
-                    child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: option,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selected
-                              ? theme.colorScheme.onSurface
-                              : Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                          width: 3,
-                        ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 2,
+                        vertical: 4,
                       ),
-                      child: selected
-                          ? Icon(Icons.check_rounded, color: Theme.of(context).colorScheme.onInverseSurface)
-                          : null,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: option,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selected
+                                    ? theme.colorScheme.onSurface
+                                    : theme.colorScheme.surface.withValues(
+                                        alpha: 0,
+                                      ),
+                                width: 3,
+                              ),
+                              boxShadow: selected
+                                  ? [
+                                      BoxShadow(
+                                        color: option.withValues(alpha: 0.28),
+                                        blurRadius: 10,
+                                        spreadRadius: 1,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: selected
+                                ? Icon(
+                                    Icons.check_rounded,
+                                    color: theme.colorScheme.surface,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            ResourcePalette.labels[index],
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: selected
+                                  ? option
+                                  : theme.colorScheme.onSurfaceVariant,
+                              fontWeight: selected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }).toList(),
@@ -537,7 +564,11 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                                   .withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: selected ? color : Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                          color: selected
+                              ? color
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.surface.withValues(alpha: 0),
                         ),
                       ),
                       child: Icon(

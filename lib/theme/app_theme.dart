@@ -5,7 +5,7 @@ class AppTheme {
 
   // La paleta real vive únicamente en el Theme. Los widgets consumen
   // ColorScheme y nunca necesitan conocer valores de color concretos.
-  static const Color _purpleSeed = Color(0xFF7B5CE7);
+  static const Color _purpleSeed = Color(0xFFA855F7);
 
   static ColorScheme _purpleScheme(Brightness brightness) {
     final base = ColorScheme.fromSeed(
@@ -24,14 +24,32 @@ class AppTheme {
           source;
     }
 
+    final primary = isDark
+        ? HSLColor.fromColor(base.primary)
+              .withSaturation(
+                (HSLColor.fromColor(base.primary).saturation + 0.08).clamp(
+                  0.0,
+                  1.0,
+                ),
+              )
+              .withLightness(
+                (HSLColor.fromColor(base.primary).lightness + 0.04).clamp(
+                  0.0,
+                  1.0,
+                ),
+              )
+              .toColor()
+        : base.primary;
+
     return base.copyWith(
-      surface: tint(base.surface, 0.025, 0.10),
-      surfaceContainerLowest: tint(base.surfaceContainerLowest, 0.035, 0.09),
-      surfaceContainerLow: tint(base.surfaceContainerLow, 0.055, 0.12),
-      surfaceContainer: tint(base.surfaceContainer, 0.070, 0.15),
-      surfaceContainerHigh: tint(base.surfaceContainerHigh, 0.085, 0.18),
-      surfaceContainerHighest: tint(base.surfaceContainerHighest, 0.105, 0.22),
-      outlineVariant: tint(base.outlineVariant, 0.12, 0.20),
+      primary: primary,
+      surface: tint(base.surface, 0.050, 0.10),
+      surfaceContainerLowest: tint(base.surfaceContainerLowest, 0.060, 0.10),
+      surfaceContainerLow: tint(base.surfaceContainerLow, 0.095, 0.14),
+      surfaceContainer: tint(base.surfaceContainer, 0.125, 0.18),
+      surfaceContainerHigh: tint(base.surfaceContainerHigh, 0.155, 0.22),
+      surfaceContainerHighest: tint(base.surfaceContainerHighest, 0.190, 0.26),
+      outlineVariant: tint(base.outlineVariant, 0.22, 0.22),
     );
   }
 

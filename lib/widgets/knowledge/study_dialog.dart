@@ -13,10 +13,8 @@ Future<StudyRollResult?> showStudyDialog(
 }) {
   return showDialog<StudyRollResult>(
     context: context,
-    builder: (dialogContext) => _StudyDialogContent(
-      character: character,
-      definition: definition,
-    ),
+    builder: (dialogContext) =>
+        _StudyDialogContent(character: character, definition: definition),
   );
 }
 

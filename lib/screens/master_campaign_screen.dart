@@ -145,9 +145,9 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     await CampaignEconomyService.syncCampaignCurrencies(campaign);
     if (!mounted) return;
     _reload();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Tienda “${shop.name}” eliminada.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Tienda “${shop.name}” eliminada.')));
   }
 
   Future<void> _newMission() async {
@@ -267,8 +267,12 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                        Theme.of(context).colorScheme.scrim.withValues(alpha: .8),
+                        Theme.of(
+                          context,
+                        ).colorScheme.surface.withValues(alpha: 0),
+                        Theme.of(
+                          context,
+                        ).colorScheme.scrim.withValues(alpha: .8),
                       ],
                     ),
                   ),
@@ -293,7 +297,12 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                           campaign.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface.withValues(alpha: 0.70)),
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onInverseSurface
+                                .withValues(alpha: 0.70),
+                          ),
                         ),
                       ],
                     ],

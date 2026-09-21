@@ -420,7 +420,9 @@ class ActionResolutionFlow {
                     amount,
                     dispatchTriggers: true,
                   );
-                  breakdown.add('Contador $counterId: ${amount > 0 ? '+' : ''}$amount');
+                  breakdown.add(
+                    'Contador $counterId: ${amount > 0 ? '+' : ''}$amount',
+                  );
                 }
               }
             }
@@ -519,9 +521,7 @@ class ActionResolutionFlow {
     if (allDicePools.isEmpty) {
       final formula = formulaExpression.trim();
       breakdown.add(
-        formula.isEmpty
-            ? '$label: $modifier'
-            : '$label: $formula = $modifier',
+        formula.isEmpty ? '$label: $modifier' : '$label: $formula = $modifier',
       );
       return modifier;
     }
@@ -582,8 +582,8 @@ class ActionResolutionFlow {
 
     final total = result.parts.fold<int>(0, (sum, part) => sum + part.total);
     breakdown.add(
-        _passiveDiceBreakdown(label, formulaExpression, result, total),
-      );
+      _passiveDiceBreakdown(label, formulaExpression, result, total),
+    );
     return total;
   }
 
@@ -2687,7 +2687,11 @@ class ActionResolutionFlow {
                         ),
                         title: Text(o.passiveName),
                         subtitle: Text(
-                          '${isDeathTrigger ? 'Al morir' : isDamage ? 'Al recibir daño' : 'Al recibir curación'} · ${o.actions.length} acción(es)',
+                          '${isDeathTrigger
+                              ? 'Al morir'
+                              : isDamage
+                              ? 'Al recibir daño'
+                              : 'Al recibir curación'} · ${o.actions.length} acción(es)',
                         ),
                         onChanged: (value) {
                           setDialogState(() {
@@ -2722,7 +2726,6 @@ class ActionResolutionFlow {
       },
     );
   }
-
 
   Future<void> _showPassiveTriggerResultsDialog(
     BuildContext context,
@@ -2886,21 +2889,20 @@ class ActionResolutionFlow {
                                           label:
                                               'Mitigado ${results[i].mitigation}',
                                           background: colors.tertiaryContainer,
-                                          foreground: colors.onTertiaryContainer,
+                                          foreground:
+                                              colors.onTertiaryContainer,
                                         ),
                                       if (results[i].healing > 0)
                                         resultChip(
                                           icon: Icons.favorite_rounded,
-                                          label:
-                                              '+${results[i].healing} PV',
+                                          label: '+${results[i].healing} PV',
                                           background: colors.primaryContainer,
                                           foreground: colors.onPrimaryContainer,
                                         ),
                                       if (results[i].damage > 0)
                                         resultChip(
                                           icon: Icons.flash_on_rounded,
-                                          label:
-                                              '${results[i].damage} de daño',
+                                          label: '${results[i].damage} de daño',
                                           background: colors.errorContainer,
                                           foreground: colors.onErrorContainer,
                                         ),
@@ -2909,8 +2911,7 @@ class ActionResolutionFlow {
                                           icon: Icons.auto_fix_high_rounded,
                                           label:
                                               '${results[i].effects.length} efecto${results[i].effects.length == 1 ? '' : 's'}',
-                                          background:
-                                              colors.secondaryContainer,
+                                          background: colors.secondaryContainer,
                                           foreground:
                                               colors.onSecondaryContainer,
                                         ),
@@ -2928,7 +2929,9 @@ class ActionResolutionFlow {
                             ),
                             Theme(
                               data: theme.copyWith(
-                                dividerColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                                dividerColor: Theme.of(
+                                  context,
+                                ).colorScheme.surface.withValues(alpha: 0),
                               ),
                               child: ExpansionTile(
                                 tilePadding: const EdgeInsets.symmetric(
@@ -2965,8 +2968,7 @@ class ActionResolutionFlow {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        for (final line
-                                            in results[i].breakdown)
+                                        for (final line in results[i].breakdown)
                                           Padding(
                                             padding: const EdgeInsets.only(
                                               bottom: 6,
@@ -3046,8 +3048,7 @@ class ActionResolutionFlow {
       return;
     }
 
-    final deathResolutionId =
-        'death-${DateTime.now().microsecondsSinceEpoch}';
+    final deathResolutionId = 'death-${DateTime.now().microsecondsSinceEpoch}';
     final deathResults = await _resolvePassiveTriggeredExternalOutcomes(
       context,
       resolver: resolver,
@@ -3478,10 +3479,7 @@ class ActionResolutionFlow {
             return execution;
           }
 
-          await handleCharacterDeath(
-            context,
-            resolver: resolver,
-          );
+          await handleCharacterDeath(context, resolver: resolver);
         }
       }
 

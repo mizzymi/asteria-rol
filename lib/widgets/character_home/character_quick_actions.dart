@@ -26,7 +26,7 @@ class CharacterQuickActions extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: CharacterHomeColors.elevatedPanel(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: colors.outlineVariant.withValues(alpha: 0.70),
@@ -81,7 +81,9 @@ class CharacterQuickActions extends StatelessWidget {
                 child: _QuickActionButton(
                   icon: Icons.pets_rounded,
                   label: petCount > 0 ? 'Mascotas ($petCount)' : 'Mascotas',
-                  color: CharacterHomeColors.effects(context), // Color cohesivo con efectos/magia
+                  color: CharacterHomeColors.effects(
+                    context,
+                  ), // Color cohesivo con efectos/magia
                   onTap: onPets,
                 ),
               ),

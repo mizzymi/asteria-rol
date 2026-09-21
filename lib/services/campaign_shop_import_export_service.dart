@@ -247,7 +247,9 @@ class CampaignShopImportExportService {
       if (root['type'] != formatType ||
           (root['version'] as num?)?.toInt() != formatVersion ||
           root['shop'] is! Map) {
-        throw const FormatException('El archivo no es una tienda de Asteria v4.');
+        throw const FormatException(
+          'El archivo no es una tienda de Asteria v4.',
+        );
       }
 
       final imageRefs = root['imageRefs'] is Map
@@ -277,12 +279,8 @@ class CampaignShopImportExportService {
         final key = utf8.decode(await _readExact(input, keyLength));
         final imageLength = await _readUint64(input);
 
-        final ext = _safeExtension(
-          imageExtensions[key]?.toString() ?? 'img',
-        );
-        final imageFile = File(
-          '${imageDir.path}/shop_${batchId}_$i.$ext',
-        );
+        final ext = _safeExtension(imageExtensions[key]?.toString() ?? 'img');
+        final imageFile = File('${imageDir.path}/shop_${batchId}_$i.$ext');
         final imageOutput = await imageFile.open(mode: FileMode.write);
 
         try {
@@ -326,9 +324,7 @@ class CampaignShopImportExportService {
   }
 
   static CampaignShop _withFreshIds(Map<String, dynamic> shopMap) {
-    final imported = CampaignShop.fromMap(
-      Map<dynamic, dynamic>.from(shopMap),
-    );
+    final imported = CampaignShop.fromMap(Map<dynamic, dynamic>.from(shopMap));
     final stamp = DateTime.now().microsecondsSinceEpoch;
     imported.id = 'shop_$stamp';
     for (var i = 0; i < imported.products.length; i++) {
@@ -380,10 +376,7 @@ class CampaignShopImportExportService {
     return ByteData.sublistView(bytes).getUint64(0, Endian.big);
   }
 
-  static Future<Uint8List> _readExact(
-    RandomAccessFile file,
-    int length,
-  ) async {
+  static Future<Uint8List> _readExact(RandomAccessFile file, int length) async {
     if (length < 0) {
       throw const FormatException('Longitud de archivo no válida.');
     }
@@ -407,10 +400,7 @@ class CampaignShopImportExportService {
     return utf8.decode(bytes);
   }
 
-  static Future<String> _saveLegacyImage(
-    String itemId,
-    String? encoded,
-  ) async {
+  static Future<String> _saveLegacyImage(String itemId, String? encoded) async {
     if (encoded == null || encoded.isEmpty) return '';
     try {
       final bytes = base64Decode(encoded);
@@ -445,10 +435,10 @@ class CampaignShopImportExportService {
   }
 
   static String _safeName(String value) {
-    final result = value
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    final result = value.trim().toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
     return result.isEmpty ? 'asteria_shop' : result;
   }
 }

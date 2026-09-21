@@ -60,7 +60,9 @@ class CharacterImportExportService {
     if (map['format'] == 'asteria_character') {
       final characterData = map['character'];
       if (characterData is! Map) {
-        throw const FormatException('El archivo no contiene un personaje válido.');
+        throw const FormatException(
+          'El archivo no contiene un personaje válido.',
+        );
       }
       final characterMap = Map<String, dynamic>.from(characterData);
       final images = map['images'];

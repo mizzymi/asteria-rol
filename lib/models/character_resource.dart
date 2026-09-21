@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/number_format.dart';
+import '../theme/resource_palette.dart';
 
 class CharacterResource {
   String id;
@@ -35,25 +36,7 @@ class CharacterResource {
   });
 
   Color colorFor(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    switch (colorValue.abs() % 8) {
-      case 0:
-        return scheme.primary;
-      case 1:
-        return scheme.secondary;
-      case 2:
-        return scheme.tertiary;
-      case 3:
-        return scheme.error;
-      case 4:
-        return scheme.primaryContainer;
-      case 5:
-        return scheme.secondaryContainer;
-      case 6:
-        return scheme.tertiaryContainer;
-      default:
-        return scheme.onSurfaceVariant;
-    }
+    return ResourcePalette.colorFor(context, colorValue);
   }
 
   bool get isEmpty => currentValue <= 0;

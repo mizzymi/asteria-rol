@@ -137,7 +137,8 @@ enum SaveSuccessEffect { full, half, none }
 
 enum AbilityEffectActivationCondition { always, damageFullyMitigated }
 
-extension AbilityEffectActivationConditionData on AbilityEffectActivationCondition {
+extension AbilityEffectActivationConditionData
+    on AbilityEffectActivationCondition {
   String get label {
     switch (this) {
       case AbilityEffectActivationCondition.always:
@@ -700,7 +701,9 @@ class CharacterAbility {
 
   bool get mitigatesDamage {
     if (effects.isNotEmpty) {
-      return effects.any((effect) => effect.mitigatesDamage && effect.hasEffect);
+      return effects.any(
+        (effect) => effect.mitigatesDamage && effect.hasEffect,
+      );
     }
 
     return effectType == AbilityEffectType.mitigation;

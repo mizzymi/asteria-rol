@@ -9,8 +9,12 @@ class AbilityColors {
     final scheme = Theme.of(context).colorScheme;
     final damageType = effect.effectTypeName.toLowerCase();
 
-    if (effect.mitigatesDamage) return scheme.primary;
-    if (effect.heals) return scheme.tertiary;
+    if (effect.mitigatesDamage) {
+      return scheme.primary;
+    }
+    if (effect.heals) {
+      return scheme.tertiary;
+    }
 
     if (damageType.contains('fuego') || damageType.contains('fire')) {
       return scheme.error;
@@ -49,12 +53,20 @@ class AbilityColors {
         damageType.contains('psychic')) {
       return scheme.tertiary;
     }
-    if (effect.usesSavingThrow) return scheme.primary;
-    if (effect.dealsDamage) return scheme.error;
+    if (effect.usesSavingThrow) {
+      return scheme.primary;
+    }
+    if (effect.dealsDamage) {
+      return scheme.error;
+    }
     return scheme.primary;
   }
 
-  static Color softBackground(BuildContext context, Color color, {double strength = 0.16}) {
+  static Color softBackground(
+    BuildContext context,
+    Color color, {
+    double strength = 0.16,
+  }) {
     final scheme = Theme.of(context).colorScheme;
     return Color.lerp(scheme.surface, color, strength) ?? scheme.surface;
   }
@@ -66,16 +78,40 @@ class AbilityColors {
 
   static IconData effectIcon(AbilityEffect effect) {
     final damageType = effect.effectTypeName.toLowerCase();
-    if (effect.mitigatesDamage) return Icons.shield_rounded;
-    if (effect.heals) return Icons.favorite_rounded;
-    if (damageType.contains('fuego')) return Icons.local_fire_department_rounded;
-    if (damageType.contains('hielo') || damageType.contains('frío') || damageType.contains('frio')) return Icons.ac_unit_rounded;
-    if (damageType.contains('veneno')) return Icons.coronavirus_rounded;
-    if (damageType.contains('rayo') || damageType.contains('eléctrico') || damageType.contains('electrico')) return Icons.bolt_rounded;
-    if (damageType.contains('necrótico') || damageType.contains('necrotico')) return Icons.dark_mode_rounded;
-    if (damageType.contains('radiante')) return Icons.wb_sunny_rounded;
-    if (damageType.contains('psíquico') || damageType.contains('psiquico')) return Icons.psychology_alt_rounded;
-    if (effect.usesSavingThrow) return Icons.shield_rounded;
+    if (effect.mitigatesDamage) {
+      return Icons.shield_rounded;
+    }
+    if (effect.heals) {
+      return Icons.favorite_rounded;
+    }
+    if (damageType.contains('fuego')) {
+      return Icons.local_fire_department_rounded;
+    }
+    if (damageType.contains('hielo') ||
+        damageType.contains('frío') ||
+        damageType.contains('frio')) {
+      return Icons.ac_unit_rounded;
+    }
+    if (damageType.contains('veneno')) {
+      return Icons.coronavirus_rounded;
+    }
+    if (damageType.contains('rayo') ||
+        damageType.contains('eléctrico') ||
+        damageType.contains('electrico')) {
+      return Icons.bolt_rounded;
+    }
+    if (damageType.contains('necrótico') || damageType.contains('necrotico')) {
+      return Icons.dark_mode_rounded;
+    }
+    if (damageType.contains('radiante')) {
+      return Icons.wb_sunny_rounded;
+    }
+    if (damageType.contains('psíquico') || damageType.contains('psiquico')) {
+      return Icons.psychology_alt_rounded;
+    }
+    if (effect.usesSavingThrow) {
+      return Icons.shield_rounded;
+    }
     return Icons.flash_on_rounded;
   }
 }

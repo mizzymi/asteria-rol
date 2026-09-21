@@ -605,7 +605,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             Icon(
               effect.mitigatesDamage
                   ? Icons.shield_rounded
-                  : (effect.heals ? Icons.favorite_rounded : Icons.flash_on_rounded),
+                  : (effect.heals
+                        ? Icons.favorite_rounded
+                        : Icons.flash_on_rounded),
               color: Theme.of(context).colorScheme.primary,
             ),
 
@@ -804,7 +806,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
                         : 'Tipo de daño extra'),
               hintText: effect.mitigatesDamage
                   ? 'Escudo, bloqueo, reducción...'
-                  : (effect.heals ? 'Curación mágica' : 'Fuego, radiante, veneno...'),
+                  : (effect.heals
+                        ? 'Curación mágica'
+                        : 'Fuego, radiante, veneno...'),
             ),
             onChanged: (_) {
               notifyParent();

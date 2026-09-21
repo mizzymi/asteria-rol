@@ -328,6 +328,7 @@ class CharacterPassive {
   String id;
   String name;
   String description;
+
   /// Ruta local de la imagen representativa de la pasiva.
   String? imagePath;
 

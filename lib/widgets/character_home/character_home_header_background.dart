@@ -8,10 +8,7 @@ import 'character_home_background_images.dart';
 class CharacterHomeHeaderBackground extends StatelessWidget {
   final double height;
 
-  const CharacterHomeHeaderBackground({
-    super.key,
-    this.height = 320,
-  });
+  const CharacterHomeHeaderBackground({super.key, this.height = 320});
 
   static final Uint8List _lightBytes = base64Decode(
     characterHomeLightBackgroundBase64,
@@ -27,7 +24,7 @@ class CharacterHomeHeaderBackground extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final fadeColor = isDark
-        ? (Color.lerp(colors.surface, colors.primary, 0.18) ?? colors.surface)
+        ? (Color.lerp(colors.surface, colors.primary, 0.10) ?? colors.surface)
         : colors.surface;
 
     return SizedBox(
@@ -45,16 +42,32 @@ class CharacterHomeHeaderBackground extends StatelessWidget {
           ),
           DecoratedBox(
             decoration: BoxDecoration(
+              color: isDark
+                  ? colors.surface.withValues(alpha: 0.14)
+                  : colors.surface.withValues(alpha: 0.00),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: const [0.0, 0.56, 0.82, 1.0],
-                colors: [
-                  colors.surface.withValues(alpha: 0.02),
-                  fadeColor.withValues(alpha: 0.10),
-                  fadeColor.withValues(alpha: 0.72),
-                  fadeColor,
-                ],
+                stops: const [0.0, 0.28, 0.58, 0.82, 1.0],
+                colors: isDark
+                    ? [
+                        colors.surface.withValues(alpha: 0.22),
+                        colors.surface.withValues(alpha: 0.30),
+                        fadeColor.withValues(alpha: 0.54),
+                        fadeColor.withValues(alpha: 0.88),
+                        colors.surface,
+                      ]
+                    : [
+                        colors.surface.withValues(alpha: 0.02),
+                        colors.surface.withValues(alpha: 0.03),
+                        fadeColor.withValues(alpha: 0.10),
+                        fadeColor.withValues(alpha: 0.72),
+                        fadeColor,
+                      ],
               ),
             ),
           ),

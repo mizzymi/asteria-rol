@@ -50,7 +50,8 @@ class _AbilityCardState extends State<AbilityCard> {
   bool expanded = false;
   @override
   Widget build(BuildContext context) {
-    final attributeColor = AbilityAttributeColors.color(context, 
+    final attributeColor = AbilityAttributeColors.color(
+      context,
       widget.ability.abilityType,
     );
     return AppCard(
@@ -125,7 +126,10 @@ class _CompactAbilityHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final attributeColor = AbilityAttributeColors.color(context, ability.abilityType);
+    final attributeColor = AbilityAttributeColors.color(
+      context,
+      ability.abilityType,
+    );
     return InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: onTap,

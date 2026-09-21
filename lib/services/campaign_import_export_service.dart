@@ -42,7 +42,9 @@ class CampaignImportExportService {
     };
 
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/${_safeName(campaign.name)}.asteria-campaign');
+    final file = File(
+      '${dir.path}/${_safeName(campaign.name)}.asteria-campaign',
+    );
     await file.writeAsString(
       const JsonEncoder.withIndent('  ').convert(payload),
       flush: true,
@@ -64,7 +66,7 @@ class CampaignImportExportService {
   /// Utilidad preparada para la importación completa: restaura todas las
   /// imágenes antes de reconstruir los modelos.
   static Future<({Campaign campaign, List<Character> characters})>
-      decodePortable(String raw) async {
+  decodePortable(String raw) async {
     final decoded = jsonDecode(raw);
     if (decoded is! Map) {
       throw const FormatException('Archivo de campaña inválido.');
@@ -82,9 +84,9 @@ class CampaignImportExportService {
       'campaign': Map<String, dynamic>.from(map['campaign'] as Map),
       'characters': map['characters'] is List
           ? (map['characters'] as List)
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList()
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
           : <Map<String, dynamic>>[],
     };
     if (map['images'] is Map) {
@@ -111,7 +113,7 @@ class CampaignImportExportService {
   /// sobrescribir datos existentes cuando se importa una campaña exportada
   /// desde este mismo dispositivo. El contenido y las imágenes se conservan.
   static Future<({Campaign campaign, List<Character> characters})>
-      importPortableAsCopy(String raw) async {
+  importPortableAsCopy(String raw) async {
     final decoded = await decodePortable(raw);
     final stamp = DateTime.now().microsecondsSinceEpoch;
     final newCampaignId = 'campaign_$stamp';
@@ -151,17 +153,18 @@ class CampaignImportExportService {
   /// Esto permite reconocer posteriores importaciones de la misma campaña y
   /// actualizarla en lugar de crear copias con IDs distintos.
   static Future<({Campaign campaign, List<Character> characters})>
-      importPortable(String raw) async {
+  importPortable(String raw) async {
     return decodePortable(raw);
   }
 
-  static Future<({Campaign campaign, List<Character> characters})>
-      importFile(File file) async {
+  static Future<({Campaign campaign, List<Character> characters})> importFile(
+    File file,
+  ) async {
     return importPortable(await file.readAsString());
   }
 
   static Future<({Campaign campaign, List<Character> characters})>
-      importFileAsCopy(File file) async {
+  importFileAsCopy(File file) async {
     return importPortableAsCopy(await file.readAsString());
   }
 
