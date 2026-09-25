@@ -36,6 +36,7 @@ import '../models/weapon.dart';
 import '../models/passive.dart';
 import '../models/passive_roll_resolution.dart';
 import '../models/item_definition.dart';
+import '../models/skill.dart';
 
 import '../widgets/abilities/attack_roll_sheet.dart';
 import '../widgets/action_resolution/dice/dice_mode_sheet.dart';
@@ -420,9 +421,7 @@ class ActionResolutionFlow {
                     amount,
                     dispatchTriggers: true,
                   );
-                  breakdown.add(
-                    'Contador $counterId: ${amount > 0 ? '+' : ''}$amount',
-                  );
+                  breakdown.add('Contador $counterId: ${amount > 0 ? '+' : ''}$amount');
                 }
               }
             }
@@ -521,7 +520,9 @@ class ActionResolutionFlow {
     if (allDicePools.isEmpty) {
       final formula = formulaExpression.trim();
       breakdown.add(
-        formula.isEmpty ? '$label: $modifier' : '$label: $formula = $modifier',
+        formula.isEmpty
+            ? '$label: $modifier'
+            : '$label: $formula = $modifier',
       );
       return modifier;
     }
@@ -532,9 +533,12 @@ class ActionResolutionFlow {
           id: 'passive-trigger-action',
           effectId: 'passive-trigger',
           effectName: 'Trigger de ${passive.name}',
-          effectType: action.type == PassiveTriggerActionType.heal
-              ? AbilityEffectType.healing
-              : AbilityEffectType.damage,
+          effectType: switch (action.type) {
+            PassiveTriggerActionType.heal => AbilityEffectType.healing,
+            PassiveTriggerActionType.mitigateDamage =>
+              AbilityEffectType.mitigation,
+            _ => AbilityEffectType.damage,
+          },
           dicePools: List<DicePool>.unmodifiable(allDicePools),
           modifier: modifier,
           hitBehavior: ActionHitBehavior.ignoreHit,
@@ -582,8 +586,8 @@ class ActionResolutionFlow {
 
     final total = result.parts.fold<int>(0, (sum, part) => sum + part.total);
     breakdown.add(
-      _passiveDiceBreakdown(label, formulaExpression, result, total),
-    );
+        _passiveDiceBreakdown(label, formulaExpression, result, total),
+      );
     return total;
   }
 
@@ -782,29 +786,28 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // Permitir elegir siempre si se tira en digital o en físico
-    final selectedDiceMode = await showActionDiceModeSheet(context);
-
-    if (selectedDiceMode == null || !context.mounted) {
-      return null;
-    }
-
-    final ActionDiceMode diceMode = selectedDiceMode;
-
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
         context,
         resolver: resolver,
         prepared: prepared,
-        diceMode: diceMode,
       );
+    }
+
+    final selectedDiceMode = await showActionDiceModeSheet(
+      context,
+      title: 'Dados de la acción',
+    );
+
+    if (selectedDiceMode == null || !context.mounted) {
+      return null;
     }
 
     return _resolveWithoutAttack(
       context,
       resolver: resolver,
       prepared: prepared,
-      diceMode: diceMode,
+      diceMode: selectedDiceMode,
     );
   }
 
@@ -920,29 +923,28 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // Permitir elegir siempre si se tira en digital o en físico
-    final selectedDiceMode = await showActionDiceModeSheet(context);
-
-    if (selectedDiceMode == null || !context.mounted) {
-      return null;
-    }
-
-    final ActionDiceMode diceMode = selectedDiceMode;
-
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
         context,
         resolver: resolver,
         prepared: prepared,
-        diceMode: diceMode,
       );
+    }
+
+    final selectedDiceMode = await showActionDiceModeSheet(
+      context,
+      title: 'Dados de la acción',
+    );
+
+    if (selectedDiceMode == null || !context.mounted) {
+      return null;
     }
 
     return _resolveWithoutAttack(
       context,
       resolver: resolver,
       prepared: prepared,
-      diceMode: diceMode,
+      diceMode: selectedDiceMode,
     );
   }
 
@@ -1039,29 +1041,28 @@ class ActionResolutionFlow {
       return null;
     }
 
-    // Permitir elegir siempre si se tira en digital o en físico
-    final selectedDiceMode = await showActionDiceModeSheet(context);
-
-    if (selectedDiceMode == null || !context.mounted) {
-      return null;
-    }
-
-    final ActionDiceMode diceMode = selectedDiceMode;
-
     if (prepared.definition.requiresAttackRoll) {
       return _resolveAttack(
         context,
         resolver: resolver,
         prepared: prepared,
-        diceMode: diceMode,
       );
+    }
+
+    final selectedDiceMode = await showActionDiceModeSheet(
+      context,
+      title: 'Dados de la acción',
+    );
+
+    if (selectedDiceMode == null || !context.mounted) {
+      return null;
     }
 
     return _resolveWithoutAttack(
       context,
       resolver: resolver,
       prepared: prepared,
-      diceMode: diceMode,
+      diceMode: selectedDiceMode,
     );
   }
 
@@ -1231,11 +1232,82 @@ class ActionResolutionFlow {
                   const SizedBox(height: 12),
                   ...reactions.map(
                     (reaction) => Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.shield_rounded),
-                        title: Text(reaction.name),
-                        subtitle: const Text('Reacción · Mitigación de daño'),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
                         onTap: () => Navigator.pop(dialogContext, reaction),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.shield_rounded,
+                                color: Theme.of(dialogContext).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      reaction.name,
+                                      style: Theme.of(dialogContext)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(fontWeight: FontWeight.w900),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      'Reacción · Mitigación de daño',
+                                      style: Theme.of(dialogContext)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(dialogContext)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 9),
+                                    ..._mitigationReactionDetails(reaction).map(
+                                      (detail) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Icon(
+                                              detail.icon,
+                                              size: 15,
+                                              color: Theme.of(dialogContext)
+                                                  .colorScheme
+                                                  .primary,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text(
+                                                detail.text,
+                                                style: Theme.of(dialogContext)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      fontWeight: detail.emphasized
+                                                          ? FontWeight.w800
+                                                          : FontWeight.w500,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.chevron_right_rounded),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -1270,6 +1342,212 @@ class ActionResolutionFlow {
     final mitigation = execution.resolution.selfResult?.mitigation ?? 0;
 
     return math.min(incomingDamage, math.max(0, mitigation));
+  }
+
+  List<_ReactionDetail> _mitigationReactionDetails(CharacterAbility reaction) {
+    final details = <_ReactionDetail>[];
+
+    for (final effect in reaction.effects) {
+      if (!effect.hasEffect) {
+        continue;
+      }
+
+      final formula = _abilityEffectFormula(effect, reaction);
+      final effectName = effect.name.trim();
+      final suffix = effectName.isEmpty ? '' : ' · $effectName';
+
+      if (effect.mitigatesDamage) {
+        details.add(
+          _ReactionDetail(
+            icon: Icons.shield_outlined,
+            text: formula.isEmpty
+                ? 'Mitiga daño$suffix'
+                : 'Mitiga: $formula$suffix',
+            emphasized: true,
+          ),
+        );
+      } else if (effect.heals) {
+        final prefix = effect.onlyWhenDamageFullyMitigated
+            ? 'Si mitiga todo, cura'
+            : 'Cura';
+        details.add(
+          _ReactionDetail(
+            icon: Icons.favorite_outline_rounded,
+            text: formula.isEmpty
+                ? '$prefix$suffix'
+                : '$prefix: $formula$suffix',
+          ),
+        );
+      } else if (effect.dealsDamage) {
+        details.add(
+          _ReactionDetail(
+            icon: Icons.flash_on_rounded,
+            text: formula.isEmpty
+                ? 'Daño$suffix'
+                : 'Daño: $formula$suffix',
+          ),
+        );
+      }
+    }
+
+    // Compatibilidad con habilidades antiguas que todavía no usan effects.
+    if (reaction.effects.isEmpty && reaction.effectType != AbilityEffectType.none) {
+      final pieces = <String>[];
+      if (reaction.diceNotation.isNotEmpty) {
+        pieces.add(reaction.diceNotation);
+      }
+      if (reaction.addAbilityModifierToEffect) {
+        pieces.add(reaction.abilityType.shortLabel);
+      }
+      if (reaction.effectBonus != 0) {
+        pieces.add(_signedFormulaValue(reaction.effectBonus));
+      }
+      final formula = pieces.join(' + ').replaceAll('+ -', '- ');
+
+      if (reaction.effectType == AbilityEffectType.mitigation) {
+        details.add(
+          _ReactionDetail(
+            icon: Icons.shield_outlined,
+            text: formula.isEmpty ? 'Mitiga daño' : 'Mitiga: $formula',
+            emphasized: true,
+          ),
+        );
+      } else if (reaction.effectType == AbilityEffectType.healing) {
+        details.add(
+          _ReactionDetail(
+            icon: Icons.favorite_outline_rounded,
+            text: formula.isEmpty ? 'Cura' : 'Cura: $formula',
+          ),
+        );
+      }
+    }
+
+    if (reaction.usesResource) {
+      final resource = character.resources
+          .where((item) => item.id == reaction.resourceId)
+          .firstOrNull;
+      final label = resource?.name.trim().isNotEmpty == true
+          ? resource!.name.trim()
+          : 'recurso';
+      details.add(
+        _ReactionDetail(
+          icon: Icons.battery_charging_full_rounded,
+          text: 'Coste: ${reaction.resourceCost} $label',
+        ),
+      );
+    }
+
+    if (reaction.hasLimitedUses) {
+      details.add(
+        _ReactionDetail(
+          icon: Icons.replay_rounded,
+          text: 'Usos: ${reaction.currentUses}/${reaction.maxUses}',
+        ),
+      );
+    }
+
+    final description = reaction.description.trim();
+    if (description.isNotEmpty) {
+      details.add(
+        _ReactionDetail(
+          icon: Icons.info_outline_rounded,
+          text: description,
+        ),
+      );
+    }
+
+    if (details.isEmpty) {
+      details.add(
+        const _ReactionDetail(
+          icon: Icons.shield_outlined,
+          text: 'Mitigación de daño',
+          emphasized: true,
+        ),
+      );
+    }
+
+    return details;
+  }
+
+  String _abilityEffectFormula(
+    AbilityEffect effect,
+    CharacterAbility ability,
+  ) {
+    final partFormulas = <String>[];
+
+    if (effect.parts.isNotEmpty) {
+      for (final part in effect.parts) {
+        if (!part.hasValue) {
+          continue;
+        }
+
+        final pieces = <String>[];
+        if (part.diceNotation.isNotEmpty) {
+          pieces.add(part.diceNotation);
+        }
+        for (final entry in part.abilityModifierMultipliers.entries) {
+          if (entry.value == 0) {
+            continue;
+          }
+          final multiplier = entry.value;
+          pieces.add(
+            multiplier == 1
+                ? entry.key.shortLabel
+                : '$multiplier×${entry.key.shortLabel}',
+          );
+        }
+        for (final entry in part.resourceValueMultipliers.entries) {
+          if (entry.value == 0) {
+            continue;
+          }
+          final resource = character.resources
+              .where((item) => item.id == entry.key)
+              .firstOrNull;
+          final name = resource?.name.trim().isNotEmpty == true
+              ? resource!.name.trim()
+              : 'Recurso';
+          pieces.add(entry.value == 1 ? name : '${entry.value}×$name');
+        }
+        if (part.flatBonus != 0) {
+          pieces.add(_signedFormulaValue(part.flatBonus));
+        }
+
+        if (pieces.isNotEmpty) {
+          partFormulas.add(pieces.join(' + ').replaceAll('+ -', '- '));
+        }
+      }
+    }
+
+    if (partFormulas.isNotEmpty) {
+      return partFormulas.join(' + ');
+    }
+
+    final pieces = <String>[];
+    if (effect.diceNotation.isNotEmpty) {
+      pieces.add(effect.diceNotation);
+    }
+    for (final entry in effect.abilityModifierMultipliers.entries) {
+      if (entry.value == 0) {
+        continue;
+      }
+      pieces.add(
+        entry.value == 1
+            ? entry.key.shortLabel
+            : '${entry.value}×${entry.key.shortLabel}',
+      );
+    }
+    if (effect.legacyAddAbilityModifier) {
+      pieces.add(ability.abilityType.shortLabel);
+    }
+    if (effect.effectBonus != 0) {
+      pieces.add(_signedFormulaValue(effect.effectBonus));
+    }
+
+    return pieces.join(' + ').replaceAll('+ -', '- ');
+  }
+
+  String _signedFormulaValue(int value) {
+    return value >= 0 ? '$value' : '- ${value.abs()}';
   }
 
   ActionExecutionResult _mergePassiveTriggeredResults({
@@ -2027,7 +2305,6 @@ class ActionResolutionFlow {
     BuildContext context, {
     required ActionResolver resolver,
     required PreparedActionResolution prepared,
-    required ActionDiceMode diceMode,
   }) async {
     final attackMode = await showAttackRollModeSheet(context);
 
@@ -2035,11 +2312,21 @@ class ActionResolutionFlow {
       return null;
     }
 
+    final attackDiceMode = await showActionDiceModeSheet(
+      context,
+      title: 'Tirada de ataque',
+      subtitle: 'Elige cómo quieres tirar el ataque.',
+    );
+
+    if (attackDiceMode == null || !context.mounted) {
+      return null;
+    }
+
     final rolls = await _resolveAttackRolls(
       context,
       resolver: resolver,
       mode: attackMode,
-      diceMode: diceMode,
+      diceMode: attackDiceMode,
     );
 
     if (rolls == null || !context.mounted) {
@@ -2065,11 +2352,21 @@ class ActionResolutionFlow {
       return null;
     }
 
+    final effectDiceMode = await showActionDiceModeSheet(
+      context,
+      title: 'Daño y efectos',
+      subtitle: 'Puede ser distinto al modo usado para el ataque.',
+    );
+
+    if (effectDiceMode == null || !context.mounted) {
+      return null;
+    }
+
     final saves = await _collectSavingThrows(
       context,
       resolver: resolver,
       prepared: prepared,
-      diceMode: diceMode,
+      diceMode: effectDiceMode,
       attackResults: attackResults,
     );
 
@@ -2084,7 +2381,7 @@ class ActionResolutionFlow {
       attackResult: attackResult,
       attackResultsByTargetId: attackResults,
       savingThrowResults: saves,
-      diceMode: diceMode,
+      diceMode: effectDiceMode,
     );
 
     if (resolution == null || !context.mounted) {
@@ -2096,7 +2393,7 @@ class ActionResolutionFlow {
       resolver: resolver,
       prepared: prepared,
       resolution: resolution,
-      diceMode: diceMode,
+      diceMode: effectDiceMode,
     );
   }
 
@@ -2687,11 +2984,7 @@ class ActionResolutionFlow {
                         ),
                         title: Text(o.passiveName),
                         subtitle: Text(
-                          '${isDeathTrigger
-                              ? 'Al morir'
-                              : isDamage
-                              ? 'Al recibir daño'
-                              : 'Al recibir curación'} · ${o.actions.length} acción(es)',
+                          '${isDeathTrigger ? 'Al morir' : isDamage ? 'Al recibir daño' : 'Al recibir curación'} · ${o.actions.length} acción(es)',
                         ),
                         onChanged: (value) {
                           setDialogState(() {
@@ -2726,6 +3019,7 @@ class ActionResolutionFlow {
       },
     );
   }
+
 
   Future<void> _showPassiveTriggerResultsDialog(
     BuildContext context,
@@ -2889,20 +3183,21 @@ class ActionResolutionFlow {
                                           label:
                                               'Mitigado ${results[i].mitigation}',
                                           background: colors.tertiaryContainer,
-                                          foreground:
-                                              colors.onTertiaryContainer,
+                                          foreground: colors.onTertiaryContainer,
                                         ),
                                       if (results[i].healing > 0)
                                         resultChip(
                                           icon: Icons.favorite_rounded,
-                                          label: '+${results[i].healing} PV',
+                                          label:
+                                              '+${results[i].healing} PV',
                                           background: colors.primaryContainer,
                                           foreground: colors.onPrimaryContainer,
                                         ),
                                       if (results[i].damage > 0)
                                         resultChip(
                                           icon: Icons.flash_on_rounded,
-                                          label: '${results[i].damage} de daño',
+                                          label:
+                                              '${results[i].damage} de daño',
                                           background: colors.errorContainer,
                                           foreground: colors.onErrorContainer,
                                         ),
@@ -2911,7 +3206,8 @@ class ActionResolutionFlow {
                                           icon: Icons.auto_fix_high_rounded,
                                           label:
                                               '${results[i].effects.length} efecto${results[i].effects.length == 1 ? '' : 's'}',
-                                          background: colors.secondaryContainer,
+                                          background:
+                                              colors.secondaryContainer,
                                           foreground:
                                               colors.onSecondaryContainer,
                                         ),
@@ -2929,9 +3225,7 @@ class ActionResolutionFlow {
                             ),
                             Theme(
                               data: theme.copyWith(
-                                dividerColor: Theme.of(
-                                  context,
-                                ).colorScheme.surface.withValues(alpha: 0),
+                                dividerColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
                               ),
                               child: ExpansionTile(
                                 tilePadding: const EdgeInsets.symmetric(
@@ -2968,7 +3262,8 @@ class ActionResolutionFlow {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        for (final line in results[i].breakdown)
+                                        for (final line
+                                            in results[i].breakdown)
                                           Padding(
                                             padding: const EdgeInsets.only(
                                               bottom: 6,
@@ -3048,7 +3343,8 @@ class ActionResolutionFlow {
       return;
     }
 
-    final deathResolutionId = 'death-${DateTime.now().microsecondsSinceEpoch}';
+    final deathResolutionId =
+        'death-${DateTime.now().microsecondsSinceEpoch}';
     final deathResults = await _resolvePassiveTriggeredExternalOutcomes(
       context,
       resolver: resolver,
@@ -3094,6 +3390,150 @@ class ActionResolutionFlow {
     }
   }
 
+  bool _healingBonusHasRollableDice(HealingBonus bonus) {
+    if (bonus.dicePools.any((pool) => pool.count > 0)) {
+      return true;
+    }
+
+    final expression = bonus.formula?.expression ?? '';
+    return RegExp(
+      r'(?:^|[^a-zA-Z0-9_])(?:[a-zA-Z_]\w*|\d+)?\s*\*?\s*\d*\s*d\s*\d+',
+      caseSensitive: false,
+    ).hasMatch(expression);
+  }
+
+  Future<int?> _resolvePassiveMitigationBonuses(
+    BuildContext context, {
+    required int incomingDamage,
+  }) async {
+    if (incomingDamage <= 0) {
+      return 0;
+    }
+
+    final entries = <({CharacterPassive passive, HealingBonus bonus})>[];
+
+    for (final passive in character.enabledPassives) {
+      if (!passive.enabled || !passive.hasAvailableCharges) {
+        continue;
+      }
+
+      for (final bonus in passive.mitigationBonuses) {
+        if (bonus.hasHealing) {
+          entries.add((passive: passive, bonus: bonus));
+        }
+      }
+    }
+
+    if (entries.isEmpty) {
+      return 0;
+    }
+
+    ActionDiceMode diceMode = ActionDiceMode.digital;
+    if (entries.any((entry) => _healingBonusHasRollableDice(entry.bonus))) {
+      if (!context.mounted) {
+        return null;
+      }
+
+      final selectedMode = await showActionDiceModeSheet(context);
+      if (selectedMode == null || !context.mounted) {
+        return null;
+      }
+      diceMode = selectedMode;
+    }
+
+    final target = ActionTarget(
+      id: 'self',
+      kind: ActionTargetKind.self,
+      label: character.name,
+    );
+    final actionContext = ActionResolutionContext(
+      character: character,
+      targets: [target],
+      externalVariables: {'damage': incomingDamage.toDouble()},
+    );
+
+    var remaining = incomingDamage;
+    var total = 0;
+
+    for (final entry in entries) {
+      if (remaining <= 0) {
+        break;
+      }
+
+      final passive = entry.passive;
+      final bonus = entry.bonus;
+      final formulaContext = actionContext.buildFormulaContext(target: target);
+      final modifier = character.healingBonusModifier(
+        bonus,
+        passive: passive,
+        formulaContext: formulaContext,
+      );
+
+      final partId =
+          'passive-mitigation:${passive.id}:${bonus.id}:${target.id}';
+      final request = ActionDiceRequest(
+        parts: [
+          ActionDiceRequestPart(
+            id: partId,
+            effectId: 'passive:${passive.id}',
+            effectName: bonus.name.trim().isNotEmpty
+                ? bonus.name.trim()
+                : passive.name,
+            effectType: AbilityEffectType.mitigation,
+            dicePools: List<DicePool>.unmodifiable(bonus.dicePools),
+            modifier: modifier,
+            hitBehavior: ActionHitBehavior.ignoreHit,
+            sourceType: ActionDiceSourceType.passive,
+            sourceId: passive.id,
+            sourceName: passive.name,
+          ),
+        ],
+      );
+
+      int amount;
+      if (diceMode == ActionDiceMode.digital) {
+        final result = const ActionDiceResolver().rollDigital(request);
+        amount = result.parts.fold<int>(0, (sum, part) => sum + part.total);
+      } else {
+        final sectionId =
+            'passive-mitigation-section:${passive.id}:${bonus.id}:${target.id}';
+        final inputsBySection = await showPhysicalDiceDialog(
+          context,
+          sections: [
+            PhysicalDiceSection(
+              id: sectionId,
+              title: passive.name.trim().isNotEmpty
+                  ? passive.name.trim()
+                  : 'Mitigación de pasiva',
+              request: request,
+            ),
+          ],
+        );
+
+        if (inputsBySection == null || !context.mounted) {
+          return null;
+        }
+
+        final inputs = inputsBySection[sectionId];
+        if (inputs == null) {
+          return null;
+        }
+
+        final result = const ActionDiceResolver().resolvePhysical(
+          request: request,
+          inputs: inputs,
+        );
+        amount = result.parts.fold<int>(0, (sum, part) => sum + part.total);
+      }
+
+      final applied = amount.clamp(0, remaining).toInt();
+      total += applied;
+      remaining -= applied;
+    }
+
+    return total;
+  }
+
   Future<bool> resolveHealthChange(
     BuildContext context, {
     required int baseAmount,
@@ -3126,6 +3566,35 @@ class ActionResolutionFlow {
               reactionMitigation > 0
                   ? 'La reacción ha mitigado todo el daño ($baseAmount).'
                   : 'No hay daño que aplicar.',
+            ),
+          ),
+        );
+
+        character.refreshPassiveTriggers();
+        return true;
+      }
+    }
+
+    var passiveMitigation = 0;
+
+    if (isDamage && effectiveBaseAmount > 0) {
+      final resolvedPassiveMitigation = await _resolvePassiveMitigationBonuses(
+        context,
+        incomingDamage: effectiveBaseAmount,
+      );
+
+      if (resolvedPassiveMitigation == null || !context.mounted) {
+        return false;
+      }
+
+      passiveMitigation = resolvedPassiveMitigation;
+      effectiveBaseAmount = math.max(0, effectiveBaseAmount - passiveMitigation);
+
+      if (effectiveBaseAmount == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Las mitigaciones han reducido todo el daño de $baseAmount a 0.',
             ),
           ),
         );
@@ -3309,10 +3778,14 @@ class ActionResolutionFlow {
         if (isDamage) 'Daño inicial: $baseAmount',
         if (reactionMitigation > 0)
           'Mitigación de reacción: -$reactionMitigation',
-        if (isDamage && effectiveBaseAmount != baseAmount)
-          'Daño tras reacción: $effectiveBaseAmount',
+        if (reactionMitigation > 0)
+          'Daño tras reacción: ${math.max(0, baseAmount - reactionMitigation)}',
+        if (passiveMitigation > 0)
+          'Mitigación de pasivas: -$passiveMitigation',
+        if (passiveMitigation > 0) 'Daño tras mitigación: $effectiveBaseAmount',
         if (!isDamage) 'Curación inicial: +$baseAmount',
-        if (totalMitigation > 0) 'Mitigación de pasivas: -$totalMitigation',
+        if (totalMitigation > 0)
+          'Mitigación legacy de triggers: -$totalMitigation',
         if (extraDamage > 0) 'Daño de pasivas: +$extraDamage',
         if (extraHealing > 0) 'Curación de pasivas: +$extraHealing',
         if (isDamage) 'Daño final aplicado: $appliedDamage',
@@ -3479,7 +3952,10 @@ class ActionResolutionFlow {
             return execution;
           }
 
-          await handleCharacterDeath(context, resolver: resolver);
+          await handleCharacterDeath(
+            context,
+            resolver: resolver,
+          );
         }
       }
 
@@ -3503,4 +3979,16 @@ class ActionResolutionFlow {
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+class _ReactionDetail {
+  final IconData icon;
+  final String text;
+  final bool emphasized;
+
+  const _ReactionDetail({
+    required this.icon,
+    required this.text,
+    this.emphasized = false,
+  });
 }

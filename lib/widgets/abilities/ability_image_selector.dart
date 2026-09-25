@@ -48,11 +48,7 @@ class AbilityImageSelector extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   if (exists)
-                    Image.file(
-                      file!,
-                      fit: BoxFit.cover,
-                      alignment: Alignment(alignmentX, alignmentY),
-                    )
+                    Image.file(file!, fit: BoxFit.cover, alignment: Alignment(alignmentX, alignmentY))
                   else
                     Center(
                       child: Icon(
@@ -67,14 +63,7 @@ class AbilityImageSelector extends StatelessWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [
-                            Theme.of(
-                              context,
-                            ).colorScheme.surface.withValues(alpha: 0),
-                            Theme.of(
-                              context,
-                            ).colorScheme.scrim.withValues(alpha: 0.60),
-                          ],
+                          colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60)],
                         ),
                       ),
                     ),
@@ -88,11 +77,7 @@ class AbilityImageSelector extends StatelessWidget {
                           child: Text(
                             exists ? 'Cambiar imagen' : label,
                             style: theme.textTheme.labelLarge?.copyWith(
-                              color: exists
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.onInverseSurface
-                                  : colors.onSurfaceVariant,
+                              color: exists ? Theme.of(context).colorScheme.onInverseSurface : colors.onSurfaceVariant,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -100,9 +85,7 @@ class AbilityImageSelector extends StatelessWidget {
                         Icon(
                           Icons.photo_library_outlined,
                           size: 20,
-                          color: exists
-                              ? Theme.of(context).colorScheme.onInverseSurface
-                              : colors.onSurfaceVariant,
+                          color: exists ? Theme.of(context).colorScheme.onInverseSurface : colors.onSurfaceVariant,
                         ),
                       ],
                     ),

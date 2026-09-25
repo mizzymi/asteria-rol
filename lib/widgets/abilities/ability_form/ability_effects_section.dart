@@ -83,12 +83,45 @@ class AbilityEffectsSection extends StatelessWidget {
                 key: ValueKey(effects[index].id),
                 effect: effects[index],
                 resources: resources,
+                abilityMitigatesDamage: effects.any(
+                  (effect) => effect.mitigatesDamage,
+                ),
                 index: index,
                 totalEffects: effects.length,
                 onChanged: (effect) {
                   onEffectChanged(index, effect);
+
+                  if (!effects.any((item) => item.mitigatesDamage)) {
+                    for (var i = 0; i < effects.length; i++) {
+                      final item = effects[i];
+                      if (item.heals && item.onlyWhenDamageFullyMitigated) {
+                        item.activationCondition =
+                            AbilityEffectActivationCondition.always;
+                        onEffectChanged(i, item);
+                      }
+                    }
+                  }
                 },
                 onDelete: () {
+                  final hasOtherMitigation = effects.asMap().entries.any(
+                    (entry) =>
+                        entry.key != index && entry.value.mitigatesDamage,
+                  );
+
+                  if (!hasOtherMitigation && effects[index].mitigatesDamage) {
+                    for (var i = 0; i < effects.length; i++) {
+                      if (i == index) {
+                        continue;
+                      }
+                      final item = effects[i];
+                      if (item.heals && item.onlyWhenDamageFullyMitigated) {
+                        item.activationCondition =
+                            AbilityEffectActivationCondition.always;
+                        onEffectChanged(i, item);
+                      }
+                    }
+                  }
+
                   onRemoveEffect(index);
                 },
                 onMoveUp: () {
@@ -124,6 +157,8 @@ class AbilityEffectEditor extends StatefulWidget {
 
   final List<CharacterResource> resources;
 
+  final bool abilityMitigatesDamage;
+
   final int index;
   final int totalEffects;
 
@@ -137,6 +172,7 @@ class AbilityEffectEditor extends StatefulWidget {
     super.key,
     required this.effect,
     required this.resources,
+    required this.abilityMitigatesDamage,
     required this.index,
     required this.totalEffects,
     required this.onChanged,
@@ -552,12 +588,12 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
           },
         ),
 
-        if (effect.heals) ...[
+        if (effect.heals && widget.abilityMitigatesDamage) ...[
           const SizedBox(height: 12),
           DropdownButtonFormField<AbilityEffectActivationCondition>(
             initialValue: effect.activationCondition,
             decoration: const InputDecoration(
-              labelText: 'Cuándo se aplica esta curación',
+              labelText: 'Cuándo cura',
               prefixIcon: Icon(Icons.rule_rounded),
             ),
             items: AbilityEffectActivationCondition.values.map((condition) {
@@ -581,9 +617,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
           if (effect.onlyWhenDamageFullyMitigated) ...[
             const SizedBox(height: 6),
             Text(
-              'Pensado para reacciones defensivas: esta curación solo se tira '
-              'si la mitigación de la propia habilidad absorbe todo el daño '
-              'entrante.',
+              'Cura solo si la habilidad mitiga todo el daño.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -605,9 +639,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             Icon(
               effect.mitigatesDamage
                   ? Icons.shield_rounded
-                  : (effect.heals
-                        ? Icons.favorite_rounded
-                        : Icons.flash_on_rounded),
+                  : (effect.heals ? Icons.favorite_rounded : Icons.flash_on_rounded),
               color: Theme.of(context).colorScheme.primary,
             ),
 
@@ -806,9 +838,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
                         : 'Tipo de daño extra'),
               hintText: effect.mitigatesDamage
                   ? 'Escudo, bloqueo, reducción...'
-                  : (effect.heals
-                        ? 'Curación mágica'
-                        : 'Fuego, radiante, veneno...'),
+                  : (effect.heals ? 'Curación mágica' : 'Fuego, radiante, veneno...'),
             ),
             onChanged: (_) {
               notifyParent();

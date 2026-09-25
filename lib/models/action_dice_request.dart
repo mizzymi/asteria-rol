@@ -164,6 +164,18 @@ class ActionDiceRequestPart {
   /// Crítico potenciado
   final String automaticValueLabel;
 
+  /// Fórmula aplicada cuando esta parte pertenece a un crítico potenciado.
+  final String empoweredCriticalFormula;
+
+  /// Turno actual para la variable TURNO.
+  final int empoweredCriticalTurn;
+  final int empoweredCriticalMaximum;
+  final Map<String, double> empoweredCriticalResources;
+  final Map<String, double> empoweredCriticalResourceMaximums;
+  final Map<String, double> empoweredCriticalCounters;
+  final int empoweredCriticalCharges;
+  final int empoweredCriticalMaxCharges;
+
   final ActionDicePartKind kind;
 
   // ===========================================================================
@@ -222,6 +234,14 @@ class ActionDiceRequestPart {
 
     this.automaticValue = 0,
     this.automaticValueLabel = '',
+    this.empoweredCriticalFormula = '',
+    this.empoweredCriticalTurn = 1,
+    this.empoweredCriticalMaximum = 0,
+    this.empoweredCriticalResources = const {},
+    this.empoweredCriticalResourceMaximums = const {},
+    this.empoweredCriticalCounters = const {},
+    this.empoweredCriticalCharges = 0,
+    this.empoweredCriticalMaxCharges = 0,
 
     this.sourceType = ActionDiceSourceType.ability,
     this.sourceId = '',
@@ -251,7 +271,10 @@ class ActionDiceRequestPart {
 
   /// La parte aporta algo al resultado aunque no tenga dados.
   bool get hasValue {
-    return requiresRoll || modifier != 0 || automaticValue != 0;
+    return requiresRoll ||
+        modifier != 0 ||
+        automaticValue != 0 ||
+        empoweredCriticalFormula.trim().isNotEmpty;
   }
 
   bool get isCriticalExtra {

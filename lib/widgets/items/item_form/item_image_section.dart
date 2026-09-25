@@ -67,16 +67,12 @@ class ItemImageSection extends StatelessWidget {
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(10),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.scrim.withValues(alpha: 0.45),
+                          color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.45),
                           child: Text(
                             'Toca para cambiar la imagen',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onInverseSurface,
+                              color: Theme.of(context).colorScheme.onInverseSurface,
                               fontWeight: FontWeight.w700,
                             ),
                           ),

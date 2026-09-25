@@ -35,8 +35,16 @@ class StatCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 22, color: theme.colorScheme.primary),
-            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withValues(alpha: theme.brightness == Brightness.dark ? 0.44 : 0.72),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, size: 22, color: theme.colorScheme.primary),
+            ),
+            const SizedBox(height: 10),
           ],
 
           Text(

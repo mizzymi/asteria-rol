@@ -4,12 +4,9 @@ import 'character_home_colors.dart';
 
 class CharacterMenuCard extends StatelessWidget {
   final IconData icon;
-
   final String title;
   final String subtitle;
-
   final Color color;
-
   final VoidCallback onTap;
 
   const CharacterMenuCard({
@@ -29,97 +26,96 @@ class CharacterMenuCard extends StatelessWidget {
     final background = CharacterHomeColors.tintedSurface(
       context,
       color,
-      lightStrength: 0.14,
-      darkStrength: 0.22,
+      lightStrength: 0.16,
+      darkStrength: 0.13,
     );
 
     final iconBackground = CharacterHomeColors.tintedSurface(
       context,
       color,
-      lightStrength: 0.22,
-      darkStrength: 0.30,
+      lightStrength: 0.24,
+      darkStrength: 0.20,
     );
 
     final borderColor = CharacterHomeColors.tintedBorder(context, color);
 
-    return Material(
-      color: background,
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.08 : 0.05,
+            ),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          child: Row(
-            children: [
-              // ===============================================================
-              // ICONO
-              // ===============================================================
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: iconBackground,
-                  borderRadius: BorderRadius.circular(14),
+      child: Material(
+        color: background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: borderColor),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, size: 23, color: color),
                 ),
-                child: Icon(icon, size: 23, color: color),
-              ),
-
-              const SizedBox(width: 13),
-
-              // ===============================================================
-              // TEXTO
-              // ===============================================================
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    ),
-
-                    const SizedBox(height: 3),
-
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-
-              const SizedBox(width: 10),
-
-              // ===============================================================
-              // FLECHA
-              // ===============================================================
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: iconBackground,
-                  shape: BoxShape.circle,
+                const SizedBox(width: 10),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 21,
+                    color: color,
+                  ),
                 ),
-                child: Icon(
-                  Icons.chevron_right_rounded,
-                  size: 21,
-                  color: color,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

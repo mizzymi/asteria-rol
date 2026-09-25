@@ -1,7 +1,7 @@
 enum KnowledgeStatus {
-  discovered, // El PJ sabe de su existencia
-  studying, // En progreso de lectura/estudio
-  mastered, // Asimilado por completo
+  discovered,
+  studying,
+  mastered,
 }
 
 class CharacterKnowledge {
@@ -9,7 +9,8 @@ class CharacterKnowledge {
   KnowledgeStatus status;
   int currentProgress;
   String notes;
-  List<String> unlockedSpellIds; // <-- Añadido
+  List<String> unlockedSpellIds;
+  List<String> temporaryPassiveIdsGranted;
 
   CharacterKnowledge({
     required this.knowledgeId,
@@ -17,7 +18,9 @@ class CharacterKnowledge {
     this.currentProgress = 0,
     this.notes = '',
     List<String>? unlockedSpellIds,
-  }) : unlockedSpellIds = unlockedSpellIds ?? [];
+    List<String>? temporaryPassiveIdsGranted,
+  }) : unlockedSpellIds = unlockedSpellIds ?? [],
+       temporaryPassiveIdsGranted = temporaryPassiveIdsGranted ?? [];
 
   bool get isMastered => status == KnowledgeStatus.mastered;
 
@@ -26,17 +29,14 @@ class CharacterKnowledge {
     'status': status.name,
     'currentProgress': currentProgress,
     'notes': notes,
-    'unlockedSpellIds': unlockedSpellIds, // <-- Añadido
+    'unlockedSpellIds': unlockedSpellIds,
+    'temporaryPassiveIdsGranted': temporaryPassiveIdsGranted,
   };
 
   factory CharacterKnowledge.fromMap(Map<dynamic, dynamic> map) {
-    final rawSpells = map['unlockedSpellIds'];
-    final spells = <String>[];
-    if (rawSpells is List) {
-      for (final s in rawSpells) {
-        if (s != null) spells.add(s.toString());
-      }
-    }
+    List<String> strings(dynamic raw) => raw is List
+        ? raw.where((e) => e != null).map((e) => e.toString()).toList()
+        : <String>[];
 
     return CharacterKnowledge(
       knowledgeId: map['knowledgeId']?.toString() ?? '',
@@ -46,7 +46,8 @@ class CharacterKnowledge {
       ),
       currentProgress: (map['currentProgress'] as num?)?.toInt() ?? 0,
       notes: map['notes']?.toString() ?? '',
-      unlockedSpellIds: spells, // <-- Añadido
+      unlockedSpellIds: strings(map['unlockedSpellIds']),
+      temporaryPassiveIdsGranted: strings(map['temporaryPassiveIdsGranted']),
     );
   }
 }

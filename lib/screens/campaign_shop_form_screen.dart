@@ -198,9 +198,7 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final currencyLabel = _currencyKind == CampaignShopCurrencyKind.resource
-        ? (_currencyName.text.trim().isEmpty
-              ? 'Oro'
-              : _currencyName.text.trim())
+        ? (_currencyName.text.trim().isEmpty ? 'Oro' : _currencyName.text.trim())
         : (_currencyItem?.name ?? 'Objeto');
 
     return Scaffold(
@@ -294,9 +292,7 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
                     )
                   else
                     Material(
-                      color: colors.surfaceContainerHighest.withValues(
-                        alpha: .55,
-                      ),
+                      color: colors.surfaceContainerHighest.withValues(alpha: .55),
                       borderRadius: BorderRadius.circular(18),
                       child: ListTile(
                         shape: RoundedRectangleBorder(
@@ -304,18 +300,13 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
                         ),
                         leading: CircleAvatar(
                           backgroundColor: colors.primaryContainer,
-                          child: Icon(
-                            Icons.toll_rounded,
-                            color: colors.primary,
-                          ),
+                          child: Icon(Icons.toll_rounded, color: colors.primary),
                         ),
                         title: Text(
                           _currencyItem?.name ?? 'Elegir objeto-moneda',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        subtitle: const Text(
-                          'Se gastarán unidades de este objeto.',
-                        ),
+                        subtitle: const Text('Se gastarán unidades de este objeto.'),
                         trailing: const Icon(Icons.chevron_right_rounded),
                         onTap: _chooseCurrencyItem,
                       ),
@@ -327,8 +318,7 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
             _EditorSection(
               icon: Icons.inventory_2_rounded,
               title: 'Catálogo',
-              subtitle:
-                  '${_products.length} productos · ${_products.where((p) => p.prohibited).length} prohibidos',
+              subtitle: '${_products.length} productos · ${_products.where((p) => p.prohibited).length} prohibidos',
               trailing: PopupMenuButton<String>(
                 tooltip: 'Añadir producto',
                 onSelected: (v) {
@@ -352,10 +342,7 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
                   ),
                 ],
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: colors.primary,
                     borderRadius: BorderRadius.circular(14),
@@ -363,11 +350,7 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.add_rounded,
-                        color: colors.onPrimary,
-                        size: 20,
-                      ),
+                      Icon(Icons.add_rounded, color: colors.onPrimary, size: 20),
                       const SizedBox(width: 6),
                       Text(
                         'Añadir',
@@ -393,15 +376,14 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
                             product: product,
                             currencyLabel: currencyLabel,
                             onEdit: () async {
-                              final edited =
-                                  await Navigator.push<ItemDefinition>(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ItemFormScreen(
-                                        definition: product.definition,
-                                      ),
-                                    ),
-                                  );
+                              final edited = await Navigator.push<ItemDefinition>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ItemFormScreen(
+                                    definition: product.definition,
+                                  ),
+                                ),
+                              );
                               if (edited != null && mounted) {
                                 setState(() => product.definition = edited);
                               }
@@ -418,8 +400,7 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
                             onToggleProhibited: () => setState(
                               () => product.prohibited = !product.prohibited,
                             ),
-                            onRemove: () =>
-                                setState(() => _products.removeAt(index)),
+                            onRemove: () => setState(() => _products.removeAt(index)),
                           ),
                         );
                       }),
@@ -435,9 +416,7 @@ class _CampaignShopFormScreenState extends State<CampaignShopFormScreen> {
                 ),
               ),
               icon: const Icon(Icons.check_rounded),
-              label: Text(
-                widget.shop == null ? 'Crear tienda' : 'Guardar cambios',
-              ),
+              label: Text(widget.shop == null ? 'Crear tienda' : 'Guardar cambios'),
             ),
           ],
         ),
@@ -482,11 +461,7 @@ class _ShopEditorHero extends StatelessWidget {
               color: colors.surface.withValues(alpha: .8),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(
-              Icons.storefront_rounded,
-              size: 32,
-              color: colors.primary,
-            ),
+            child: Icon(Icons.storefront_rounded, size: 32, color: colors.primary),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -495,9 +470,7 @@ class _ShopEditorHero extends StatelessWidget {
               children: [
                 Text(
                   isNew ? 'Diseña una nueva tienda' : 'Editor de tienda',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -557,18 +530,8 @@ class _EditorSection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
+                      Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                      Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -605,8 +568,7 @@ class _ProductEditorCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final path = product.definition.imagePath;
-    final hasImage =
-        path != null && path.trim().isNotEmpty && File(path).existsSync();
+    final hasImage = path != null && path.trim().isNotEmpty && File(path).existsSync();
     return Material(
       color: colors.surfaceContainerHighest.withValues(alpha: .38),
       borderRadius: BorderRadius.circular(18),
@@ -626,11 +588,7 @@ class _ProductEditorCard extends StatelessWidget {
                       ? Image.file(File(path), fit: BoxFit.cover)
                       : Container(
                           color: colors.primaryContainer,
-                          child: Icon(
-                            Icons.inventory_2_rounded,
-                            color: colors.primary,
-                            size: 30,
-                          ),
+                          child: Icon(Icons.inventory_2_rounded, color: colors.primary, size: 30),
                         ),
                 ),
               ),
@@ -646,17 +604,12 @@ class _ProductEditorCard extends StatelessWidget {
                             product.definition.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                           ),
                         ),
                         if (product.prohibited)
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: colors.errorContainer,
                               borderRadius: BorderRadius.circular(20),
@@ -672,27 +625,13 @@ class _ProductEditorCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      product.definition.type.label,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
+                    Text(product.definition.type.label, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
                     const SizedBox(height: 7),
                     Row(
                       children: [
-                        Icon(
-                          Icons.paid_rounded,
-                          size: 17,
-                          color: colors.primary,
-                        ),
+                        Icon(Icons.paid_rounded, size: 17, color: colors.primary),
                         const SizedBox(width: 5),
-                        Text(
-                          '$currencyLabel · ${product.price}',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                        Text('$currencyLabel · ${product.price}', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
                       ],
                     ),
                   ],
@@ -706,43 +645,11 @@ class _ProductEditorCard extends StatelessWidget {
                   if (v == 'remove') onRemove();
                 },
                 itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: ListTile(
-                      leading: Icon(Icons.edit_rounded),
-                      title: Text('Editar objeto'),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'price',
-                    child: ListTile(
-                      leading: Icon(Icons.paid_rounded),
-                      title: Text('Cambiar precio'),
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'prohibited',
-                    child: ListTile(
-                      leading: Icon(
-                        product.prohibited
-                            ? Icons.lock_open_rounded
-                            : Icons.block_rounded,
-                      ),
-                      title: Text(
-                        product.prohibited
-                            ? 'Permitir compra'
-                            : 'Prohibir compra',
-                      ),
-                    ),
-                  ),
+                  const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_rounded), title: Text('Editar objeto'))),
+                  const PopupMenuItem(value: 'price', child: ListTile(leading: Icon(Icons.paid_rounded), title: Text('Cambiar precio'))),
+                  PopupMenuItem(value: 'prohibited', child: ListTile(leading: Icon(product.prohibited ? Icons.lock_open_rounded : Icons.block_rounded), title: Text(product.prohibited ? 'Permitir compra' : 'Prohibir compra'))),
                   const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: 'remove',
-                    child: ListTile(
-                      leading: Icon(Icons.delete_outline_rounded),
-                      title: Text('Quitar'),
-                    ),
-                  ),
+                  const PopupMenuItem(value: 'remove', child: ListTile(leading: Icon(Icons.delete_outline_rounded), title: Text('Quitar'))),
                 ],
               ),
             ],
@@ -767,28 +674,13 @@ class _EmptyProducts extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 38,
-            color: colors.onSurfaceVariant,
-          ),
+          Icon(Icons.inventory_2_outlined, size: 38, color: colors.onSurfaceVariant),
           const SizedBox(height: 10),
-          const Text(
-            'Todavía no hay productos',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
+          const Text('Todavía no hay productos', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          Text(
-            'Añade objetos de la biblioteca o créalos directamente aquí.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: colors.onSurfaceVariant),
-          ),
+          Text('Añade objetos de la biblioteca o créalos directamente aquí.', textAlign: TextAlign.center, style: TextStyle(color: colors.onSurfaceVariant)),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.local_library_rounded),
-            label: const Text('Abrir biblioteca'),
-          ),
+          OutlinedButton.icon(onPressed: onAdd, icon: const Icon(Icons.local_library_rounded), label: const Text('Abrir biblioteca')),
         ],
       ),
     );

@@ -74,18 +74,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   late Set<String> recommendedClasses;
 
   static const List<String> _classOptions = [
-    'Bárbaro',
-    'Bardo',
-    'Brujo',
-    'Clérigo',
-    'Druida',
-    'Explorador',
-    'Guerrero',
-    'Hechicero',
-    'Mago',
-    'Monje',
-    'Paladín',
-    'Pícaro',
+    'Bárbaro', 'Bardo', 'Brujo', 'Clérigo', 'Druida', 'Explorador',
+    'Guerrero', 'Hechicero', 'Mago', 'Monje', 'Paladín', 'Pícaro',
   ];
 
   // ===========================================================================
@@ -101,6 +91,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   late AbilityType weaponAttackAbility;
   late int weaponCriticalMinimumNaturalRoll;
   late bool weaponEmpoweredCritical;
+  late int weaponEmpoweredCriticalMultiplier;
+  late final TextEditingController weaponEmpoweredCriticalFormulaController;
   late bool weaponProficient;
   late List<WeaponDamage> weaponDamages;
 
@@ -225,6 +217,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     weaponAttackAbility = weapon?.attackAbility ?? AbilityType.strength;
     weaponCriticalMinimumNaturalRoll = weapon?.criticalMinimumNaturalRoll ?? 20;
     weaponEmpoweredCritical = weapon?.empoweredCritical ?? false;
+    weaponEmpoweredCriticalMultiplier = weapon?.empoweredCriticalMultiplier ?? 2;
+    weaponEmpoweredCriticalFormulaController = TextEditingController(
+      text: weapon?.empoweredCriticalFormula ??
+          '(MAX + MOD) * ${weapon?.empoweredCriticalMultiplier ?? 2}',
+    );
     weaponProficient = weapon?.proficient ?? true;
     weaponDamages =
         weapon?.damages
@@ -465,6 +462,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         magicBonus: int.tryParse(magicBonusController.text) ?? 0,
         criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
         empoweredCritical: weaponEmpoweredCritical,
+        empoweredCriticalMultiplier: weaponEmpoweredCriticalMultiplier,
+        empoweredCriticalFormula: weaponEmpoweredCriticalFormulaController.text.trim().isEmpty
+            ? '(MAX + MOD) * 2'
+            : weaponEmpoweredCriticalFormulaController.text.trim(),
         damageDice: primaryDamage?.diceNotation ?? '1d6',
         damageType: primaryDamage?.damageType ?? 'Cortante',
         damages: weaponDamages
@@ -951,28 +952,20 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                     const SectionHeader(
                       icon: Icons.groups_2_rounded,
                       title: 'Clases recomendadas',
-                      subtitle:
-                          'El objeto puede recomendarse para una o varias clases',
+                      subtitle: 'El objeto puede recomendarse para una o varias clases',
                     ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _classOptions
-                          .map(
-                            (className) => FilterChip(
-                              label: Text(className),
-                              selected: recommendedClasses.contains(className),
-                              onSelected: (selected) => setState(() {
-                                if (selected) {
-                                  recommendedClasses.add(className);
-                                } else {
-                                  recommendedClasses.remove(className);
-                                }
-                              }),
-                            ),
-                          )
-                          .toList(),
+                      children: _classOptions.map((className) => FilterChip(
+                        label: Text(className),
+                        selected: recommendedClasses.contains(className),
+                        onSelected: (selected) => setState(() {
+                          if (selected) { recommendedClasses.add(className); }
+                          else { recommendedClasses.remove(className); }
+                        }),
+                      )).toList(),
                     ),
                   ],
                 ),
@@ -1156,15 +1149,20 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   magicBonusController: magicBonusController,
                   criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
                   empoweredCritical: weaponEmpoweredCritical,
+                  empoweredCriticalMultiplier: weaponEmpoweredCriticalMultiplier,
+                  empoweredCriticalFormulaController:
+                      weaponEmpoweredCriticalFormulaController,
                   damages: weaponDamages,
                   onAttackAbilityChanged: (val) =>
                       setState(() => weaponAttackAbility = val),
                   onProficientChanged: (val) =>
                       setState(() => weaponProficient = val),
                   onCriticalMinimumNaturalRollChanged: (val) =>
-                      setState(() => weaponCriticalMinimumNaturalRoll),
+                      setState(() => weaponCriticalMinimumNaturalRoll = val),
                   onEmpoweredCriticalChanged: (val) =>
                       setState(() => weaponEmpoweredCritical = val),
+                  onEmpoweredCriticalMultiplierChanged: (val) =>
+                      setState(() => weaponEmpoweredCriticalMultiplier = val),
                   onAddDamage: addWeaponDamage,
                   onEditDamage: editWeaponDamage,
                   onDeleteDamage: deleteWeaponDamage,

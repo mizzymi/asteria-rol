@@ -96,9 +96,7 @@ class SlotSelectionDialog extends StatelessWidget {
                     ? Text('Ocupado por: ${currentDef.name}')
                     : Text(
                         'Vacío',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.tertiary,
-                        ),
+                        style: TextStyle(color: Theme.of(context).colorScheme.tertiary),
                       ),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => Navigator.pop(context, slotId),

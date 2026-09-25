@@ -48,7 +48,7 @@ Future<void> showActionResolutionResultDialog(
         title: viewData.actionName,
 
         subtitle: viewData.empoweredCritical
-            ? 'Crítico potenciado'
+            ? 'Crítico potenciado: ${viewData.criticalProfile.empoweredFormula}'
             : viewData.normalCritical
             ? 'Golpe crítico'
             : 'Resultado',

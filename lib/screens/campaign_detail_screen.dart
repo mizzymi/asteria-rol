@@ -60,9 +60,9 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
             children: [
               Text(
                 'Añadir personaje',
-                style: Theme.of(
-                  sheetContext,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -72,9 +72,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               const SizedBox(height: 16),
               Card(
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person_add_alt_1_rounded),
-                  ),
+                  leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1_rounded)),
                   title: const Text('Crear PJ'),
                   subtitle: const Text('Crear una ficha nueva en esta campaña'),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -83,9 +81,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               ),
               Card(
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.file_download_rounded),
-                  ),
+                  leading: const CircleAvatar(child: Icon(Icons.file_download_rounded)),
                   title: const Text('Importar PJ'),
                   subtitle: const Text('Importar un archivo .asteria o .json'),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -122,24 +118,17 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
       if (path == null) {
         throw const FormatException('No se pudo acceder al archivo.');
       }
-      final character = await CharacterImportExportService.importFileAsCopy(
-        File(path),
-      );
+      final character = await CharacterImportExportService.importFileAsCopy(File(path));
       character.campaignId = campaign.id;
       character.ownerType = 'player';
       await CharacterStorageService.saveCharacter(character);
-      await CampaignEconomyService.ensureCharacterCurrencies(
-        character,
-        campaign,
-      );
+      await CampaignEconomyService.ensureCharacterCurrencies(character, campaign);
       if (!mounted) {
         return;
       }
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${character.name} importado en ${campaign.name}.'),
-        ),
+        SnackBar(content: Text('${character.name} importado en ${campaign.name}.')),
       );
     } catch (error) {
       if (!mounted) {
@@ -157,9 +146,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.delete_outline_rounded),
         title: const Text('Eliminar personaje'),
-        content: Text(
-          '¿Quieres eliminar “${character.name}”? Esta acción no se puede deshacer.',
-        ),
+        content: Text('¿Quieres eliminar “${character.name}”? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -380,12 +367,8 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Theme.of(
-                            context,
-                          ).colorScheme.surface.withValues(alpha: 0),
-                          Theme.of(
-                            context,
-                          ).colorScheme.scrim.withValues(alpha: .72),
+                          Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                          Theme.of(context).colorScheme.scrim.withValues(alpha: .72),
                         ],
                       ),
                     ),
@@ -401,9 +384,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                           campaign.name,
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onInverseSurface,
+                                color: Theme.of(context).colorScheme.onInverseSurface,
                                 fontWeight: FontWeight.w900,
                               ),
                         ),
@@ -413,12 +394,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                             campaign.description,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onInverseSurface
-                                  .withValues(alpha: 0.70),
-                            ),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface),
                           ),
                         ],
                       ],

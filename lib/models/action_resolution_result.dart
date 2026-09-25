@@ -222,19 +222,13 @@ class ActionResolutionResult {
 
   int get affectedTargetCount {
     return actionTargetResults.where((result) {
-      return result.damage > 0 ||
-          result.healing > 0 ||
-          result.mitigation > 0 ||
-          result.hasEffects;
+      return result.damage > 0 || result.healing > 0 || result.mitigation > 0 || result.hasEffects;
     }).length;
   }
 
   int get externalAffectedTargetCount {
     return externalTargetResults.where((result) {
-      return result.damage > 0 ||
-          result.healing > 0 ||
-          result.mitigation > 0 ||
-          result.hasEffects;
+      return result.damage > 0 || result.healing > 0 || result.mitigation > 0 || result.hasEffects;
     }).length;
   }
 

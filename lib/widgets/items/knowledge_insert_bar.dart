@@ -68,11 +68,7 @@ class KnowledgeInsertBar extends StatelessWidget {
                 value: '__create_new__',
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.add_rounded,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
+                    Icon(Icons.add_rounded, size: 16, color: Theme.of(context).colorScheme.secondary),
                     SizedBox(width: 8),
                     Text(
                       '¿Deseas crear uno nuevo?',

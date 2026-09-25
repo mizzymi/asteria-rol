@@ -415,9 +415,7 @@ class ActionResolver {
         .fold<int>(0, (sum, part) => sum + part.total);
 
     final resolvedMitigation = resolvedDiceResult.parts
-        .where(
-          (part) => part.request.effectType == AbilityEffectType.mitigation,
-        )
+        .where((part) => part.request.effectType == AbilityEffectType.mitigation)
         .fold<int>(0, (sum, part) => sum + part.total);
 
     return ActionTargetResult(
@@ -1170,6 +1168,14 @@ class ActionResolver {
       minimumRollSources: sources,
       forcedCritical: forcedCritical,
       empowered: effectiveEmpoweredCritical,
+      empoweredMultiplier: character.empoweredCriticalMultiplierForAbility(ability),
+      empoweredFormula: character.empoweredCriticalFormulaForAbility(ability),
+      currentTurn: character.combatTurnSequence <= 0 ? 1 : character.combatTurnSequence,
+      resources: character.empoweredCriticalResourceValues,
+      resourceMaximums: character.empoweredCriticalResourceMaximumValues,
+      counters: character.empoweredCriticalCounterValues,
+      charges: character.empoweredCriticalChargesForAbility(ability),
+      maxCharges: character.empoweredCriticalMaxChargesForAbility(ability),
     );
 
     final costs = <ActionCost>[
@@ -1916,6 +1922,14 @@ class ActionResolver {
     Iterable<int> minimumRollSources = const [],
     bool forcedCritical = false,
     bool empowered = false,
+    int empoweredMultiplier = 2,
+    String empoweredFormula = '',
+    int currentTurn = 1,
+    Map<String, double> resources = const {},
+    Map<String, double> resourceMaximums = const {},
+    Map<String, double> counters = const {},
+    int charges = 0,
+    int maxCharges = 0,
   }) {
     final effectiveMinimumRoll = ActionCriticalProfile.effectiveMinimumRoll(
       minimumRollSources,
@@ -1925,6 +1939,16 @@ class ActionResolver {
       minimumNaturalRoll: effectiveMinimumRoll,
       forcedCritical: forcedCritical,
       empowered: empowered,
+      empoweredMultiplier: empoweredMultiplier.clamp(2, 10).toInt(),
+      empoweredFormula: empoweredFormula.trim().isEmpty
+          ? '(MAX + MOD) * ${empoweredMultiplier.clamp(2, 10)}'
+          : empoweredFormula.trim(),
+      currentTurn: currentTurn <= 0 ? 1 : currentTurn,
+      resources: Map<String, double>.unmodifiable(resources),
+      resourceMaximums: Map<String, double>.unmodifiable(resourceMaximums),
+      counters: Map<String, double>.unmodifiable(counters),
+      charges: charges,
+      maxCharges: maxCharges,
     );
   }
 
@@ -2047,11 +2071,11 @@ class ActionResolver {
           if (_abilityEffectEnabledForContext(effect, context))
             for (final part in effect.parts)
               if (_partCanApplyToAnyTarget(
-                plan: plan,
-                context: context,
-                part: part,
-              ))
-                part,
+              plan: plan,
+              context: context,
+              part: part,
+            ))
+              part,
       ];
     } else {
       selected = selectedParts(
@@ -2101,6 +2125,9 @@ class ActionResolver {
         baseModifier: baseModifier,
 
         criticalType: effectiveCriticalType,
+        empoweredMultiplier: criticalProfile.empoweredMultiplier,
+        empoweredFormula: criticalProfile.empoweredFormula,
+        currentTurn: criticalProfile.currentTurn,
       );
 
       parts.add(
@@ -2128,6 +2155,14 @@ class ActionResolver {
           automaticValueLabel: transformed.automaticValue != 0
               ? _criticalAutomaticValueLabel(effectiveCriticalType)
               : '',
+          empoweredCriticalFormula: transformed.empoweredFormula,
+          empoweredCriticalTurn: transformed.empoweredTurn,
+          empoweredCriticalMaximum: transformed.empoweredMaximum,
+          empoweredCriticalResources: criticalProfile.resources,
+          empoweredCriticalResourceMaximums: criticalProfile.resourceMaximums,
+          empoweredCriticalCounters: criticalProfile.counters,
+          empoweredCriticalCharges: criticalProfile.charges,
+          empoweredCriticalMaxCharges: criticalProfile.maxCharges,
 
           sourceType: plan.source.isWeapon
               ? ActionDiceSourceType.weapon
@@ -2212,6 +2247,9 @@ class ActionResolver {
           dicePools: part.dicePools,
           baseModifier: baseModifier,
           criticalType: effectiveCriticalType,
+          empoweredMultiplier: criticalProfile.empoweredMultiplier,
+          empoweredFormula: criticalProfile.empoweredFormula,
+          currentTurn: criticalProfile.currentTurn,
         );
 
         parts.add(
@@ -2229,6 +2267,14 @@ class ActionResolver {
             automaticValueLabel: transformed.automaticValue != 0
                 ? _criticalAutomaticValueLabel(effectiveCriticalType)
                 : '',
+            empoweredCriticalFormula: transformed.empoweredFormula,
+            empoweredCriticalTurn: transformed.empoweredTurn,
+            empoweredCriticalMaximum: transformed.empoweredMaximum,
+            empoweredCriticalResources: criticalProfile.resources,
+            empoweredCriticalResourceMaximums: criticalProfile.resourceMaximums,
+            empoweredCriticalCounters: criticalProfile.counters,
+            empoweredCriticalCharges: criticalProfile.charges,
+            empoweredCriticalMaxCharges: criticalProfile.maxCharges,
             hitBehavior: part.hitBehavior,
 
             sourceType: ActionDiceSourceType.ability,
@@ -2276,6 +2322,9 @@ class ActionResolver {
           dicePools: effect.dicePools,
           baseModifier: baseModifier,
           criticalType: effectiveCriticalType,
+          empoweredMultiplier: criticalProfile.empoweredMultiplier,
+          empoweredFormula: criticalProfile.empoweredFormula,
+          currentTurn: criticalProfile.currentTurn,
         );
 
         parts.add(
@@ -2297,6 +2346,14 @@ class ActionResolver {
             automaticValueLabel: transformed.automaticValue != 0
                 ? _criticalAutomaticValueLabel(effectiveCriticalType)
                 : '',
+            empoweredCriticalFormula: transformed.empoweredFormula,
+            empoweredCriticalTurn: transformed.empoweredTurn,
+            empoweredCriticalMaximum: transformed.empoweredMaximum,
+            empoweredCriticalResources: criticalProfile.resources,
+            empoweredCriticalResourceMaximums: criticalProfile.resourceMaximums,
+            empoweredCriticalCounters: criticalProfile.counters,
+            empoweredCriticalCharges: criticalProfile.charges,
+            empoweredCriticalMaxCharges: criticalProfile.maxCharges,
 
             sourceType: ActionDiceSourceType.ability,
             sourceId: plan.definition.id,
@@ -2314,6 +2371,7 @@ class ActionResolver {
         context: context,
         target: target,
         criticalType: criticalType,
+        criticalProfile: criticalProfile,
         plan: plan,
       );
     }
@@ -2551,6 +2609,7 @@ class ActionResolver {
     required List<ActionDiceRequestPart> parts,
     required ActionResolutionContext context,
     required ActionCriticalType criticalType,
+    required ActionCriticalProfile criticalProfile,
     ActionTarget? target,
   }) {
     for (final active in character.activeDamageBonuses) {
@@ -2610,6 +2669,9 @@ class ActionResolver {
         dicePools: effectiveDicePools,
         baseModifier: baseModifier,
         criticalType: effectiveCriticalType,
+        empoweredMultiplier: criticalProfile.empoweredMultiplier,
+        empoweredFormula: criticalProfile.empoweredFormula,
+        currentTurn: criticalProfile.currentTurn,
       );
 
       parts.add(
@@ -2640,6 +2702,14 @@ class ActionResolver {
           automaticValueLabel: transformed.automaticValue != 0
               ? _criticalAutomaticValueLabel(effectiveCriticalType)
               : '',
+          empoweredCriticalFormula: transformed.empoweredFormula,
+          empoweredCriticalTurn: transformed.empoweredTurn,
+          empoweredCriticalMaximum: transformed.empoweredMaximum,
+          empoweredCriticalResources: criticalProfile.resources,
+          empoweredCriticalResourceMaximums: criticalProfile.resourceMaximums,
+          empoweredCriticalCounters: criticalProfile.counters,
+          empoweredCriticalCharges: criticalProfile.charges,
+          empoweredCriticalMaxCharges: criticalProfile.maxCharges,
 
           sourceType: passive != null
               ? ActionDiceSourceType.passive
@@ -4574,6 +4644,14 @@ class ActionResolver {
       ),
       forcedCritical: forcedCritical,
       empowered: empowered ?? character.empoweredCriticalForAbility(ability),
+      empoweredMultiplier: character.empoweredCriticalMultiplierForAbility(ability),
+      empoweredFormula: character.empoweredCriticalFormulaForAbility(ability),
+      currentTurn: character.combatTurnSequence <= 0 ? 1 : character.combatTurnSequence,
+      resources: character.empoweredCriticalResourceValues,
+      resourceMaximums: character.empoweredCriticalResourceMaximumValues,
+      counters: character.empoweredCriticalCounterValues,
+      charges: character.empoweredCriticalChargesForAbility(ability),
+      maxCharges: character.empoweredCriticalMaxChargesForAbility(ability),
     );
   }
 
@@ -4586,6 +4664,14 @@ class ActionResolver {
       minimumRollSources: character.criticalMinimumRollSourcesForWeapon(weapon),
       forcedCritical: forcedCritical,
       empowered: empowered ?? character.empoweredCriticalForWeapon(weapon),
+      empoweredMultiplier: character.empoweredCriticalMultiplierForWeapon(weapon),
+      empoweredFormula: character.empoweredCriticalFormulaForWeapon(weapon),
+      currentTurn: character.combatTurnSequence <= 0 ? 1 : character.combatTurnSequence,
+      resources: character.empoweredCriticalResourceValues,
+      resourceMaximums: character.empoweredCriticalResourceMaximumValues,
+      counters: character.empoweredCriticalCounterValues,
+      charges: character.empoweredCriticalChargesForWeapon(weapon),
+      maxCharges: character.empoweredCriticalMaxChargesForWeapon(weapon),
     );
   }
 

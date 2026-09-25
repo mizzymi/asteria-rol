@@ -46,7 +46,10 @@ class ItemArmorSection extends StatelessWidget {
             prefixIcon: Icon(Icons.shield_rounded),
           ),
           items: ArmorCategory.values.map((cat) {
-            return DropdownMenuItem(value: cat, child: Text(cat.label));
+            return DropdownMenuItem(
+              value: cat,
+              child: Text(cat.label),
+            );
           }).toList(),
           onChanged: (val) {
             if (val != null) onCategoryChanged(val);
@@ -70,12 +73,14 @@ class ItemArmorSection extends StatelessWidget {
               labelText: 'Fórmula de Clase de Armadura',
               hintText: 'ej: 10 + DES_MOD + CON_MOD',
               prefixIcon: Icon(Icons.calculate_rounded),
-              helperText:
-                  'Calcula la CA dinámicamente según atributos o contadores.',
+              helperText: 'Calcula la CA dinámicamente según atributos o contadores.',
             ),
           ),
           const SizedBox(height: 10),
-          FormulaInsertBar(character: character, onInsert: _insertToken),
+          FormulaInsertBar(
+            character: character,
+            onInsert: _insertToken,
+          ),
         ],
       ],
     );

@@ -347,9 +347,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                   IconButton(
                                     icon: Icon(
                                       Icons.delete_outline_rounded,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.error,
+                                      color: Theme.of(context).colorScheme.error,
                                     ),
                                     onPressed: () {
                                       setDialogState(() {
@@ -600,6 +598,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     }
   }
 
+
   Future<void> _showAvatarFullscreen() async {
     if (pet.avatarPath.isEmpty || !File(pet.avatarPath).existsSync()) {
       return;
@@ -618,7 +617,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 minScale: 1,
                 maxScale: 5,
                 child: Center(
-                  child: Image.file(File(pet.avatarPath), fit: BoxFit.contain),
+                  child: Image.file(
+                    File(pet.avatarPath),
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               Positioned(
@@ -626,12 +628,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 right: 12,
                 child: IconButton.filled(
                   style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.scrim.withValues(alpha: .55),
-                    foregroundColor: Theme.of(
-                      context,
-                    ).colorScheme.onInverseSurface,
+                    backgroundColor: Theme.of(context).colorScheme.scrim.withValues(alpha: .55),
+                    foregroundColor: Theme.of(context).colorScheme.onInverseSurface,
                   ),
                   tooltip: 'Cerrar',
                   onPressed: () => Navigator.pop(dialogContext),
@@ -645,9 +643,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 child: Text(
                   'Pellizca para ampliar · arrastra para moverte',
                   style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onInverseSurface.withValues(alpha: 0.70),
+                    color: Theme.of(context).colorScheme.onInverseSurface,
                   ),
                 ),
               ),
@@ -694,78 +690,50 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 if (pet.effects.isEmpty)
                   _buildEmptyState(context, 'No hay efectos activos asignados.')
                 else
-                  ...pet.effects.map(
-                    (effect) => Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Icon(
-                            effect.enabled
-                                ? Icons.bolt_rounded
-                                : Icons.bolt_outlined,
-                          ),
-                        ),
-                        title: Text(
-                          effect.name,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(
-                          effect.durationText.isNotEmpty
-                              ? effect.durationText
-                              : (effect.enabled ? 'Activo' : 'Inactivo'),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Switch.adaptive(
-                              value: effect.enabled,
-                              onChanged: (value) async {
-                                setState(() => effect.enabled = value);
-                                await _save();
-                              },
-                            ),
-                            PopupMenuButton<String>(
-                              onSelected: (value) async {
-                                if (value == 'edit') {
-                                  await _editEffect(effect);
-                                } else if (value == 'turn') {
-                                  setState(() {
-                                    effect.advanceTurn();
-                                    pet.effects.removeWhere(
-                                      (e) => e.hasDuration && e.isExpired,
-                                    );
-                                  });
-                                  await _save();
-                                } else if (value == 'delete') {
-                                  setState(
-                                    () => pet.effects.removeWhere(
-                                      (e) => e.id == effect.id,
-                                    ),
-                                  );
-                                  await _save();
-                                }
-                              },
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: 'turn',
-                                  child: Text('Reducir 1 turno'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: Text('Editar'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('Eliminar'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        onTap: () => _editEffect(effect),
+                  ...pet.effects.map((effect) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Icon(effect.enabled ? Icons.bolt_rounded : Icons.bolt_outlined),
                       ),
+                      title: Text(effect.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(effect.durationText.isNotEmpty ? effect.durationText : (effect.enabled ? 'Activo' : 'Inactivo')),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Switch.adaptive(
+                            value: effect.enabled,
+                            onChanged: (value) async {
+                              setState(() => effect.enabled = value);
+                              await _save();
+                            },
+                          ),
+                          PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                await _editEffect(effect);
+                              } else if (value == 'turn') {
+                                setState(() {
+                                  effect.advanceTurn();
+                                  pet.effects.removeWhere((e) => e.hasDuration && e.isExpired);
+                                });
+                                await _save();
+                              } else if (value == 'delete') {
+                                setState(() => pet.effects.removeWhere((e) => e.id == effect.id));
+                                await _save();
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'turn', child: Text('Reducir 1 turno')),
+                              PopupMenuItem(value: 'edit', child: Text('Editar')),
+                              PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                            ],
+                          ),
+                        ],
+                      ),
+                      onTap: () => _editEffect(effect),
                     ),
-                  ),
+                  )),
                 const SizedBox(height: 20),
                 _buildSectionHeader(
                   context,
@@ -779,10 +747,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 if (pet.weapons.isEmpty)
-                  _buildEmptyState(
-                    context,
-                    'No hay ataques básicos configurados.',
-                  )
+                  _buildEmptyState(context, 'No hay ataques básicos configurados.')
                 else
                   ...pet.weapons.map((weapon) {
                     final atkBonus = pet.weaponAttackBonus(weapon);
@@ -791,16 +756,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
                         onTap: () => _resolvePetWeapon(weapon),
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.gavel_rounded),
-                        ),
-                        title: Text(
-                          weapon.name,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(
-                          'Ataque $atkText  •  ${weapon.damageDice} ${weapon.damageType}',
-                        ),
+                        leading: const CircleAvatar(child: Icon(Icons.gavel_rounded)),
+                        title: Text(weapon.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text('Ataque $atkText  •  ${weapon.damageDice} ${weapon.damageType}'),
                         trailing: PopupMenuButton<String>(
                           onSelected: (value) async {
                             if (value == 'use') {
@@ -810,21 +768,14 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                               await _addOrEditWeapon(weapon: weapon);
                             }
                             if (value == 'delete') {
-                              setState(
-                                () => pet.weapons.removeWhere(
-                                  (w) => w.id == weapon.id,
-                                ),
-                              );
+                              setState(() => pet.weapons.removeWhere((w) => w.id == weapon.id));
                               await _save();
                             }
                           },
                           itemBuilder: (_) => const [
                             PopupMenuItem(value: 'use', child: Text('Atacar')),
                             PopupMenuItem(value: 'edit', child: Text('Editar')),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Eliminar'),
-                            ),
+                            PopupMenuItem(value: 'delete', child: Text('Eliminar')),
                           ],
                         ),
                       ),
@@ -843,59 +794,36 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 if (pet.characterAbilities.isEmpty)
-                  _buildEmptyState(
-                    context,
-                    'No hay habilidades activas asignadas.',
-                  )
+                  _buildEmptyState(context, 'No hay habilidades activas asignadas.')
                 else
-                  ...pet.characterAbilities.map(
-                    (ability) => Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.flash_on_rounded),
-                        ),
-                        title: Text(
-                          ability.name,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(
-                          ability.description.isNotEmpty
-                              ? ability.description
-                              : 'Sin descripción',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => _resolvePetAbility(ability),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            if (value == 'use') {
-                              await _resolvePetAbility(ability);
-                            }
-                            if (value == 'edit') {
-                              await _editAbility(ability);
-                            }
-                            if (value == 'delete') {
-                              setState(
-                                () => pet.characterAbilities.removeWhere(
-                                  (a) => a.id == ability.id,
-                                ),
-                              );
-                              await _save();
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'use', child: Text('Usar')),
-                            PopupMenuItem(value: 'edit', child: Text('Editar')),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Eliminar'),
-                            ),
-                          ],
-                        ),
+                  ...pet.characterAbilities.map((ability) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.flash_on_rounded)),
+                      title: Text(ability.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(ability.description.isNotEmpty ? ability.description : 'Sin descripción', maxLines: 2, overflow: TextOverflow.ellipsis),
+                      onTap: () => _resolvePetAbility(ability),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          if (value == 'use') {
+                            await _resolvePetAbility(ability);
+                          }
+                          if (value == 'edit') {
+                            await _editAbility(ability);
+                          }
+                          if (value == 'delete') {
+                            setState(() => pet.characterAbilities.removeWhere((a) => a.id == ability.id));
+                            await _save();
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'use', child: Text('Usar')),
+                          PopupMenuItem(value: 'edit', child: Text('Editar')),
+                          PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                        ],
                       ),
                     ),
-                  ),
+                  )),
                 const SizedBox(height: 20),
                 _buildSectionHeader(
                   context,
@@ -911,149 +839,105 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 if (pet.passives.isEmpty)
                   _buildEmptyState(context, 'No hay pasivas asignadas.')
                 else
-                  ...pet.passives.map(
-                    (passive) => Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.auto_awesome_rounded),
-                        ),
-                        title: Text(
-                          passive.name,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(
-                          passive.hasCharges
-                              ? '${passive.triggers.length} triggers  •  Cargas ${passive.chargesText}'
-                              : '${passive.triggers.length} triggers configurados',
-                        ),
-                        onTap: () => _editPassive(passive),
-                        trailing: passive.hasCharges
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.outlineVariant,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          tooltip: 'Gastar carga',
-                                          visualDensity: VisualDensity.compact,
-                                          icon: const Icon(
-                                            Icons.remove_rounded,
-                                            size: 18,
-                                          ),
-                                          onPressed: passive.currentCharges <= 0
-                                              ? null
-                                              : () async {
-                                                  setState(() {
-                                                    passive.currentCharges--;
-                                                    passive.normalizeCharges();
-                                                  });
-                                                  await _save();
-                                                },
-                                        ),
-                                        ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            minWidth: 42,
-                                          ),
-                                          child: Text(
-                                            passive.chargesText,
-                                            textAlign: TextAlign.center,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelLarge
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Recuperar carga',
-                                          visualDensity: VisualDensity.compact,
-                                          icon: const Icon(
-                                            Icons.add_rounded,
-                                            size: 18,
-                                          ),
-                                          onPressed: passive.chargesFull
-                                              ? null
-                                              : () async {
-                                                  setState(() {
-                                                    passive.currentCharges++;
-                                                    passive.normalizeCharges();
-                                                  });
-                                                  await _save();
-                                                },
-                                        ),
-                                      ],
+                  ...pet.passives.map((passive) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.auto_awesome_rounded)),
+                      title: Text(passive.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(passive.hasCharges
+                          ? '${passive.triggers.length} triggers  •  Cargas ${passive.chargesText}'
+                          : '${passive.triggers.length} triggers configurados'),
+                      onTap: () => _editPassive(passive),
+                      trailing: passive.hasCharges
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.outlineVariant,
                                     ),
                                   ),
-                                  PopupMenuButton<String>(
-                                    onSelected: (value) async {
-                                      if (value == 'edit') {
-                                        await _editPassive(passive);
-                                      }
-                                      if (value == 'delete') {
-                                        setState(
-                                          () => pet.passives.removeWhere(
-                                            (p) => p.id == passive.id,
-                                          ),
-                                        );
-                                        await _save();
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Editar'),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Gastar carga',
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(Icons.remove_rounded, size: 18),
+                                        onPressed: passive.currentCharges <= 0
+                                            ? null
+                                            : () async {
+                                                setState(() {
+                                                  passive.currentCharges--;
+                                                  passive.normalizeCharges();
+                                                });
+                                                await _save();
+                                              },
                                       ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Eliminar'),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(minWidth: 42),
+                                        child: Text(
+                                          passive.chargesText,
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Recuperar carga',
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(Icons.add_rounded, size: 18),
+                                        onPressed: passive.chargesFull
+                                            ? null
+                                            : () async {
+                                                setState(() {
+                                                  passive.currentCharges++;
+                                                  passive.normalizeCharges();
+                                                });
+                                                await _save();
+                                              },
                                       ),
                                     ],
                                   ),
-                                ],
-                              )
-                            : PopupMenuButton<String>(
-                                onSelected: (value) async {
-                                  if (value == 'edit') {
-                                    await _editPassive(passive);
-                                  }
-                                  if (value == 'delete') {
-                                    setState(
-                                      () => pet.passives.removeWhere(
-                                        (p) => p.id == passive.id,
-                                      ),
-                                    );
-                                    await _save();
-                                  }
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Editar'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Eliminar'),
-                                  ),
-                                ],
-                              ),
-                      ),
+                                ),
+                                PopupMenuButton<String>(
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      await _editPassive(passive);
+                                    }
+                                    if (value == 'delete') {
+                                      setState(() => pet.passives.removeWhere((p) => p.id == passive.id));
+                                      await _save();
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(value: 'edit', child: Text('Editar')),
+                                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : PopupMenuButton<String>(
+                              onSelected: (value) async {
+                                if (value == 'edit') {
+                                  await _editPassive(passive);
+                                }
+                                if (value == 'delete') {
+                                  setState(() => pet.passives.removeWhere((p) => p.id == passive.id));
+                                  await _save();
+                                }
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(value: 'edit', child: Text('Editar')),
+                                PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                              ],
+                            ),
                     ),
-                  ),
+                  )),
               ]),
             ),
           ),
@@ -1065,8 +949,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Widget _buildHero(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final hasImage =
-        pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
+    final hasImage = pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
 
     return GestureDetector(
       onTap: hasImage ? _showAvatarFullscreen : null,
@@ -1075,134 +958,89 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (hasImage)
-              Image.file(
-                File(pet.avatarPath),
-                fit: BoxFit.cover,
-                alignment: Alignment(
-                  pet.avatarAlignmentX,
-                  pet.avatarAlignmentY,
-                ),
-              )
-            else
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [colors.primaryContainer, colors.tertiaryContainer],
-                  ),
-                ),
-                child: Icon(
-                  Icons.pets_rounded,
-                  size: 100,
-                  color: colors.onPrimaryContainer.withValues(alpha: .55),
+          if (hasImage)
+            Image.file(
+              File(pet.avatarPath),
+              fit: BoxFit.cover,
+              alignment: Alignment(pet.avatarAlignmentX, pet.avatarAlignmentY),
+            )
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [colors.primaryContainer, colors.tertiaryContainer],
                 ),
               ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Theme.of(
-                        context,
-                      ).colorScheme.surface.withValues(alpha: 0),
-                      Theme.of(
-                        context,
-                      ).colorScheme.scrim.withValues(alpha: .72),
-                    ],
-                    stops: const [.35, 1],
-                  ),
+              child: Icon(Icons.pets_rounded, size: 100, color: colors.onPrimaryContainer.withValues(alpha: .55)),
+            ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: .72)],
+                  stops: const [.35, 1],
                 ),
               ),
             ),
+          ),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (pet.species.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.scrim.withValues(alpha: .28), borderRadius: BorderRadius.circular(999)),
+                    child: Text(pet.species, style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface, fontWeight: FontWeight.w700)),
+                  ),
+                const SizedBox(height: 8),
+                Text(
+                  pet.name,
+                  style: theme.textTheme.headlineMedium?.copyWith(color: Theme.of(context).colorScheme.onInverseSurface, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          ),
+          if (hasImage)
             Positioned(
-              left: 20,
-              right: 20,
-              bottom: 20,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (pet.species.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.scrim.withValues(alpha: .28),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        pet.species,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onInverseSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+              top: 14,
+              right: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.scrim.withValues(alpha: .45),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.zoom_out_map_rounded, color: Theme.of(context).colorScheme.onInverseSurface, size: 17),
+                    SizedBox(width: 6),
+                    Text(
+                      'Ampliar',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface, fontWeight: FontWeight.w700),
                     ),
-                  const SizedBox(height: 8),
-                  Text(
-                    pet.name,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onInverseSurface,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (hasImage)
-              Positioned(
-                top: 14,
-                right: 14,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.scrim.withValues(alpha: .45),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.zoom_out_map_rounded,
-                        color: Theme.of(context).colorScheme.onInverseSurface,
-                        size: 17,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'Ampliar',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onInverseSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
+    ),
     );
   }
 
   Widget _buildOverviewCard(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final healthRatio = pet.maxHealth <= 0
-        ? 0.0
-        : (pet.currentHealth / pet.maxHealth).clamp(0.0, 1.0);
+    final healthRatio = pet.maxHealth <= 0 ? 0.0 : (pet.currentHealth / pet.maxHealth).clamp(0.0, 1.0);
 
     return Card(
       elevation: 0,
@@ -1223,27 +1061,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       children: [
                         Icon(Icons.favorite_rounded, color: colors.error),
                         const SizedBox(width: 8),
-                        Text(
-                          'Puntos de vida',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                        Text('Puntos de vida', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
                         const Spacer(),
-                        Text(
-                          '${pet.currentHealth} / ${pet.maxHealth}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
+                        Text('${pet.currentHealth} / ${pet.maxHealth}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: healthRatio,
-                      minHeight: 9,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
+                    LinearProgressIndicator(value: healthRatio, minHeight: 9, borderRadius: BorderRadius.circular(99)),
                   ],
                 ),
               ),
@@ -1251,41 +1075,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             const SizedBox(height: 18),
             Row(
               children: [
-                Expanded(
-                  child: _buildMetricTile(
-                    context,
-                    'CA',
-                    '${pet.armorClass}',
-                    Icons.shield_rounded,
-                  ),
-                ),
+                Expanded(child: _buildMetricTile(context, 'CA', '${pet.armorClass}', Icons.shield_rounded)),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    context,
-                    'Velocidad',
-                    '${pet.speed}',
-                    Icons.directions_run_rounded,
-                  ),
-                ),
+                Expanded(child: _buildMetricTile(context, 'Velocidad', '${pet.speed}', Icons.directions_run_rounded)),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    context,
-                    'Competencia',
-                    '+${pet.proficiencyBonus}',
-                    Icons.military_tech_rounded,
-                  ),
-                ),
+                Expanded(child: _buildMetricTile(context, 'Competencia', '+${pet.proficiencyBonus}', Icons.military_tech_rounded)),
               ],
             ),
             const SizedBox(height: 18),
-            Text(
-              'Atributos',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            Text('Atributos', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 10),
             _buildAttributesRow(),
             if (pet.notes.isNotEmpty) ...[
@@ -1293,10 +1091,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
                 child: Text(pet.notes),
               ),
             ],
@@ -1306,62 +1101,30 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     );
   }
 
-  Widget _buildMetricTile(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-  ) {
+  Widget _buildMetricTile(BuildContext context, String label, String value, IconData icon) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
-      ),
+      decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
       child: Column(
         children: [
           Icon(icon, color: colors.primary, size: 21),
           const SizedBox(height: 5),
-          Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
+          Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant)),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required Widget action,
-  }) {
+  Widget _buildSectionHeader(BuildContext context, {required String title, required IconData icon, required Widget action}) {
     final theme = Theme.of(context);
     return Row(
       children: [
         Icon(icon, size: 21, color: theme.colorScheme.primary),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
+        Expanded(child: Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
         action,
       ],
     );
@@ -1377,13 +1140,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Text(
-        text,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontStyle: FontStyle.italic,
-        ),
-      ),
+      child: Text(text, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic)),
     );
   }
 
@@ -1419,10 +1176,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             ),
             Text(
               modText,
-              style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         );

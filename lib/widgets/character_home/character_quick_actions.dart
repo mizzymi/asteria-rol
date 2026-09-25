@@ -5,9 +5,8 @@ import 'character_home_colors.dart';
 class CharacterQuickActions extends StatelessWidget {
   final VoidCallback onCombat;
   final VoidCallback onRest;
-  final VoidCallback onPets; // <--- 1. Añadimos el callback de mascotas
-  final int
-  petCount; // <--- 2. Recibimos el número de mascotas para el subtítulo o tooltip dinámico (opcional)
+  final VoidCallback onPets;
+  final int petCount;
 
   const CharacterQuickActions({
     super.key,
@@ -29,27 +28,28 @@ class CharacterQuickActions extends StatelessWidget {
         color: CharacterHomeColors.elevatedPanel(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.70),
+          color: colors.outlineVariant.withValues(alpha: 0.78),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.10 : 0.06,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ===================================================================
-          // TÍTULO
-          // ===================================================================
           Text(
             'Acceso rápido',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w900,
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // ===================================================================
-          // ACCIONES (Ahora 4 botones distribuidos en una fila o rejilla)
-          // ===================================================================
           Row(
             children: [
               Expanded(
@@ -60,9 +60,7 @@ class CharacterQuickActions extends StatelessWidget {
                   onTap: onCombat,
                 ),
               ),
-
               const SizedBox(width: 8),
-
               Expanded(
                 child: _QuickActionButton(
                   icon: Icons.local_fire_department_rounded,
@@ -71,19 +69,12 @@ class CharacterQuickActions extends StatelessWidget {
                   onTap: onRest,
                 ),
               ),
-
               const SizedBox(width: 8),
-
-              // ===============================================================
-              // BOTÓN DE MASCOTAS (NUEVO)
-              // ===============================================================
               Expanded(
                 child: _QuickActionButton(
                   icon: Icons.pets_rounded,
                   label: petCount > 0 ? 'Mascotas ($petCount)' : 'Mascotas',
-                  color: CharacterHomeColors.effects(
-                    context,
-                  ), // Color cohesivo con efectos/magia
+                  color: CharacterHomeColors.effects(context),
                   onTap: onPets,
                 ),
               ),
@@ -94,10 +85,6 @@ class CharacterQuickActions extends StatelessWidget {
     );
   }
 }
-
-// =============================================================================
-// ACCIÓN
-// =============================================================================
 
 class _QuickActionButton extends StatelessWidget {
   final IconData icon;
@@ -120,15 +107,15 @@ class _QuickActionButton extends StatelessWidget {
     final background = CharacterHomeColors.tintedSurface(
       context,
       color,
-      lightStrength: 0.10,
-      darkStrength: 0.18,
+      lightStrength: 0.14,
+      darkStrength: 0.12,
     );
 
     final iconBackground = CharacterHomeColors.tintedSurface(
       context,
       color,
-      lightStrength: 0.22,
-      darkStrength: 0.30,
+      lightStrength: 0.26,
+      darkStrength: 0.18,
     );
 
     final borderColor = CharacterHomeColors.tintedBorder(
@@ -138,49 +125,55 @@ class _QuickActionButton extends StatelessWidget {
       darkAlpha: 0.30,
     );
 
-    return Material(
-      color: background,
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.08 : 0.05,
+            ),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ===============================================================
-              // ICONO
-              // ===============================================================
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: iconBackground,
-                  borderRadius: BorderRadius.circular(13),
+      child: Material(
+        color: background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: borderColor),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, size: 21, color: color),
                 ),
-                child: Icon(icon, size: 21, color: color),
-              ),
-
-              const SizedBox(height: 7),
-
-              // ===============================================================
-              // TEXTO
-              // ===============================================================
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.onSurface,
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: 7),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

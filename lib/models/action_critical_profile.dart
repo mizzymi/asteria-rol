@@ -14,10 +14,34 @@ class ActionCriticalProfile {
   /// Si el crítico de esta acción utiliza la regla potenciada.
   final bool empowered;
 
+  /// Multiplicador legacy aplicado por la regla de crítico potenciado.
+  final int empoweredMultiplier;
+
+  /// Fórmula configurable del crítico potenciado.
+  final String empoweredFormula;
+
+  /// Turno actual usado por la variable TURNO.
+  final int currentTurn;
+
+  /// Valores disponibles para fórmulas de crítico potenciado.
+  final Map<String, double> resources;
+  final Map<String, double> resourceMaximums;
+  final Map<String, double> counters;
+  final int charges;
+  final int maxCharges;
+
   const ActionCriticalProfile({
     this.minimumNaturalRoll = 20,
     this.forcedCritical = false,
     this.empowered = false,
+    this.empoweredMultiplier = 2,
+    this.empoweredFormula = '(MAX + MOD) * 2',
+    this.currentTurn = 1,
+    this.resources = const {},
+    this.resourceMaximums = const {},
+    this.counters = const {},
+    this.charges = 0,
+    this.maxCharges = 0,
   });
 
   bool isCriticalRoll(int naturalRoll) {

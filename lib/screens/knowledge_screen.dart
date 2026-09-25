@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/ability.dart';
-import '../models/passive.dart';
-import '../services/ability_library_service.dart';
-import '../services/passive_library_service.dart';
 import '../models/character.dart';
 import '../models/character_knowledge.dart';
 import '../models/knowledge_definition.dart';
@@ -32,108 +28,114 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
     if (mounted) setState(() {});
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _syncRewards();
+  }
+
+  Future<void> _syncRewards() async {
+    for (final entry in character.knowledges) {
+      final definition = await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId);
+      if (definition == null) continue;
+      await const KnowledgeService().syncKnowledgeRewards(
+        character: character,
+        definition: definition,
+        entry: entry,
+      );
+    }
+    await CharacterStorageService.saveCharacter(character);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _createKnowledge() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(builder: (_) => const KnowledgeFormScreen()),
     );
-
     if (result == null || !mounted) return;
 
-    final def = result['definition'] as KnowledgeDefinition;
+    final definition = result['definition'] as KnowledgeDefinition;
     final notes = result['notes'] as String;
+    await KnowledgeLibraryService.saveDefinition(definition);
 
-    // Guardamos la definición en la biblioteca global
-    await KnowledgeLibraryService.saveDefinition(def);
-
+    if (!mounted) return;
     setState(() {
-      final entry = CharacterKnowledge(
-        knowledgeId: def.id,
-        status: KnowledgeStatus.discovered,
-        currentProgress: 0,
-        notes: notes,
+      character.knowledges.add(
+        CharacterKnowledge(
+          knowledgeId: definition.id,
+          status: KnowledgeStatus.discovered,
+          notes: notes,
+        ),
       );
-      character.knowledges.add(entry);
     });
     await _save();
   }
 
   Future<void> _editKnowledgeFull(CharacterKnowledge entry) async {
-    final existingDef = await KnowledgeLibraryService.getDefinitionById(
-      entry.knowledgeId,
-    );
-
-    if (!mounted) {
-      return;
-    }
+    final existing = await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId);
+    if (!mounted) return;
 
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (_) => KnowledgeFormScreen(
-          definition: existingDef,
+          definition: existing,
           initialNotes: entry.notes,
         ),
       ),
     );
-
     if (result == null || !mounted) return;
 
-    final def = result['definition'] as KnowledgeDefinition;
-    final notes = result['notes'] as String;
+    final definition = result['definition'] as KnowledgeDefinition;
+    entry.notes = result['notes'] as String;
+    await KnowledgeLibraryService.saveDefinition(definition);
 
-    await KnowledgeLibraryService.saveDefinition(def);
+    final maxProgress = definition.effectiveRequiredProgress;
+    if (entry.currentProgress > maxProgress) {
+      entry.currentProgress = maxProgress;
+    }
+    entry.status = entry.currentProgress >= maxProgress
+        ? KnowledgeStatus.mastered
+        : entry.currentProgress > 0
+            ? KnowledgeStatus.studying
+            : KnowledgeStatus.discovered;
 
-    setState(() {
-      entry.notes = notes;
-      if (entry.currentProgress >= def.requiredProgress) {
-        entry.status = KnowledgeStatus.mastered;
-      }
-    });
+    await const KnowledgeService().syncKnowledgeRewards(
+      character: character,
+      definition: definition,
+      entry: entry,
+    );
     await _save();
   }
 
-  Future<void> _studyDuringRest(
-    CharacterKnowledge entry,
-    RestStudyType restType,
-  ) async {
-    final def =
-        await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId) ??
-        KnowledgeDefinition(
-          id: entry.knowledgeId,
-          name: entry.knowledgeId,
-          requiredProgress: 5,
-        );
-
-    if (!mounted) {
-      return;
-    }
+  Future<void> _study(CharacterKnowledge entry) async {
+    final definition = await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId) ??
+        KnowledgeDefinition(id: entry.knowledgeId, name: entry.knowledgeId);
+    if (!mounted) return;
 
     final result = await showStudyDialog(
       context,
       character: character,
-      definition: def,
+      definition: definition,
     );
-
     if (result == null || !mounted) return;
 
     await _save();
-
     if (!mounted) return;
 
-    final rollsSummary = result.attempts
-        .map(
-          (a) =>
-              '${a.totalRoll} (${a.success ? "Éxito vs CD ${a.dcUsed}" : "Fallo"})',
-        )
+    final summary = result.attempts
+        .map((a) {
+          final circle = a.circleTitle == null ? '' : ' · ${a.circleTitle}';
+          return '${a.totalRoll} vs CD ${a.dcUsed}$circle (${a.success ? 'Éxito' : 'Fallo'})';
+        })
         .join(', ');
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Tiradas: $rollsSummary. +${result.successesGained} éxito(s). '
-          'Progreso: ${result.currentProgress}/${result.requiredProgress}. '
-          '${result.completed ? "¡Conocimiento completado!" : ""}',
+          '$summary. Progreso ${result.currentProgress}/${result.requiredProgress}'
+          '${result.completed ? ' · ¡Libro completado!' : ''}',
         ),
       ),
     );
@@ -144,103 +146,28 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar saber'),
-        content: Text('¿Deseas eliminar este saber de tus registros?'),
+        content: const Text('¿Deseas eliminar este saber de tus registros?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
         ],
       ),
     );
+    if (confirmed != true) return;
 
-    if (confirmed == true) {
-      setState(() {
-        character.knowledges.removeWhere(
-          (k) => k.knowledgeId == entry.knowledgeId,
-        );
-      });
-      await _save();
+    for (final passiveId in entry.temporaryPassiveIdsGranted) {
+      character.removePassive(passiveId);
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _syncRewards();
-  }
-
-  Future<void> _syncRewards() async {
-    for (final entry in character.knowledges) {
-      final def = await KnowledgeLibraryService.getDefinitionById(
-        entry.knowledgeId,
-      );
-      if (def == null) continue;
-
-      if (entry.status == KnowledgeStatus.mastered) {
-        // =====================================================================
-        // SI ESTÁ DOMINADO: Asegurar que tiene las recompensas
-        // =====================================================================
-        for (final passiveId in def.unlockedPassiveIds) {
-          final hasPassive = character.passives.any((p) => p.id == passiveId);
-          if (!hasPassive) {
-            final passive = await PassiveLibraryService.getPassiveById(
-              passiveId,
-            );
-            if (passive != null) {
-              character.addPassive(CharacterPassive.fromMap(passive.toMap()));
-            }
-          }
-        }
-        for (final abilityId in def.unlockedAbilityIds) {
-          final hasAbility = character.characterAbilities.any(
-            (a) => a.id == abilityId,
-          );
-          if (!hasAbility) {
-            final ability = await AbilityLibraryService.getAbilityById(
-              abilityId,
-            );
-            if (ability != null) {
-              character.characterAbilities.add(
-                CharacterAbility.fromMap(ability.toMap()),
-              );
-            }
-          }
-        }
-      } else {
-        // =====================================================================
-        // SI NO ESTÁ DOMINADO (Descubierto / En estudio): Retirar recompensas
-        // =====================================================================
-        for (final passiveId in def.unlockedPassiveIds) {
-          character.removePassive(passiveId);
-        }
-        for (final abilityId in def.unlockedAbilityIds) {
-          character.removeCharacterAbility(abilityId);
-        }
-      }
-    }
+    character.knowledges.removeWhere((k) => k.knowledgeId == entry.knowledgeId);
     await _save();
-    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final knowledges = character.knowledges;
-
-    final studying = knowledges
-        .where((k) => k.status == KnowledgeStatus.studying)
-        .toList();
-    final mastered = knowledges
-        .where((k) => k.status == KnowledgeStatus.mastered)
-        .toList();
-    final discovered = knowledges
-        .where((k) => k.status == KnowledgeStatus.discovered)
-        .toList();
+    final studying = knowledges.where((k) => k.status == KnowledgeStatus.studying).toList();
+    final discovered = knowledges.where((k) => k.status == KnowledgeStatus.discovered).toList();
+    final mastered = knowledges.where((k) => k.status == KnowledgeStatus.mastered).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Compendio de Saberes')),
@@ -248,8 +175,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
           ? EmptyState(
               icon: Icons.auto_stories_rounded,
               title: 'Sin conocimientos',
-              message:
-                  'Lee libros o pergaminos desde tu inventario para descubrir recetas, saberes e historia.',
+              message: 'Añade libros, manuales o tratados con círculos de aprendizaje y recompensas.',
               actionLabel: 'Añadir saber manual',
               onAction: _createKnowledge,
             )
@@ -263,17 +189,17 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                     subtitle: '${studying.length} saberes en progreso',
                   ),
                   const SizedBox(height: 10),
-                  ...studying.map((k) => _buildKnowledgeCard(k, theme)),
+                  ...studying.map(_buildKnowledgeCard),
                   const SizedBox(height: 20),
                 ],
                 if (discovered.isNotEmpty) ...[
                   SectionHeader(
                     icon: Icons.visibility_rounded,
                     title: 'Descubiertos',
-                    subtitle: 'Pendientes de comenzar su lectura',
+                    subtitle: 'Pendientes de comenzar su estudio',
                   ),
                   const SizedBox(height: 10),
-                  ...discovered.map((k) => _buildKnowledgeCard(k, theme)),
+                  ...discovered.map(_buildKnowledgeCard),
                   const SizedBox(height: 20),
                 ],
                 if (mastered.isNotEmpty) ...[
@@ -283,7 +209,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                     subtitle: 'Conocimientos asimilados por completo',
                   ),
                   const SizedBox(height: 10),
-                  ...mastered.map((k) => _buildKnowledgeCard(k, theme)),
+                  ...mastered.map(_buildKnowledgeCard),
                 ],
               ],
             ),
@@ -295,114 +221,125 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
     );
   }
 
-  Widget _buildKnowledgeCard(CharacterKnowledge entry, ThemeData theme) {
-    final isMastered = entry.status == KnowledgeStatus.mastered;
+  Widget _buildKnowledgeCard(CharacterKnowledge entry) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final mastered = entry.status == KnowledgeStatus.mastered;
 
     return FutureBuilder<KnowledgeDefinition?>(
       future: KnowledgeLibraryService.getDefinitionById(entry.knowledgeId),
       builder: (context, snapshot) {
-        final def = snapshot.data;
-        final title = def?.name ?? entry.knowledgeId;
+        final definition = snapshot.data;
+        final title = definition?.name ?? entry.knowledgeId;
+        final total = definition?.effectiveRequiredProgress ?? 1;
+        final progress = entry.currentProgress.clamp(0, total).toInt();
+        final currentCircle = definition?.circleAtProgress(progress);
 
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isMastered
-                  ? Theme.of(
-                      context,
-                    ).colorScheme.tertiary.withValues(alpha: 0.4)
-                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-          ),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      isMastered
-                          ? Icons.check_circle_rounded
-                          : Icons.menu_book_rounded,
-                      color: isMastered
-                          ? Theme.of(context).colorScheme.tertiary
-                          : theme.colorScheme.primary,
+                      mastered ? Icons.check_circle_rounded : Icons.menu_book_rounded,
+                      color: mastered ? colors.tertiary : colors.primary,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                          if (definition != null) ...[
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                if (definition.rarity.isNotEmpty) _MiniBadge(definition.rarity),
+                                if (definition.difficulty.isNotEmpty) _MiniBadge(definition.difficulty),
+                                if (definition.levelLabel.isNotEmpty) _MiniBadge(definition.levelLabel),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
-                    ),
-                    Chip(
-                      label: Text(
-                        isMastered
-                            ? 'Dominado'
-                            : '${entry.currentProgress} éxitos',
-                      ),
-                      visualDensity: VisualDensity.compact,
                     ),
                     PopupMenuButton<String>(
-                      onSelected: (val) {
-                        if (val == 'edit') _editKnowledgeFull(entry);
-                        if (val == 'delete') _deleteKnowledge(entry);
+                      onSelected: (value) {
+                        if (value == 'edit') _editKnowledgeFull(entry);
+                        if (value == 'delete') _deleteKnowledge(entry);
                       },
-                      itemBuilder: (ctx) => const [
-                        PopupMenuItem(
-                          value: 'edit',
-                          child: ListTile(
-                            leading: Icon(Icons.edit_rounded),
-                            title: Text('Editar saber, habilidades y pasivas'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: ListTile(
-                            leading: Icon(Icons.delete_outline_rounded),
-                            title: Text('Eliminar saber'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'edit', child: Text('Editar libro')),
+                        PopupMenuItem(value: 'delete', child: Text('Eliminar saber')),
                       ],
                     ),
                   ],
                 ),
-                if (entry.notes.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                if (definition?.description.isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
                   Text(
-                    entry.notes,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                    definition!.description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: LinearProgressIndicator(
+                        value: total > 0 ? progress / total : 0,
+                        minHeight: 7,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('$progress/$total', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  ],
+                ),
+                if (!mastered && currentCircle != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer.withValues(alpha: 0.38),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Siguiente: ${currentCircle.title} · CD ${currentCircle.dc}',
+                      style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ),
                 ],
-                if (!isMastered) ...[
+                if (definition != null && definition.effectiveCheckOptions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tirada: ${definition.effectiveCheckOptions.map((e) => e.label).join(' o ')}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                ],
+                if (entry.notes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(entry.notes, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+                ],
+                if (!mastered) ...[
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () =>
-                            _studyDuringRest(entry, RestStudyType.shortRest),
-                        icon: const Icon(Icons.bedtime_outlined, size: 16),
-                        label: const Text('Corto (1 d20)'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: () =>
-                            _studyDuringRest(entry, RestStudyType.longRest),
-                        icon: const Icon(Icons.hotel_rounded, size: 16),
-                        label: const Text('Largo (2 d20)'),
-                      ),
-                    ],
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      onPressed: () => _study(entry),
+                      icon: const Icon(Icons.auto_stories_rounded, size: 18),
+                      label: const Text('Estudiar'),
+                    ),
                   ),
                 ],
               ],
@@ -410,6 +347,24 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _MiniBadge extends StatelessWidget {
+  final String text;
+  const _MiniBadge(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: colors.primaryContainer.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(text, style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
     );
   }
 }

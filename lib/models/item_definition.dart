@@ -294,7 +294,6 @@ class ItemDefinition {
   final List<CharacterAbility> abilities;
   final ActionDefinition? actionDefinition;
   final Map<String, dynamic> customProperties;
-
   /// Clases para las que se recomienda este objeto (p. ej. Guerrero, Mago).
   final List<String> recommendedClasses;
 
@@ -477,12 +476,7 @@ class ItemDefinition {
       customProperties: map['customProperties'] != null
           ? Map<String, dynamic>.from(map['customProperties'] as Map)
           : const {},
-      recommendedClasses:
-          (map['recommendedClasses'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .where((e) => e.trim().isNotEmpty)
-              .toList() ??
-          const [],
+      recommendedClasses: (map['recommendedClasses'] as List<dynamic>?)?.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList() ?? const [],
       relatedKnowledgeId: map['relatedKnowledgeId']?.toString(),
     );
   }
@@ -512,7 +506,8 @@ class ItemCalculationCost {
     return ItemCalculationCost(
       itemId: (map['itemId'] ?? map['resourceId']) as String? ?? '',
       quantityPerUnit:
-          (map['quantityPerUnit'] ?? map['amount'] as num?)?.toInt() ?? 1,
+      (map['quantityPerUnit'] ?? map['amount'] as num?)?.toInt() ?? 1,
     );
   }
 }
+

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'accessibility_colors.dart';
+
 class AppTheme {
   const AppTheme._();
 
   // La paleta real vive únicamente en el Theme. Los widgets consumen
   // ColorScheme y nunca necesitan conocer valores de color concretos.
-  static const Color _purpleSeed = Color(0xFFA855F7);
+  static const Color _purpleSeed = Color(0xFFB03CFF);
 
   static ColorScheme _purpleScheme(Brightness brightness) {
     final base = ColorScheme.fromSeed(
@@ -24,32 +26,146 @@ class AppTheme {
           source;
     }
 
-    final primary = isDark
-        ? HSLColor.fromColor(base.primary)
-              .withSaturation(
-                (HSLColor.fromColor(base.primary).saturation + 0.08).clamp(
-                  0.0,
-                  1.0,
-                ),
-              )
-              .withLightness(
-                (HSLColor.fromColor(base.primary).lightness + 0.04).clamp(
-                  0.0,
-                  1.0,
-                ),
-              )
-              .toColor()
-        : base.primary;
+    Color boost(Color color, {double saturation = 0.0, double lightness = 0.0}) {
+      final hsl = HSLColor.fromColor(color);
+      return hsl
+          .withSaturation((hsl.saturation + saturation).clamp(0.0, 1.0))
+          .withLightness((hsl.lightness + lightness).clamp(0.0, 1.0))
+          .toColor();
+    }
+
+    final surface = tint(base.surface, 0.045, 0.08);
+    final surfaceContainerLowest = tint(base.surfaceContainerLowest, 0.055, 0.08);
+    final surfaceContainerLow = tint(base.surfaceContainerLow, 0.075, 0.10);
+    final surfaceContainer = tint(base.surfaceContainer, 0.10, 0.13);
+    final surfaceContainerHigh = tint(base.surfaceContainerHigh, 0.125, 0.16);
+    final surfaceContainerHighest = tint(base.surfaceContainerHighest, 0.15, 0.19);
+
+    final surfaces = <Color>[
+      surface,
+      surfaceContainerLowest,
+      surfaceContainerLow,
+      surfaceContainer,
+      surfaceContainerHigh,
+      surfaceContainerHighest,
+    ];
+
+    Color readableAccent(Color source) {
+      return AccessibilityColors.ensureContrastAgainst(
+        source,
+        surfaces,
+        minimum: 6.2,
+      );
+    }
+
+    final primary = readableAccent(
+      boost(
+        base.primary,
+        saturation: isDark ? 0.14 : 0.10,
+        lightness: isDark ? 0.06 : -0.01,
+      ),
+    );
+    final secondary = readableAccent(
+      boost(
+        base.secondary,
+        saturation: isDark ? 0.12 : 0.08,
+        lightness: isDark ? 0.05 : -0.01,
+      ),
+    );
+    final tertiary = readableAccent(
+      boost(
+        base.tertiary,
+        saturation: isDark ? 0.12 : 0.08,
+        lightness: isDark ? 0.05 : -0.01,
+      ),
+    );
+    final error = readableAccent(base.error);
+
+    final primaryContainer = tint(base.primaryContainer, 0.18, 0.22);
+    final secondaryContainer = tint(base.secondaryContainer, 0.14, 0.18);
+    final tertiaryContainer = tint(base.tertiaryContainer, 0.14, 0.18);
+    final errorContainer = base.errorContainer;
+
+    final onSurface = AccessibilityColors.ensureContrastAgainst(
+      base.onSurface,
+      surfaces,
+      minimum: 7.0,
+    );
+    final onSurfaceVariant = AccessibilityColors.ensureContrastAgainst(
+      base.onSurfaceVariant,
+      surfaces,
+      minimum: 5.2,
+    );
 
     return base.copyWith(
       primary: primary,
-      surface: tint(base.surface, 0.050, 0.10),
-      surfaceContainerLowest: tint(base.surfaceContainerLowest, 0.060, 0.10),
-      surfaceContainerLow: tint(base.surfaceContainerLow, 0.095, 0.14),
-      surfaceContainer: tint(base.surfaceContainer, 0.125, 0.18),
-      surfaceContainerHigh: tint(base.surfaceContainerHigh, 0.155, 0.22),
-      surfaceContainerHighest: tint(base.surfaceContainerHighest, 0.190, 0.26),
-      outlineVariant: tint(base.outlineVariant, 0.22, 0.22),
+      onPrimary: AccessibilityColors.ensureContrast(
+        base.onPrimary,
+        primary,
+        minimum: 5.0,
+      ),
+      primaryContainer: primaryContainer,
+      onPrimaryContainer: AccessibilityColors.ensureContrast(
+        base.onPrimaryContainer,
+        primaryContainer,
+        minimum: 5.0,
+      ),
+      secondary: secondary,
+      onSecondary: AccessibilityColors.ensureContrast(
+        base.onSecondary,
+        secondary,
+        minimum: 5.0,
+      ),
+      secondaryContainer: secondaryContainer,
+      onSecondaryContainer: AccessibilityColors.ensureContrast(
+        base.onSecondaryContainer,
+        secondaryContainer,
+        minimum: 5.0,
+      ),
+      tertiary: tertiary,
+      onTertiary: AccessibilityColors.ensureContrast(
+        base.onTertiary,
+        tertiary,
+        minimum: 5.0,
+      ),
+      tertiaryContainer: tertiaryContainer,
+      onTertiaryContainer: AccessibilityColors.ensureContrast(
+        base.onTertiaryContainer,
+        tertiaryContainer,
+        minimum: 5.0,
+      ),
+      error: error,
+      onError: AccessibilityColors.ensureContrast(
+        base.onError,
+        error,
+        minimum: 5.0,
+      ),
+      errorContainer: errorContainer,
+      onErrorContainer: AccessibilityColors.ensureContrast(
+        base.onErrorContainer,
+        errorContainer,
+        minimum: 5.0,
+      ),
+      surface: surface,
+      surfaceContainerLowest: surfaceContainerLowest,
+      surfaceContainerLow: surfaceContainerLow,
+      surfaceContainer: surfaceContainer,
+      surfaceContainerHigh: surfaceContainerHigh,
+      surfaceContainerHighest: surfaceContainerHighest,
+      onSurface: onSurface,
+      onSurfaceVariant: onSurfaceVariant,
+      inverseSurface: base.inverseSurface,
+      onInverseSurface: AccessibilityColors.ensureContrast(
+        base.onInverseSurface,
+        base.inverseSurface,
+        minimum: 7.0,
+      ),
+      inversePrimary: AccessibilityColors.ensureContrast(
+        base.inversePrimary,
+        base.inverseSurface,
+        minimum: 5.0,
+      ),
+      outlineVariant: tint(base.outlineVariant, 0.18, 0.18),
     );
   }
 
@@ -139,9 +255,9 @@ class AppTheme {
       // APP BAR
       // =========================================================================
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surfaceContainerLowest,
+        backgroundColor: scheme.surfaceContainerLowest.withValues(alpha: brightness == Brightness.dark ? 0.94 : 0.90),
         foregroundColor: scheme.onSurface,
-        surfaceTintColor: scheme.surface.withValues(alpha: 0),
+        surfaceTintColor: scheme.primary.withValues(alpha: 0.04),
         elevation: 0,
         centerTitle: false,
 
@@ -161,7 +277,7 @@ class AppTheme {
       // =========================================================================
       cardTheme: CardThemeData(
         color: scheme.surfaceContainerLow,
-        elevation: 0,
+        elevation: brightness == Brightness.dark ? 1 : 0,
         margin: EdgeInsets.zero,
 
         shape: RoundedRectangleBorder(
@@ -175,7 +291,7 @@ class AppTheme {
       // =========================================================================
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
-        surfaceTintColor: scheme.surface.withValues(alpha: 0),
+        surfaceTintColor: scheme.primary.withValues(alpha: 0.04),
 
         titleTextStyle: TextStyle(
           color: scheme.onSurface,
@@ -194,7 +310,7 @@ class AppTheme {
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surface,
         modalBackgroundColor: scheme.surface,
-        surfaceTintColor: scheme.surface.withValues(alpha: 0),
+        surfaceTintColor: scheme.primary.withValues(alpha: 0.04),
         showDragHandle: true,
 
         shape: const RoundedRectangleBorder(
@@ -246,6 +362,9 @@ class AppTheme {
         style: FilledButton.styleFrom(
           foregroundColor: scheme.onPrimary,
           backgroundColor: scheme.primary,
+          disabledForegroundColor: scheme.onSurfaceVariant,
+          disabledBackgroundColor: scheme.surfaceContainerHighest,
+          elevation: brightness == Brightness.dark ? 1 : 0,
 
           minimumSize: const Size(0, 48),
 
@@ -266,6 +385,9 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           foregroundColor: scheme.onPrimaryContainer,
           backgroundColor: scheme.primaryContainer,
+          disabledForegroundColor: scheme.onSurfaceVariant,
+          disabledBackgroundColor: scheme.surfaceContainerHighest,
+          elevation: 0,
 
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
 
@@ -281,6 +403,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: scheme.primary,
+          disabledForegroundColor: scheme.onSurfaceVariant,
 
           side: BorderSide(color: scheme.outlineVariant),
 
@@ -298,6 +421,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: scheme.primary,
+          disabledForegroundColor: scheme.onSurfaceVariant,
 
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
@@ -309,7 +433,35 @@ class AppTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: scheme.primary,
-          backgroundColor: scheme.primaryContainer.withValues(alpha: 0.55),
+          backgroundColor: scheme.primaryContainer.withValues(alpha: brightness == Brightness.dark ? 0.78 : 0.72),
+        ),
+      ),
+
+
+      // =========================================================================
+      // SEGMENTED BUTTON
+      // =========================================================================
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return scheme.onSurfaceVariant;
+            }
+            return states.contains(WidgetState.selected)
+                ? scheme.onPrimaryContainer
+                : scheme.primary;
+          }),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? scheme.primaryContainer
+                : scheme.surfaceContainerLow;
+          }),
+          side: WidgetStatePropertyAll(
+            BorderSide(color: scheme.outlineVariant),
+          ),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(fontWeight: FontWeight.w700),
+          ),
         ),
       ),
 
@@ -407,7 +559,7 @@ class AppTheme {
       // NAVIGATION
       // =========================================================================
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: scheme.surface,
+        backgroundColor: scheme.surfaceContainerLowest,
         indicatorColor: scheme.primaryContainer,
 
         iconTheme: WidgetStateProperty.resolveWith((states) {

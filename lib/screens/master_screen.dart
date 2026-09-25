@@ -42,6 +42,20 @@ class _MasterScreenState extends State<MasterScreen> {
     _reload();
   }
 
+  Future<void> _exportCampaign(Campaign campaign) async {
+    try {
+      await CampaignImportExportService.shareCampaign(
+        campaign,
+        includePlayerCharacters: false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar la campaña: $error')),
+      );
+    }
+  }
+
   Future<void> _importCampaign() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -103,6 +117,12 @@ class _MasterScreenState extends State<MasterScreen> {
             .where((character) => character.campaignId == campaignId)
             .toList();
         for (final character in existingCharacters) {
+          // Las exportaciones desde Máster no incluyen fichas de jugador.
+          // Al actualizar una campaña, nunca borres un PJ local solo porque
+          // no esté presente en el paquete del Máster.
+          if (character.ownerType == 'player') {
+            continue;
+          }
           if (!importedCharacterIds.contains(character.id)) {
             await CharacterStorageService.deleteCharacter(character.id);
           }
@@ -211,9 +231,7 @@ class _MasterScreenState extends State<MasterScreen> {
                     await AppModeService.setMode(AsteriaAppMode.player);
                     if (!context.mounted) return;
                     Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (_) => const CharacterSelectionScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const CharacterSelectionScreen()),
                       (_) => false,
                     );
                   },
@@ -299,6 +317,7 @@ class _MasterScreenState extends State<MasterScreen> {
                       campaign: campaign,
                       npcCount: _npcCount(campaign.id),
                       creatureCount: _creatureCount(campaign.id),
+                      onExport: () => _exportCampaign(campaign),
                       onTap: () async {
                         await Navigator.push(
                           context,
@@ -418,11 +437,13 @@ class _CampaignCard extends StatelessWidget {
   final int npcCount;
   final int creatureCount;
   final VoidCallback onTap;
+  final VoidCallback onExport;
   const _CampaignCard({
     required this.campaign,
     required this.npcCount,
     required this.creatureCount,
     required this.onTap,
+    required this.onExport,
   });
 
   @override
@@ -469,12 +490,8 @@ class _CampaignCard extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Theme.of(
-                            context,
-                          ).colorScheme.surface.withValues(alpha: 0),
-                          Theme.of(
-                            context,
-                          ).colorScheme.scrim.withValues(alpha: .72),
+                          Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                          Theme.of(context).colorScheme.scrim.withValues(alpha: .72),
                         ],
                       ),
                     ),
@@ -510,25 +527,40 @@ class _CampaignCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      _CountChip(
-                        icon: Icons.people_alt_rounded,
-                        text: '$npcCount NPC',
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _CountChip(
+                              icon: Icons.people_alt_rounded,
+                              text: '$npcCount NPC',
+                            ),
+                            _CountChip(
+                              icon: Icons.pets_rounded,
+                              text: '$creatureCount criaturas',
+                            ),
+                            _CountChip(
+                              icon: Icons.storefront_rounded,
+                              text: '${campaign.shops.length} tiendas',
+                            ),
+                            _CountChip(
+                              icon: Icons.flag_rounded,
+                              text: '${campaign.missions.length} misiones',
+                            ),
+                          ],
+                        ),
                       ),
-                      _CountChip(
-                        icon: Icons.pets_rounded,
-                        text: '$creatureCount criaturas',
-                      ),
-                      _CountChip(
-                        icon: Icons.storefront_rounded,
-                        text: '${campaign.shops.length} tiendas',
-                      ),
-                      _CountChip(
-                        icon: Icons.flag_rounded,
-                        text: '${campaign.missions.length} misiones',
+                      const SizedBox(width: 10),
+                      Tooltip(
+                        message: 'Exportar campaña de Máster',
+                        child: IconButton.filledTonal(
+                          onPressed: onExport,
+                          icon: const Icon(Icons.ios_share_rounded),
+                        ),
                       ),
                     ],
                   ),

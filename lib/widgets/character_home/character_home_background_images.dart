@@ -2157,3 +2157,4 @@ const String characterHomeDarkBackgroundBase64 =
     '/i4vxcuXf8Lly5cuX83H5v8A/gV83/C//wBF/wDDcH+N/wAb/wCHmc/yP43L/lfzcuLLlw+L/hf/AAX8X/yXL/lfy/8A8yv5n8r/AI3/AMB8L/K/m/8Agv8A'
     '4Ll/wuXLl/J/O/g+L+bl/N/zuX/G/i5cuX/J/i/zf/wV/wD0r+Bj83/O/wCNy/4388fzf5Hxfxcv/lv+Fy5fzcv4X+F/zv5v/h4+T/8ARfzv45/4tf8A5X/i'
     'YfxuX/z3/Hn+d/zZcP4H/Jcv5v8A/Bcv+V//AOJv5v8A4L/lr+Dr/jv/APBf/Hf/AA3/ACv+L/G5f8v/2Q==';
+

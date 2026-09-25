@@ -13,11 +13,15 @@ class PassiveExtraBonusesSection extends StatelessWidget {
 
   final List<HealingBonus> healingBonuses;
 
+  final List<HealingBonus> mitigationBonuses;
+
   final String Function(DamageBonus) damageText;
 
   final String Function(CriticalDamageBonus) criticalText;
 
   final String Function(HealingBonus) healingText;
+
+  final String Function(HealingBonus) mitigationText;
 
   final VoidCallback onAddDamage;
 
@@ -25,11 +29,15 @@ class PassiveExtraBonusesSection extends StatelessWidget {
 
   final VoidCallback onAddHealing;
 
+  final VoidCallback onAddMitigation;
+
   final ValueChanged<int> onEditDamage;
 
   final ValueChanged<int> onEditCritical;
 
   final ValueChanged<int> onEditHealing;
+
+  final ValueChanged<int> onEditMitigation;
 
   final ValueChanged<int> onDeleteDamage;
 
@@ -37,23 +45,30 @@ class PassiveExtraBonusesSection extends StatelessWidget {
 
   final ValueChanged<int> onDeleteHealing;
 
+  final ValueChanged<int> onDeleteMitigation;
+
   const PassiveExtraBonusesSection({
     super.key,
     required this.damageBonuses,
     required this.criticalDamageBonuses,
     required this.healingBonuses,
+    required this.mitigationBonuses,
     required this.damageText,
     required this.criticalText,
     required this.healingText,
+    required this.mitigationText,
     required this.onAddDamage,
     required this.onAddCritical,
     required this.onAddHealing,
+    required this.onAddMitigation,
     required this.onEditDamage,
     required this.onEditCritical,
     required this.onEditHealing,
+    required this.onEditMitigation,
     required this.onDeleteDamage,
     required this.onDeleteCritical,
     required this.onDeleteHealing,
+    required this.onDeleteMitigation,
   });
 
   @override
@@ -122,6 +137,29 @@ class PassiveExtraBonusesSection extends StatelessWidget {
                 },
                 onDelete: () {
                   onDeleteHealing(i);
+                },
+              ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        _BonusGroup(
+          title: 'Mitigación de daño',
+          subtitle: 'Reduce el daño recibido antes de descontar PV',
+          icon: Icons.shield_moon_rounded,
+          count: mitigationBonuses.length,
+          onAdd: onAddMitigation,
+          children: [
+            for (var i = 0; i < mitigationBonuses.length; i++)
+              RemovableFormTile(
+                title: mitigationText(mitigationBonuses[i]),
+                icon: Icons.shield_moon_rounded,
+                onTap: () {
+                  onEditMitigation(i);
+                },
+                onDelete: () {
+                  onDeleteMitigation(i);
                 },
               ),
           ],

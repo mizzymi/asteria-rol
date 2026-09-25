@@ -172,9 +172,13 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
   late List<HealingBonus> healingBonuses;
 
+  late List<HealingBonus> mitigationBonuses;
+
   late int criticalMinimumNaturalRoll;
 
   late bool empoweredCritical;
+  late int empoweredCriticalMultiplier;
+  late final TextEditingController empoweredCriticalFormulaController;
 
   // ===========================================================================
   // EFECTOS VINCULADOS
@@ -391,6 +395,11 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     criticalMinimumNaturalRoll = passive?.criticalMinimumNaturalRoll ?? 20;
 
     empoweredCritical = passive?.empoweredCritical ?? false;
+    empoweredCriticalMultiplier = passive?.empoweredCriticalMultiplier ?? 2;
+    empoweredCriticalFormulaController = TextEditingController(
+      text: passive?.empoweredCriticalFormula ??
+          '(MAX + MOD) * ${passive?.empoweredCriticalMultiplier ?? 2}',
+    );
 
     // =========================================================================
     // HEALING BONUS
@@ -398,6 +407,12 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
     healingBonuses =
         passive?.healingBonuses
+            .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+            .toList() ??
+        [];
+
+    mitigationBonuses =
+        passive?.mitigationBonuses
             .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
             .toList() ??
         [];
@@ -785,6 +800,56 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
   }
 
   // ===========================================================================
+  // MITIGACIÓN DE DAÑO (NO TRIGGER)
+  // ===========================================================================
+
+  Future<void> addMitigationBonus() async {
+    final result = await showHealingBonusEditorDialog(
+      context,
+      bonus: HealingBonus(
+        id: '${DateTime.now().microsecondsSinceEpoch}_mitigation_bonus',
+        name: 'Mitigación de daño',
+        dicePools: [],
+      ),
+      character: widget.character,
+      passive: widget.passive,
+      ownerPassiveId: passiveId,
+      ownerUsesCharges: hasCharges,
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      mitigationBonuses.add(result);
+    });
+  }
+
+  Future<void> editMitigationBonus(int index) async {
+    if (index < 0 || index >= mitigationBonuses.length) {
+      return;
+    }
+
+    final result = await showHealingBonusEditorDialog(
+      context,
+      bonus: HealingBonus.fromMap(mitigationBonuses[index].toMap()),
+      character: widget.character,
+      passive: widget.passive,
+      ownerPassiveId: passiveId,
+      ownerUsesCharges: hasCharges,
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      mitigationBonuses[index] = result;
+    });
+  }
+
+  // ===========================================================================
   // TIRADA PROPIA
   // ===========================================================================
 
@@ -1155,8 +1220,16 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       criticalMinimumNaturalRoll: criticalMinimumNaturalRoll,
 
       empoweredCritical: empoweredCritical,
+      empoweredCriticalMultiplier: empoweredCriticalMultiplier,
+      empoweredCriticalFormula: empoweredCriticalFormulaController.text.trim().isEmpty
+          ? '(MAX + MOD) * 2'
+          : empoweredCriticalFormulaController.text.trim(),
 
       healingBonuses: healingBonuses
+          .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
+          .toList(),
+
+      mitigationBonuses: mitigationBonuses
           .map((bonus) => HealingBonus.fromMap(bonus.toMap()))
           .toList(),
 
@@ -1569,6 +1642,18 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   },
                 ),
 
+                if (empoweredCritical) ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: empoweredCriticalFormulaController,
+                    decoration: const InputDecoration(
+                      labelText: 'Fórmula de crítico',
+                      helperText: 'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
+                      prefixIcon: Icon(Icons.functions_rounded),
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 16),
 
                 PassiveExtraBonusesSection(
@@ -1577,6 +1662,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   criticalDamageBonuses: criticalDamageBonuses,
 
                   healingBonuses: healingBonuses,
+
+                  mitigationBonuses: mitigationBonuses,
 
                   damageText: (bonus) {
                     return PassiveDisplayFormatter.damageBonus(
@@ -1599,17 +1686,28 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                     );
                   },
 
+                  mitigationText: (bonus) {
+                    return PassiveDisplayFormatter.healingBonus(
+                      bonus,
+                      character: widget.character,
+                    );
+                  },
+
                   onAddDamage: addDamageBonus,
 
                   onAddCritical: addCriticalBonus,
 
                   onAddHealing: addHealingBonus,
 
+                  onAddMitigation: addMitigationBonus,
+
                   onEditDamage: editDamageBonus,
 
                   onEditCritical: editCriticalBonus,
 
                   onEditHealing: editHealingBonus,
+
+                  onEditMitigation: editMitigationBonus,
 
                   onDeleteDamage: (index) {
                     setState(() {
@@ -1626,6 +1724,12 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   onDeleteHealing: (index) {
                     setState(() {
                       healingBonuses.removeAt(index);
+                    });
+                  },
+
+                  onDeleteMitigation: (index) {
+                    setState(() {
+                      mitigationBonuses.removeAt(index);
                     });
                   },
                 ),

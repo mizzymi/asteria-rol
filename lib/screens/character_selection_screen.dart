@@ -503,10 +503,7 @@ class _Header extends StatelessWidget {
             gradient: LinearGradient(colors: [colors.primary, colors.tertiary]),
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            Icons.auto_awesome_rounded,
-            color: Theme.of(context).colorScheme.onInverseSurface,
-          ),
+          child: Icon(Icons.auto_awesome_rounded, color: Theme.of(context).colorScheme.onInverseSurface),
         ),
         const SizedBox(width: 14),
         Expanded(

@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../models/action_dice_mode.dart';
 
-Future<ActionDiceMode?> showActionDiceModeSheet(BuildContext context) {
+Future<ActionDiceMode?> showActionDiceModeSheet(
+  BuildContext context, {
+  String title = '¿Cómo quieres tirar?',
+  String? subtitle,
+}) {
   return showModalBottomSheet<ActionDiceMode>(
     context: context,
     showDragHandle: true,
@@ -16,11 +20,22 @@ Future<ActionDiceMode?> showActionDiceModeSheet(BuildContext context) {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '¿Cómo quieres tirar?',
+                title,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
               ),
+
+              if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 14),
 

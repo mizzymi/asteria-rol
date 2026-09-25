@@ -1303,7 +1303,13 @@ class _PassiveTriggerActionEditorDialogState
                   prefixIcon: Icon(Icons.play_arrow_rounded),
                 ),
 
-                items: PassiveTriggerActionType.values.map((type) {
+                items: PassiveTriggerActionType.values
+                    .where(
+                      (type) =>
+                          type != PassiveTriggerActionType.mitigateDamage ||
+                          action.type == PassiveTriggerActionType.mitigateDamage,
+                    )
+                    .map((type) {
                   return DropdownMenuItem(value: type, child: Text(type.label));
                 }).toList(),
 

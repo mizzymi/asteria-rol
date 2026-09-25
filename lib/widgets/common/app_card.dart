@@ -37,12 +37,12 @@ class AppCard extends StatelessWidget {
 
     final backgroundColor = accentColor != null
         ? Color.lerp(
-            theme.colorScheme.surface,
+            theme.colorScheme.surfaceContainerLowest,
             baseAccent,
-            emphasized ? 0.18 : 0.10,
+            emphasized ? 0.22 : 0.12,
           )!
         : emphasized
-        ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55)
+        ? theme.colorScheme.primaryContainer.withValues(alpha: theme.brightness == Brightness.dark ? 0.42 : 0.60)
         : theme.colorScheme.surfaceContainerLow;
 
     // =========================================================================
@@ -50,10 +50,10 @@ class AppCard extends StatelessWidget {
     // =========================================================================
 
     final borderColor = accentColor != null
-        ? baseAccent.withValues(alpha: 0.25)
+        ? baseAccent.withValues(alpha: theme.brightness == Brightness.dark ? 0.34 : 0.28)
         : emphasized
-        ? theme.colorScheme.primary.withValues(alpha: 0.20)
-        : theme.colorScheme.outlineVariant.withValues(alpha: 0.45);
+        ? theme.colorScheme.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.30 : 0.22)
+        : theme.colorScheme.outlineVariant.withValues(alpha: 0.52);
 
     // =========================================================================
     // CONTENIDO
@@ -109,8 +109,17 @@ class AppCard extends StatelessWidget {
       margin: margin,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: (accentColor ?? theme.colorScheme.shadow).withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.10 : 0.08,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: interactiveContent,

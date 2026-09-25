@@ -12,9 +12,7 @@ class CampaignImageService {
     final directory = Directory(path.join(root.path, 'campaign_images'));
     if (!await directory.exists()) await directory.create(recursive: true);
 
-    final extension = path.extension(sourcePath).isEmpty
-        ? '.jpg'
-        : path.extension(sourcePath);
+    final extension = path.extension(sourcePath).isEmpty ? '.jpg' : path.extension(sourcePath);
     final target = path.join(directory.path, '$campaignId$extension');
     final file = File(target);
     if (await file.exists()) await file.delete();

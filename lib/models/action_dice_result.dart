@@ -1,6 +1,7 @@
 import 'action_dice_request.dart';
 import 'dice_pool.dart';
 import 'ability.dart';
+import 'empowered_critical_formula.dart';
 
 class ActionDiceResult {
   final List<ActionDicePartResult> parts;
@@ -110,6 +111,32 @@ class ActionDicePartResult {
   }
 
   int get total {
+    final formula = request.empoweredCriticalFormula.trim();
+    if (formula.isNotEmpty) {
+      final rolled = result.groups.fold<int>(
+        0,
+        (sum, group) => sum + group.total,
+      );
+      final maximum = request.empoweredCriticalMaximum > 0
+          ? request.empoweredCriticalMaximum
+          : request.dicePools.fold<int>(
+              0,
+              (sum, pool) => sum + pool.maximum,
+            );
+      return EmpoweredCriticalFormula.evaluate(
+        formula,
+        roll: rolled,
+        max: maximum,
+        modifier: request.baseModifier ?? 0,
+        turn: request.empoweredCriticalTurn,
+        resources: request.empoweredCriticalResources,
+        resourceMaximums: request.empoweredCriticalResourceMaximums,
+        counters: request.empoweredCriticalCounters,
+        charges: request.empoweredCriticalCharges,
+        maxCharges: request.empoweredCriticalMaxCharges,
+      );
+    }
+
     return calculatedTotal + automaticValue;
   }
 

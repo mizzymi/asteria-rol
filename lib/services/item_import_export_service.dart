@@ -7,11 +7,16 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/item.dart';
 import 'portable_image_bundle.dart';
+import 'portable_streaming_archive.dart';
 
 class ItemImportExportService {
   const ItemImportExportService._();
 
-  static const int formatVersion = 3;
+  static const int formatVersion = 4;
+
+  static final _binaryMagic = PortableStreamingArchive.magic(
+    'ASTERIA_ITEM_V4',
+  );
 
   static const String formatType = 'asteria-item';
 
@@ -20,20 +25,23 @@ class ItemImportExportService {
   // ===========================================================================
 
   static Future<File> createExportFile(ItemDefinition definition) async {
-    final definitionMap = Map<String, dynamic>.from(definition.toMap());
-    final images = await PortableImageBundle.extractFrom(definitionMap);
-
-    final payload = {
-      'type': formatType,
-      'version': formatVersion,
-      'definition': definitionMap,
-      'images': images,
+    final root = <String, dynamic>{
+      'definition': Map<String, dynamic>.from(definition.toMap()),
     };
 
     final tempDirectory = await getTemporaryDirectory();
     final safeName = _safeFileName(definition.name);
     final file = File('${tempDirectory.path}/$safeName.asteria-item');
-    await file.writeAsString(jsonEncode(payload), flush: true);
+
+    await PortableStreamingArchive.write(
+      file: file,
+      magicBytes: _binaryMagic,
+      root: root,
+      header: <String, dynamic>{
+        'type': formatType,
+        'version': formatVersion,
+      },
+    );
     return file;
   }
 
@@ -46,7 +54,7 @@ class ItemImportExportService {
 
     await SharePlus.instance.share(
       ShareParams(
-        files: [XFile(file.path, mimeType: 'application/json')],
+        files: [XFile(file.path, mimeType: 'application/octet-stream')],
         subject: 'Objeto de Asteria: ${definition.name}',
         text: 'Importa este objeto en Asteria.',
       ),
@@ -94,6 +102,25 @@ class ItemImportExportService {
   // ===========================================================================
 
   static Future<ItemDefinition> importDefinitionFromFile(File file) async {
+    if (await PortableStreamingArchive.hasMagic(file, _binaryMagic)) {
+      final header = await PortableStreamingArchive.read(
+        file: file,
+        magicBytes: _binaryMagic,
+        namespace: 'item',
+      );
+      if (header['type'] != formatType ||
+          (header['version'] as num?)?.toInt() != formatVersion) {
+        throw const FormatException('El archivo no es un objeto de Asteria v4.');
+      }
+      final root = Map<String, dynamic>.from(header['root'] as Map);
+      if (root['definition'] is! Map) {
+        throw const FormatException('La definición del objeto está incompleta.');
+      }
+      return ItemDefinition.fromMap(
+        Map<dynamic, dynamic>.from(root['definition'] as Map),
+      );
+    }
+
     final raw = await file.readAsString();
     final decoded = jsonDecode(raw);
 
@@ -125,12 +152,10 @@ class ItemImportExportService {
     // VERSION 3 · DEFINICIÓN + TODAS LAS IMÁGENES ANIDADAS
     // =========================================================================
 
-    if (version >= 3) {
+    if (version == 3) {
       final rawDefinition = map['definition'];
       if (rawDefinition is! Map) {
-        throw const FormatException(
-          'La definición del objeto está incompleta.',
-        );
+        throw const FormatException('La definición del objeto está incompleta.');
       }
       final definitionMap = Map<String, dynamic>.from(rawDefinition);
       if (map['images'] is Map) {

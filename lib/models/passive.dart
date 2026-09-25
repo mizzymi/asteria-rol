@@ -328,7 +328,6 @@ class CharacterPassive {
   String id;
   String name;
   String description;
-
   /// Ruta local de la imagen representativa de la pasiva.
   String? imagePath;
 
@@ -359,6 +358,10 @@ class CharacterPassive {
   List<CriticalDamageBonus> criticalDamageBonuses;
 
   List<HealingBonus> healingBonuses;
+
+  /// Mitigación preventiva que se resuelve al recibir daño.
+  /// No es un trigger: se calcula antes de descontar PV.
+  List<HealingBonus> mitigationBonuses;
 
   List<PassiveResourceModifier> resourceModifiers;
 
@@ -426,6 +429,11 @@ class CharacterPassive {
   /// esté activa se consideran críticos potenciados.
   bool empoweredCritical;
 
+  int empoweredCriticalMultiplier;
+
+  /// Fórmula del crítico potenciado. Admite TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO() y CONTADOR().
+  String empoweredCriticalFormula;
+
   CharacterPassive({
     required this.id,
     required this.name,
@@ -447,6 +455,7 @@ class CharacterPassive {
     Map<AbilityType, FormulaBonus>? savingThrowBonuses,
     List<DamageBonus>? damageBonuses,
     List<HealingBonus>? healingBonuses,
+    List<HealingBonus>? mitigationBonuses,
     List<CriticalDamageBonus>? criticalDamageBonuses,
     List<PassiveResourceModifier>? resourceModifiers,
     List<PassiveTrigger>? triggers,
@@ -467,6 +476,8 @@ class CharacterPassive {
     this.notes = '',
     this.criticalMinimumNaturalRoll = 20,
     this.empoweredCritical = false,
+    this.empoweredCriticalMultiplier = 2,
+    this.empoweredCriticalFormula = '(MAX + MOD) * 2',
   }) : armorClassBonus = armorClassBonus ?? FormulaBonus(),
        initiativeBonus = initiativeBonus ?? FormulaBonus(),
        speedBonus = speedBonus ?? FormulaBonus(),
@@ -490,6 +501,7 @@ class CharacterPassive {
          criticalDamageBonuses ?? [],
        ),
        healingBonuses = List<HealingBonus>.from(healingBonuses ?? []),
+       mitigationBonuses = List<HealingBonus>.from(mitigationBonuses ?? []),
        resourceModifiers = List<PassiveResourceModifier>.from(
          resourceModifiers ?? [],
        ),
@@ -545,6 +557,7 @@ class CharacterPassive {
         damageBonuses.any((damage) => damage.hasDamage) ||
         criticalDamageBonuses.any((damage) => damage.canTrigger) ||
         healingBonuses.any((bonus) => bonus.hasHealing) ||
+        mitigationBonuses.any((bonus) => bonus.hasHealing) ||
         resourceModifiers.isNotEmpty ||
         triggers.isNotEmpty ||
         linkedEffects.isNotEmpty ||
@@ -669,6 +682,10 @@ class CharacterPassive {
 
       'healingBonuses': healingBonuses.map((bonus) => bonus.toMap()).toList(),
 
+      'mitigationBonuses': mitigationBonuses
+          .map((bonus) => bonus.toMap())
+          .toList(),
+
       'resourceModifiers': resourceModifiers
           .map((modifier) => modifier.toMap())
           .toList(),
@@ -699,6 +716,8 @@ class CharacterPassive {
 
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
       'empoweredCritical': empoweredCritical,
+      'empoweredCriticalMultiplier': empoweredCriticalMultiplier,
+      'empoweredCriticalFormula': empoweredCriticalFormula,
     };
   }
 
@@ -881,6 +900,26 @@ class CharacterPassive {
       }
     }
 
+    final mitigationBonuses = <HealingBonus>[];
+
+    final rawMitigationBonuses = map['mitigationBonuses'];
+
+    if (rawMitigationBonuses is List) {
+      for (final rawBonus in rawMitigationBonuses) {
+        if (rawBonus is! Map) {
+          continue;
+        }
+
+        try {
+          mitigationBonuses.add(
+            HealingBonus.fromMap(Map<dynamic, dynamic>.from(rawBonus)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
     // =========================================================================
     // TIRADA PROPIA
     // =========================================================================
@@ -1050,6 +1089,8 @@ class CharacterPassive {
 
       healingBonuses: healingBonuses,
 
+      mitigationBonuses: mitigationBonuses,
+
       resourceModifiers: resourceModifiers,
 
       triggers: triggers,
@@ -1081,6 +1122,10 @@ class CharacterPassive {
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
 
       empoweredCritical: map['empoweredCritical'] as bool? ?? false,
+      empoweredCriticalMultiplier:
+          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10).toInt(),
+      empoweredCriticalFormula: map['empoweredCriticalFormula'] as String? ??
+          '(MAX + MOD) * ${((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10)}',
     );
 
     /*

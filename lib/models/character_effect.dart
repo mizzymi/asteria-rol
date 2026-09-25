@@ -106,6 +106,11 @@ class CharacterEffect {
   /// los críticos utilizan la regla potenciada.
   bool empoweredCritical;
 
+  int empoweredCriticalMultiplier;
+
+  /// Fórmula del crítico potenciado. Admite TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO() y CONTADOR().
+  String empoweredCriticalFormula;
+
   Map<AbilityType, int> abilityModifierBonuses;
 
   Map<DndSkill, int> skillBonuses;
@@ -139,6 +144,8 @@ class CharacterEffect {
     this.attackBonus = 0,
     this.criticalMinimumNaturalRoll = 20,
     this.empoweredCritical = false,
+    this.empoweredCriticalMultiplier = 2,
+    this.empoweredCriticalFormula = '(MAX + MOD) * 2',
     Map<AbilityType, int>? abilityModifierBonuses,
     Map<DndSkill, int>? skillBonuses,
     Map<AbilityType, int>? savingThrowBonuses,
@@ -468,6 +475,8 @@ class CharacterEffect {
     int? attackBonus,
     int? criticalMinimumNaturalRoll,
     bool? empoweredCritical,
+    int? empoweredCriticalMultiplier,
+    String? empoweredCriticalFormula,
     Map<AbilityType, int>? abilityModifierBonuses,
     Map<DndSkill, int>? skillBonuses,
     Map<AbilityType, int>? savingThrowBonuses,
@@ -499,6 +508,10 @@ class CharacterEffect {
           criticalMinimumNaturalRoll ?? this.criticalMinimumNaturalRoll,
 
       empoweredCritical: empoweredCritical ?? this.empoweredCritical,
+      empoweredCriticalMultiplier:
+          empoweredCriticalMultiplier ?? this.empoweredCriticalMultiplier,
+      empoweredCriticalFormula:
+          empoweredCriticalFormula ?? this.empoweredCriticalFormula,
 
       abilityModifierBonuses:
           abilityModifierBonuses ??
@@ -589,6 +602,8 @@ class CharacterEffect {
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
 
       'empoweredCritical': empoweredCritical,
+      'empoweredCriticalMultiplier': empoweredCriticalMultiplier,
+      'empoweredCriticalFormula': empoweredCriticalFormula,
 
       'criticalDamageBonuses': criticalDamageBonuses
           .map((damage) => damage.toMap())
@@ -768,6 +783,10 @@ class CharacterEffect {
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
 
       empoweredCritical: map['empoweredCritical'] as bool? ?? false,
+      empoweredCriticalMultiplier:
+          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10).toInt(),
+      empoweredCriticalFormula: map['empoweredCriticalFormula'] as String? ??
+          '(MAX + MOD) * ${((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10)}',
 
       abilityModifierBonuses: abilityModifierBonuses,
 

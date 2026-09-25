@@ -994,6 +994,66 @@ class Character {
     return false;
   }
 
+
+  int empoweredCriticalMultiplierForWeapon(Weapon weapon) {
+    var result = weapon.empoweredCritical
+        ? weapon.empoweredCriticalMultiplier.clamp(2, 10).toInt()
+        : 2;
+
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical) {
+        final value = passive.empoweredCriticalMultiplier.clamp(2, 10).toInt();
+        if (value > result) result = value;
+      }
+    }
+
+    for (final effect in enabledEffects) {
+      if (effect.empoweredCritical) {
+        final value = effect.empoweredCriticalMultiplier.clamp(2, 10).toInt();
+        if (value > result) result = value;
+      }
+    }
+
+    return result;
+  }
+
+
+  String empoweredCriticalFormulaForWeapon(Weapon weapon) {
+    if (weapon.empoweredCritical && weapon.empoweredCriticalFormula.trim().isNotEmpty) {
+      return weapon.empoweredCriticalFormula.trim();
+    }
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+        return passive.empoweredCriticalFormula.trim();
+      }
+    }
+    for (final effect in enabledEffects) {
+      if (effect.empoweredCritical && effect.empoweredCriticalFormula.trim().isNotEmpty) {
+        return effect.empoweredCriticalFormula.trim();
+      }
+    }
+    return '(MAX + MOD) * ${empoweredCriticalMultiplierForWeapon(weapon)}';
+  }
+
+
+  int empoweredCriticalChargesForWeapon(Weapon weapon) {
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+        return passive.hasCharges ? passive.currentCharges : 0;
+      }
+    }
+    return 0;
+  }
+
+  int empoweredCriticalMaxChargesForWeapon(Weapon weapon) {
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+        return passive.hasCharges ? passive.maxCharges : 0;
+      }
+    }
+    return 0;
+  }
+
   // ===========================================================================
   // COMPATIBILIDAD / CLASES
   // ===========================================================================
@@ -2018,6 +2078,102 @@ class Character {
     }
 
     return false;
+  }
+
+
+  int empoweredCriticalMultiplierForAbility(CharacterAbility ability) {
+    var result = ability.empoweredCritical
+        ? ability.empoweredCriticalMultiplier.clamp(2, 10).toInt()
+        : 2;
+
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical) {
+        final value = passive.empoweredCriticalMultiplier.clamp(2, 10).toInt();
+        if (value > result) result = value;
+      }
+    }
+
+    for (final effect in enabledEffects) {
+      if (effect.empoweredCritical) {
+        final value = effect.empoweredCriticalMultiplier.clamp(2, 10).toInt();
+        if (value > result) result = value;
+      }
+    }
+
+    return result;
+  }
+
+
+  String empoweredCriticalFormulaForAbility(CharacterAbility ability) {
+    if (ability.empoweredCritical && ability.empoweredCriticalFormula.trim().isNotEmpty) {
+      return ability.empoweredCriticalFormula.trim();
+    }
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+        return passive.empoweredCriticalFormula.trim();
+      }
+    }
+    for (final effect in enabledEffects) {
+      if (effect.empoweredCritical && effect.empoweredCriticalFormula.trim().isNotEmpty) {
+        return effect.empoweredCriticalFormula.trim();
+      }
+    }
+    return '(MAX + MOD) * ${empoweredCriticalMultiplierForAbility(ability)}';
+  }
+
+
+  int empoweredCriticalChargesForAbility(CharacterAbility ability) {
+    if (ability.empoweredCritical && ability.empoweredCriticalFormula.trim().isNotEmpty) {
+      return ability.hasLimitedUses ? ability.currentUses : 0;
+    }
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+        return passive.hasCharges ? passive.currentCharges : 0;
+      }
+    }
+    return 0;
+  }
+
+  int empoweredCriticalMaxChargesForAbility(CharacterAbility ability) {
+    if (ability.empoweredCritical && ability.empoweredCriticalFormula.trim().isNotEmpty) {
+      return ability.hasLimitedUses ? ability.maxUses : 0;
+    }
+    for (final passive in enabledPassives) {
+      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+        return passive.hasCharges ? passive.maxCharges : 0;
+      }
+    }
+    return 0;
+  }
+
+  Map<String, double> get empoweredCriticalResourceValues {
+    final result = <String, double>{};
+    for (final resource in resources) {
+      final value = resource.currentValue.toDouble();
+      result[resource.id] = value;
+      result[resource.name] = value;
+    }
+    return result;
+  }
+
+  Map<String, double> get empoweredCriticalResourceMaximumValues {
+    final result = <String, double>{};
+    for (final resource in resources) {
+      final value = resource.hasMaximum ? resource.maxValue.toDouble() : 0.0;
+      result[resource.id] = value;
+      result[resource.name] = value;
+    }
+    return result;
+  }
+
+  Map<String, double> get empoweredCriticalCounterValues {
+    final result = <String, double>{};
+    for (final counter in counters) {
+      final value = counter.value.toDouble();
+      result[counter.id] = value;
+      result[counter.name] = value;
+    }
+    return result;
   }
 
   // ===========================================================================

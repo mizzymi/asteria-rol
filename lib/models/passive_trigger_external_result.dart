@@ -38,7 +38,10 @@ class PassiveTriggerExternalResult {
   });
 
   bool get changedAnything {
-    return damage > 0 || healing > 0 || mitigation > 0 || effects.isNotEmpty;
+    return damage > 0 ||
+        healing > 0 ||
+        mitigation > 0 ||
+        effects.isNotEmpty;
   }
 
   // ===========================================================================
@@ -104,8 +107,7 @@ class PassiveTriggerExternalResult {
 
       healing: (map['healing'] as num?)?.toInt() ?? 0,
       mitigation: (map['mitigation'] as num?)?.toInt() ?? 0,
-      breakdown:
-          (map['breakdown'] as List?)
+      breakdown: (map['breakdown'] as List?)
               ?.map((value) => value.toString())
               .toList(growable: false) ??
           const [],

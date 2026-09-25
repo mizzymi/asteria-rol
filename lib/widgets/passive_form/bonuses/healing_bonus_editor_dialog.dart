@@ -89,9 +89,7 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
       id: widget.bonus.id,
       name: widget.bonus.name,
       dicePools: List<DicePool>.from(
-        widget.bonus.dicePools.map(
-          (p) => DicePool(count: p.count, sides: p.sides),
-        ),
+        widget.bonus.dicePools.map((p) => DicePool(count: p.count, sides: p.sides)),
       ),
       abilityModifierMultipliers: Map<AbilityType, int>.from(
         widget.bonus.abilityModifierMultipliers,

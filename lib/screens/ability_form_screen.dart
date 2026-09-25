@@ -39,6 +39,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
   late final TextEditingController descriptionController;
   late final TextEditingController attackBonusController;
   late final TextEditingController maxUsesController;
+  late final TextEditingController empoweredCriticalFormulaController;
   late final TextEditingController notesController;
 
   String? imagePath;
@@ -56,6 +57,7 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
   bool proficient = true;
   late int criticalMinimumNaturalRoll;
   late bool empoweredCritical;
+  late int empoweredCriticalMultiplier;
 
   late List<AbilityEffect> effects;
 
@@ -107,6 +109,11 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     criticalMinimumNaturalRoll = ability?.criticalMinimumNaturalRoll ?? 20;
 
     empoweredCritical = ability?.empoweredCritical ?? false;
+    empoweredCriticalMultiplier = ability?.empoweredCriticalMultiplier ?? 2;
+    empoweredCriticalFormulaController = TextEditingController(
+      text: ability?.empoweredCriticalFormula ??
+          '(MAX + MOD) * ${ability?.empoweredCriticalMultiplier ?? 2}',
+    );
 
     /*
      * Copia profunda.
@@ -758,6 +765,10 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
       criticalMinimumNaturalRoll: criticalMinimumNaturalRoll,
 
       empoweredCritical: empoweredCritical,
+      empoweredCriticalMultiplier: empoweredCriticalMultiplier,
+      empoweredCriticalFormula: empoweredCriticalFormulaController.text.trim().isEmpty
+          ? '(MAX + MOD) * 2'
+          : empoweredCriticalFormulaController.text.trim(),
 
       // ============================================================
       // NUEVO SISTEMA
@@ -973,6 +984,9 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                 criticalMinimumNaturalRoll: criticalMinimumNaturalRoll,
 
                 empoweredCritical: empoweredCritical,
+                empoweredCriticalMultiplier: empoweredCriticalMultiplier,
+                empoweredCriticalFormulaController:
+                    empoweredCriticalFormulaController,
 
                 onRequiresAttackChanged: (value) {
                   setState(() {
@@ -989,6 +1003,12 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
                 onEmpoweredCriticalChanged: (value) {
                   setState(() {
                     empoweredCritical = value;
+                  });
+                },
+
+                onEmpoweredCriticalMultiplierChanged: (value) {
+                  setState(() {
+                    empoweredCriticalMultiplier = value;
                   });
                 },
 

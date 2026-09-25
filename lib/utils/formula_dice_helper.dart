@@ -16,6 +16,7 @@ class FormulaDiceExtraction {
   }) {
     final dicePools = <DicePool>[];
 
+
     final regex = RegExp(
       r'([+-]?)\s*(?:([a-zA-Z_]\w*|\d+)\s*\*\s*)?(\d*)\s*d\s*(\d+)',
       caseSensitive: false,
@@ -34,7 +35,8 @@ class FormulaDiceExtraction {
           multiplierVal =
               context.get(multiplierVarOrNum.toLowerCase())?.round() ?? 1;
         } else if (multiplierVal == 0) {
-          multiplierVal = 1;
+          multiplierVal =
+              1;
         }
         baseCount *= multiplierVal;
       }

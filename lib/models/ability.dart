@@ -137,14 +137,13 @@ enum SaveSuccessEffect { full, half, none }
 
 enum AbilityEffectActivationCondition { always, damageFullyMitigated }
 
-extension AbilityEffectActivationConditionData
-    on AbilityEffectActivationCondition {
+extension AbilityEffectActivationConditionData on AbilityEffectActivationCondition {
   String get label {
     switch (this) {
       case AbilityEffectActivationCondition.always:
         return 'Siempre';
       case AbilityEffectActivationCondition.damageFullyMitigated:
-        return 'Solo si el daño se mitiga por completo';
+        return 'Solo si mitiga todo el daño';
     }
   }
 }
@@ -550,6 +549,13 @@ class CharacterAbility {
   /// utilizan la regla de crítico potenciado.
   bool empoweredCritical;
 
+  /// Multiplicador usado por el crítico potenciado.
+  /// 2 conserva el comportamiento histórico.
+  int empoweredCriticalMultiplier;
+
+  /// Fórmula del crítico potenciado. Admite TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO() y CONTADOR().
+  String empoweredCriticalFormula;
+
   // ==========================================================================
   // CAMPOS LEGACY DE EFECTO
   //
@@ -635,6 +641,8 @@ class CharacterAbility {
     this.attackBonus = 0,
     this.criticalMinimumNaturalRoll = 20,
     this.empoweredCritical = false,
+    this.empoweredCriticalMultiplier = 2,
+    this.empoweredCriticalFormula = '(MAX + MOD) * 2',
     this.effectType = AbilityEffectType.none,
     List<DicePool>? dicePools,
     this.addAbilityModifierToEffect = true,
@@ -701,9 +709,7 @@ class CharacterAbility {
 
   bool get mitigatesDamage {
     if (effects.isNotEmpty) {
-      return effects.any(
-        (effect) => effect.mitigatesDamage && effect.hasEffect,
-      );
+      return effects.any((effect) => effect.mitigatesDamage && effect.hasEffect);
     }
 
     return effectType == AbilityEffectType.mitigation;
@@ -795,6 +801,9 @@ class CharacterAbility {
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
 
       'empoweredCritical': empoweredCritical,
+
+      'empoweredCriticalMultiplier': empoweredCriticalMultiplier,
+      'empoweredCriticalFormula': empoweredCriticalFormula,
 
       // Legacy.
       'effectType': effectType.name,
@@ -1186,6 +1195,11 @@ class CharacterAbility {
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
 
       empoweredCritical: map['empoweredCritical'] as bool? ?? false,
+
+      empoweredCriticalMultiplier:
+          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10).toInt(),
+      empoweredCriticalFormula: map['empoweredCriticalFormula'] as String? ??
+          '(MAX + MOD) * ${((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10)}',
 
       requiresAttackRoll: map['requiresAttackRoll'] as bool? ?? false,
 

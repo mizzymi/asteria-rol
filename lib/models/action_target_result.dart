@@ -84,9 +84,7 @@ class ActionTargetResult {
 
   List<ActionDicePartResult> get mitigationParts {
     return diceResult.parts
-        .where(
-          (part) => part.request.effectType == AbilityEffectType.mitigation,
-        )
+        .where((part) => part.request.effectType == AbilityEffectType.mitigation)
         .toList(growable: false);
   }
 

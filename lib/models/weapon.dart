@@ -17,6 +17,11 @@ class Weapon {
 
   bool empoweredCritical;
 
+  int empoweredCriticalMultiplier;
+
+  /// Fórmula del crítico potenciado. Admite TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO() y CONTADOR().
+  String empoweredCriticalFormula;
+
   // ===========================================================================
   // SISTEMA ANTIGUO
   // ===========================================================================
@@ -41,6 +46,8 @@ class Weapon {
     this.magicBonus = 0,
     this.criticalMinimumNaturalRoll = 20,
     this.empoweredCritical = false,
+    this.empoweredCriticalMultiplier = 2,
+    this.empoweredCriticalFormula = '(MAX + MOD) * 2',
 
     // Legacy
     this.damageDice = '1d6',
@@ -81,6 +88,8 @@ class Weapon {
       'magicBonus': magicBonus,
       'criticalMinimumNaturalRoll': criticalMinimumNaturalRoll,
       'empoweredCritical': empoweredCritical,
+      'empoweredCriticalMultiplier': empoweredCriticalMultiplier,
+      'empoweredCriticalFormula': empoweredCriticalFormula,
       // Legacy
       'damageDice': damageDice,
       'damageType': damageType,
@@ -213,6 +222,11 @@ class Weapon {
           (map['criticalMinimumNaturalRoll'] as num?)?.toInt() ?? 20,
 
       empoweredCritical: map['empoweredCritical'] as bool? ?? false,
+
+      empoweredCriticalMultiplier:
+          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10).toInt(),
+      empoweredCriticalFormula: map['empoweredCriticalFormula'] as String? ??
+          '(MAX + MOD) * ${((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10)}',
 
       damageDice: oldDamageDice,
 

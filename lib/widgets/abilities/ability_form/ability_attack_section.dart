@@ -14,9 +14,15 @@ class AbilityAttackSection extends StatelessWidget {
 
   final bool empoweredCritical;
 
+  final int empoweredCriticalMultiplier;
+
+  final TextEditingController empoweredCriticalFormulaController;
+
   final ValueChanged<int> onCriticalMinimumNaturalRollChanged;
 
   final ValueChanged<bool> onEmpoweredCriticalChanged;
+
+  final ValueChanged<int> onEmpoweredCriticalMultiplierChanged;
 
   const AbilityAttackSection({
     super.key,
@@ -27,8 +33,11 @@ class AbilityAttackSection extends StatelessWidget {
     required this.onProficientChanged,
     required this.criticalMinimumNaturalRoll,
     required this.empoweredCritical,
+    required this.empoweredCriticalMultiplier,
+    required this.empoweredCriticalFormulaController,
     required this.onCriticalMinimumNaturalRollChanged,
     required this.onEmpoweredCriticalChanged,
+    required this.onEmpoweredCriticalMultiplierChanged,
   });
 
   @override
@@ -101,6 +110,18 @@ class AbilityAttackSection extends StatelessWidget {
             ),
             onChanged: onEmpoweredCriticalChanged,
           ),
+
+          if (empoweredCritical) ...[
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: empoweredCriticalFormulaController,
+              decoration: const InputDecoration(
+                labelText: 'Fórmula de crítico',
+                helperText: 'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
+                prefixIcon: Icon(Icons.functions_rounded),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 8),
 

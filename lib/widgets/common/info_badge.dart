@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/accessibility_colors.dart';
+
 class InfoBadge extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -26,23 +28,29 @@ class InfoBadge extends StatelessWidget {
         ? Color.lerp(
             theme.colorScheme.surface,
             accent,
-            highlighted ? 0.22 : 0.13,
+            highlighted ? 0.26 : 0.15,
           )!
         : highlighted
         ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerHighest;
+        : theme.colorScheme.surfaceContainerHigh;
 
-    final foreground = color != null
+    final preferredForeground = color != null
         ? accent
         : highlighted
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
 
+    final foreground = AccessibilityColors.ensureContrast(
+      preferredForeground,
+      background,
+      minimum: 5.0,
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: color != null
             ? Border.all(color: accent.withValues(alpha: 0.22))
             : null,

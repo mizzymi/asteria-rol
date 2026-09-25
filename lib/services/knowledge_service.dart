@@ -1,11 +1,11 @@
 import 'dart:math';
 
 import '../models/ability.dart';
-import '../models/passive.dart';
-import '../models/skill.dart';
 import '../models/character.dart';
 import '../models/character_knowledge.dart';
 import '../models/knowledge_definition.dart';
+import '../models/passive.dart';
+import '../models/skill.dart';
 import '../services/ability_library_service.dart';
 import '../services/passive_library_service.dart';
 
@@ -16,12 +16,16 @@ class StudyAttempt {
   final int totalRoll;
   final bool success;
   final int dcUsed;
+  final String checkLabel;
+  final String? circleTitle;
 
   const StudyAttempt({
     required this.naturalRoll,
     required this.totalRoll,
     required this.success,
     required this.dcUsed,
+    this.checkLabel = '',
+    this.circleTitle,
   });
 }
 
@@ -44,45 +48,31 @@ class StudyRollResult {
 class KnowledgeService {
   const KnowledgeService();
 
+  int modifierForCheck(Character character, KnowledgeCheckOption option) {
+    final skill = option.skill;
+    if (skill != null) {
+      return character.skillBonus(skill);
+    }
+
+    final ability = option.ability ?? AbilityType.intelligence;
+    return character.abilityModifier(ability);
+  }
+
   Future<StudyRollResult> performStudyRoll({
     required Character character,
     required KnowledgeDefinition definition,
     required RestStudyType restType,
     int? customDc,
     List<int>? physicalRolls,
+    KnowledgeCheckOption? checkOption,
     bool applyIntelligenceModifier = true,
   }) async {
     final random = Random();
-    final effectiveDc = customDc ?? definition.studyDc;
     final attemptsCount = restType == RestStudyType.shortRest ? 1 : 2;
-    final int intModifier = applyIntelligenceModifier
-        ? character.abilityModifier(AbilityType.intelligence)
+    final selectedCheck = checkOption ?? definition.effectiveCheckOptions.first;
+    final modifier = applyIntelligenceModifier
+        ? modifierForCheck(character, selectedCheck)
         : 0;
-
-    final attempts = <StudyAttempt>[];
-    int successesGained = 0;
-
-    for (var i = 0; i < attemptsCount; i++) {
-      final int natural = (physicalRolls != null && i < physicalRolls.length)
-          ? physicalRolls[i].clamp(1, 20)
-          : random.nextInt(20) + 1;
-
-      final total = natural + intModifier;
-      final isSuccess = total >= effectiveDc;
-
-      if (isSuccess) {
-        successesGained++;
-      }
-
-      attempts.add(
-        StudyAttempt(
-          naturalRoll: natural,
-          totalRoll: total,
-          success: isSuccess,
-          dcUsed: effectiveDc,
-        ),
-      );
-    }
 
     var entry = character.getKnowledge(definition.id);
     if (entry == null) {
@@ -92,81 +82,187 @@ class KnowledgeService {
         currentProgress: 0,
       );
       character.knowledges.add(entry);
+    } else if (entry.status == KnowledgeStatus.discovered) {
+      entry.status = KnowledgeStatus.studying;
     }
 
-    entry.currentProgress += successesGained;
-    final bool completed = entry.currentProgress >= definition.requiredProgress;
+    final attempts = <StudyAttempt>[];
+    var successesGained = 0;
+
+    for (var i = 0; i < attemptsCount; i++) {
+      if (entry.currentProgress >= definition.effectiveRequiredProgress) {
+        break;
+      }
+
+      final progressBefore = entry.currentProgress;
+      final circle = definition.circleAtProgress(progressBefore);
+      final effectiveDc = customDc ?? definition.dcForProgress(progressBefore);
+
+      final natural = (physicalRolls != null && i < physicalRolls.length)
+          ? physicalRolls[i].clamp(1, 20)
+          : random.nextInt(20) + 1;
+
+      final total = natural + modifier;
+      final success = total >= effectiveDc;
+
+      attempts.add(
+        StudyAttempt(
+          naturalRoll: natural,
+          totalRoll: total,
+          success: success,
+          dcUsed: effectiveDc,
+          checkLabel: selectedCheck.label,
+          circleTitle: circle?.title,
+        ),
+      );
+
+      if (!success) continue;
+
+      successesGained++;
+      entry.currentProgress++;
+
+      if (circle != null) {
+        await _applyCircleRewards(
+          character: character,
+          entry: entry,
+          circle: circle,
+        );
+      }
+    }
+
+    final completed =
+        entry.currentProgress >= definition.effectiveRequiredProgress;
 
     if (completed) {
+      entry.currentProgress = definition.effectiveRequiredProgress;
       entry.status = KnowledgeStatus.mastered;
-
-      // 1. Inyectar Habilidades solo si se ha completado el saber
-      for (final abilityId in definition.unlockedAbilityIds) {
-        final alreadyHas = character.characterAbilities.any(
-          (a) => a.id == abilityId,
-        );
-        if (!alreadyHas) {
-          final ability = await AbilityLibraryService.getAbilityById(abilityId);
-          if (ability != null) {
-            character.characterAbilities.add(
-              CharacterAbility.fromMap(ability.toMap()),
-            );
-          }
-        }
-      }
-
-      // 2. Inyectar Pasivas solo si se ha completado el saber
-      for (final passiveId in definition.unlockedPassiveIds) {
-        final alreadyHas = character.passives.any((p) => p.id == passiveId);
-        if (!alreadyHas) {
-          final passive = await PassiveLibraryService.getPassiveById(passiveId);
-          if (passive != null) {
-            character.addPassive(CharacterPassive.fromMap(passive.toMap()));
-          }
-        }
-      }
+      await _removeTemporaryStudyPassives(character, entry);
+      await _applyPermanentRewards(
+        character: character,
+        abilityIds: definition.unlockedAbilityIds,
+        passiveIds: definition.unlockedPassiveIds,
+      );
     }
 
     return StudyRollResult(
       attempts: attempts,
       successesGained: successesGained,
       currentProgress: entry.currentProgress,
-      requiredProgress: definition.requiredProgress,
+      requiredProgress: definition.effectiveRequiredProgress,
       completed: completed,
     );
+  }
+
+  Future<void> _applyCircleRewards({
+    required Character character,
+    required CharacterKnowledge entry,
+    required KnowledgeCircle circle,
+  }) async {
+    await _applyPermanentRewards(
+      character: character,
+      abilityIds: circle.unlockedAbilityIds,
+      passiveIds: circle.unlockedPassiveIds,
+    );
+
+    for (final passiveId in circle.temporaryPassiveIds) {
+      final alreadyHas = character.passives.any((p) => p.id == passiveId);
+      if (alreadyHas) continue;
+
+      final passive = await PassiveLibraryService.getPassiveById(passiveId);
+      if (passive == null) continue;
+
+      character.addPassive(CharacterPassive.fromMap(passive.toMap()));
+      if (!entry.temporaryPassiveIdsGranted.contains(passiveId)) {
+        entry.temporaryPassiveIdsGranted.add(passiveId);
+      }
+    }
+  }
+
+  Future<void> _applyPermanentRewards({
+    required Character character,
+    required List<String> abilityIds,
+    required List<String> passiveIds,
+  }) async {
+    for (final abilityId in abilityIds) {
+      final alreadyHas = character.characterAbilities.any((a) => a.id == abilityId);
+      if (alreadyHas) continue;
+      final ability = await AbilityLibraryService.getAbilityById(abilityId);
+      if (ability != null) {
+        character.characterAbilities.add(CharacterAbility.fromMap(ability.toMap()));
+      }
+    }
+
+    for (final passiveId in passiveIds) {
+      final alreadyHas = character.passives.any((p) => p.id == passiveId);
+      if (alreadyHas) continue;
+      final passive = await PassiveLibraryService.getPassiveById(passiveId);
+      if (passive != null) {
+        character.addPassive(CharacterPassive.fromMap(passive.toMap()));
+      }
+    }
+  }
+
+  Future<void> _removeTemporaryStudyPassives(
+    Character character,
+    CharacterKnowledge entry,
+  ) async {
+    for (final passiveId in List<String>.from(entry.temporaryPassiveIdsGranted)) {
+      character.removePassive(passiveId);
+    }
+    entry.temporaryPassiveIdsGranted.clear();
+  }
+
+  Future<void> syncKnowledgeRewards({
+    required Character character,
+    required KnowledgeDefinition definition,
+    required CharacterKnowledge entry,
+  }) async {
+    final completedCircles = definition.circles
+        .take(entry.currentProgress.clamp(0, definition.circles.length).toInt())
+        .toList();
+
+    for (final circle in completedCircles) {
+      await _applyPermanentRewards(
+        character: character,
+        abilityIds: circle.unlockedAbilityIds,
+        passiveIds: circle.unlockedPassiveIds,
+      );
+    }
+
+    if (entry.status == KnowledgeStatus.mastered) {
+      await _removeTemporaryStudyPassives(character, entry);
+      await _applyPermanentRewards(
+        character: character,
+        abilityIds: definition.unlockedAbilityIds,
+        passiveIds: definition.unlockedPassiveIds,
+      );
+      return;
+    }
+
+    for (final circle in completedCircles) {
+      for (final passiveId in circle.temporaryPassiveIds) {
+        final alreadyHas = character.passives.any((p) => p.id == passiveId);
+        if (alreadyHas) continue;
+        final passive = await PassiveLibraryService.getPassiveById(passiveId);
+        if (passive != null) {
+          character.addPassive(CharacterPassive.fromMap(passive.toMap()));
+          if (!entry.temporaryPassiveIdsGranted.contains(passiveId)) {
+            entry.temporaryPassiveIdsGranted.add(passiveId);
+          }
+        }
+      }
+    }
   }
 
   Future<void> checkAndUnlockRewardsForMasteredKnowledge({
     required Character character,
     required KnowledgeDefinition definition,
     required CharacterKnowledge entry,
-  }) async {
-    if (entry.status != KnowledgeStatus.mastered) {
-      return;
-    }
-
-    for (final abilityId in definition.unlockedAbilityIds) {
-      final alreadyHas = character.characterAbilities.any(
-        (a) => a.id == abilityId,
-      );
-      if (!alreadyHas) {
-        final ability = await AbilityLibraryService.getAbilityById(abilityId);
-        if (ability != null) {
-          character.characterAbilities.add(
-            CharacterAbility.fromMap(ability.toMap()),
-          );
-        }
-      }
-    }
-
-    for (final passiveId in definition.unlockedPassiveIds) {
-      final alreadyHas = character.passives.any((p) => p.id == passiveId);
-      if (!alreadyHas) {
-        final passive = await PassiveLibraryService.getPassiveById(passiveId);
-        if (passive != null) {
-          character.addPassive(CharacterPassive.fromMap(passive.toMap()));
-        }
-      }
-    }
+  }) {
+    return syncKnowledgeRewards(
+      character: character,
+      definition: definition,
+      entry: entry,
+    );
   }
 }

@@ -95,30 +95,18 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
       if (_prohibited != null && product.prohibited != _prohibited!) {
         return false;
       }
-      if (_classFilters.isNotEmpty &&
-          !d.recommendedClasses.any(_classFilters.contains)) {
+      if (_classFilters.isNotEmpty && !d.recommendedClasses.any(_classFilters.contains)) {
         return false;
       }
       return true;
     }).toList();
     result.sort((a, b) {
       switch (_sort) {
-        case 'priceAsc':
-          return a.price.compareTo(b.price);
-        case 'priceDesc':
-          return b.price.compareTo(a.price);
-        case 'nameDesc':
-          return b.definition.name.toLowerCase().compareTo(
-            a.definition.name.toLowerCase(),
-          );
-        case 'caDesc':
-          return (b.definition.armor?.baseArmorClass ?? -1).compareTo(
-            a.definition.armor?.baseArmorClass ?? -1,
-          );
-        default:
-          return a.definition.name.toLowerCase().compareTo(
-            b.definition.name.toLowerCase(),
-          );
+        case 'priceAsc': return a.price.compareTo(b.price);
+        case 'priceDesc': return b.price.compareTo(a.price);
+        case 'nameDesc': return b.definition.name.toLowerCase().compareTo(a.definition.name.toLowerCase());
+        case 'caDesc': return (b.definition.armor?.baseArmorClass ?? -1).compareTo(a.definition.armor?.baseArmorClass ?? -1);
+        default: return a.definition.name.toLowerCase().compareTo(b.definition.name.toLowerCase());
       }
     });
     return result;
@@ -130,22 +118,16 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
       return List<Object>.from(products);
     }
     final entries = <Object>[];
-    final classes =
-        products.expand((p) => p.definition.recommendedClasses).toSet().toList()
-          ..sort();
+    final classes = products.expand((p) => p.definition.recommendedClasses).toSet().toList()..sort();
     for (final className in classes) {
-      final matching = products
-          .where((p) => p.definition.recommendedClasses.contains(className))
-          .toList();
+      final matching = products.where((p) => p.definition.recommendedClasses.contains(className)).toList();
       if (matching.isEmpty) {
         continue;
       }
       entries.add('Recomendado para $className');
       entries.addAll(matching);
     }
-    final unclassified = products
-        .where((p) => p.definition.recommendedClasses.isEmpty)
-        .toList();
+    final unclassified = products.where((p) => p.definition.recommendedClasses.isEmpty).toList();
     if (unclassified.isNotEmpty) {
       entries.add('Otros objetos');
       entries.addAll(unclassified);
@@ -154,15 +136,10 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
   }
 
   int get _activeFilterCount =>
-      _typeFilters.length +
-      _armorFilters.length +
-      (_minPrice != null ? 1 : 0) +
-      (_maxPrice != null ? 1 : 0) +
-      (_hasAbilities != null ? 1 : 0) +
-      (_hasPassives != null ? 1 : 0) +
-      (_prohibited != null ? 1 : 0) +
-      _classFilters.length +
-      (_groupByClass ? 1 : 0);
+      _typeFilters.length + _armorFilters.length +
+      (_minPrice != null ? 1 : 0) + (_maxPrice != null ? 1 : 0) +
+      (_hasAbilities != null ? 1 : 0) + (_hasPassives != null ? 1 : 0) +
+      (_prohibited != null ? 1 : 0) + _classFilters.length + (_groupByClass ? 1 : 0);
 
   void _clearFilters() => setState(() {
     _typeFilters.clear();
@@ -189,265 +166,140 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
     final classOptions = <String>{
       ...DndClass.values.map((dndClass) => dndClass.label),
       ...shop.products.expand((p) => p.definition.recommendedClasses),
-    }.toList()..sort();
+    }.toList()
+      ..sort();
     var sort = _sort;
     final applied = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, modalSetState) {
-          Widget triChoice(
-            String title,
-            bool? value,
-            ValueChanged<bool?> onChanged,
-          ) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(
-                  ctx,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              SegmentedButton<bool?>(
-                segments: const [
-                  ButtonSegment(value: null, label: Text('Todos')),
-                  ButtonSegment(value: true, label: Text('Sí')),
-                  ButtonSegment(value: false, label: Text('No')),
-                ],
-                selected: {value},
-                onSelectionChanged: (v) => onChanged(v.first),
-              ),
-            ],
-          );
-          return FractionallySizedBox(
-            heightFactor: .9,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-              children: [
-                Text(
-                  'Filtrar productos',
-                  style: Theme.of(ctx).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Tipo de objeto',
-                  style: Theme.of(
-                    ctx,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: ItemType.values
-                      .map(
-                        (type) => FilterChip(
-                          label: Text(type.label),
-                          selected: types.contains(type),
-                          onSelected: (v) => modalSetState(
-                            () => v ? types.add(type) : types.remove(type),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Tipo de armadura',
-                  style: Theme.of(
-                    ctx,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: ArmorCategory.values
-                      .map(
-                        (cat) => FilterChip(
-                          label: Text(cat.label),
-                          selected: armors.contains(cat),
-                          onSelected: (v) => modalSetState(
-                            () => v ? armors.add(cat) : armors.remove(cat),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: minPrice,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Precio mínimo',
-                          prefixIcon: Icon(Icons.paid_rounded),
-                        ),
-                        onChanged: (v) => minPrice = v,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: maxPrice,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Precio máximo',
-                          prefixIcon: Icon(Icons.paid_rounded),
-                        ),
-                        onChanged: (v) => maxPrice = v,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                triChoice(
-                  'Con habilidades activas',
-                  hasAbilities,
-                  (v) => modalSetState(() => hasAbilities = v),
-                ),
-                const SizedBox(height: 14),
-                triChoice(
-                  'Con pasivas',
-                  hasPassives,
-                  (v) => modalSetState(() => hasPassives = v),
-                ),
-                const SizedBox(height: 14),
-                triChoice(
-                  'Objetos prohibidos',
-                  prohibited,
-                  (v) => modalSetState(() => prohibited = v),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Buscar por clase',
-                  style: Theme.of(
-                    ctx,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Muestra objetos recomendados para cualquiera de las clases seleccionadas.',
-                  style: Theme.of(ctx).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: classOptions
-                      .map(
-                        (name) => FilterChip(
-                          label: Text(name),
-                          selected: classFilters.contains(name),
-                          onSelected: (v) => modalSetState(
-                            () => v
-                                ? classFilters.add(name)
-                                : classFilters.remove(name),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 10),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Separar por clase'),
-                  subtitle: const Text(
-                    'Crea apartados como “Recomendado para Guerrero”',
-                  ),
-                  value: groupByClass,
-                  onChanged: (v) => modalSetState(() => groupByClass = v),
-                ),
-                const SizedBox(height: 18),
-                DropdownButtonFormField<String>(
-                  initialValue: sort,
-                  decoration: const InputDecoration(
-                    labelText: 'Ordenar por',
-                    prefixIcon: Icon(Icons.sort_rounded),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'name', child: Text('Nombre A–Z')),
-                    DropdownMenuItem(
-                      value: 'nameDesc',
-                      child: Text('Nombre Z–A'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'priceAsc',
-                      child: Text('Precio: menor a mayor'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'priceDesc',
-                      child: Text('Precio: mayor a menor'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'caDesc',
-                      child: Text('CA: mayor a menor'),
-                    ),
-                  ],
-                  onChanged: (v) => modalSetState(() => sort = v ?? 'name'),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          modalSetState(() {
-                            types.clear();
-                            armors.clear();
-                            minPrice = '';
-                            maxPrice = '';
-                            hasAbilities = null;
-                            hasPassives = null;
-                            prohibited = null;
-                            classFilters.clear();
-                            groupByClass = false;
-                          });
-                        },
-                        icon: const Icon(Icons.filter_alt_off_rounded),
-                        label: const Text('Limpiar'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        icon: const Icon(Icons.check_rounded),
-                        label: const Text('Aplicar'),
-                      ),
-                    ),
-                  ],
-                ),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, modalSetState) {
+        Widget triChoice(String title, bool? value, ValueChanged<bool?> onChanged) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            SegmentedButton<bool?>(
+              segments: const [
+                ButtonSegment(value: null, label: Text('Todos')),
+                ButtonSegment(value: true, label: Text('Sí')),
+                ButtonSegment(value: false, label: Text('No')),
               ],
+              selected: {value},
+              onSelectionChanged: (v) => onChanged(v.first),
             ),
-          );
-        },
-      ),
+          ],
+        );
+        return FractionallySizedBox(
+          heightFactor: .9,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+            children: [
+              Text('Filtrar productos', style: Theme.of(ctx).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 18),
+              Text('Tipo de objeto', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 7, runSpacing: 7, children: ItemType.values.map((type) => FilterChip(
+                label: Text(type.label), selected: types.contains(type),
+                onSelected: (v) => modalSetState(() => v ? types.add(type) : types.remove(type)),
+              )).toList()),
+              const SizedBox(height: 18),
+              Text('Tipo de armadura', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 7, runSpacing: 7, children: ArmorCategory.values.map((cat) => FilterChip(
+                label: Text(cat.label), selected: armors.contains(cat),
+                onSelected: (v) => modalSetState(() => v ? armors.add(cat) : armors.remove(cat)),
+              )).toList()),
+              const SizedBox(height: 18),
+              Row(children: [
+                Expanded(child: TextFormField(initialValue: minPrice, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Precio mínimo', prefixIcon: Icon(Icons.paid_rounded)), onChanged: (v) => minPrice = v)),
+                const SizedBox(width: 12),
+                Expanded(child: TextFormField(initialValue: maxPrice, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Precio máximo', prefixIcon: Icon(Icons.paid_rounded)), onChanged: (v) => maxPrice = v)),
+              ]),
+              const SizedBox(height: 18),
+              triChoice('Con habilidades activas', hasAbilities, (v) => modalSetState(() => hasAbilities = v)),
+              const SizedBox(height: 14),
+              triChoice('Con pasivas', hasPassives, (v) => modalSetState(() => hasPassives = v)),
+              const SizedBox(height: 14),
+              triChoice('Objetos prohibidos', prohibited, (v) => modalSetState(() => prohibited = v)),
+              const SizedBox(height: 18),
+              Text(
+                'Buscar por clase',
+                style: Theme.of(ctx)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Muestra objetos recomendados para cualquiera de las clases seleccionadas.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: classOptions
+                    .map(
+                      (name) => FilterChip(
+                        label: Text(name),
+                        selected: classFilters.contains(name),
+                        onSelected: (v) => modalSetState(
+                          () => v
+                              ? classFilters.add(name)
+                              : classFilters.remove(name),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 10),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Separar por clase'),
+                subtitle: const Text(
+                  'Crea apartados como “Recomendado para Guerrero”',
+                ),
+                value: groupByClass,
+                onChanged: (v) => modalSetState(() => groupByClass = v),
+              ),
+              const SizedBox(height: 18),
+              DropdownButtonFormField<String>(
+                initialValue: sort,
+                decoration: const InputDecoration(labelText: 'Ordenar por', prefixIcon: Icon(Icons.sort_rounded)),
+                items: const [
+                  DropdownMenuItem(value: 'name', child: Text('Nombre A–Z')),
+                  DropdownMenuItem(value: 'nameDesc', child: Text('Nombre Z–A')),
+                  DropdownMenuItem(value: 'priceAsc', child: Text('Precio: menor a mayor')),
+                  DropdownMenuItem(value: 'priceDesc', child: Text('Precio: mayor a menor')),
+                  DropdownMenuItem(value: 'caDesc', child: Text('CA: mayor a menor')),
+                ],
+                onChanged: (v) => modalSetState(() => sort = v ?? 'name'),
+              ),
+              const SizedBox(height: 22),
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(onPressed: () {
+                  modalSetState(() { types.clear(); armors.clear(); minPrice=''; maxPrice=''; hasAbilities=null; hasPassives=null; prohibited=null; classFilters.clear(); groupByClass=false; });
+                }, icon: const Icon(Icons.filter_alt_off_rounded), label: const Text('Limpiar'))),
+                const SizedBox(width: 12),
+                Expanded(child: FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.check_rounded), label: const Text('Aplicar'))),
+              ]),
+            ],
+          ),
+        );
+      }),
     );
     if (applied == true && mounted) {
       setState(() {
-        _typeFilters
-          ..clear()
-          ..addAll(types);
-        _armorFilters
-          ..clear()
-          ..addAll(armors);
+        _typeFilters..clear()..addAll(types);
+        _armorFilters..clear()..addAll(armors);
         _minPrice = int.tryParse(minPrice.trim());
         _maxPrice = int.tryParse(maxPrice.trim());
         _hasAbilities = hasAbilities;
         _hasPassives = hasPassives;
         _prohibited = prohibited;
-        _classFilters
-          ..clear()
-          ..addAll(classFilters);
+        _classFilters..clear()..addAll(classFilters);
         _groupByClass = groupByClass;
         _sort = sort;
       });
@@ -860,45 +712,28 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
                 children: [
                   TextField(
                     decoration: InputDecoration(
-                      hintText:
-                          'Buscar por nombre, clase, descripción, habilidad…',
+                      hintText: 'Buscar por nombre, clase, descripción, habilidad…',
                       prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _search.isEmpty
-                          ? null
-                          : IconButton(
-                              onPressed: () => setState(() => _search = ''),
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
+                      suffixIcon: _search.isEmpty ? null : IconButton(
+                        onPressed: () => setState(() => _search = ''),
+                        icon: const Icon(Icons.close_rounded),
                       ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
                     ),
                     onChanged: (value) => setState(() => _search = value),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: _showFilters,
-                          icon: const Icon(Icons.tune_rounded),
-                          label: Text(
-                            _activeFilterCount == 0
-                                ? 'Filtros'
-                                : 'Filtros ($_activeFilterCount)',
-                          ),
-                        ),
-                      ),
-                      if (_activeFilterCount > 0) ...[
-                        const SizedBox(width: 8),
-                        IconButton.filledTonal(
-                          onPressed: _clearFilters,
-                          tooltip: 'Limpiar filtros',
-                          icon: const Icon(Icons.filter_alt_off_rounded),
-                        ),
-                      ],
+                  Row(children: [
+                    Expanded(child: FilledButton.tonalIcon(
+                      onPressed: _showFilters,
+                      icon: const Icon(Icons.tune_rounded),
+                      label: Text(_activeFilterCount == 0 ? 'Filtros' : 'Filtros ($_activeFilterCount)'),
+                    )),
+                    if (_activeFilterCount > 0) ...[
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(onPressed: _clearFilters, tooltip: 'Limpiar filtros', icon: const Icon(Icons.filter_alt_off_rounded)),
                     ],
-                  ),
+                  ]),
                 ],
               ),
             ),
@@ -930,24 +765,12 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
           if (shop.products.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('Esta tienda todavía no tiene productos.'),
-                ),
-              ),
+              child: Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Esta tienda todavía no tiene productos.'))),
             )
           else if (_filteredProducts.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    'No hay productos que coincidan con los filtros.',
-                  ),
-                ),
-              ),
+              child: Center(child: Padding(padding: EdgeInsets.all(24), child: Text('No hay productos que coincidan con los filtros.'))),
             )
           else
             SliverPadding(
@@ -960,13 +783,7 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
                   if (entry is String) {
                     return Padding(
                       padding: const EdgeInsets.only(top: 12, bottom: 2),
-                      child: Text(
-                        entry,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: colors.primary,
-                        ),
-                      ),
+                      child: Text(entry, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: colors.primary)),
                     );
                   }
                   final product = entry as CampaignShopProduct;
@@ -1013,8 +830,7 @@ class _CampaignShopDetailScreenState extends State<CampaignShopDetailScreen> {
                                             overflow: TextOverflow.ellipsis,
                                             style: theme.textTheme.labelSmall
                                                 ?.copyWith(
-                                                  color:
-                                                      colors.onSurfaceVariant,
+                                                  color: colors.onSurfaceVariant,
                                                   fontWeight: FontWeight.w700,
                                                 ),
                                           ),
@@ -1198,8 +1014,7 @@ class _ProductDetails extends StatelessWidget {
                         fit: BoxFit.contain,
                         errorBuilder: (_, _, _) => Icon(
                           Icons.broken_image_rounded,
-                          color: Theme.of(context).colorScheme.onInverseSurface
-                              .withValues(alpha: 0.70),
+                          color: Theme.of(context).colorScheme.onInverseSurface,
                           size: 72,
                         ),
                       ),
@@ -1243,9 +1058,7 @@ class _ProductDetails extends StatelessWidget {
               aspectRatio: 16 / 9,
               child: hasImage
                   ? Material(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surface.withValues(alpha: 0),
+                      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
                       child: InkWell(
                         onTap: () => _openFullscreenImage(context, path),
                         child: Stack(
@@ -1261,9 +1074,7 @@ class _ProductDetails extends StatelessWidget {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.scrim.withValues(alpha: .62),
+                                  color: Theme.of(context).colorScheme.scrim.withValues(alpha: .62),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Row(
@@ -1271,18 +1082,14 @@ class _ProductDetails extends StatelessWidget {
                                   children: [
                                     Icon(
                                       Icons.zoom_out_map_rounded,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onInverseSurface,
+                                      color: Theme.of(context).colorScheme.onInverseSurface,
                                       size: 17,
                                     ),
                                     SizedBox(width: 5),
                                     Text(
                                       'Ver imagen',
                                       style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onInverseSurface,
+                                        color: Theme.of(context).colorScheme.onInverseSurface,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -1324,8 +1131,7 @@ class _ProductDetails extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              if (definition.type == ItemType.armor &&
-                  definition.armor != null) ...[
+              if (definition.type == ItemType.armor && definition.armor != null) ...[
                 Chip(label: Text(definition.armor!.category.label)),
                 Chip(
                   avatar: const Icon(Icons.shield_rounded, size: 18),

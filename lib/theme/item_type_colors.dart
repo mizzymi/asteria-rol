@@ -40,74 +40,40 @@ class ItemTypeColors {
 
   static IconData icon(ItemType type) {
     switch (type) {
-      case ItemType.armor:
-        return Icons.shield_rounded;
-      case ItemType.shield:
-        return Icons.security_rounded;
-      case ItemType.helmet:
-        return Icons.sports_motorsports_rounded;
-      case ItemType.gloves:
-        return Icons.back_hand_rounded;
-      case ItemType.boots:
-        return Icons.hiking_rounded;
-      case ItemType.cape:
-        return Icons.checkroom_rounded;
-      case ItemType.ring:
-        return Icons.circle_outlined;
-      case ItemType.amulet:
-        return Icons.diamond_rounded;
-      case ItemType.weapon:
-        return Icons.sports_martial_arts_rounded;
-      case ItemType.accessory:
-        return Icons.auto_awesome_rounded;
+      case ItemType.armor: return Icons.shield_rounded;
+      case ItemType.shield: return Icons.security_rounded;
+      case ItemType.helmet: return Icons.sports_motorsports_rounded;
+      case ItemType.gloves: return Icons.back_hand_rounded;
+      case ItemType.boots: return Icons.hiking_rounded;
+      case ItemType.cape: return Icons.checkroom_rounded;
+      case ItemType.ring: return Icons.circle_outlined;
+      case ItemType.amulet: return Icons.diamond_rounded;
+      case ItemType.weapon: return Icons.sports_martial_arts_rounded;
+      case ItemType.accessory: return Icons.auto_awesome_rounded;
       case ItemType.consumable:
-      case ItemType.potion:
-        return Icons.local_drink_rounded;
-      case ItemType.scroll:
-        return Icons.description_rounded;
-      case ItemType.tool:
-        return Icons.handyman_rounded;
-      case ItemType.material:
-        return Icons.category_rounded;
-      case ItemType.book:
-        return Icons.menu_book_rounded;
-      case ItemType.special:
-        return Icons.stars_rounded;
-      case ItemType.ammunition:
-        return Icons.adjust_rounded;
-      case ItemType.container:
-        return Icons.all_inbox_rounded;
-      case ItemType.misc:
-        return Icons.inventory_2_rounded;
+      case ItemType.potion: return Icons.local_drink_rounded;
+      case ItemType.scroll: return Icons.description_rounded;
+      case ItemType.tool: return Icons.handyman_rounded;
+      case ItemType.material: return Icons.category_rounded;
+      case ItemType.book: return Icons.menu_book_rounded;
+      case ItemType.special: return Icons.stars_rounded;
+      case ItemType.ammunition: return Icons.adjust_rounded;
+      case ItemType.container: return Icons.all_inbox_rounded;
+      case ItemType.misc: return Icons.inventory_2_rounded;
     }
   }
 
-  static Color soft(
-    BuildContext context,
-    ItemType type, {
-    double alpha = 0.12,
-  }) => of(context, type).withValues(alpha: alpha);
-  static Color border(
-    BuildContext context,
-    ItemType type, {
-    double alpha = 0.28,
-  }) => of(context, type).withValues(alpha: alpha);
+  static Color soft(BuildContext context, ItemType type, {double alpha = 0.12}) => of(context, type).withValues(alpha: alpha);
+  static Color border(BuildContext context, ItemType type, {double alpha = 0.28}) => of(context, type).withValues(alpha: alpha);
 
-  static Color background(
-    BuildContext context,
-    ItemType type, {
-    double strength = 0.14,
-  }) {
+  static Color background(BuildContext context, ItemType type, {double strength = 0.14}) {
     final scheme = Theme.of(context).colorScheme;
-    return Color.lerp(scheme.surface, of(context, type), strength) ??
-        scheme.surface;
+    return Color.lerp(scheme.surface, of(context, type), strength) ?? scheme.surface;
   }
 
   static Color foreground(BuildContext context, ItemType type) {
     final scheme = Theme.of(context).colorScheme;
     final color = of(context, type);
-    return ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-        ? scheme.onPrimary
-        : scheme.onSurface;
+    return ThemeData.estimateBrightnessForColor(color) == Brightness.dark ? scheme.onPrimary : scheme.onSurface;
   }
 }

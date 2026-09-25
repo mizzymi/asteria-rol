@@ -8,7 +8,10 @@ import 'character_home_background_images.dart';
 class CharacterHomeHeaderBackground extends StatelessWidget {
   final double height;
 
-  const CharacterHomeHeaderBackground({super.key, this.height = 320});
+  const CharacterHomeHeaderBackground({
+    super.key,
+    this.height = 320,
+  });
 
   static final Uint8List _lightBytes = base64Decode(
     characterHomeLightBackgroundBase64,

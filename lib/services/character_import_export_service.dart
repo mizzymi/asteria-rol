@@ -6,11 +6,16 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/character.dart';
 import 'portable_image_bundle.dart';
+import 'portable_streaming_archive.dart';
 
 class CharacterImportExportService {
   const CharacterImportExportService._();
 
-  static const int formatVersion = 2;
+  static const int formatVersion = 3;
+  static const String formatType = 'asteria_character';
+  static final _binaryMagic = PortableStreamingArchive.magic(
+    'ASTERIA_CHARACTER_V3',
+  );
 
   static Future<File> exportCharacter(Character character) async {
     final directory = await getApplicationDocumentsDirectory();
@@ -21,20 +26,19 @@ class CharacterImportExportService {
     final fileName = '${safeName.isEmpty ? 'character' : safeName}.asteria';
     final file = File('${directory.path}/$fileName');
 
-    final characterMap = Map<String, dynamic>.from(character.toMap());
-    final images = await PortableImageBundle.extractFrom(characterMap);
-
-    final payload = {
-      'format': 'asteria_character',
-      'version': formatVersion,
-      'exportedAt': DateTime.now().toIso8601String(),
-      'character': characterMap,
-      'images': images,
+    final root = <String, dynamic>{
+      'character': Map<String, dynamic>.from(character.toMap()),
     };
 
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(payload),
-      flush: true,
+    await PortableStreamingArchive.write(
+      file: file,
+      magicBytes: _binaryMagic,
+      root: root,
+      header: <String, dynamic>{
+        'format': formatType,
+        'version': formatVersion,
+        'exportedAt': DateTime.now().toIso8601String(),
+      },
     );
     return file;
   }
@@ -46,7 +50,10 @@ class CharacterImportExportService {
       '_',
     );
     await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path)], subject: '$safeName.asteria'),
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'application/octet-stream')],
+        subject: '$safeName.asteria',
+      ),
     );
   }
 
@@ -57,7 +64,7 @@ class CharacterImportExportService {
     }
     final map = Map<String, dynamic>.from(decoded);
 
-    if (map['format'] == 'asteria_character') {
+    if (map['format'] == formatType) {
       final characterData = map['character'];
       if (characterData is! Map) {
         throw const FormatException(
@@ -82,20 +89,47 @@ class CharacterImportExportService {
     throw const FormatException('Formato de personaje no reconocido.');
   }
 
+  static Future<Character> _importBinary(File file) async {
+    final header = await PortableStreamingArchive.read(
+      file: file,
+      magicBytes: _binaryMagic,
+      namespace: 'character',
+    );
+    if (header['format'] != formatType ||
+        (header['version'] as num?)?.toInt() != formatVersion) {
+      throw const FormatException('El archivo no es un personaje de Asteria v3.');
+    }
+    final root = Map<String, dynamic>.from(header['root'] as Map);
+    if (root['character'] is! Map) {
+      throw const FormatException('El personaje está incompleto.');
+    }
+    return Character.fromMap(
+      Map<dynamic, dynamic>.from(root['character'] as Map),
+    );
+  }
+
   static Future<Character> importFromFile(File file) async {
+    if (await PortableStreamingArchive.hasMagic(file, _binaryMagic)) {
+      return _importBinary(file);
+    }
     return importFromString(await file.readAsString());
   }
 
-  static Future<Character> importCharacterAsCopy(String raw) async {
-    final imported = await importFromString(raw);
+  static Character _asCopy(Character imported) {
     final map = imported.toMap();
     map['id'] = DateTime.now().microsecondsSinceEpoch.toString();
     final name = imported.name.trim();
-    if (name.isNotEmpty) map['name'] = '$name (copia)';
+    if (name.isNotEmpty) {
+      map['name'] = '$name (copia)';
+    }
     return Character.fromMap(Map<dynamic, dynamic>.from(map));
   }
 
+  static Future<Character> importCharacterAsCopy(String raw) async {
+    return _asCopy(await importFromString(raw));
+  }
+
   static Future<Character> importFileAsCopy(File file) async {
-    return importCharacterAsCopy(await file.readAsString());
+    return _asCopy(await importFromFile(file));
   }
 }

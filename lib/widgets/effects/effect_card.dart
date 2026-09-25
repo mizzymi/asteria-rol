@@ -593,9 +593,9 @@ class _EffectExpandedContent extends StatelessWidget {
 
     if (effect.empoweredCritical) {
       result.add(
-        const InfoBadge(
+        InfoBadge(
           icon: Icons.whatshot_rounded,
-          text: 'Crítico potenciado',
+          text: 'Crítico potenciado: ${effect.empoweredCriticalFormula}',
           highlighted: true,
         ),
       );

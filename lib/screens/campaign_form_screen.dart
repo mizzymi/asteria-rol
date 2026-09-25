@@ -27,17 +27,12 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.campaign?.name ?? '');
-    _descriptionController = TextEditingController(
-      text: widget.campaign?.description ?? '',
-    );
+    _descriptionController = TextEditingController(text: widget.campaign?.description ?? '');
     _imagePath = widget.campaign?.imagePath;
   }
 
   Future<void> _pickImage() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 88,
-    );
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88);
     if (image == null || !mounted) return;
     setState(() {
       _pendingImagePath = image.path;
@@ -47,9 +42,7 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final id =
-        widget.campaign?.id ??
-        'campaign_${DateTime.now().microsecondsSinceEpoch}';
+    final id = widget.campaign?.id ?? 'campaign_${DateTime.now().microsecondsSinceEpoch}';
     var finalImagePath = widget.campaign?.imagePath;
     if (_pendingImagePath != null) {
       finalImagePath = await CampaignImageService.saveImage(
@@ -88,12 +81,8 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
     final image = _pendingImagePath ?? _imagePath;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.campaign == null ? 'Nueva campaña' : 'Editar campaña',
-        ),
-        actions: [
-          IconButton(onPressed: _save, icon: const Icon(Icons.check_rounded)),
-        ],
+        title: Text(widget.campaign == null ? 'Nueva campaña' : 'Editar campaña'),
+        actions: [IconButton(onPressed: _save, icon: const Icon(Icons.check_rounded))],
       ),
       body: Form(
         key: _formKey,
@@ -119,17 +108,10 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
                               gradient: LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  colors.primaryContainer,
-                                  colors.secondaryContainer,
-                                ],
+                                colors: [colors.primaryContainer, colors.secondaryContainer],
                               ),
                             ),
-                            child: Icon(
-                              Icons.landscape_rounded,
-                              size: 72,
-                              color: colors.primary,
-                            ),
+                            child: Icon(Icons.landscape_rounded, size: 72, color: colors.primary),
                           ),
                         Positioned(
                           right: 12,
@@ -137,11 +119,7 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
                           child: FilledButton.tonalIcon(
                             onPressed: _pickImage,
                             icon: const Icon(Icons.photo_library_rounded),
-                            label: Text(
-                              image == null
-                                  ? 'Añadir portada'
-                                  : 'Cambiar portada',
-                            ),
+                            label: Text(image == null ? 'Añadir portada' : 'Cambiar portada'),
                           ),
                         ),
                       ],
@@ -171,9 +149,7 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
                 labelText: 'Nombre de la campaña',
                 prefixIcon: Icon(Icons.auto_stories_rounded),
               ),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Ponle un nombre a la campaña'
-                  : null,
+              validator: (value) => value == null || value.trim().isEmpty ? 'Ponle un nombre a la campaña' : null,
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -190,9 +166,7 @@ class _CampaignFormScreenState extends State<CampaignFormScreen> {
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.save_rounded),
-              label: Text(
-                widget.campaign == null ? 'Crear campaña' : 'Guardar cambios',
-              ),
+              label: Text(widget.campaign == null ? 'Crear campaña' : 'Guardar cambios'),
             ),
           ],
         ),

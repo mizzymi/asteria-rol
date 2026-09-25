@@ -62,11 +62,7 @@ class AbilityColors {
     return scheme.primary;
   }
 
-  static Color softBackground(
-    BuildContext context,
-    Color color, {
-    double strength = 0.16,
-  }) {
+  static Color softBackground(BuildContext context, Color color, {double strength = 0.16}) {
     final scheme = Theme.of(context).colorScheme;
     return Color.lerp(scheme.surface, color, strength) ?? scheme.surface;
   }
@@ -87,17 +83,13 @@ class AbilityColors {
     if (damageType.contains('fuego')) {
       return Icons.local_fire_department_rounded;
     }
-    if (damageType.contains('hielo') ||
-        damageType.contains('frío') ||
-        damageType.contains('frio')) {
+    if (damageType.contains('hielo') || damageType.contains('frío') || damageType.contains('frio')) {
       return Icons.ac_unit_rounded;
     }
     if (damageType.contains('veneno')) {
       return Icons.coronavirus_rounded;
     }
-    if (damageType.contains('rayo') ||
-        damageType.contains('eléctrico') ||
-        damageType.contains('electrico')) {
+    if (damageType.contains('rayo') || damageType.contains('eléctrico') || damageType.contains('electrico')) {
       return Icons.bolt_rounded;
     }
     if (damageType.contains('necrótico') || damageType.contains('necrotico')) {

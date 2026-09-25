@@ -54,9 +54,16 @@ class CharacterHeaderCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: colors.surfaceContainerHighest,
                     border: Border.all(
-                      color: colors.primary.withValues(alpha: 0.32),
-                      width: 3,
+                      color: colors.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.54 : 0.38),
+                      width: 3.2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.18 : 0.10),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   padding: const EdgeInsets.all(4),
                   child: CircleAvatar(
@@ -90,7 +97,7 @@ class CharacterHeaderCard extends StatelessWidget {
               child: Material(
                 color: colors.primary,
                 shape: const CircleBorder(),
-                elevation: 2,
+                elevation: 0,
                 child: InkWell(
                   onTap: onChangeAvatar,
                   customBorder: const CircleBorder(),
@@ -189,9 +196,9 @@ class _HeaderBadge extends StatelessWidget {
 
     final background = highlighted
         ? Color.lerp(
-                colors.surface,
+                colors.surfaceContainerLowest,
                 colors.primary,
-                theme.brightness == Brightness.dark ? 0.20 : 0.10,
+                theme.brightness == Brightness.dark ? 0.26 : 0.14,
               ) ??
               colors.surface
         : colors.surfaceContainerLow;
@@ -215,6 +222,13 @@ class _HeaderBadge extends StatelessWidget {
             color: background,
             borderRadius: BorderRadius.circular(13),
             border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow.withValues(alpha: theme.brightness == Brightness.dark ? 0.10 : 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

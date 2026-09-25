@@ -67,6 +67,8 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
   late int criticalMinimumNaturalRoll;
 
   late bool empoweredCritical;
+  late int empoweredCriticalMultiplier;
+  late final TextEditingController empoweredCriticalFormulaController;
 
   bool get editing => widget.effect != null;
 
@@ -146,6 +148,11 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
     criticalMinimumNaturalRoll = effect?.criticalMinimumNaturalRoll ?? 20;
 
     empoweredCritical = effect?.empoweredCritical ?? false;
+    empoweredCriticalMultiplier = effect?.empoweredCriticalMultiplier ?? 2;
+    empoweredCriticalFormulaController = TextEditingController(
+      text: effect?.empoweredCriticalFormula ??
+          '(MAX + MOD) * ${effect?.empoweredCriticalMultiplier ?? 2}',
+    );
 
     triggers =
         effect?.triggers
@@ -609,6 +616,10 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
       criticalMinimumNaturalRoll: criticalMinimumNaturalRoll,
 
       empoweredCritical: empoweredCritical,
+      empoweredCriticalMultiplier: empoweredCriticalMultiplier,
+      empoweredCriticalFormula: empoweredCriticalFormulaController.text.trim().isEmpty
+          ? '(MAX + MOD) * 2'
+          : empoweredCriticalFormulaController.text.trim(),
 
       abilityModifierBonuses: cleanedAbilities,
 
@@ -974,6 +985,18 @@ class _EffectFormScreenState extends State<EffectFormScreen> {
                   });
                 },
               ),
+
+              if (empoweredCritical) ...[
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: empoweredCriticalFormulaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Fórmula de crítico',
+                    helperText: 'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
+                    prefixIcon: Icon(Icons.functions_rounded),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 28),
 
