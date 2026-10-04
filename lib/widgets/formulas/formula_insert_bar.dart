@@ -69,10 +69,7 @@ class FormulaInsertBar extends StatelessWidget {
           itemBuilder: (_) {
             return const [
               PopupMenuItem(value: 'level', child: Text('Nivel')),
-              PopupMenuItem(
-                value: 'competencia',
-                child: Text('Competencia'),
-              ),
+              PopupMenuItem(value: 'competencia', child: Text('Competencia')),
               PopupMenuItem(value: 'health', child: Text('Vida actual')),
               PopupMenuItem(value: 'max_health', child: Text('Vida máxima')),
               PopupMenuItem(value: 'health_percent', child: Text('% de vida')),
@@ -182,10 +179,7 @@ class FormulaInsertBar extends StatelessWidget {
           onSelected: onInsert,
           itemBuilder: (_) {
             return const [
-              PopupMenuItem(
-                value: 'competencia',
-                child: Text('Competencia'),
-              ),
+              PopupMenuItem(value: 'competencia', child: Text('Competencia')),
               PopupMenuDivider(),
               PopupMenuItem(
                 value: 'rounddown()',

@@ -35,11 +35,7 @@ class RainbowActionStyle {
         ? Color.lerp(const Color(0xFF080808), accent, 0.34)!
         : Color.lerp(Colors.white, accent, 0.34)!;
 
-    if (AccessibilityColors.meets(
-      foregroundColor,
-      background,
-      minimum: 5.0,
-    )) {
+    if (AccessibilityColors.meets(foregroundColor, background, minimum: 5.0)) {
       return background;
     }
 
@@ -53,11 +49,7 @@ class RainbowActionStyle {
       final mid = (low + high) / 2;
       final candidate = Color.lerp(background, target, mid)!;
 
-      if (AccessibilityColors.meets(
-        foregroundColor,
-        candidate,
-        minimum: 5.0,
-      )) {
+      if (AccessibilityColors.meets(foregroundColor, candidate, minimum: 5.0)) {
         high = mid;
       } else {
         low = mid;
@@ -68,10 +60,7 @@ class RainbowActionStyle {
     return background;
   }
 
-  static ButtonStyle iconButton(
-    BuildContext context,
-    Color accent,
-  ) {
+  static ButtonStyle iconButton(BuildContext context, Color accent) {
     if (!enabled(context)) {
       return IconButton.styleFrom();
     }
@@ -82,10 +71,7 @@ class RainbowActionStyle {
     );
   }
 
-  static ButtonStyle filledButton(
-    BuildContext context,
-    Color accent,
-  ) {
+  static ButtonStyle filledButton(BuildContext context, Color accent) {
     if (!enabled(context)) {
       return FilledButton.styleFrom();
     }
@@ -96,10 +82,7 @@ class RainbowActionStyle {
     );
   }
 
-  static ButtonStyle floatingActionButton(
-    BuildContext context,
-    Color accent,
-  ) {
+  static ButtonStyle floatingActionButton(BuildContext context, Color accent) {
     if (!enabled(context)) {
       return const ButtonStyle();
     }

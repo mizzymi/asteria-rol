@@ -223,10 +223,7 @@ class _EffectsScreenState extends State<EffectsScreen> {
           if (hasExpired)
             IconButton(
               tooltip: 'Eliminar expirados',
-              style: RainbowActionStyle.iconButton(
-                context,
-                semantic.delete,
-              ),
+              style: RainbowActionStyle.iconButton(context, semantic.delete),
               onPressed: clearExpired,
               icon: const Icon(Icons.cleaning_services_rounded),
             ),

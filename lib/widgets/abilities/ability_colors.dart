@@ -51,8 +51,7 @@ class AbilityColors {
           damageType.contains('necrotic')) {
         return scheme.primary;
       }
-      if (damageType.contains('radiante') ||
-          damageType.contains('radiant')) {
+      if (damageType.contains('radiante') || damageType.contains('radiant')) {
         return scheme.secondary;
       }
       if (damageType.contains('psíquico') ||

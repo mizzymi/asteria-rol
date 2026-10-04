@@ -1389,10 +1389,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           actions: [
             IconButton(
               tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
-              style: RainbowActionStyle.iconButton(
-                context,
-                semantic.grid,
-              ),
+              style: RainbowActionStyle.iconButton(context, semantic.grid),
               onPressed: _toggleViewMode,
               icon: Icon(
                 gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
@@ -1400,10 +1397,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
             ),
             IconButton(
               tooltip: 'Configurar ranuras',
-              style: RainbowActionStyle.iconButton(
-                context,
-                semantic.settings,
-              ),
+              style: RainbowActionStyle.iconButton(context, semantic.settings),
               onPressed: () {
                 EquipmentSlotsConfigDialog.show(
                   context,
@@ -1432,10 +1426,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   PopupMenuItem(
                     value: 'rename',
                     child: ListTile(
-                      leading: Icon(
-                        Icons.edit_rounded,
-                        color: semantic.edit,
-                      ),
+                      leading: Icon(Icons.edit_rounded, color: semantic.edit),
                       title: const Text('Renombrar'),
                     ),
                   ),
@@ -1453,10 +1444,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
               ),
             IconButton(
               tooltip: 'Biblioteca de objetos',
-              style: RainbowActionStyle.iconButton(
-                context,
-                semantic.library,
-              ),
+              style: RainbowActionStyle.iconButton(context, semantic.library),
               onPressed: addItemFromLibrary,
               icon: const Icon(Icons.local_library_rounded),
             ),
@@ -1471,10 +1459,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
             ),
             IconButton(
               tooltip: 'Tiendas',
-              style: RainbowActionStyle.iconButton(
-                context,
-                semantic.shop,
-              ),
+              style: RainbowActionStyle.iconButton(context, semantic.shop),
               onPressed: openShop,
               icon: const Icon(Icons.storefront_rounded),
             ),
