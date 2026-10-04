@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../services/theme_preference_service.dart';
 import 'accessibility_colors.dart';
+import 'asteria_semantic_colors.dart';
 
 class AppTheme {
   const AppTheme._();
@@ -184,11 +186,17 @@ class AppTheme {
   static ThemeData _buildTheme({
     required ColorScheme scheme,
     required Brightness brightness,
+    AsteriaVisualTheme visualTheme = AsteriaVisualTheme.asteria,
   }) {
+    final semanticColors = visualTheme == AsteriaVisualTheme.rainbow
+        ? AsteriaSemanticColors.rainbow(brightness)
+        : AsteriaSemanticColors.asteria(scheme);
+
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
+      extensions: <ThemeExtension<dynamic>>[semanticColors],
 
       scaffoldBackgroundColor: scheme.surface,
 
@@ -611,9 +619,15 @@ class AppTheme {
   // LIGHT
   // ===========================================================================
 
-  static ThemeData get light {
+  static ThemeData get light => lightFor(AsteriaVisualTheme.asteria);
+
+  static ThemeData lightFor(AsteriaVisualTheme visualTheme) {
     final scheme = _purpleScheme(Brightness.light);
-    return _buildTheme(scheme: scheme, brightness: Brightness.light);
+    return _buildTheme(
+      scheme: scheme,
+      brightness: Brightness.light,
+      visualTheme: visualTheme,
+    );
   }
 
   // ===========================================================================
@@ -622,8 +636,14 @@ class AppTheme {
   // Ya lo dejamos preparado aunque todavía no lo actives.
   // ===========================================================================
 
-  static ThemeData get dark {
+  static ThemeData get dark => darkFor(AsteriaVisualTheme.asteria);
+
+  static ThemeData darkFor(AsteriaVisualTheme visualTheme) {
     final scheme = _purpleScheme(Brightness.dark);
-    return _buildTheme(scheme: scheme, brightness: Brightness.dark);
+    return _buildTheme(
+      scheme: scheme,
+      brightness: Brightness.dark,
+      visualTheme: visualTheme,
+    );
   }
 }
