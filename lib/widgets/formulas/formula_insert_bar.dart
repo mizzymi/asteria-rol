@@ -183,6 +183,11 @@ class FormulaInsertBar extends StatelessWidget {
           itemBuilder: (_) {
             return const [
               PopupMenuItem(
+                value: 'competencia',
+                child: Text('Competencia'),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
                 value: 'rounddown()',
                 child: Text('Redondear abajo'),
               ),
