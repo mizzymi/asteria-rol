@@ -12,6 +12,7 @@ import '../services/campaign_economy_service.dart';
 import '../services/character_import_export_service.dart';
 import '../services/character_storage_service.dart';
 import '../services/theme_preference_service.dart';
+import '../theme/asteria_semantic_colors.dart';
 import 'campaign_detail_screen.dart';
 import 'campaign_form_screen.dart';
 import 'character_form_screen.dart';
@@ -187,7 +188,11 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
 
     final totalShops = campaigns.fold<int>(
       0,
@@ -273,6 +278,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.bookmarks_rounded,
                         value: '${campaigns.length}',
                         label: 'Campañas',
+                        color: semantic.neutral,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -281,6 +287,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.groups_rounded,
                         value: '${characters.length}',
                         label: 'Personajes',
+                        color: semantic.create,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -289,6 +296,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.storefront_rounded,
                         value: '$totalShops',
                         label: 'Tiendas',
+                        color: semantic.shop,
                       ),
                     ),
                   ],
@@ -396,6 +404,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.local_library_rounded,
                         title: 'Biblioteca',
                         subtitle: 'Objetos y equipo',
+                        color: semantic.library,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -410,6 +419,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.file_download_rounded,
                         title: 'Importar',
                         subtitle: 'Añadir personaje',
+                        color: semantic.importAction,
                         onTap: _importCharacter,
                       ),
                     ),
@@ -457,7 +467,15 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
               ),
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.settings_rounded),
+                leading: Icon(
+                  Icons.settings_rounded,
+                  color: (Theme.of(context)
+                          .extension<AsteriaSemanticColors>() ??
+                      AsteriaSemanticColors.asteria(
+                        Theme.of(context).colorScheme,
+                      ))
+                      .settings,
+                ),
                 title: const Text('Ajustes'),
                 subtitle: const Text('Tema y apariencia'),
                 onTap: () {
@@ -467,7 +485,15 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
               ),
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.add_rounded),
+                leading: Icon(
+                  Icons.add_rounded,
+                  color: (Theme.of(context)
+                          .extension<AsteriaSemanticColors>() ??
+                      AsteriaSemanticColors.asteria(
+                        Theme.of(context).colorScheme,
+                      ))
+                      .create,
+                ),
                 title: const Text('Nueva campaña'),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -483,7 +509,15 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.file_download_rounded),
+                leading: Icon(
+                  Icons.file_download_rounded,
+                  color: (Theme.of(context)
+                          .extension<AsteriaSemanticColors>() ??
+                      AsteriaSemanticColors.asteria(
+                        Theme.of(context).colorScheme,
+                      ))
+                      .importAction,
+                ),
                 title: const Text('Importar personaje'),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -721,10 +755,13 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
+  final Color color;
+
   const _StatCard({
     required this.icon,
     required this.value,
     required this.label,
+    required this.color,
   });
   @override
   Widget build(BuildContext context) {
@@ -739,7 +776,7 @@ class _StatCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 22, color: colors.primary),
+          Icon(icon, size: 22, color: color),
           const SizedBox(width: 7),
           Flexible(
             child: Column(
@@ -1011,17 +1048,24 @@ class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final Color color;
   final VoidCallback onTap;
+
   const _QuickAction({
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.color,
     required this.onTap,
   });
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final background = Color.lerp(colors.surfaceContainerLow, color, 0.14) ??
+        colors.surfaceContainerLow;
+
     return Card(
+      color: background,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -1030,8 +1074,8 @@ class _QuickAction extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: colors.primaryContainer,
-                child: Icon(icon, color: colors.primary),
+                backgroundColor: color.withValues(alpha: 0.16),
+                child: Icon(icon, color: color),
               ),
               const SizedBox(width: 11),
               Expanded(
