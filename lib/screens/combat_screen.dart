@@ -269,9 +269,7 @@ class _CombatScreenState extends State<CombatScreen> {
         await showDialog<({String operation, int amount, String damageType})>(
           context: context,
           builder: (dialogContext) {
-            return _SimpleHealthDialog(
-              resistances: character.effectiveDamageResistances,
-            );
+            return _SimpleHealthDialog(character: character);
           },
         );
 
@@ -1482,9 +1480,9 @@ class _CombatResourceDialogState extends State<_CombatResourceDialog> {
 }
 
 class _SimpleHealthDialog extends StatefulWidget {
-  final List<DamageResistance> resistances;
+  final Character character;
 
-  const _SimpleHealthDialog({required this.resistances});
+  const _SimpleHealthDialog({required this.character});
 
   @override
   State<_SimpleHealthDialog> createState() => _SimpleHealthDialogState();
@@ -1502,6 +1500,55 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
   }
 
   int get amount => int.tryParse(amountController.text.trim()) ?? 0;
+
+  List<({String damageType, DamageResistance? resistance, bool hasMitigation})>
+  get damageTypeOptions {
+    final options =
+        <String, ({String damageType, DamageResistance? resistance, bool hasMitigation})>{};
+
+    for (final resistance in widget.character.effectiveDamageResistances) {
+      final damageType = resistance.damageType.trim();
+      final normalized = damageType.toLowerCase();
+      if (normalized.isEmpty) {
+        continue;
+      }
+
+      options[normalized] = (
+        damageType: damageType,
+        resistance: resistance,
+        hasMitigation: false,
+      );
+    }
+
+    for (final passive in widget.character.enabledPassives) {
+      for (final bonus in passive.mitigationBonuses) {
+        if (!bonus.hasHealing) {
+          continue;
+        }
+
+        final damageType = bonus.damageType.trim();
+        final normalized = damageType.toLowerCase();
+        if (normalized.isEmpty) {
+          continue;
+        }
+
+        final current = options[normalized];
+        options[normalized] = (
+          damageType: current?.damageType ?? damageType,
+          resistance: current?.resistance,
+          hasMitigation: true,
+        );
+      }
+    }
+
+    final result = options.values.toList(growable: false)
+      ..sort(
+        (a, b) =>
+            a.damageType.toLowerCase().compareTo(b.damageType.toLowerCase()),
+      );
+
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1578,24 +1625,32 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
               initialValue: selectedDamageType,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Resistencia aplicable',
+                labelText: 'Tipo de daño',
                 prefixIcon: Icon(Icons.shield_rounded),
                 helperText:
-                    'Selecciona una resistencia o inmunidad si corresponde.',
+                    'Incluye resistencias y tipos cubiertos por mitigaciones.',
               ),
               items: [
                 const DropdownMenuItem<String>(
                   value: '',
-                  child: Text('Ninguna de las anteriores'),
+                  child: Text('Sin tipo / ninguna de las anteriores'),
                 ),
-                ...widget.resistances.map(
-                  (resistance) => DropdownMenuItem<String>(
-                    value: resistance.damageType,
+                ...damageTypeOptions.map((option) {
+                  final resistance = option.resistance;
+                  final details = <String>[
+                    if (resistance != null) resistance.tier.label,
+                    if (option.hasMitigation) 'mitigación',
+                  ];
+
+                  return DropdownMenuItem<String>(
+                    value: option.damageType,
                     child: Text(
-                      '${resistance.damageType} · ${resistance.tier.label}',
+                      details.isEmpty
+                          ? option.damageType
+                          : '${option.damageType} · ${details.join(' · ')}',
                     ),
-                  ),
-                ),
+                  );
+                }),
               ],
               onChanged: (value) {
                 setState(() {
