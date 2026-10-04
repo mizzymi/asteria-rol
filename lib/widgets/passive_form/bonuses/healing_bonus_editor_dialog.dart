@@ -86,6 +86,8 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
 
   late final TextEditingController formulaController;
 
+  static const _customDamageType = '__custom__';
+
   static const _damageTypeOptions = <String>[
     '',
     'Cortante',
@@ -101,9 +103,11 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
     'Radiante',
     'Necrótico',
     'Fuerza',
+    _customDamageType,
   ];
 
   late String selectedDamageType;
+  late final TextEditingController customDamageTypeController;
 
   @override
   void initState() {
@@ -138,9 +142,17 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
     );
 
     final storedDamageType = bonus.damageType.trim();
-    selectedDamageType = _damageTypeOptions.contains(storedDamageType)
+    final isKnownDamageType =
+        storedDamageType.isEmpty ||
+        _damageTypeOptions.contains(storedDamageType);
+
+    selectedDamageType = isKnownDamageType
         ? storedDamageType
-        : '';
+        : _customDamageType;
+
+    customDamageTypeController = TextEditingController(
+      text: isKnownDamageType ? '' : storedDamageType,
+    );
   }
 
   @override
@@ -148,6 +160,7 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
     nameController.dispose();
     flatController.dispose();
     formulaController.dispose();
+    customDamageTypeController.dispose();
 
     super.dispose();
   }
@@ -163,7 +176,13 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
         ? null
         : CharacterFormula(expression: expression);
 
-    bonus.damageType = widget.allowDamageType ? selectedDamageType : '';
+    if (!widget.allowDamageType) {
+      bonus.damageType = '';
+    } else if (selectedDamageType == _customDamageType) {
+      bonus.damageType = customDamageTypeController.text.trim();
+    } else {
+      bonus.damageType = selectedDamageType;
+    }
 
     Navigator.pop(context, bonus);
   }
@@ -258,9 +277,15 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
                     prefixIcon: Icon(Icons.shield_rounded),
                   ),
                   items: _damageTypeOptions.map((type) {
+                    final label = type.isEmpty
+                        ? 'General'
+                        : type == _customDamageType
+                        ? 'Personalizado…'
+                        : type;
+
                     return DropdownMenuItem<String>(
                       value: type,
-                      child: Text(type.isEmpty ? 'General' : type),
+                      child: Text(label),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -269,6 +294,22 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
                     });
                   },
                 ),
+
+                if (selectedDamageType == _customDamageType) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: customDamageTypeController,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de daño personalizado',
+                      hintText: 'Sombrío, Sangrado, Arcano...',
+                      helperText:
+                          'Debe coincidir con el tipo de daño recibido para aplicar la mitigación.',
+                      prefixIcon: Icon(Icons.edit_rounded),
+                    ),
+                  ),
+                ],
               ],
 
               const SizedBox(height: 24),
