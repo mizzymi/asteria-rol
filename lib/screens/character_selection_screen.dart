@@ -84,6 +84,63 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
     _reload();
   }
 
+  Future<void> _deleteCharacter(Character character) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final semantic =
+            theme.extension<AsteriaSemanticColors>() ??
+            AsteriaSemanticColors.asteria(theme.colorScheme);
+
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.delete_forever_rounded),
+              SizedBox(width: 10),
+              Text('Eliminar personaje'),
+            ],
+          ),
+          content: Text(
+            '¿Quieres eliminar a "${character.name}"? '
+            'Esta acción eliminará el personaje guardado de Asteria.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              style: RainbowActionStyle.filledButton(
+                dialogContext,
+                semantic.delete,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await CharacterStorageService.deleteCharacter(character.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    _reload();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${character.name} ha sido eliminado.')),
+    );
+  }
+
   Future<void> _exportCharacter(Character character) async {
     try {
       await CharacterImportExportService.shareCharacter(character);
@@ -390,6 +447,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                             _campaignFor(character)?.name ?? 'Campaña',
                         onTap: () => _openCharacter(character),
                         onExport: () => _exportCharacter(character),
+                        onDelete: () => _deleteCharacter(character),
                       );
                     },
                   ),
@@ -959,11 +1017,14 @@ class _CharacterQuickCard extends StatelessWidget {
   final String campaignName;
   final VoidCallback onTap;
   final VoidCallback onExport;
+  final VoidCallback onDelete;
+
   const _CharacterQuickCard({
     required this.character,
     required this.campaignName,
     required this.onTap,
     required this.onExport,
+    required this.onDelete,
   });
 
   @override
@@ -1013,18 +1074,44 @@ class _CharacterQuickCard extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         icon: const Icon(Icons.more_horiz_rounded, size: 20),
                         onSelected: (value) {
-                          if (value == 'export') onExport();
+                          if (value == 'export') {
+                            onExport();
+                          }
+                          if (value == 'delete') {
+                            onDelete();
+                          }
                         },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'export',
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.ios_share_rounded),
-                              title: Text('Exportar PJ'),
+                        itemBuilder: (menuContext) {
+                          final theme = Theme.of(menuContext);
+                          final semantic =
+                              theme.extension<AsteriaSemanticColors>() ??
+                              AsteriaSemanticColors.asteria(theme.colorScheme);
+
+                          return [
+                            const PopupMenuItem(
+                              value: 'export',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.ios_share_rounded),
+                                title: Text('Exportar PJ'),
+                              ),
                             ),
-                          ),
-                        ],
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  Icons.delete_forever_rounded,
+                                  color: semantic.delete,
+                                ),
+                                title: Text(
+                                  'Eliminar personaje',
+                                  style: TextStyle(color: semantic.delete),
+                                ),
+                              ),
+                            ),
+                          ];
+                        },
                       ),
                     ),
                   ),
