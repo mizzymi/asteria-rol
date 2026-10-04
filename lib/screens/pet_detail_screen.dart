@@ -1344,7 +1344,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       'CA' => semantic.settings,
       'Velocidad' => semantic.positive,
       'Competencia' => semantic.neutral,
-      _ => semantic.pets,
+      _ => semantic.rest,
     };
 
     return Container(
@@ -1393,7 +1393,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       'Ataques básicos' => semantic.negative,
       'Habilidades activas' => semantic.abilities,
       'Pasivas' => semantic.neutral,
-      _ => semantic.pets,
+      _ => semantic.rest,
     };
 
     return Row(
