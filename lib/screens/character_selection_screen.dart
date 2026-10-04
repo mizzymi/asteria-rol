@@ -11,6 +11,7 @@ import '../services/campaign_storage_service.dart';
 import '../services/campaign_economy_service.dart';
 import '../services/character_import_export_service.dart';
 import '../services/character_storage_service.dart';
+import '../services/theme_preference_service.dart';
 import 'campaign_detail_screen.dart';
 import 'campaign_form_screen.dart';
 import 'character_form_screen.dart';
@@ -456,6 +457,16 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
               ),
               const Divider(),
               ListTile(
+                leading: const Icon(Icons.settings_rounded),
+                title: const Text('Ajustes'),
+                subtitle: const Text('Tema y apariencia'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showSettings(context);
+                },
+              ),
+              const Divider(),
+              ListTile(
                 leading: const Icon(Icons.add_rounded),
                 title: const Text('Nueva campaña'),
                 onTap: () {
@@ -478,6 +489,173 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                   Navigator.pop(sheetContext);
                   _importCharacter();
                 },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  Future<void> _showSettings(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 22),
+            child: ValueListenableBuilder<AsteriaVisualTheme>(
+              valueListenable: ThemePreferenceService.current,
+              builder: (context, currentTheme, _) {
+                final theme = Theme.of(context);
+                final colors = theme.colorScheme;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.palette_rounded, color: colors.primary),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Ajustes',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Elige el estilo visual de Asteria. El modo claro u '
+                      'oscuro sigue el ajuste del sistema.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Tema',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    for (final option in AsteriaVisualTheme.values) ...[
+                      _ThemeOptionCard(
+                        option: option,
+                        selected: currentTheme == option,
+                        onTap: () {
+                          ThemePreferenceService.setTheme(option);
+                        },
+                      ),
+                      if (option != AsteriaVisualTheme.values.last)
+                        const SizedBox(height: 10),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ThemeOptionCard extends StatelessWidget {
+  final AsteriaVisualTheme option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ThemeOptionCard({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    final previewColors = option == AsteriaVisualTheme.rainbow
+        ? const [
+            Color(0xFFD81B60),
+            Color(0xFFD32F2F),
+            Color(0xFFEF6C00),
+            Color(0xFF2E7D32),
+            Color(0xFF1565C0),
+            Color(0xFF6A1B9A),
+          ]
+        : [colors.primary, colors.secondary, colors.tertiary];
+
+    return Material(
+      color: selected
+          ? colors.primaryContainer.withValues(alpha: 0.55)
+          : colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: selected ? colors.primary : colors.outlineVariant,
+          width: selected ? 1.6 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 52,
+                height: 52,
+                child: Wrap(
+                  spacing: 3,
+                  runSpacing: 3,
+                  children: previewColors
+                      .map(
+                        (color) => Container(
+                          width: previewColors.length > 3 ? 15 : 23,
+                          height: previewColors.length > 3 ? 23 : 52,
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      option.label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      option.description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.circle_outlined,
+                color: selected ? colors.primary : colors.outline,
               ),
             ],
           ),
