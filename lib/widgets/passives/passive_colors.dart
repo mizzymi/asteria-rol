@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import '../../models/passive.dart';
+import '../../theme/asteria_semantic_colors.dart';
 
 class PassiveColors {
   const PassiveColors._();
 
+  static AsteriaSemanticColors _semantic(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+  }
+
   static Color sourceColor(BuildContext context, CharacterPassive passive) =>
-      Theme.of(context).colorScheme.primary;
-  static Color armorClass(BuildContext context) =>
-      Theme.of(context).colorScheme.secondary;
-  static Color initiative(BuildContext context) =>
-      Theme.of(context).colorScheme.secondary;
-  static Color speed(BuildContext context) =>
-      Theme.of(context).colorScheme.tertiary;
-  static Color health(BuildContext context) =>
-      Theme.of(context).colorScheme.error;
-  static Color attack(BuildContext context) =>
-      Theme.of(context).colorScheme.error;
-  static Color skill(BuildContext context) =>
-      Theme.of(context).colorScheme.primary;
+      _semantic(context).neutral;
+  static Color armorClass(BuildContext context) => _semantic(context).settings;
+  static Color initiative(BuildContext context) => _semantic(context).condition;
+  static Color speed(BuildContext context) => _semantic(context).positive;
+  static Color health(BuildContext context) => _semantic(context).negative;
+  static Color attack(BuildContext context) => _semantic(context).negative;
+  static Color skill(BuildContext context) => _semantic(context).abilities;
   static Color savingThrow(BuildContext context) =>
-      Theme.of(context).colorScheme.secondary;
+      _semantic(context).exportAction;
 
   static Color softBackground(
     BuildContext context,
