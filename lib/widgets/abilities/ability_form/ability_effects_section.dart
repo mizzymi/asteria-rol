@@ -489,11 +489,14 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
                     const SizedBox(height: 18),
 
                     _buildExtraEffectSection(),
+                  ],
 
-                    if (!effect.mitigatesDamage) ...[
-                      const SizedBox(height: 18),
-                      _buildSavingThrowSection(),
-                    ],
+                  // Una habilidad puede limitarse a aplicar un estado/efecto.
+                  // En ese caso sigue siendo válido exigir una salvación aunque
+                  // no exista daño, curación ni mitigación.
+                  if (!effect.mitigatesDamage) ...[
+                    const SizedBox(height: 18),
+                    _buildSavingThrowSection(),
                   ],
 
                   const SizedBox(height: 18),
