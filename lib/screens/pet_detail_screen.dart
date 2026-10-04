@@ -200,6 +200,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final theme = Theme.of(context);
+            final semantic =
+                theme.extension<AsteriaSemanticColors>() ??
+                AsteriaSemanticColors.asteria(theme.colorScheme);
+
             return AlertDialog(
               title: Text(
                 weapon == null ? 'Nuevo ataque básico' : 'Editar ataque',
@@ -284,8 +289,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                             ),
                           ),
                           IconButton(
+                            style: RainbowActionStyle.iconButton(
+                              context,
+                              semantic.create,
+                            ),
                             icon: const Icon(Icons.add_circle_outline_rounded),
-                            color: Theme.of(context).colorScheme.primary,
                             tooltip: 'Añadir otro tipo de daño',
                             onPressed: () {
                               setDialogState(() {
@@ -347,11 +355,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                 ),
                                 if (dialogDamages.length > 1)
                                   IconButton(
-                                    icon: Icon(
+                                    style: RainbowActionStyle.iconButton(
+                                      context,
+                                      semantic.delete,
+                                    ),
+                                    icon: const Icon(
                                       Icons.delete_outline_rounded,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.error,
                                     ),
                                     onPressed: () {
                                       setDialogState(() {
@@ -1550,6 +1559,9 @@ class _PetHealthDialogState extends State<_PetHealthDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
 
     return AlertDialog(
       title: Row(
@@ -1579,11 +1591,12 @@ class _PetHealthDialogState extends State<_PetHealthDialog> {
                     onPressed: () => setState(() => operation = '-'),
                     icon: const Icon(Icons.remove_rounded),
                     label: const Text('Daño'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: operation == '-'
-                          ? colors.errorContainer
-                          : null,
-                    ),
+                    style: operation == '-'
+                        ? RainbowActionStyle.filledButton(
+                            context,
+                            semantic.negative,
+                          )
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1592,11 +1605,12 @@ class _PetHealthDialogState extends State<_PetHealthDialog> {
                     onPressed: () => setState(() => operation = '+'),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Curación'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: operation == '+'
-                          ? colors.primaryContainer
-                          : null,
-                    ),
+                    style: operation == '+'
+                        ? RainbowActionStyle.filledButton(
+                            context,
+                            semantic.positive,
+                          )
+                        : null,
                   ),
                 ),
               ],
