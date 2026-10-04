@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/action_saving_throw.dart';
+import '../../../models/saving_throw_roll_mode.dart';
 
 import '../common/action_dialog_scaffold.dart';
 import '../common/action_section_card.dart';
@@ -10,8 +11,10 @@ class _SavingInput {
   final ActionSavingThrowRequest request;
 
   int? naturalRoll;
+  int? secondNaturalRoll;
 
   String? rollError;
+  String? secondRollError;
 
   _SavingInput({required this.request});
 }
@@ -42,10 +45,21 @@ Future<List<ActionPhysicalSavingThrowInput>?> showPhysicalSavingThrowsDialog(
 
               if (roll == null || roll < 1 || roll > 20) {
                 entry.rollError = 'Entre 1 y 20';
-
                 valid = false;
               } else {
                 entry.rollError = null;
+              }
+
+              if (entry.request.rollMode != SavingThrowRollMode.normal) {
+                final secondRoll = entry.secondNaturalRoll;
+                if (secondRoll == null || secondRoll < 1 || secondRoll > 20) {
+                  entry.secondRollError = 'Entre 1 y 20';
+                  valid = false;
+                } else {
+                  entry.secondRollError = null;
+                }
+              } else {
+                entry.secondRollError = null;
               }
             }
 
@@ -59,6 +73,10 @@ Future<List<ActionPhysicalSavingThrowInput>?> showPhysicalSavingThrowsDialog(
                   (entry) => ActionPhysicalSavingThrowInput(
                     requestId: entry.request.id,
                     naturalRoll: entry.naturalRoll!,
+                    secondNaturalRoll:
+                        entry.request.rollMode == SavingThrowRollMode.normal
+                        ? null
+                        : entry.secondNaturalRoll,
                   ),
                 )
                 .toList(growable: false);
@@ -116,17 +134,41 @@ class _SavingThrowCard extends StatelessWidget {
       subtitle:
           '${request.effectName} · '
           '${request.ability.name} · '
-          'CD ${request.dc}',
+          'CD ${request.dc} · ${request.rollMode.label}',
 
       icon: Icons.security_rounded,
 
-      child: NumericDiceField(
-        sides: 20,
-        value: entry.naturalRoll,
-        errorText: entry.rollError,
-        onChanged: (value) {
-          entry.naturalRoll = value;
-        },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (request.rollMode != SavingThrowRollMode.normal) ...[
+            Text(
+              request.rollMode == SavingThrowRollMode.advantage
+                  ? 'Tira 2d20 y se usará el mayor.'
+                  : 'Tira 2d20 y se usará el menor.',
+            ),
+            const SizedBox(height: 10),
+          ],
+          NumericDiceField(
+            sides: 20,
+            value: entry.naturalRoll,
+            errorText: entry.rollError,
+            onChanged: (value) {
+              entry.naturalRoll = value;
+            },
+          ),
+          if (request.rollMode != SavingThrowRollMode.normal) ...[
+            const SizedBox(height: 10),
+            NumericDiceField(
+              sides: 20,
+              value: entry.secondNaturalRoll,
+              errorText: entry.secondRollError,
+              onChanged: (value) {
+                entry.secondNaturalRoll = value;
+              },
+            ),
+          ],
+        ],
       ),
     );
   }
