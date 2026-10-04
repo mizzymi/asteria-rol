@@ -685,10 +685,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   theme.extension<AsteriaSemanticColors>() ??
                   AsteriaSemanticColors.asteria(theme.colorScheme);
               return IconButton(
-                style: RainbowActionStyle.iconButton(
-                  context,
-                  semantic.edit,
-                ),
+                style: RainbowActionStyle.iconButton(context, semantic.edit),
                 icon: const Icon(Icons.edit_rounded),
                 tooltip: 'Editar mascota',
                 onPressed: _editPet,
@@ -981,9 +978,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                     style: Theme.of(context)
                                         .textTheme
                                         .labelMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                        ),
+                                        ?.copyWith(fontWeight: FontWeight.w800),
                                   ),
                                   const SizedBox(width: 8),
                                   Container(
@@ -1074,10 +1069,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                             }
                           },
                           itemBuilder: (_) => const [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Text('Editar'),
-                            ),
+                            PopupMenuItem(value: 'edit', child: Text('Editar')),
                             PopupMenuItem(
                               value: 'delete',
                               child: Text('Eliminar'),
@@ -1263,10 +1255,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(
-                          Icons.favorite_rounded,
-                          color: semantic.negative,
-                        ),
+                        Icon(Icons.favorite_rounded, color: semantic.negative),
                         const SizedBox(width: 8),
                         Text(
                           'Puntos de vida',

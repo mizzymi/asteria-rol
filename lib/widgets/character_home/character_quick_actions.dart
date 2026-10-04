@@ -114,9 +114,7 @@ class _QuickActionButton extends StatelessWidget {
             lightStrength: 0.14,
             darkStrength: 0.12,
           );
-    final foreground = rainbow
-        ? RainbowActionStyle.foreground(context)
-        : color;
+    final foreground = rainbow ? RainbowActionStyle.foreground(context) : color;
 
     final iconBackground = rainbow
         ? foreground.withValues(alpha: 0.10)

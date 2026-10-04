@@ -18,6 +18,10 @@ class HealingBonus {
 
   CharacterFormula? formula;
 
+  /// Opcional. En mitigación permite limitar este bonus a un tipo de daño
+  /// concreto. En curación queda vacío.
+  String damageType;
+
   PassiveChargeDiceScaling chargeScaling;
 
   List<ActionCost> costs;
@@ -29,6 +33,7 @@ class HealingBonus {
     Map<AbilityType, int>? abilityModifierMultipliers,
     this.flatBonus = 0,
     this.formula,
+    this.damageType = '',
     this.chargeScaling = const PassiveChargeDiceScaling(),
     List<ActionCost>? costs,
   }) : dicePools = dicePools ?? [],
@@ -68,6 +73,8 @@ class HealingBonus {
       'flatBonus': flatBonus,
 
       'formula': formula?.toMap(),
+
+      'damageType': damageType,
 
       'chargeScaling': chargeScaling.toMap(),
 
@@ -144,6 +151,8 @@ class HealingBonus {
       formula: rawFormula is Map
           ? CharacterFormula.fromMap(Map<dynamic, dynamic>.from(rawFormula))
           : null,
+
+      damageType: map['damageType']?.toString() ?? '',
 
       chargeScaling: map['chargeScaling'] is Map
           ? PassiveChargeDiceScaling.fromMap(

@@ -27,9 +27,7 @@ class CombatStatCard extends StatelessWidget {
         AsteriaSemanticColors.asteria(colors);
 
     final rainbow = semantic.isRainbow;
-    final foreground = rainbow
-        ? RainbowActionStyle.foreground(context)
-        : color;
+    final foreground = rainbow ? RainbowActionStyle.foreground(context) : color;
 
     final background = rainbow
         ? RainbowActionStyle.background(context, color)

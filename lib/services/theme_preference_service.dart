@@ -1,10 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AsteriaVisualTheme {
-  asteria,
-  rainbow,
-}
+enum AsteriaVisualTheme { asteria, rainbow }
 
 extension AsteriaVisualThemeData on AsteriaVisualTheme {
   String get label {

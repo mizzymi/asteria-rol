@@ -534,12 +534,12 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
               ListTile(
                 leading: Icon(
                   Icons.settings_rounded,
-                  color: (Theme.of(context)
-                          .extension<AsteriaSemanticColors>() ??
-                      AsteriaSemanticColors.asteria(
-                        Theme.of(context).colorScheme,
-                      ))
-                      .settings,
+                  color:
+                      (Theme.of(context).extension<AsteriaSemanticColors>() ??
+                              AsteriaSemanticColors.asteria(
+                                Theme.of(context).colorScheme,
+                              ))
+                          .settings,
                 ),
                 title: const Text('Ajustes'),
                 subtitle: const Text('Tema y apariencia'),
@@ -552,12 +552,12 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
               ListTile(
                 leading: Icon(
                   Icons.add_rounded,
-                  color: (Theme.of(context)
-                          .extension<AsteriaSemanticColors>() ??
-                      AsteriaSemanticColors.asteria(
-                        Theme.of(context).colorScheme,
-                      ))
-                      .create,
+                  color:
+                      (Theme.of(context).extension<AsteriaSemanticColors>() ??
+                              AsteriaSemanticColors.asteria(
+                                Theme.of(context).colorScheme,
+                              ))
+                          .create,
                 ),
                 title: const Text('Nueva campaña'),
                 onTap: () {
@@ -576,12 +576,12 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
               ListTile(
                 leading: Icon(
                   Icons.file_download_rounded,
-                  color: (Theme.of(context)
-                          .extension<AsteriaSemanticColors>() ??
-                      AsteriaSemanticColors.asteria(
-                        Theme.of(context).colorScheme,
-                      ))
-                      .importAction,
+                  color:
+                      (Theme.of(context).extension<AsteriaSemanticColors>() ??
+                              AsteriaSemanticColors.asteria(
+                                Theme.of(context).colorScheme,
+                              ))
+                          .importAction,
                 ),
                 title: const Text('Importar personaje'),
                 onTap: () {
@@ -595,6 +595,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
       ),
     );
   }
+
   Future<void> _showSettings(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -751,9 +752,7 @@ class _ThemeOptionCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Icon(
-                selected
-                    ? Icons.check_circle_rounded
-                    : Icons.circle_outlined,
+                selected ? Icons.check_circle_rounded : Icons.circle_outlined,
                 color: selected ? colors.primary : colors.outline,
               ),
             ],
@@ -814,10 +813,7 @@ class _Header extends StatelessWidget {
                 AsteriaSemanticColors.asteria(theme.colorScheme);
 
             return IconButton.filledTonal(
-              style: RainbowActionStyle.iconButton(
-                context,
-                semantic.settings,
-              ),
+              style: RainbowActionStyle.iconButton(context, semantic.settings),
               tooltip: 'Más opciones',
               onPressed: onMenu,
               icon: const Icon(Icons.more_horiz_rounded),
@@ -1169,9 +1165,7 @@ class _QuickAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final rainbow = RainbowActionStyle.enabled(context);
-    final foreground = rainbow
-        ? RainbowActionStyle.foreground(context)
-        : color;
+    final foreground = rainbow ? RainbowActionStyle.foreground(context) : color;
     final background = rainbow
         ? RainbowActionStyle.background(context, color)
         : Color.lerp(colors.surfaceContainerLow, color, 0.14) ??

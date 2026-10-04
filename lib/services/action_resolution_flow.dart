@@ -3397,6 +3397,7 @@ class ActionResolutionFlow {
   Future<int?> _resolvePassiveMitigationBonuses(
     BuildContext context, {
     required int incomingDamage,
+    required String damageType,
   }) async {
     if (incomingDamage <= 0) {
       return 0;
@@ -3410,9 +3411,19 @@ class ActionResolutionFlow {
       }
 
       for (final bonus in passive.mitigationBonuses) {
-        if (bonus.hasHealing) {
-          entries.add((passive: passive, bonus: bonus));
+        if (!bonus.hasHealing) {
+          continue;
         }
+
+        final restrictedType = bonus.damageType.trim().toLowerCase();
+        final receivedType = damageType.trim().toLowerCase();
+
+        if (restrictedType.isNotEmpty &&
+            (receivedType.isEmpty || restrictedType != receivedType)) {
+          continue;
+        }
+
+        entries.add((passive: passive, bonus: bonus));
       }
     }
 
@@ -3600,6 +3611,7 @@ class ActionResolutionFlow {
       final resolvedPassiveMitigation = await _resolvePassiveMitigationBonuses(
         context,
         incomingDamage: effectiveBaseAmount,
+        damageType: normalizedDamageType,
       );
 
       if (resolvedPassiveMitigation == null || !context.mounted) {

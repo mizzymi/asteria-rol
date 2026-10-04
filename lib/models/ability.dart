@@ -262,7 +262,12 @@ class AbilityEffect {
       return true;
     }
 
-    // Compatibilidad legacy.
+    // Compatibilidad legacy. El daño extra legacy ya no forma parte de los
+    // efectos de daño; esos efectos deben usar componentes modernos.
+    if (dealsDamage) {
+      return false;
+    }
+
     return dicePools.isNotEmpty ||
         abilityModifierMultipliers.values.any((value) => value != 0) ||
         effectBonus != 0 ||

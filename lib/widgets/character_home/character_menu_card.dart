@@ -34,9 +34,7 @@ class CharacterMenuCard extends StatelessWidget {
             darkStrength: 0.13,
           );
 
-    final foreground = rainbow
-        ? RainbowActionStyle.foreground(context)
-        : color;
+    final foreground = rainbow ? RainbowActionStyle.foreground(context) : color;
 
     final iconBackground = rainbow
         ? foreground.withValues(alpha: 0.10)

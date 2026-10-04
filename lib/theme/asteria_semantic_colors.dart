@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 @immutable
-class AsteriaSemanticColors
-    extends ThemeExtension<AsteriaSemanticColors> {
+class AsteriaSemanticColors extends ThemeExtension<AsteriaSemanticColors> {
   final bool isRainbow;
   final Color stats;
   final Color abilities;

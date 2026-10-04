@@ -2837,9 +2837,8 @@ class Character {
     }
 
     result.sort(
-      (a, b) => a.damageType.toLowerCase().compareTo(
-        b.damageType.toLowerCase(),
-      ),
+      (a, b) =>
+          a.damageType.toLowerCase().compareTo(b.damageType.toLowerCase()),
     );
 
     return result;

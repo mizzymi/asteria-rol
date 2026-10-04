@@ -19,9 +19,11 @@ class CharacterFormulaContext {
   }) {
     final variables = <String, double>{
       // =====================================================================
-      // NIVEL
+      // NIVEL / COMPETENCIA
       // =====================================================================
       'level': character.level.toDouble(),
+      'competencia': character.proficiencyBonus.toDouble(),
+      'proficiency': character.proficiencyBonus.toDouble(),
 
       // =====================================================================
       // VIDA ACTUAL / EFECTIVA
