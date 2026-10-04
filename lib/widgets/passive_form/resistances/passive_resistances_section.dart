@@ -15,89 +15,11 @@ class PassiveResistancesSection extends StatelessWidget {
   Future<DamageResistance?> _edit(
     BuildContext context, {
     DamageResistance? initial,
-  }) async {
-    final controller = TextEditingController(text: initial?.damageType ?? '');
-    var tier = initial?.tier ?? DamageResistanceTier.minor;
-
-    final result = await showDialog<DamageResistance>(
+  }) {
+    return showDialog<DamageResistance>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: Text(
-                initial == null ? 'Añadir resistencia' : 'Editar resistencia',
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Tipo de daño',
-                      hintText: 'Fuego, frío, radiante, cortante...',
-                      prefixIcon: Icon(Icons.local_fire_department_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<DamageResistanceTier>(
-                    initialValue: tier,
-                    decoration: const InputDecoration(
-                      labelText: 'Nivel',
-                      prefixIcon: Icon(Icons.shield_rounded),
-                    ),
-                    items: DamageResistanceTier.values
-                        .map(
-                          (value) => DropdownMenuItem(
-                            value: value,
-                            child: Text(value.label),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() => tier = value);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    '2 menores = normal · 2 normales = mayor · '
-                    '2 mayores = inmunidad',
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final damageType = controller.text.trim();
-                    if (damageType.isEmpty) {
-                      return;
-                    }
-                    Navigator.pop(
-                      dialogContext,
-                      DamageResistance(
-                        damageType: damageType,
-                        tier: tier,
-                      ),
-                    );
-                  },
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => _DamageResistanceEditorDialog(initial: initial),
     );
-
-    controller.dispose();
-    return result;
   }
 
   @override
@@ -195,6 +117,115 @@ class PassiveResistancesSection extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+
+class _DamageResistanceEditorDialog extends StatefulWidget {
+  final DamageResistance? initial;
+
+  const _DamageResistanceEditorDialog({this.initial});
+
+  @override
+  State<_DamageResistanceEditorDialog> createState() =>
+      _DamageResistanceEditorDialogState();
+}
+
+class _DamageResistanceEditorDialogState
+    extends State<_DamageResistanceEditorDialog> {
+  late final TextEditingController _damageTypeController;
+  late DamageResistanceTier _tier;
+
+  @override
+  void initState() {
+    super.initState();
+    _damageTypeController = TextEditingController(
+      text: widget.initial?.damageType ?? '',
+    );
+    _tier = widget.initial?.tier ?? DamageResistanceTier.minor;
+  }
+
+  @override
+  void dispose() {
+    _damageTypeController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final damageType = _damageTypeController.text.trim();
+    if (damageType.isEmpty) {
+      return;
+    }
+
+    Navigator.of(context).pop(
+      DamageResistance(
+        damageType: damageType,
+        tier: _tier,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        widget.initial == null ? 'Añadir resistencia' : 'Editar resistencia',
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _damageTypeController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Tipo de daño',
+              hintText: 'Fuego, frío, radiante, cortante...',
+              prefixIcon: Icon(Icons.local_fire_department_rounded),
+            ),
+            onSubmitted: (_) => _save(),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<DamageResistanceTier>(
+            initialValue: _tier,
+            decoration: const InputDecoration(
+              labelText: 'Nivel',
+              prefixIcon: Icon(Icons.shield_rounded),
+            ),
+            items: DamageResistanceTier.values
+                .map(
+                  (value) => DropdownMenuItem(
+                    value: value,
+                    child: Text(value.label),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                _tier = value;
+              });
+            },
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            '2 menores = normal · 2 normales = mayor · '
+            '2 mayores = inmunidad',
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Guardar'),
+        ),
+      ],
     );
   }
 }
