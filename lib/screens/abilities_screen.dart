@@ -727,6 +727,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     );
     if (ability == null) return;
 
+    // Al crear una habilidad dentro de una carpeta, la colocamos
+    // directamente en la carpeta desde la que se abrió el formulario.
+    ability.folderId ??= _currentFolderId;
+
     setState(() {
       character.addCharacterAbility(ability);
     });
