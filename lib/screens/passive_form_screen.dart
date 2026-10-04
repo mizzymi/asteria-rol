@@ -690,6 +690,9 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       passive: widget.passive,
       ownerPassiveId: passiveId,
       ownerUsesCharges: hasCharges,
+      title: 'Mitigación de daño',
+      formulaDescription: 'Reduce el daño recibido antes de descontar PV.',
+      allowDamageType: true,
     );
 
     if (result == null || !mounted) {
@@ -860,6 +863,9 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       passive: widget.passive,
       ownerPassiveId: passiveId,
       ownerUsesCharges: hasCharges,
+      title: 'Mitigación de daño',
+      formulaDescription: 'Reduce el daño recibido antes de descontar PV.',
+      allowDamageType: true,
     );
 
     if (result == null || !mounted) {
@@ -1757,10 +1763,12 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   },
 
                   mitigationText: (bonus) {
-                    return PassiveDisplayFormatter.healingBonus(
+                    final base = PassiveDisplayFormatter.healingBonus(
                       bonus,
                       character: widget.character,
                     );
+                    final type = bonus.damageType.trim();
+                    return type.isEmpty ? base : '$base · Solo $type';
                   },
 
                   onAddDamage: addDamageBonus,
