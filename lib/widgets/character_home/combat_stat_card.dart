@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/asteria_semantic_colors.dart';
 import 'character_home_colors.dart';
 
 class CombatStatCard extends StatelessWidget {
@@ -20,19 +21,22 @@ class CombatStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
 
     final background = CharacterHomeColors.tintedSurface(
       context,
       color,
-      lightStrength: 0.16,
-      darkStrength: 0.13,
+      lightStrength: semantic.isRainbow ? 0.26 : 0.16,
+      darkStrength: semantic.isRainbow ? 0.22 : 0.13,
     );
 
     final iconBackground = CharacterHomeColors.tintedSurface(
       context,
       color,
-      lightStrength: 0.26,
-      darkStrength: 0.20,
+      lightStrength: semantic.isRainbow ? 0.42 : 0.26,
+      darkStrength: semantic.isRainbow ? 0.34 : 0.20,
     );
 
     final borderColor = CharacterHomeColors.tintedBorder(
