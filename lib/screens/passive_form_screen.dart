@@ -7,6 +7,8 @@ import '../models/character_effect.dart';
 import '../models/critical_damage_bonus.dart';
 import '../models/damage_bonus.dart';
 import '../models/dice_pool.dart';
+import '../models/damage_resistance.dart';
+import '../models/saving_throw_roll_mode.dart';
 import '../models/healing_bonus.dart';
 import '../models/passive.dart';
 import '../models/passive_resource_modifier.dart';
@@ -135,6 +137,10 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
   late Map<AbilityType, FormulaBonus> abilityModifierBonuses;
 
   late Map<AbilityType, FormulaBonus> savingThrowBonuses;
+
+  late Map<AbilityType, SavingThrowRollMode> savingThrowRollModes;
+
+  late List<DamageResistance> damageResistances;
 
   late Map<DndSkill, FormulaBonus> skillBonuses;
 
@@ -322,6 +328,19 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
               )
             : FormulaBonus(),
     };
+
+    savingThrowRollModes = {
+      for (final ability in AbilityType.values)
+        ability:
+            passive?.savingThrowRollModes[ability] ??
+            SavingThrowRollMode.normal,
+    };
+
+    damageResistances =
+        passive?.damageResistances
+            .map((resistance) => DamageResistance.fromMap(resistance.toMap()))
+            .toList() ??
+        [];
 
     // =========================================================================
     // HABILIDADES
@@ -1177,6 +1196,17 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
       savingThrowBonuses: cleanedSavingThrows,
 
+      savingThrowRollModes: {
+        for (final entry in savingThrowRollModes.entries)
+          if (entry.value != SavingThrowRollMode.normal)
+            entry.key: entry.value,
+      },
+
+      damageResistances: damageResistances
+          .where((resistance) => resistance.isValid)
+          .map((resistance) => DamageResistance.fromMap(resistance.toMap()))
+          .toList(),
+
       skillBonuses: cleanedSkills,
 
       // =======================================================================
@@ -1338,7 +1368,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                 icon: Icons.bar_chart_rounded,
 
                 subtitle:
-                    'Stats base, modificadores, salvaciones y habilidades.',
+                    'Stats, salvaciones, resistencias y habilidades.',
               ),
 
               if (_sectionExpanded(_PassiveFormSection.stats)) ...[
@@ -1352,6 +1382,10 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   abilityModifierBonuses: abilityModifierBonuses,
 
                   savingThrowBonuses: savingThrowBonuses,
+
+                  savingThrowRollModes: savingThrowRollModes,
+
+                  damageResistances: damageResistances,
 
                   skillBonuses: skillBonuses,
 
@@ -1370,6 +1404,18 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                   onSavingThrowChanged: (ability, bonus) {
                     setState(() {
                       savingThrowBonuses[ability] = bonus;
+                    });
+                  },
+
+                  onSavingThrowRollModeChanged: (ability, mode) {
+                    setState(() {
+                      savingThrowRollModes[ability] = mode;
+                    });
+                  },
+
+                  onDamageResistancesChanged: (values) {
+                    setState(() {
+                      damageResistances = values;
                     });
                   },
 
