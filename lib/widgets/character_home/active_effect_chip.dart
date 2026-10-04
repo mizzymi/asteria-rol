@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/character_effect.dart';
+import '../../theme/asteria_semantic_colors.dart';
 import 'character_home_colors.dart';
 
 class ActiveEffectChip extends StatelessWidget {
@@ -149,21 +150,38 @@ class ActiveEffectChip extends StatelessWidget {
   }
 
   Color _effectColor(BuildContext context, CharacterEffect effect) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
 
     if (!effect.enabled || effect.expired) {
       return colors.onSurfaceVariant;
     }
 
+    if (!semantic.isRainbow) {
+      switch (effect.type) {
+        case CharacterEffectType.buff:
+          return colors.tertiary;
+        case CharacterEffectType.debuff:
+          return colors.error;
+        case CharacterEffectType.condition:
+          return colors.primary;
+        case CharacterEffectType.neutral:
+          return colors.secondary;
+      }
+    }
+
     switch (effect.type) {
       case CharacterEffectType.buff:
-        return Theme.of(context).colorScheme.tertiary;
+        return semantic.positive;
       case CharacterEffectType.debuff:
-        return Theme.of(context).colorScheme.error;
+        return semantic.negative;
       case CharacterEffectType.condition:
-        return Theme.of(context).colorScheme.primary;
+        return semantic.condition;
       case CharacterEffectType.neutral:
-        return Theme.of(context).colorScheme.secondary;
+        return semantic.neutral;
     }
   }
 
