@@ -778,6 +778,10 @@ class _CombatScreenState extends State<CombatScreen> {
                   onUse: () {
                     _resolveAbility(ability);
                   },
+
+                  onExpand: () {
+                    _showAbilityDetails(ability, sourceItem);
+                  },
                 );
               }),
 
@@ -809,6 +813,10 @@ class _CombatScreenState extends State<CombatScreen> {
                           _applyPassiveLinkedEffects(passive);
                         }
                       : null,
+
+                  onExpand: () {
+                    _showPassiveDetails(passive, sourceItem);
+                  },
                 );
               }),
 
