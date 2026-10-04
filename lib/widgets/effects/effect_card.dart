@@ -7,6 +7,7 @@ import '../../models/skill.dart';
 
 import '../../services/formula_display_formatter.dart';
 import '../../services/passive_display_formatter.dart';
+import '../../theme/asteria_semantic_colors.dart';
 
 import '../passive_form/triggers/passive_trigger_labels.dart';
 
@@ -56,18 +57,23 @@ class _EffectCardState extends State<EffectCard> {
       return Theme.of(context).colorScheme.onSurfaceVariant;
     }
 
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
     switch (effect.type) {
       case CharacterEffectType.buff:
-        return Theme.of(context).colorScheme.tertiary;
+        return semantic.positive;
 
       case CharacterEffectType.debuff:
-        return Theme.of(context).colorScheme.error;
+        return semantic.negative;
 
       case CharacterEffectType.condition:
-        return Theme.of(context).colorScheme.primary;
+        return semantic.condition;
 
       case CharacterEffectType.neutral:
-        return Theme.of(context).colorScheme.secondary;
+        return semantic.neutral;
     }
   }
 

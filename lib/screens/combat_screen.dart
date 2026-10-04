@@ -7,6 +7,7 @@ import '../models/item.dart';
 import '../models/ability.dart';
 import '../models/passive.dart';
 import '../models/character_content_folder.dart';
+import '../models/damage_resistance.dart';
 
 import '../services/character_effect_application_service.dart';
 import '../services/action_resolution_flow.dart';
@@ -268,7 +269,9 @@ class _CombatScreenState extends State<CombatScreen> {
         await showDialog<({String operation, int amount, String damageType})>(
           context: context,
           builder: (dialogContext) {
-            return const _SimpleHealthDialog();
+            return _SimpleHealthDialog(
+              resistances: character.effectiveDamageResistances,
+            );
           },
         );
 
@@ -1479,7 +1482,9 @@ class _CombatResourceDialogState extends State<_CombatResourceDialog> {
 }
 
 class _SimpleHealthDialog extends StatefulWidget {
-  const _SimpleHealthDialog();
+  final List<DamageResistance> resistances;
+
+  const _SimpleHealthDialog({required this.resistances});
 
   @override
   State<_SimpleHealthDialog> createState() => _SimpleHealthDialogState();
@@ -1487,13 +1492,12 @@ class _SimpleHealthDialog extends StatefulWidget {
 
 class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
   final amountController = TextEditingController();
-  final damageTypeController = TextEditingController();
   String operation = '-';
+  String selectedDamageType = '';
 
   @override
   void dispose() {
     amountController.dispose();
-    damageTypeController.dispose();
     super.dispose();
   }
 
@@ -1570,16 +1574,34 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
           ),
           if (operation == '-') ...[
             const SizedBox(height: 12),
-            TextField(
-              controller: damageTypeController,
-              textCapitalization: TextCapitalization.sentences,
+            DropdownButtonFormField<String>(
+              initialValue: selectedDamageType,
+              isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Tipo de daño',
-                hintText: 'Fuego, frío, contundente, radiante...',
-                prefixIcon: Icon(Icons.local_fire_department_rounded),
+                labelText: 'Resistencia aplicable',
+                prefixIcon: Icon(Icons.shield_rounded),
                 helperText:
-                    'Se usará para aplicar automáticamente las resistencias.',
+                    'Selecciona una resistencia o inmunidad si corresponde.',
               ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('Ninguna de las anteriores'),
+                ),
+                ...widget.resistances.map(
+                  (resistance) => DropdownMenuItem<String>(
+                    value: resistance.damageType,
+                    child: Text(
+                      '${resistance.damageType} · ${resistance.tier.label}',
+                    ),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  selectedDamageType = value ?? '';
+                });
+              },
             ),
           ],
         ],
@@ -1595,20 +1617,10 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
               return;
             }
 
-            final damageType = damageTypeController.text.trim();
-            if (operation == '-' && damageType.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Indica el tipo de daño recibido.'),
-                ),
-              );
-              return;
-            }
-
             Navigator.pop(context, (
               operation: operation,
               amount: amount,
-              damageType: operation == '-' ? damageType : '',
+              damageType: operation == '-' ? selectedDamageType : '',
             ));
           },
           child: const Text('Continuar'),

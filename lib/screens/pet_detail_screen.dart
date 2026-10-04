@@ -14,6 +14,8 @@ import '../models/character_effect.dart';
 import '../services/character_storage_service.dart';
 import '../services/action_resolution_flow.dart';
 import '../services/ability_library_service.dart';
+import '../theme/asteria_semantic_colors.dart';
+import '../theme/rainbow_action_style.dart';
 import '../services/passive_library_service.dart';
 import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
 import 'ability_form_screen.dart';
@@ -198,6 +200,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final theme = Theme.of(context);
+            final semantic =
+                theme.extension<AsteriaSemanticColors>() ??
+                AsteriaSemanticColors.asteria(theme.colorScheme);
+
             return AlertDialog(
               title: Text(
                 weapon == null ? 'Nuevo ataque básico' : 'Editar ataque',
@@ -282,8 +289,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                             ),
                           ),
                           IconButton(
+                            style: RainbowActionStyle.iconButton(
+                              context,
+                              semantic.create,
+                            ),
                             icon: const Icon(Icons.add_circle_outline_rounded),
-                            color: Theme.of(context).colorScheme.primary,
                             tooltip: 'Añadir otro tipo de daño',
                             onPressed: () {
                               setDialogState(() {
@@ -345,11 +355,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                 ),
                                 if (dialogDamages.length > 1)
                                   IconButton(
-                                    icon: Icon(
+                                    style: RainbowActionStyle.iconButton(
+                                      context,
+                                      semantic.delete,
+                                    ),
+                                    icon: const Icon(
                                       Icons.delete_outline_rounded,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.error,
                                     ),
                                     onPressed: () {
                                       setDialogState(() {
@@ -658,14 +669,31 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(pet.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_rounded),
-            tooltip: 'Editar mascota',
-            onPressed: _editPet,
+          Builder(
+            builder: (context) {
+              final theme = Theme.of(context);
+              final semantic =
+                  theme.extension<AsteriaSemanticColors>() ??
+                  AsteriaSemanticColors.asteria(theme.colorScheme);
+              return IconButton(
+                style: RainbowActionStyle.iconButton(
+                  context,
+                  semantic.edit,
+                ),
+                icon: const Icon(Icons.edit_rounded),
+                tooltip: 'Editar mascota',
+                onPressed: _editPet,
+              );
+            },
           ),
         ],
       ),
@@ -683,6 +711,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Efectos activos',
                   icon: Icons.auto_awesome_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.effects,
+                    ),
                     onPressed: _addEffect,
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
@@ -770,6 +802,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Ataques básicos',
                   icon: Icons.gavel_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.negative,
+                    ),
                     onPressed: () => _addOrEditWeapon(),
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
@@ -834,6 +870,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Habilidades activas',
                   icon: Icons.flash_on_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.abilities,
+                    ),
                     onPressed: _addAbility,
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
@@ -900,6 +940,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Pasivas',
                   icon: Icons.auto_awesome_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.neutral,
+                    ),
                     onPressed: _addPassive,
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
@@ -920,16 +964,28 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                           passive.name,
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        subtitle: Text(
-                          passive.hasCharges
-                              ? '${passive.triggers.length} triggers  •  Cargas ${passive.chargesText}'
-                              : '${passive.triggers.length} triggers configurados',
-                        ),
-                        onTap: () => _editPassive(passive),
-                        trailing: passive.hasCharges
-                            ? Row(
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 3),
+                            Text(
+                              '${passive.triggers.length} triggers configurados',
+                            ),
+                            if (passive.hasCharges) ...[
+                              const SizedBox(height: 8),
+                              Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  Text(
+                                    'Cargas',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  const SizedBox(width: 8),
                                   Container(
                                     decoration: BoxDecoration(
                                       color: Theme.of(
@@ -997,58 +1053,37 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                       ],
                                     ),
                                   ),
-                                  PopupMenuButton<String>(
-                                    onSelected: (value) async {
-                                      if (value == 'edit') {
-                                        await _editPassive(passive);
-                                      }
-                                      if (value == 'delete') {
-                                        setState(
-                                          () => pet.passives.removeWhere(
-                                            (p) => p.id == passive.id,
-                                          ),
-                                        );
-                                        await _save();
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Editar'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Eliminar'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              )
-                            : PopupMenuButton<String>(
-                                onSelected: (value) async {
-                                  if (value == 'edit') {
-                                    await _editPassive(passive);
-                                  }
-                                  if (value == 'delete') {
-                                    setState(
-                                      () => pet.passives.removeWhere(
-                                        (p) => p.id == passive.id,
-                                      ),
-                                    );
-                                    await _save();
-                                  }
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Editar'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Eliminar'),
-                                  ),
                                 ],
                               ),
+                            ],
+                          ],
+                        ),
+                        onTap: () => _editPassive(passive),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            if (value == 'edit') {
+                              await _editPassive(passive);
+                            }
+                            if (value == 'delete') {
+                              setState(
+                                () => pet.passives.removeWhere(
+                                  (p) => p.id == passive.id,
+                                ),
+                              );
+                              await _save();
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Editar'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Eliminar'),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1063,6 +1098,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Widget _buildHero(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
     final hasImage =
         pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
 
@@ -1088,7 +1126,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [colors.primaryContainer, colors.tertiaryContainer],
+                    colors: [
+                      semantic.neutral.withValues(alpha: .40),
+                      semantic.library.withValues(alpha: .40),
+                    ],
                   ),
                 ),
                 child: Icon(
@@ -1198,6 +1239,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Widget _buildOverviewCard(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
     final healthRatio = pet.maxHealth <= 0
         ? 0.0
         : (pet.currentHealth / pet.maxHealth).clamp(0.0, 1.0);
@@ -1219,7 +1263,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.favorite_rounded, color: colors.error),
+                        Icon(
+                          Icons.favorite_rounded,
+                          color: semantic.negative,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Puntos de vida',
@@ -1312,15 +1359,27 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   ) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
+
+    final accent = switch (label) {
+      'CA' => semantic.settings,
+      'Velocidad' => semantic.positive,
+      'Competencia' => semantic.neutral,
+      _ => semantic.rest,
+    };
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
+        color: Color.lerp(colors.surfaceContainerHighest, accent, 0.20),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: .42)),
       ),
       child: Column(
         children: [
-          Icon(icon, color: colors.primary, size: 21),
+          Icon(icon, color: accent, size: 21),
           const SizedBox(height: 5),
           Text(
             value,
@@ -1348,9 +1407,21 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     required Widget action,
   }) {
     final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
+    final accent = switch (title) {
+      'Efectos activos' => semantic.effects,
+      'Ataques básicos' => semantic.negative,
+      'Habilidades activas' => semantic.abilities,
+      'Pasivas' => semantic.neutral,
+      _ => semantic.rest,
+    };
+
     return Row(
       children: [
-        Icon(icon, size: 21, color: theme.colorScheme.primary),
+        Icon(icon, size: 21, color: accent),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -1479,6 +1550,9 @@ class _PetHealthDialogState extends State<_PetHealthDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
 
     return AlertDialog(
       title: Row(
@@ -1508,11 +1582,12 @@ class _PetHealthDialogState extends State<_PetHealthDialog> {
                     onPressed: () => setState(() => operation = '-'),
                     icon: const Icon(Icons.remove_rounded),
                     label: const Text('Daño'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: operation == '-'
-                          ? colors.errorContainer
-                          : null,
-                    ),
+                    style: operation == '-'
+                        ? RainbowActionStyle.filledButton(
+                            context,
+                            semantic.negative,
+                          )
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1521,11 +1596,12 @@ class _PetHealthDialogState extends State<_PetHealthDialog> {
                     onPressed: () => setState(() => operation = '+'),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Curación'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: operation == '+'
-                          ? colors.primaryContainer
-                          : null,
-                    ),
+                    style: operation == '+'
+                        ? RainbowActionStyle.filledButton(
+                            context,
+                            semantic.positive,
+                          )
+                        : null,
                   ),
                 ),
               ],

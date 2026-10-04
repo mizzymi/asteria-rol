@@ -1,28 +1,54 @@
 import 'package:flutter/material.dart';
 import '../../models/journal_entry.dart';
+import '../../theme/asteria_semantic_colors.dart';
 
 class JournalColors {
   const JournalColors._();
 
   static Color color(BuildContext context, JournalEntryType type) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
+    if (!semantic.isRainbow) {
+      switch (type) {
+        case JournalEntryType.session:
+          return theme.colorScheme.primary;
+        case JournalEntryType.quest:
+          return theme.colorScheme.secondary;
+        case JournalEntryType.discovery:
+          return theme.colorScheme.secondary;
+        case JournalEntryType.npc:
+          return theme.colorScheme.tertiary;
+        case JournalEntryType.combat:
+          return theme.colorScheme.error;
+        case JournalEntryType.location:
+          return theme.colorScheme.tertiary;
+        case JournalEntryType.personal:
+          return theme.colorScheme.primary;
+        case JournalEntryType.other:
+          return theme.colorScheme.onSurfaceVariant;
+      }
+    }
+
     switch (type) {
       case JournalEntryType.session:
-        return scheme.primary;
+        return semantic.neutral;
       case JournalEntryType.quest:
-        return scheme.secondary;
+        return semantic.condition;
       case JournalEntryType.discovery:
-        return scheme.secondary;
+        return semantic.edit;
       case JournalEntryType.npc:
-        return scheme.tertiary;
+        return semantic.positive;
       case JournalEntryType.combat:
-        return scheme.error;
+        return semantic.negative;
       case JournalEntryType.location:
-        return scheme.tertiary;
+        return semantic.journal;
       case JournalEntryType.personal:
-        return scheme.primary;
+        return semantic.create;
       case JournalEntryType.other:
-        return scheme.onSurfaceVariant;
+        return semantic.notes;
     }
   }
 

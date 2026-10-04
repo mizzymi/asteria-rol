@@ -106,8 +106,9 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
       return;
     }
     setState(() {
-      if (!_unlockedAbilityIds.contains(ability.id))
+      if (!_unlockedAbilityIds.contains(ability.id)) {
         _unlockedAbilityIds.add(ability.id);
+      }
     });
   }
 
@@ -124,8 +125,9 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
       return;
     }
     setState(() {
-      if (!_unlockedPassiveIds.contains(passive.id))
+      if (!_unlockedPassiveIds.contains(passive.id)) {
         _unlockedPassiveIds.add(passive.id);
+      }
     });
   }
 

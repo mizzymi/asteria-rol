@@ -16,6 +16,8 @@ import '../services/item_import_export_service.dart';
 import '../services/item_library_service.dart';
 
 import '../theme/item_type_colors.dart';
+import '../theme/asteria_semantic_colors.dart';
+import '../theme/rainbow_action_style.dart';
 import '../utils/number_format.dart';
 
 import '../widgets/items/slot_selection_dialog.dart';
@@ -1260,6 +1262,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
       context: context,
       showDragHandle: true,
       builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final semantic =
+            theme.extension<AsteriaSemanticColors>() ??
+            AsteriaSemanticColors.asteria(theme.colorScheme);
+
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
@@ -1267,19 +1274,28 @@ class _ItemsScreenState extends State<ItemsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.inventory_2_rounded),
+                  leading: Icon(
+                    Icons.inventory_2_rounded,
+                    color: semantic.create,
+                  ),
                   title: const Text('Nuevo objeto'),
                   subtitle: const Text('Crear un objeto desde cero'),
                   onTap: () => Navigator.pop(sheetContext, 'item'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.local_library_rounded),
+                  leading: Icon(
+                    Icons.local_library_rounded,
+                    color: semantic.library,
+                  ),
                   title: const Text('Desde biblioteca'),
                   subtitle: const Text('Añadir un objeto guardado'),
                   onTap: () => Navigator.pop(sheetContext, 'library'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.create_new_folder_rounded),
+                  leading: Icon(
+                    Icons.create_new_folder_rounded,
+                    color: semantic.settings,
+                  ),
                   title: const Text('Nueva carpeta'),
                   subtitle: const Text('Organiza tus objetos'),
                   onTap: () => Navigator.pop(sheetContext, 'folder'),
@@ -1310,6 +1326,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
     final allItems = _resolvedInventory;
     final query = _normalizeSearchText(_searchQuery.trim());
     final searching = query.isNotEmpty;
@@ -1368,6 +1389,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
           actions: [
             IconButton(
               tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.grid,
+              ),
               onPressed: _toggleViewMode,
               icon: Icon(
                 gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
@@ -1375,6 +1400,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
             ),
             IconButton(
               tooltip: 'Configurar ranuras',
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.settings,
+              ),
               onPressed: () {
                 EquipmentSlotsConfigDialog.show(
                   context,
@@ -1399,35 +1428,53 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       break;
                   }
                 },
-                itemBuilder: (_) => const [
+                itemBuilder: (_) => [
                   PopupMenuItem(
                     value: 'rename',
                     child: ListTile(
-                      leading: Icon(Icons.edit_rounded),
-                      title: Text('Renombrar'),
+                      leading: Icon(
+                        Icons.edit_rounded,
+                        color: semantic.edit,
+                      ),
+                      title: const Text('Renombrar'),
                     ),
                   ),
                   PopupMenuItem(
                     value: 'delete',
                     child: ListTile(
-                      leading: Icon(Icons.delete_outline_rounded),
-                      title: Text('Eliminar'),
+                      leading: Icon(
+                        Icons.delete_outline_rounded,
+                        color: semantic.delete,
+                      ),
+                      title: const Text('Eliminar'),
                     ),
                   ),
                 ],
               ),
             IconButton(
               tooltip: 'Biblioteca de objetos',
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.library,
+              ),
               onPressed: addItemFromLibrary,
               icon: const Icon(Icons.local_library_rounded),
             ),
             IconButton(
               tooltip: 'Importar objeto',
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.importAction,
+              ),
               onPressed: importItem,
               icon: const Icon(Icons.file_download_rounded),
             ),
             IconButton(
               tooltip: 'Tiendas',
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.shop,
+              ),
               onPressed: openShop,
               icon: const Icon(Icons.storefront_rounded),
             ),

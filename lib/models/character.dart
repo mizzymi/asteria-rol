@@ -2799,6 +2799,52 @@ class Character {
         : SavingThrowRollMode.disadvantage;
   }
 
+  List<DamageResistance> get effectiveDamageResistances {
+    final pointsByType = <String, int>{};
+    final displayNameByType = <String, String>{};
+
+    for (final passive in enabledPassives) {
+      for (final resistance in passive.damageResistances) {
+        final normalizedType = resistance.normalizedDamageType;
+        if (normalizedType.isEmpty) {
+          continue;
+        }
+
+        displayNameByType.putIfAbsent(
+          normalizedType,
+          () => resistance.damageType.trim(),
+        );
+        pointsByType[normalizedType] =
+            (pointsByType[normalizedType] ?? 0) +
+            resistance.tier.resistancePoints;
+      }
+    }
+
+    final result = <DamageResistance>[];
+
+    for (final entry in pointsByType.entries) {
+      final tier = DamageResistanceTierData.fromPoints(entry.value);
+      if (tier == null) {
+        continue;
+      }
+
+      result.add(
+        DamageResistance(
+          damageType: displayNameByType[entry.key] ?? entry.key,
+          tier: tier,
+        ),
+      );
+    }
+
+    result.sort(
+      (a, b) => a.damageType.toLowerCase().compareTo(
+        b.damageType.toLowerCase(),
+      ),
+    );
+
+    return result;
+  }
+
   DamageResistanceTier? damageResistanceTier(String damageType) {
     final normalizedType = normalizeDamageType(damageType);
     if (normalizedType.isEmpty) {

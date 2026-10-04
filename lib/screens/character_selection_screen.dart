@@ -11,6 +11,9 @@ import '../services/campaign_storage_service.dart';
 import '../services/campaign_economy_service.dart';
 import '../services/character_import_export_service.dart';
 import '../services/character_storage_service.dart';
+import '../services/theme_preference_service.dart';
+import '../theme/asteria_semantic_colors.dart';
+import '../theme/rainbow_action_style.dart';
 import 'campaign_detail_screen.dart';
 import 'campaign_form_screen.dart';
 import 'character_form_screen.dart';
@@ -79,6 +82,63 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
       ),
     );
     _reload();
+  }
+
+  Future<void> _deleteCharacter(Character character) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final semantic =
+            theme.extension<AsteriaSemanticColors>() ??
+            AsteriaSemanticColors.asteria(theme.colorScheme);
+
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.delete_forever_rounded),
+              SizedBox(width: 10),
+              Text('Eliminar personaje'),
+            ],
+          ),
+          content: Text(
+            '¿Quieres eliminar a "${character.name}"? '
+            'Esta acción eliminará el personaje guardado de Asteria.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              style: RainbowActionStyle.filledButton(
+                dialogContext,
+                semantic.delete,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await CharacterStorageService.deleteCharacter(character.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    _reload();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${character.name} ha sido eliminado.')),
+    );
   }
 
   Future<void> _exportCharacter(Character character) async {
@@ -186,7 +246,11 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
 
     final totalShops = campaigns.fold<int>(
       0,
@@ -272,6 +336,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.bookmarks_rounded,
                         value: '${campaigns.length}',
                         label: 'Campañas',
+                        color: semantic.neutral,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -280,6 +345,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.groups_rounded,
                         value: '${characters.length}',
                         label: 'Personajes',
+                        color: semantic.create,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -288,6 +354,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.storefront_rounded,
                         value: '$totalShops',
                         label: 'Tiendas',
+                        color: semantic.shop,
                       ),
                     ),
                   ],
@@ -380,6 +447,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                             _campaignFor(character)?.name ?? 'Campaña',
                         onTap: () => _openCharacter(character),
                         onExport: () => _exportCharacter(character),
+                        onDelete: () => _deleteCharacter(character),
                       );
                     },
                   ),
@@ -395,6 +463,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.local_library_rounded,
                         title: 'Biblioteca',
                         subtitle: 'Objetos y equipo',
+                        color: semantic.library,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -409,6 +478,7 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                         icon: Icons.file_download_rounded,
                         title: 'Importar',
                         subtitle: 'Añadir personaje',
+                        color: semantic.importAction,
                         onTap: _importCharacter,
                       ),
                     ),
@@ -421,6 +491,12 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
       ),
       floatingActionButton: campaigns.isEmpty
           ? FloatingActionButton.extended(
+              backgroundColor: semantic.isRainbow
+                  ? RainbowActionStyle.background(context, semantic.create)
+                  : null,
+              foregroundColor: semantic.isRainbow
+                  ? RainbowActionStyle.foreground(context)
+                  : null,
               onPressed: _createCampaign,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Nueva campaña'),
@@ -456,7 +532,33 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
               ),
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.add_rounded),
+                leading: Icon(
+                  Icons.settings_rounded,
+                  color: (Theme.of(context)
+                          .extension<AsteriaSemanticColors>() ??
+                      AsteriaSemanticColors.asteria(
+                        Theme.of(context).colorScheme,
+                      ))
+                      .settings,
+                ),
+                title: const Text('Ajustes'),
+                subtitle: const Text('Tema y apariencia'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showSettings(context);
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: Icon(
+                  Icons.add_rounded,
+                  color: (Theme.of(context)
+                          .extension<AsteriaSemanticColors>() ??
+                      AsteriaSemanticColors.asteria(
+                        Theme.of(context).colorScheme,
+                      ))
+                      .create,
+                ),
                 title: const Text('Nueva campaña'),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -472,12 +574,187 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.file_download_rounded),
+                leading: Icon(
+                  Icons.file_download_rounded,
+                  color: (Theme.of(context)
+                          .extension<AsteriaSemanticColors>() ??
+                      AsteriaSemanticColors.asteria(
+                        Theme.of(context).colorScheme,
+                      ))
+                      .importAction,
+                ),
                 title: const Text('Importar personaje'),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _importCharacter();
                 },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  Future<void> _showSettings(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 22),
+            child: ValueListenableBuilder<AsteriaVisualTheme>(
+              valueListenable: ThemePreferenceService.current,
+              builder: (context, currentTheme, _) {
+                final theme = Theme.of(context);
+                final colors = theme.colorScheme;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.palette_rounded, color: colors.primary),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Ajustes',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Elige el estilo visual de Asteria. El modo claro u '
+                      'oscuro sigue el ajuste del sistema.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Tema',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    for (final option in AsteriaVisualTheme.values) ...[
+                      _ThemeOptionCard(
+                        option: option,
+                        selected: currentTheme == option,
+                        onTap: () {
+                          ThemePreferenceService.setTheme(option);
+                        },
+                      ),
+                      if (option != AsteriaVisualTheme.values.last)
+                        const SizedBox(height: 10),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ThemeOptionCard extends StatelessWidget {
+  final AsteriaVisualTheme option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ThemeOptionCard({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    final previewColors = option == AsteriaVisualTheme.rainbow
+        ? const [
+            Color(0xFFD81B60),
+            Color(0xFFD32F2F),
+            Color(0xFFEF6C00),
+            Color(0xFF2E7D32),
+            Color(0xFF1565C0),
+            Color(0xFF6A1B9A),
+          ]
+        : [colors.primary, colors.secondary, colors.tertiary];
+
+    return Material(
+      color: selected
+          ? colors.primaryContainer.withValues(alpha: 0.55)
+          : colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: selected ? colors.primary : colors.outlineVariant,
+          width: selected ? 1.6 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 52,
+                height: 52,
+                child: Wrap(
+                  spacing: 3,
+                  runSpacing: 3,
+                  children: previewColors
+                      .map(
+                        (color) => Container(
+                          width: 15,
+                          height: previewColors.length > 3 ? 23 : 52,
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      option.label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      option.description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.circle_outlined,
+                color: selected ? colors.primary : colors.outline,
               ),
             ],
           ),
@@ -529,10 +806,23 @@ class _Header extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        IconButton.filledTonal(
-          tooltip: 'Más opciones',
-          onPressed: onMenu,
-          icon: const Icon(Icons.more_horiz_rounded),
+        Builder(
+          builder: (context) {
+            final theme = Theme.of(context);
+            final semantic =
+                theme.extension<AsteriaSemanticColors>() ??
+                AsteriaSemanticColors.asteria(theme.colorScheme);
+
+            return IconButton.filledTonal(
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.settings,
+              ),
+              tooltip: 'Más opciones',
+              onPressed: onMenu,
+              icon: const Icon(Icons.more_horiz_rounded),
+            );
+          },
         ),
       ],
     );
@@ -543,10 +833,13 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
+  final Color color;
+
   const _StatCard({
     required this.icon,
     required this.value,
     required this.label,
+    required this.color,
   });
   @override
   Widget build(BuildContext context) {
@@ -561,7 +854,7 @@ class _StatCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 22, color: colors.primary),
+          Icon(icon, size: 22, color: color),
           const SizedBox(width: 7),
           Flexible(
             child: Column(
@@ -724,11 +1017,14 @@ class _CharacterQuickCard extends StatelessWidget {
   final String campaignName;
   final VoidCallback onTap;
   final VoidCallback onExport;
+  final VoidCallback onDelete;
+
   const _CharacterQuickCard({
     required this.character,
     required this.campaignName,
     required this.onTap,
     required this.onExport,
+    required this.onDelete,
   });
 
   @override
@@ -778,18 +1074,44 @@ class _CharacterQuickCard extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         icon: const Icon(Icons.more_horiz_rounded, size: 20),
                         onSelected: (value) {
-                          if (value == 'export') onExport();
+                          if (value == 'export') {
+                            onExport();
+                          }
+                          if (value == 'delete') {
+                            onDelete();
+                          }
                         },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'export',
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.ios_share_rounded),
-                              title: Text('Exportar PJ'),
+                        itemBuilder: (menuContext) {
+                          final theme = Theme.of(menuContext);
+                          final semantic =
+                              theme.extension<AsteriaSemanticColors>() ??
+                              AsteriaSemanticColors.asteria(theme.colorScheme);
+
+                          return [
+                            const PopupMenuItem(
+                              value: 'export',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.ios_share_rounded),
+                                title: Text('Exportar PJ'),
+                              ),
                             ),
-                          ),
-                        ],
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  Icons.delete_forever_rounded,
+                                  color: semantic.delete,
+                                ),
+                                title: Text(
+                                  'Eliminar personaje',
+                                  style: TextStyle(color: semantic.delete),
+                                ),
+                              ),
+                            ),
+                          ];
+                        },
                       ),
                     ),
                   ),
@@ -833,17 +1155,30 @@ class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final Color color;
   final VoidCallback onTap;
+
   const _QuickAction({
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.color,
     required this.onTap,
   });
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final rainbow = RainbowActionStyle.enabled(context);
+    final foreground = rainbow
+        ? RainbowActionStyle.foreground(context)
+        : color;
+    final background = rainbow
+        ? RainbowActionStyle.background(context, color)
+        : Color.lerp(colors.surfaceContainerLow, color, 0.14) ??
+              colors.surfaceContainerLow;
+
     return Card(
+      color: background,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -852,8 +1187,10 @@ class _QuickAction extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: colors.primaryContainer,
-                child: Icon(icon, color: colors.primary),
+                backgroundColor: rainbow
+                    ? foreground.withValues(alpha: 0.10)
+                    : color.withValues(alpha: 0.16),
+                child: Icon(icon, color: foreground),
               ),
               const SizedBox(width: 11),
               Expanded(

@@ -1,65 +1,125 @@
 import 'package:flutter/material.dart';
 
 import '../../models/ability.dart';
+import '../../theme/asteria_semantic_colors.dart';
 
 class AbilityColors {
   const AbilityColors._();
 
   static Color effectColor(BuildContext context, AbilityEffect effect) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(scheme);
     final damageType = effect.effectTypeName.toLowerCase();
 
-    if (effect.mitigatesDamage) {
+    if (!semantic.isRainbow) {
+      if (effect.mitigatesDamage) {
+        return scheme.primary;
+      }
+      if (effect.heals) {
+        return scheme.tertiary;
+      }
+
+      if (damageType.contains('fuego') || damageType.contains('fire')) {
+        return scheme.error;
+      }
+      if (damageType.contains('hielo') ||
+          damageType.contains('frío') ||
+          damageType.contains('frio') ||
+          damageType.contains('ice') ||
+          damageType.contains('cold')) {
+        return scheme.secondary;
+      }
+      if (damageType.contains('veneno') || damageType.contains('poison')) {
+        return scheme.tertiary;
+      }
+      if (damageType.contains('ácido') ||
+          damageType.contains('acido') ||
+          damageType.contains('acid')) {
+        return scheme.tertiary;
+      }
+      if (damageType.contains('rayo') ||
+          damageType.contains('eléctrico') ||
+          damageType.contains('electrico') ||
+          damageType.contains('lightning')) {
+        return scheme.secondary;
+      }
+      if (damageType.contains('necrótico') ||
+          damageType.contains('necrotico') ||
+          damageType.contains('necrotic')) {
+        return scheme.primary;
+      }
+      if (damageType.contains('radiante') ||
+          damageType.contains('radiant')) {
+        return scheme.secondary;
+      }
+      if (damageType.contains('psíquico') ||
+          damageType.contains('psiquico') ||
+          damageType.contains('psychic')) {
+        return scheme.tertiary;
+      }
+      if (effect.usesSavingThrow) {
+        return scheme.primary;
+      }
+      if (effect.dealsDamage) {
+        return scheme.error;
+      }
       return scheme.primary;
     }
+
+    if (effect.mitigatesDamage) {
+      return semantic.settings;
+    }
     if (effect.heals) {
-      return scheme.tertiary;
+      return semantic.positive;
     }
 
     if (damageType.contains('fuego') || damageType.contains('fire')) {
-      return scheme.error;
+      return semantic.negative;
     }
     if (damageType.contains('hielo') ||
         damageType.contains('frío') ||
         damageType.contains('frio') ||
         damageType.contains('ice') ||
         damageType.contains('cold')) {
-      return scheme.secondary;
+      return semantic.settings;
     }
     if (damageType.contains('veneno') || damageType.contains('poison')) {
-      return scheme.tertiary;
+      return semantic.negative;
     }
     if (damageType.contains('ácido') ||
         damageType.contains('acido') ||
         damageType.contains('acid')) {
-      return scheme.tertiary;
+      return semantic.condition;
     }
     if (damageType.contains('rayo') ||
         damageType.contains('eléctrico') ||
         damageType.contains('electrico') ||
         damageType.contains('lightning')) {
-      return scheme.secondary;
+      return semantic.condition;
     }
     if (damageType.contains('necrótico') ||
         damageType.contains('necrotico') ||
         damageType.contains('necrotic')) {
-      return scheme.primary;
+      return semantic.neutral;
     }
     if (damageType.contains('radiante') || damageType.contains('radiant')) {
-      return scheme.secondary;
+      return semantic.condition;
     }
     if (damageType.contains('psíquico') ||
         damageType.contains('psiquico') ||
         damageType.contains('psychic')) {
-      return scheme.tertiary;
+      return semantic.neutral;
     }
     if (effect.usesSavingThrow) {
-      return scheme.primary;
+      return semantic.settings;
     }
     if (effect.dealsDamage) {
-      return scheme.error;
+      return semantic.negative;
     }
-    return scheme.primary;
+    return semantic.abilities;
   }
 
   static Color softBackground(
