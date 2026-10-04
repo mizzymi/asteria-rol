@@ -10,6 +10,7 @@ import '../../models/character_effect.dart';
 import '../../models/item.dart';
 import '../../models/passive.dart';
 import '../../models/skill.dart';
+import '../../models/saving_throw_roll_mode.dart';
 
 import '../../services/passive_display_formatter.dart';
 
@@ -1008,6 +1009,45 @@ class _PassiveExpandedContent extends StatelessWidget {
           icon: Icons.security_rounded,
           label: '${_formulaBonusText(bonus)} Salv. ${entry.key.shortLabel}',
           color: PassiveColors.savingThrow(context),
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // VENTAJA / DESVENTAJA EN SALVACIONES
+    // -------------------------------------------------------------------------
+
+    for (final entry in passive.savingThrowRollModes.entries) {
+      if (entry.value == SavingThrowRollMode.normal) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: entry.value == SavingThrowRollMode.advantage
+              ? Icons.trending_up_rounded
+              : Icons.trending_down_rounded,
+          label:
+              '${entry.value.label} · Salv. ${entry.key.shortLabel}',
+          color: PassiveColors.savingThrow(context),
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // RESISTENCIAS
+    // -------------------------------------------------------------------------
+
+    for (final resistance in passive.damageResistances) {
+      if (!resistance.isValid) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: Icons.shield_rounded,
+          label: '${resistance.tier.label} · ${resistance.damageType}',
+          color: PassiveColors.armorClass(context),
         ),
       );
     }
