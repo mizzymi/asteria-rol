@@ -17,6 +17,22 @@ class AsteriaSemanticColors
   final Color rest;
   final Color notes;
 
+  // Roles de interfaz para que Rainbow pueda colorear acciones y contenido
+  // sin alterar las paletas propias de atributos y recursos individuales.
+  final Color positive;
+  final Color negative;
+  final Color neutral;
+  final Color condition;
+  final Color grid;
+  final Color settings;
+  final Color library;
+  final Color importAction;
+  final Color shop;
+  final Color create;
+  final Color edit;
+  final Color exportAction;
+  final Color delete;
+
   const AsteriaSemanticColors({
     required this.stats,
     required this.abilities,
@@ -31,6 +47,19 @@ class AsteriaSemanticColors
     required this.combat,
     required this.rest,
     required this.notes,
+    required this.positive,
+    required this.negative,
+    required this.neutral,
+    required this.condition,
+    required this.grid,
+    required this.settings,
+    required this.library,
+    required this.importAction,
+    required this.shop,
+    required this.create,
+    required this.edit,
+    required this.exportAction,
+    required this.delete,
   });
 
   factory AsteriaSemanticColors.asteria(ColorScheme scheme) {
@@ -48,6 +77,19 @@ class AsteriaSemanticColors
       combat: scheme.primary,
       rest: scheme.primary,
       notes: scheme.primary,
+      positive: scheme.tertiary,
+      negative: scheme.error,
+      neutral: scheme.secondary,
+      condition: scheme.primary,
+      grid: scheme.primary,
+      settings: scheme.primary,
+      library: scheme.primary,
+      importAction: scheme.primary,
+      shop: scheme.primary,
+      create: scheme.primary,
+      edit: scheme.primary,
+      exportAction: scheme.primary,
+      delete: scheme.error,
     );
   }
 
@@ -70,6 +112,19 @@ class AsteriaSemanticColors
       combat: tone(const Color(0xFF3949AB), const Color(0xFF8C9EFF)),
       rest: tone(const Color(0xFF8E24AA), const Color(0xFFD980FA)),
       notes: tone(const Color(0xFFC2185B), const Color(0xFFFF80AB)),
+      positive: tone(const Color(0xFF2E7D32), const Color(0xFF69E07D)),
+      negative: tone(const Color(0xFFC62828), const Color(0xFFFF6B6B)),
+      neutral: tone(const Color(0xFF7B1FA2), const Color(0xFFC77DFF)),
+      condition: tone(const Color(0xFFF9A825), const Color(0xFFFFD54F)),
+      grid: tone(const Color(0xFF7B1FA2), const Color(0xFFC77DFF)),
+      settings: tone(const Color(0xFF1565C0), const Color(0xFF64A8FF)),
+      library: tone(const Color(0xFF00897B), const Color(0xFF4DD0C8)),
+      importAction: tone(const Color(0xFF2E7D32), const Color(0xFF69E07D)),
+      shop: tone(const Color(0xFFF9A825), const Color(0xFFFFD54F)),
+      create: tone(const Color(0xFFD81B60), const Color(0xFFFF5C93)),
+      edit: tone(const Color(0xFFEF6C00), const Color(0xFFFFA24A)),
+      exportAction: tone(const Color(0xFF3949AB), const Color(0xFF8C9EFF)),
+      delete: tone(const Color(0xFFC62828), const Color(0xFFFF6B6B)),
     );
   }
 
@@ -88,6 +143,19 @@ class AsteriaSemanticColors
     Color? combat,
     Color? rest,
     Color? notes,
+    Color? positive,
+    Color? negative,
+    Color? neutral,
+    Color? condition,
+    Color? grid,
+    Color? settings,
+    Color? library,
+    Color? importAction,
+    Color? shop,
+    Color? create,
+    Color? edit,
+    Color? exportAction,
+    Color? delete,
   }) {
     return AsteriaSemanticColors(
       stats: stats ?? this.stats,
@@ -103,6 +171,19 @@ class AsteriaSemanticColors
       combat: combat ?? this.combat,
       rest: rest ?? this.rest,
       notes: notes ?? this.notes,
+      positive: positive ?? this.positive,
+      negative: negative ?? this.negative,
+      neutral: neutral ?? this.neutral,
+      condition: condition ?? this.condition,
+      grid: grid ?? this.grid,
+      settings: settings ?? this.settings,
+      library: library ?? this.library,
+      importAction: importAction ?? this.importAction,
+      shop: shop ?? this.shop,
+      create: create ?? this.create,
+      edit: edit ?? this.edit,
+      exportAction: exportAction ?? this.exportAction,
+      delete: delete ?? this.delete,
     );
   }
 
@@ -129,6 +210,21 @@ class AsteriaSemanticColors
       combat: Color.lerp(combat, other.combat, t) ?? combat,
       rest: Color.lerp(rest, other.rest, t) ?? rest,
       notes: Color.lerp(notes, other.notes, t) ?? notes,
+      positive: Color.lerp(positive, other.positive, t) ?? positive,
+      negative: Color.lerp(negative, other.negative, t) ?? negative,
+      neutral: Color.lerp(neutral, other.neutral, t) ?? neutral,
+      condition: Color.lerp(condition, other.condition, t) ?? condition,
+      grid: Color.lerp(grid, other.grid, t) ?? grid,
+      settings: Color.lerp(settings, other.settings, t) ?? settings,
+      library: Color.lerp(library, other.library, t) ?? library,
+      importAction:
+          Color.lerp(importAction, other.importAction, t) ?? importAction,
+      shop: Color.lerp(shop, other.shop, t) ?? shop,
+      create: Color.lerp(create, other.create, t) ?? create,
+      edit: Color.lerp(edit, other.edit, t) ?? edit,
+      exportAction:
+          Color.lerp(exportAction, other.exportAction, t) ?? exportAction,
+      delete: Color.lerp(delete, other.delete, t) ?? delete,
     );
   }
 }
