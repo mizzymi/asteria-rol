@@ -210,6 +210,10 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
     effect = _clone(widget.effect);
 
+    if (effect.dealsDamage) {
+      _clearLegacyDamageExtraData();
+    }
+
     nameController = TextEditingController(text: effect.name);
 
     saveDcBonusController = TextEditingController(
@@ -264,6 +268,15 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
     );
   }
 
+  void _clearLegacyDamageExtraData() {
+    effect.dicePools.clear();
+    effect.abilityModifierMultipliers.clear();
+    effect.effectBonus = 0;
+    effect.effectTypeName = '';
+    effect.legacyAddAbilityModifier = false;
+    effect.extraParticipatesInCritical = false;
+  }
+
   // ===========================================================================
   // NOTIFICAR CAMBIOS
   // ===========================================================================
@@ -273,9 +286,12 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
     effect.saveDcBonus = int.tryParse(saveDcBonusController.text.trim()) ?? 0;
 
-    effect.effectBonus = int.tryParse(extraBonusController.text.trim()) ?? 0;
-
-    effect.effectTypeName = extraTypeController.text.trim();
+    if (effect.dealsDamage) {
+      _clearLegacyDamageExtraData();
+    } else {
+      effect.effectBonus = int.tryParse(extraBonusController.text.trim()) ?? 0;
+      effect.effectTypeName = extraTypeController.text.trim();
+    }
 
     widget.onChanged(_clone(effect));
   }
@@ -486,9 +502,10 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
                     _buildPartsSection(),
 
-                    const SizedBox(height: 18),
-
-                    _buildExtraEffectSection(),
+                    if (!effect.dealsDamage) ...[
+                      const SizedBox(height: 18),
+                      _buildExtraEffectSection(),
+                    ],
                   ],
 
                   // Una habilidad puede limitarse a aplicar un estado/efecto.
@@ -550,6 +567,13 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
               if (value != AbilityEffectType.healing) {
                 effect.activationCondition =
                     AbilityEffectActivationCondition.always;
+              }
+
+              if (value == AbilityEffectType.damage) {
+                _clearLegacyDamageExtraData();
+                extraDiceController.clear();
+                extraBonusController.text = '0';
+                extraTypeController.clear();
               }
 
               if (value == AbilityEffectType.mitigation) {
@@ -752,7 +776,7 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
   }
 
   // ===========================================================================
-  // DAÑO / CURACIÓN EXTRA DEL EFECTO
+  // CURACIÓN / MITIGACIÓN EXTRA DEL EFECTO
   // ===========================================================================
 
   Widget _buildExtraEffectSection() {
