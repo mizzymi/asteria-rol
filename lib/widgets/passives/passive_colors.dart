@@ -11,16 +11,61 @@ class PassiveColors {
         AsteriaSemanticColors.asteria(theme.colorScheme);
   }
 
-  static Color sourceColor(BuildContext context, CharacterPassive passive) =>
-      _semantic(context).neutral;
-  static Color armorClass(BuildContext context) => _semantic(context).settings;
-  static Color initiative(BuildContext context) => _semantic(context).condition;
-  static Color speed(BuildContext context) => _semantic(context).positive;
-  static Color health(BuildContext context) => _semantic(context).negative;
-  static Color attack(BuildContext context) => _semantic(context).negative;
-  static Color skill(BuildContext context) => _semantic(context).abilities;
-  static Color savingThrow(BuildContext context) =>
-      _semantic(context).exportAction;
+  static Color sourceColor(BuildContext context, CharacterPassive passive) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.neutral
+        : Theme.of(context).colorScheme.primary;
+  }
+
+  static Color armorClass(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.settings
+        : Theme.of(context).colorScheme.secondary;
+  }
+
+  static Color initiative(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.condition
+        : Theme.of(context).colorScheme.secondary;
+  }
+
+  static Color speed(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.positive
+        : Theme.of(context).colorScheme.tertiary;
+  }
+
+  static Color health(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.negative
+        : Theme.of(context).colorScheme.error;
+  }
+
+  static Color attack(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.negative
+        : Theme.of(context).colorScheme.error;
+  }
+
+  static Color skill(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.abilities
+        : Theme.of(context).colorScheme.primary;
+  }
+
+  static Color savingThrow(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.exportAction
+        : Theme.of(context).colorScheme.secondary;
+  }
 
   static Color softBackground(
     BuildContext context,
