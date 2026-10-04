@@ -5,6 +5,7 @@ import '../models/character_effect.dart';
 
 import '../services/character_storage_service.dart';
 import '../theme/asteria_semantic_colors.dart';
+import '../theme/rainbow_action_style.dart';
 
 import '../widgets/common/empty_state.dart';
 import '../widgets/effects/effect_card.dart';
@@ -222,7 +223,10 @@ class _EffectsScreenState extends State<EffectsScreen> {
           if (hasExpired)
             IconButton(
               tooltip: 'Eliminar expirados',
-              style: IconButton.styleFrom(foregroundColor: semantic.delete),
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.delete,
+              ),
               onPressed: clearExpired,
               icon: const Icon(Icons.cleaning_services_rounded),
             ),
@@ -288,8 +292,12 @@ class _EffectsScreenState extends State<EffectsScreen> {
       // NUEVO EFECTO
       // =======================================================================
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: semantic.effects.withValues(alpha: 0.18),
-        foregroundColor: semantic.effects,
+        backgroundColor: semantic.isRainbow
+            ? RainbowActionStyle.background(context, semantic.effects)
+            : null,
+        foregroundColor: semantic.isRainbow
+            ? RainbowActionStyle.foreground(context)
+            : null,
         onPressed: createEffect,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nuevo efecto'),
