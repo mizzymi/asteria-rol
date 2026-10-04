@@ -266,13 +266,9 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
   // ===========================================================================
 
   Future<void> applyDamage() async {
-    final amount = await _askCombatAmount(
-      title: 'Recibir daño',
-      label: 'Daño',
-      icon: Icons.heart_broken_rounded,
-    );
+    final input = await _askDamageInput();
 
-    if (amount == null || amount <= 0) {
+    if (input == null || input.amount <= 0) {
       return;
     }
 
@@ -281,8 +277,9 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     final flow = ActionResolutionFlow(character: character);
     await flow.resolveHealthChange(
       context,
-      baseAmount: amount,
+      baseAmount: input.amount,
       isDamage: true,
+      damageType: input.damageType,
     );
 
     if (!mounted) return;
@@ -313,6 +310,71 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     if (!mounted) return;
     setState(() {});
     await saveCharacter();
+  }
+
+  Future<({int amount, String damageType})?> _askDamageInput() {
+    final amountController = TextEditingController();
+    final damageTypeController = TextEditingController();
+
+    return showDialog<({int amount, String damageType})>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Recibir daño'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: amountController,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Daño',
+                  prefixIcon: Icon(Icons.heart_broken_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: damageTypeController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Tipo de daño',
+                  hintText: 'Fuego, frío, contundente, radiante...',
+                  prefixIcon: Icon(Icons.local_fire_department_rounded),
+                  helperText:
+                      'Las resistencias se aplicarán automáticamente.',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final amount = int.tryParse(amountController.text.trim());
+                final damageType = damageTypeController.text.trim();
+
+                if (amount == null || amount <= 0 || damageType.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(
+                  dialogContext,
+                  (amount: amount, damageType: damageType),
+                );
+              },
+              child: const Text('Aplicar'),
+            ),
+          ],
+        );
+      },
+    ).whenComplete(() {
+      amountController.dispose();
+      damageTypeController.dispose();
+    });
   }
 
   Future<int?> _askCombatAmount({
