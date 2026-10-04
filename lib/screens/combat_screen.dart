@@ -186,7 +186,9 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   Future<void> _editHealth() async {
-    final input = await showDialog<({String operation, int amount})>(
+    final input = await showDialog<
+      ({String operation, int amount, String damageType})
+    >(
       context: context,
       builder: (dialogContext) {
         return const _SimpleHealthDialog();
@@ -204,6 +206,7 @@ class _CombatScreenState extends State<CombatScreen> {
       context,
       baseAmount: input.amount,
       isDamage: isDamage,
+      damageType: isDamage ? input.damageType : '',
     );
 
     if (!mounted) {
@@ -433,10 +436,26 @@ class _CombatScreenState extends State<CombatScreen> {
         currentContentItem == null &&
         character.equippedContentItems.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Combate')),
+    return PopScope(
+      canPop: !_contentCanGoBack,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _contentCanGoBack) {
+          _goBackContent();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _contentCanGoBack
+              ? IconButton(
+                  tooltip: 'Volver a combate',
+                  onPressed: _goBackContent,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                )
+              : null,
+          title: const Text('Combate'),
+        ),
 
-      body: SafeArea(
+        body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
           children: [
@@ -728,7 +747,8 @@ class _CombatScreenState extends State<CombatScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 
@@ -1360,11 +1380,13 @@ class _SimpleHealthDialog extends StatefulWidget {
 
 class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
   final amountController = TextEditingController();
+  final damageTypeController = TextEditingController();
   String operation = '-';
 
   @override
   void dispose() {
     amountController.dispose();
+    damageTypeController.dispose();
     super.dispose();
   }
 
@@ -1439,6 +1461,20 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
               ),
             ),
           ),
+          if (operation == '-') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: damageTypeController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Tipo de daño',
+                hintText: 'Fuego, frío, contundente, radiante...',
+                prefixIcon: Icon(Icons.local_fire_department_rounded),
+                helperText:
+                    'Se usará para aplicar automáticamente las resistencias.',
+              ),
+            ),
+          ],
         ],
       ),
       actions: [
@@ -1447,8 +1483,30 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          onPressed: () =>
-              Navigator.pop(context, (operation: operation, amount: amount)),
+          onPressed: () {
+            if (amount <= 0) {
+              return;
+            }
+
+            final damageType = damageTypeController.text.trim();
+            if (operation == '-' && damageType.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Indica el tipo de daño recibido.'),
+                ),
+              );
+              return;
+            }
+
+            Navigator.pop(
+              context,
+              (
+                operation: operation,
+                amount: amount,
+                damageType: operation == '-' ? damageType : '',
+              ),
+            );
+          },
           child: const Text('Continuar'),
         ),
       ],
