@@ -110,7 +110,7 @@ class AsteriaSemanticColors
       items: tone(const Color(0xFF2E7D32), const Color(0xFF66D17A)),
       story: tone(const Color(0xFF00897B), const Color(0xFF4DD0C8)),
       journal: tone(const Color(0xFF007C91), const Color(0xFF4CC9E8)),
-      resources: tone(const Color(0xFF00897B), const Color(0xFF5CE1C4)),
+      resources: tone(const Color(0xFF005989), const Color(0xFF5C96E1)),
       dice: tone(const Color(0xFF1565C0), const Color(0xFF64A8FF)),
       knowledge: tone(const Color(0xFF6A1B9A), const Color(0xFFC77DFF)),
       combat: tone(const Color(0xFF3949AB), const Color(0xFF8C9EFF)),
