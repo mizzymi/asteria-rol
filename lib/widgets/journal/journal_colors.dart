@@ -11,6 +11,27 @@ class JournalColors {
         theme.extension<AsteriaSemanticColors>() ??
         AsteriaSemanticColors.asteria(theme.colorScheme);
 
+    if (!semantic.isRainbow) {
+      switch (type) {
+        case JournalEntryType.session:
+          return theme.colorScheme.primary;
+        case JournalEntryType.quest:
+          return theme.colorScheme.secondary;
+        case JournalEntryType.discovery:
+          return theme.colorScheme.secondary;
+        case JournalEntryType.npc:
+          return theme.colorScheme.tertiary;
+        case JournalEntryType.combat:
+          return theme.colorScheme.error;
+        case JournalEntryType.location:
+          return theme.colorScheme.tertiary;
+        case JournalEntryType.personal:
+          return theme.colorScheme.primary;
+        case JournalEntryType.other:
+          return theme.colorScheme.onSurfaceVariant;
+      }
+    }
+
     switch (type) {
       case JournalEntryType.session:
         return semantic.neutral;
