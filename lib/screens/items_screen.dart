@@ -16,6 +16,7 @@ import '../services/item_import_export_service.dart';
 import '../services/item_library_service.dart';
 
 import '../theme/item_type_colors.dart';
+import '../theme/asteria_semantic_colors.dart';
 import '../utils/number_format.dart';
 
 import '../widgets/items/slot_selection_dialog.dart';
@@ -1310,6 +1311,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
     final allItems = _resolvedInventory;
     final query = _normalizeSearchText(_searchQuery.trim());
     final searching = query.isNotEmpty;
@@ -1368,6 +1374,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           actions: [
             IconButton(
               tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
+              style: IconButton.styleFrom(foregroundColor: semantic.grid),
               onPressed: _toggleViewMode,
               icon: Icon(
                 gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
@@ -1375,6 +1382,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
             ),
             IconButton(
               tooltip: 'Configurar ranuras',
+              style: IconButton.styleFrom(foregroundColor: semantic.settings),
               onPressed: () {
                 EquipmentSlotsConfigDialog.show(
                   context,
@@ -1418,16 +1426,21 @@ class _ItemsScreenState extends State<ItemsScreen> {
               ),
             IconButton(
               tooltip: 'Biblioteca de objetos',
+              style: IconButton.styleFrom(foregroundColor: semantic.library),
               onPressed: addItemFromLibrary,
               icon: const Icon(Icons.local_library_rounded),
             ),
             IconButton(
               tooltip: 'Importar objeto',
+              style: IconButton.styleFrom(
+                foregroundColor: semantic.importAction,
+              ),
               onPressed: importItem,
               icon: const Icon(Icons.file_download_rounded),
             ),
             IconButton(
               tooltip: 'Tiendas',
+              style: IconButton.styleFrom(foregroundColor: semantic.shop),
               onPressed: openShop,
               icon: const Icon(Icons.storefront_rounded),
             ),
