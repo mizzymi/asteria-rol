@@ -30,6 +30,7 @@ import '../widgets/items/equipment_slots_config_dialog.dart';
 import '../widgets/items/item_image_viewer.dart';
 
 import 'item_form_screen.dart';
+import 'item_library_screen.dart';
 import 'campaign_shop_detail_screen.dart';
 
 typedef InventoryItemView = ({
@@ -821,6 +822,47 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
   }
 
+  Future<void> addItemFromLibrary() async {
+    final item = await Navigator.push<ItemDefinition>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ItemLibraryScreen(mode: ItemLibraryMode.select),
+      ),
+    );
+
+    if (item == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _inventoryService.addItem(
+        character: character,
+        definition: item,
+        quantity: 1,
+      );
+
+      if (character.inventoryItems.isNotEmpty) {
+        final addedItem = character.inventoryItems.lastWhere(
+          (entry) => entry.itemId == item.id,
+          orElse: () => character.inventoryItems.last,
+        );
+        addedItem.folderId = _currentFolderId;
+      }
+
+      character.normalizeHealth();
+    });
+
+    await save();
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${item.name} añadido desde la biblioteca.')),
+    );
+  }
+
   Future<void> importItem() async {
     try {
       final item = await ItemImportExportService.pickAndImportDefinition();
@@ -1221,6 +1263,12 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   onTap: () => Navigator.pop(sheetContext, 'item'),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.local_library_rounded),
+                  title: const Text('Desde biblioteca'),
+                  subtitle: const Text('Añadir un objeto guardado'),
+                  onTap: () => Navigator.pop(sheetContext, 'library'),
+                ),
+                ListTile(
                   leading: const Icon(Icons.create_new_folder_rounded),
                   title: const Text('Nueva carpeta'),
                   subtitle: const Text('Organiza tus objetos'),
@@ -1236,6 +1284,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
     switch (result) {
       case 'item':
         await createItem();
+        break;
+      case 'library':
+        await addItemFromLibrary();
         break;
       case 'folder':
         await _createFolder();
@@ -1352,6 +1403,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   ),
                 ],
               ),
+            IconButton(
+              tooltip: 'Biblioteca de objetos',
+              onPressed: addItemFromLibrary,
+              icon: const Icon(Icons.local_library_rounded),
+            ),
             IconButton(
               tooltip: 'Importar objeto',
               onPressed: importItem,
