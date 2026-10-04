@@ -1250,7 +1250,7 @@ class _PassiveTriggerActionEditorDialogState
         ? null
         : CharacterFormula(expression: valueText);
 
-    action.damageType = _usesDamage ? damageType : '';
+    action.damageType = _usesDamage || _usesMitigation ? damageType : '';
 
     Navigator.pop(context, action);
   }
@@ -1454,16 +1454,25 @@ class _PassiveTriggerActionEditorDialogState
               // ===============================================================
               // TIPO DE DAÑO
               // ===============================================================
-              if (_usesDamage) ...[
+              if (_usesDamage || _usesMitigation) ...[
                 const SizedBox(height: 16),
 
                 TextFormField(
                   controller: damageTypeController,
 
-                  decoration: const InputDecoration(
-                    labelText: 'Tipo de daño',
-                    hintText: 'Veneno',
-                    prefixIcon: Icon(Icons.flash_on_rounded),
+                  decoration: InputDecoration(
+                    labelText: _usesMitigation
+                        ? 'Mitigar solo este tipo de daño'
+                        : 'Tipo de daño',
+                    hintText: _usesMitigation ? 'Cortante' : 'Veneno',
+                    prefixIcon: Icon(
+                      _usesMitigation
+                          ? Icons.shield_rounded
+                          : Icons.flash_on_rounded,
+                    ),
+                    helperText: _usesMitigation
+                        ? 'Déjalo vacío para mitigar cualquier tipo de daño.'
+                        : null,
                   ),
                 ),
               ],
