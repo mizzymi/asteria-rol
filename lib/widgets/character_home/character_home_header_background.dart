@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../theme/asteria_semantic_colors.dart';
 import 'character_home_background_images.dart';
 
 class CharacterHomeHeaderBackground extends StatelessWidget {
@@ -22,6 +23,9 @@ class CharacterHomeHeaderBackground extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
 
     final fadeColor = isDark
         ? (Color.lerp(colors.surface, colors.primary, 0.10) ?? colors.surface)
@@ -33,13 +37,33 @@ class CharacterHomeHeaderBackground extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.memory(
-            isDark ? _darkBytes : _lightBytes,
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
-            gaplessPlayback: true,
-            filterQuality: FilterQuality.medium,
-          ),
+          if (semantic.isRainbow)
+            DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFE91E63),
+                    Color(0xFFF44336),
+                    Color(0xFFFF9800),
+                    Color(0xFFFFD54F),
+                    Color(0xFF4CAF50),
+                    Color(0xFF00BCD4),
+                    Color(0xFF2196F3),
+                    Color(0xFF7E57C2),
+                  ],
+                ),
+              ),
+            )
+          else
+            Image.memory(
+              isDark ? _darkBytes : _lightBytes,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              gaplessPlayback: true,
+              filterQuality: FilterQuality.medium,
+            ),
           DecoratedBox(
             decoration: BoxDecoration(
               color: isDark
