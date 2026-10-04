@@ -103,7 +103,6 @@ class ActionResolutionFlow {
     required List<PassiveTriggeredExternalOutcome> outcomes,
     required ActionDiceMode diceMode,
     required String resolutionId,
-    String incomingDamageType = '',
   }) async {
     final results = <PassiveTriggerExternalResult>[];
 
@@ -245,17 +244,6 @@ class ActionResolutionFlow {
             break;
 
           case PassiveTriggerActionType.mitigateDamage:
-            final restrictedType = action.damageType.trim().toLowerCase();
-            final receivedType = incomingDamageType.trim().toLowerCase();
-
-            if (restrictedType.isNotEmpty &&
-                (receivedType.isEmpty || restrictedType != receivedType)) {
-              breakdown.add(
-                'Mitigación omitida: solo aplica a ${action.damageType.trim()}.',
-              );
-              break;
-            }
-
             final amount = await _resolvePassiveTriggerActionAmount(
               context,
               resolver: resolver,
@@ -265,9 +253,7 @@ class ActionResolutionFlow {
               action: action,
               diceMode: diceMode,
               breakdown: breakdown,
-              label: restrictedType.isEmpty
-                  ? 'Mitigación'
-                  : 'Mitigación (${action.damageType.trim()})',
+              label: 'Mitigación',
             );
 
             if (amount == null) {
@@ -3411,6 +3397,7 @@ class ActionResolutionFlow {
   Future<int?> _resolvePassiveMitigationBonuses(
     BuildContext context, {
     required int incomingDamage,
+    required String damageType,
   }) async {
     if (incomingDamage <= 0) {
       return 0;
@@ -3424,9 +3411,19 @@ class ActionResolutionFlow {
       }
 
       for (final bonus in passive.mitigationBonuses) {
-        if (bonus.hasHealing) {
-          entries.add((passive: passive, bonus: bonus));
+        if (!bonus.hasHealing) {
+          continue;
         }
+
+        final restrictedType = bonus.damageType.trim().toLowerCase();
+        final receivedType = damageType.trim().toLowerCase();
+
+        if (restrictedType.isNotEmpty &&
+            (receivedType.isEmpty || restrictedType != receivedType)) {
+          continue;
+        }
+
+        entries.add((passive: passive, bonus: bonus));
       }
     }
 
@@ -3614,6 +3611,7 @@ class ActionResolutionFlow {
       final resolvedPassiveMitigation = await _resolvePassiveMitigationBonuses(
         context,
         incomingDamage: effectiveBaseAmount,
+        damageType: normalizedDamageType,
       );
 
       if (resolvedPassiveMitigation == null || !context.mounted) {
@@ -3716,7 +3714,6 @@ class ActionResolutionFlow {
         outcomes: selectedRegularOutcomes,
         diceMode: diceMode,
         resolutionId: resolutionId,
-        incomingDamageType: isDamage ? normalizedDamageType : '',
       );
 
       if (resolvedResults == null || !context.mounted) {
