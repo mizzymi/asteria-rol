@@ -5,16 +5,40 @@ import '../../theme/asteria_semantic_colors.dart';
 class CharacterHomeColors {
   const CharacterHomeColors._();
 
-  static Color health(BuildContext context) =>
-      Theme.of(context).colorScheme.error;
-  static Color armor(BuildContext context) =>
-      Theme.of(context).colorScheme.primary;
-  static Color initiative(BuildContext context) =>
-      Theme.of(context).colorScheme.secondary;
-  static Color speed(BuildContext context) =>
-      Theme.of(context).colorScheme.tertiary;
-  static Color proficiency(BuildContext context) =>
-      Theme.of(context).colorScheme.primary;
+  static Color health(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.negative
+        : Theme.of(context).colorScheme.error;
+  }
+
+  static Color armor(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.settings
+        : Theme.of(context).colorScheme.primary;
+  }
+
+  static Color initiative(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.condition
+        : Theme.of(context).colorScheme.secondary;
+  }
+
+  static Color speed(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.positive
+        : Theme.of(context).colorScheme.tertiary;
+  }
+
+  static Color proficiency(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.neutral
+        : Theme.of(context).colorScheme.primary;
+  }
 
   static AsteriaSemanticColors _semantic(BuildContext context) {
     final theme = Theme.of(context);
