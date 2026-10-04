@@ -1,40 +1,47 @@
 import 'package:flutter/material.dart';
 import '../models/item_definition.dart';
+import 'asteria_semantic_colors.dart';
 
 class ItemTypeColors {
   const ItemTypeColors._();
 
   static Color of(BuildContext context, ItemType type) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(scheme);
+
     switch (type) {
       case ItemType.armor:
       case ItemType.shield:
       case ItemType.helmet:
-        return scheme.primary;
+        return semantic.settings;
       case ItemType.gloves:
       case ItemType.ring:
       case ItemType.amulet:
-        return scheme.secondary;
+        return semantic.neutral;
       case ItemType.boots:
       case ItemType.cape:
       case ItemType.accessory:
-        return scheme.tertiary;
+        return semantic.library;
       case ItemType.weapon:
       case ItemType.ammunition:
-        return scheme.error;
+        return semantic.negative;
       case ItemType.consumable:
       case ItemType.potion:
+        return semantic.positive;
       case ItemType.scroll:
       case ItemType.book:
-        return scheme.secondary;
+        return semantic.condition;
       case ItemType.tool:
       case ItemType.material:
-        return scheme.tertiary;
+        return semantic.edit;
       case ItemType.special:
-        return scheme.primary;
+        return semantic.create;
       case ItemType.container:
       case ItemType.misc:
-        return scheme.onSurfaceVariant;
+        return semantic.notes;
     }
   }
 
