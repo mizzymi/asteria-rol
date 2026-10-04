@@ -14,6 +14,61 @@ class AbilityColors {
         AsteriaSemanticColors.asteria(scheme);
     final damageType = effect.effectTypeName.toLowerCase();
 
+    if (!semantic.isRainbow) {
+      if (effect.mitigatesDamage) {
+        return scheme.primary;
+      }
+      if (effect.heals) {
+        return scheme.tertiary;
+      }
+
+      if (damageType.contains('fuego') || damageType.contains('fire')) {
+        return scheme.error;
+      }
+      if (damageType.contains('hielo') ||
+          damageType.contains('frío') ||
+          damageType.contains('frio') ||
+          damageType.contains('ice') ||
+          damageType.contains('cold')) {
+        return scheme.secondary;
+      }
+      if (damageType.contains('veneno') || damageType.contains('poison')) {
+        return scheme.tertiary;
+      }
+      if (damageType.contains('ácido') ||
+          damageType.contains('acido') ||
+          damageType.contains('acid')) {
+        return scheme.tertiary;
+      }
+      if (damageType.contains('rayo') ||
+          damageType.contains('eléctrico') ||
+          damageType.contains('electrico') ||
+          damageType.contains('lightning')) {
+        return scheme.secondary;
+      }
+      if (damageType.contains('necrótico') ||
+          damageType.contains('necrotico') ||
+          damageType.contains('necrotic')) {
+        return scheme.primary;
+      }
+      if (damageType.contains('radiante') ||
+          damageType.contains('radiant')) {
+        return scheme.secondary;
+      }
+      if (damageType.contains('psíquico') ||
+          damageType.contains('psiquico') ||
+          damageType.contains('psychic')) {
+        return scheme.tertiary;
+      }
+      if (effect.usesSavingThrow) {
+        return scheme.primary;
+      }
+      if (effect.dealsDamage) {
+        return scheme.error;
+      }
+      return scheme.primary;
+    }
+
     if (effect.mitigatesDamage) {
       return semantic.settings;
     }
