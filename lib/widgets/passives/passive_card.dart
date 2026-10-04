@@ -11,6 +11,7 @@ import '../../models/item.dart';
 import '../../models/passive.dart';
 import '../../models/skill.dart';
 import '../../models/saving_throw_roll_mode.dart';
+import '../../models/damage_resistance.dart';
 
 import '../../services/passive_display_formatter.dart';
 
