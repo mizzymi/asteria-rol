@@ -618,7 +618,7 @@ class _ThemeOptionCard extends StatelessWidget {
                   children: previewColors
                       .map(
                         (color) => Container(
-                          width: previewColors.length > 3 ? 15 : 23,
+                          width: 15,
                           height: previewColors.length > 3 ? 23 : 52,
                           decoration: BoxDecoration(
                             color: color,
