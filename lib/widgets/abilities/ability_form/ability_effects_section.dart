@@ -581,9 +581,8 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
                 extraTypeController.clear();
 
-                // Una salvación sin efecto
-                // tampoco tiene utilidad.
-                effect.usesSavingThrow = false;
+                // Conservamos la salvación: un efecto sin daño/curación
+                // puede controlar un estado o efecto vinculado.
               }
             });
 
