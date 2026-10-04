@@ -15,15 +15,13 @@ class AbilityColors {
     BuildContext context,
     AbilityType ability, {
     double alpha = 0.12,
-  }) =>
-      of(context, ability).withValues(alpha: alpha);
+  }) => of(context, ability).withValues(alpha: alpha);
 
   static Color border(
     BuildContext context,
     AbilityType ability, {
     double alpha = 0.32,
-  }) =>
-      of(context, ability).withValues(alpha: alpha);
+  }) => of(context, ability).withValues(alpha: alpha);
 
   static Color foreground(BuildContext context, AbilityType ability) {
     final scheme = Theme.of(context).colorScheme;

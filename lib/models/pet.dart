@@ -167,7 +167,9 @@ class Pet {
       for (final raw in rawEffects) {
         if (raw is Map) {
           try {
-            effects.add(CharacterEffect.fromMap(Map<dynamic, dynamic>.from(raw)));
+            effects.add(
+              CharacterEffect.fromMap(Map<dynamic, dynamic>.from(raw)),
+            );
           } catch (_) {}
         }
       }

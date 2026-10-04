@@ -32,9 +32,7 @@ class CampaignShopScreen extends StatelessWidget {
     }
 
     if (currentShop == null) {
-      return const Scaffold(
-        body: Center(child: Text('Tienda no encontrada')),
-      );
+      return const Scaffold(body: Center(child: Text('Tienda no encontrada')));
     }
 
     return CampaignShopDetailScreen(

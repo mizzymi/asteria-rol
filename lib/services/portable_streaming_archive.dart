@@ -169,9 +169,7 @@ class PortableStreamingArchive {
         final key = utf8.decode(await _readExact(input, keyLength));
         final imageLength = await _readUint64(input);
 
-        final ext = _safeExtension(
-          imageExtensions[key]?.toString() ?? 'img',
-        );
+        final ext = _safeExtension(imageExtensions[key]?.toString() ?? 'img');
         final imageFile = File(
           '${imageDir.path}/${safeNamespace}_${batchId}_$i.$ext',
         );
@@ -250,10 +248,7 @@ class PortableStreamingArchive {
     return ByteData.sublistView(bytes).getUint64(0, Endian.big);
   }
 
-  static Future<Uint8List> _readExact(
-    RandomAccessFile file,
-    int length,
-  ) async {
+  static Future<Uint8List> _readExact(RandomAccessFile file, int length) async {
     if (length < 0) {
       throw const FormatException('Longitud de archivo no válida.');
     }

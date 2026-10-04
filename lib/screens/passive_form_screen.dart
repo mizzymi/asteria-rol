@@ -418,7 +418,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     empoweredCritical = passive?.empoweredCritical ?? false;
     empoweredCriticalMultiplier = passive?.empoweredCriticalMultiplier ?? 2;
     empoweredCriticalFormulaController = TextEditingController(
-      text: passive?.empoweredCriticalFormula ??
+      text:
+          passive?.empoweredCriticalFormula ??
           '(MAX + MOD) * ${passive?.empoweredCriticalMultiplier ?? 2}',
     );
 
@@ -1200,8 +1201,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
       savingThrowRollModes: {
         for (final entry in savingThrowRollModes.entries)
-          if (entry.value != SavingThrowRollMode.normal)
-            entry.key: entry.value,
+          if (entry.value != SavingThrowRollMode.normal) entry.key: entry.value,
       },
 
       damageResistances: damageResistances
@@ -1253,7 +1253,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
       empoweredCritical: empoweredCritical,
       empoweredCriticalMultiplier: empoweredCriticalMultiplier,
-      empoweredCriticalFormula: empoweredCriticalFormulaController.text.trim().isEmpty
+      empoweredCriticalFormula:
+          empoweredCriticalFormulaController.text.trim().isEmpty
           ? '(MAX + MOD) * 2'
           : empoweredCriticalFormulaController.text.trim(),
 
@@ -1387,7 +1388,6 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
                   savingThrowRollModes: savingThrowRollModes,
 
-
                   skillBonuses: skillBonuses,
 
                   onAbilityScoreChanged: (ability, bonus) {
@@ -1414,7 +1414,6 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                     });
                   },
 
-
                   onSkillChanged: (skill, bonus) {
                     setState(() {
                       skillBonuses[skill] = bonus;
@@ -1435,8 +1434,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
                 icon: Icons.shield_rounded,
 
-                subtitle:
-                    'Resistencias al daño e inmunidades por tipo.',
+                subtitle: 'Resistencias al daño e inmunidades por tipo.',
               ),
 
               if (_sectionExpanded(_PassiveFormSection.resistances)) ...[
@@ -1719,7 +1717,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                     controller: empoweredCriticalFormulaController,
                     decoration: const InputDecoration(
                       labelText: 'Fórmula de crítico',
-                      helperText: 'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
+                      helperText:
+                          'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
                       prefixIcon: Icon(Icons.functions_rounded),
                     ),
                   ),

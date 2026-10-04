@@ -48,7 +48,10 @@ class CampaignStorageService {
 
   static Future<void> _migrateExistingCharacters() async {
     final characters = CharacterStorageService.getCharacters();
-    if (characters.isEmpty || characters.every((c) => c.campaignId != null && c.campaignId!.isNotEmpty)) {
+    if (characters.isEmpty ||
+        characters.every(
+          (c) => c.campaignId != null && c.campaignId!.isNotEmpty,
+        )) {
       return;
     }
 
@@ -58,7 +61,8 @@ class CampaignStorageService {
       target = Campaign(
         id: 'campaign_${DateTime.now().microsecondsSinceEpoch}',
         name: 'Mi aventura',
-        description: 'Campaña creada automáticamente para tus personajes actuales.',
+        description:
+            'Campaña creada automáticamente para tus personajes actuales.',
       );
       await saveCampaign(target);
       campaigns = [target];

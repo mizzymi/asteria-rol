@@ -1307,11 +1307,16 @@ class _PassiveTriggerActionEditorDialogState
                     .where(
                       (type) =>
                           type != PassiveTriggerActionType.mitigateDamage ||
-                          action.type == PassiveTriggerActionType.mitigateDamage,
+                          action.type ==
+                              PassiveTriggerActionType.mitigateDamage,
                     )
                     .map((type) {
-                  return DropdownMenuItem(value: type, child: Text(type.label));
-                }).toList(),
+                      return DropdownMenuItem(
+                        value: type,
+                        child: Text(type.label),
+                      );
+                    })
+                    .toList(),
 
                 onChanged: (value) {
                   if (value == null) {

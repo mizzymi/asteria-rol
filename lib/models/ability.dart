@@ -137,7 +137,8 @@ enum SaveSuccessEffect { full, half, none }
 
 enum AbilityEffectActivationCondition { always, damageFullyMitigated }
 
-extension AbilityEffectActivationConditionData on AbilityEffectActivationCondition {
+extension AbilityEffectActivationConditionData
+    on AbilityEffectActivationCondition {
   String get label {
     switch (this) {
       case AbilityEffectActivationCondition.always:
@@ -709,7 +710,9 @@ class CharacterAbility {
 
   bool get mitigatesDamage {
     if (effects.isNotEmpty) {
-      return effects.any((effect) => effect.mitigatesDamage && effect.hasEffect);
+      return effects.any(
+        (effect) => effect.mitigatesDamage && effect.hasEffect,
+      );
     }
 
     return effectType == AbilityEffectType.mitigation;
@@ -1197,8 +1200,11 @@ class CharacterAbility {
       empoweredCritical: map['empoweredCritical'] as bool? ?? false,
 
       empoweredCriticalMultiplier:
-          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10).toInt(),
-      empoweredCriticalFormula: map['empoweredCriticalFormula'] as String? ??
+          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2)
+              .clamp(2, 10)
+              .toInt(),
+      empoweredCriticalFormula:
+          map['empoweredCriticalFormula'] as String? ??
           '(MAX + MOD) * ${((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10)}',
 
       requiresAttackRoll: map['requiresAttackRoll'] as bool? ?? false,

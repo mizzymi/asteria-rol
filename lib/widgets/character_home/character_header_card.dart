@@ -54,12 +54,20 @@ class CharacterHeaderCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: colors.surfaceContainerHighest,
                     border: Border.all(
-                      color: colors.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.54 : 0.38),
+                      color: colors.primary.withValues(
+                        alpha: theme.brightness == Brightness.dark
+                            ? 0.54
+                            : 0.38,
+                      ),
                       width: 3.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: colors.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.18 : 0.10),
+                        color: colors.primary.withValues(
+                          alpha: theme.brightness == Brightness.dark
+                              ? 0.18
+                              : 0.10,
+                        ),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
@@ -224,7 +232,9 @@ class _HeaderBadge extends StatelessWidget {
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: colors.shadow.withValues(alpha: theme.brightness == Brightness.dark ? 0.10 : 0.06),
+                color: colors.shadow.withValues(
+                  alpha: theme.brightness == Brightness.dark ? 0.10 : 0.06,
+                ),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),

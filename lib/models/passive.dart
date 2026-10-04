@@ -330,6 +330,7 @@ class CharacterPassive {
   String id;
   String name;
   String description;
+
   /// Ruta local de la imagen representativa de la pasiva.
   String? imagePath;
 
@@ -1204,8 +1205,11 @@ class CharacterPassive {
 
       empoweredCritical: map['empoweredCritical'] as bool? ?? false,
       empoweredCriticalMultiplier:
-          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10).toInt(),
-      empoweredCriticalFormula: map['empoweredCriticalFormula'] as String? ??
+          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2)
+              .clamp(2, 10)
+              .toInt(),
+      empoweredCriticalFormula:
+          map['empoweredCriticalFormula'] as String? ??
           '(MAX + MOD) * ${((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10)}',
     );
 

@@ -80,7 +80,11 @@ class CombatResourceCard extends StatelessWidget {
                       color: iconBackground,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(resource.icon, size: 20, color: resource.colorFor(context)),
+                    child: Icon(
+                      resource.icon,
+                      size: 20,
+                      color: resource.colorFor(context),
+                    ),
                   ),
 
                   const SizedBox(width: 10),
@@ -116,11 +120,13 @@ class CombatResourceCard extends StatelessWidget {
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: resource.colorFor(context).withValues(
-                        alpha: theme.brightness == Brightness.dark
-                            ? 0.16
-                            : 0.10,
-                      ),
+                      color: resource
+                          .colorFor(context)
+                          .withValues(
+                            alpha: theme.brightness == Brightness.dark
+                                ? 0.16
+                                : 0.10,
+                          ),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(

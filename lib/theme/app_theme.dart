@@ -26,7 +26,11 @@ class AppTheme {
           source;
     }
 
-    Color boost(Color color, {double saturation = 0.0, double lightness = 0.0}) {
+    Color boost(
+      Color color, {
+      double saturation = 0.0,
+      double lightness = 0.0,
+    }) {
       final hsl = HSLColor.fromColor(color);
       return hsl
           .withSaturation((hsl.saturation + saturation).clamp(0.0, 1.0))
@@ -35,11 +39,19 @@ class AppTheme {
     }
 
     final surface = tint(base.surface, 0.045, 0.08);
-    final surfaceContainerLowest = tint(base.surfaceContainerLowest, 0.055, 0.08);
+    final surfaceContainerLowest = tint(
+      base.surfaceContainerLowest,
+      0.055,
+      0.08,
+    );
     final surfaceContainerLow = tint(base.surfaceContainerLow, 0.075, 0.10);
     final surfaceContainer = tint(base.surfaceContainer, 0.10, 0.13);
     final surfaceContainerHigh = tint(base.surfaceContainerHigh, 0.125, 0.16);
-    final surfaceContainerHighest = tint(base.surfaceContainerHighest, 0.15, 0.19);
+    final surfaceContainerHighest = tint(
+      base.surfaceContainerHighest,
+      0.15,
+      0.19,
+    );
 
     final surfaces = <Color>[
       surface,
@@ -255,7 +267,9 @@ class AppTheme {
       // APP BAR
       // =========================================================================
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surfaceContainerLowest.withValues(alpha: brightness == Brightness.dark ? 0.94 : 0.90),
+        backgroundColor: scheme.surfaceContainerLowest.withValues(
+          alpha: brightness == Brightness.dark ? 0.94 : 0.90,
+        ),
         foregroundColor: scheme.onSurface,
         surfaceTintColor: scheme.primary.withValues(alpha: 0.04),
         elevation: 0,
@@ -433,10 +447,11 @@ class AppTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: scheme.primary,
-          backgroundColor: scheme.primaryContainer.withValues(alpha: brightness == Brightness.dark ? 0.78 : 0.72),
+          backgroundColor: scheme.primaryContainer.withValues(
+            alpha: brightness == Brightness.dark ? 0.78 : 0.72,
+          ),
         ),
       ),
-
 
       // =========================================================================
       // SEGMENTED BUTTON

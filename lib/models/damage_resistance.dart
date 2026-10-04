@@ -81,10 +81,7 @@ class DamageResistance {
 
   bool get isValid => normalizedDamageType.isNotEmpty;
 
-  DamageResistance copyWith({
-    String? damageType,
-    DamageResistanceTier? tier,
-  }) {
+  DamageResistance copyWith({String? damageType, DamageResistanceTier? tier}) {
     return DamageResistance(
       damageType: damageType ?? this.damageType,
       tier: tier ?? this.tier,
@@ -92,10 +89,7 @@ class DamageResistance {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'damageType': damageType,
-      'tier': tier.name,
-    };
+    return {'damageType': damageType, 'tier': tier.name};
   }
 
   factory DamageResistance.fromMap(Map<dynamic, dynamic> map) {

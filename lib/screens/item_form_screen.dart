@@ -74,8 +74,18 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   late Set<String> recommendedClasses;
 
   static const List<String> _classOptions = [
-    'Bárbaro', 'Bardo', 'Brujo', 'Clérigo', 'Druida', 'Explorador',
-    'Guerrero', 'Hechicero', 'Mago', 'Monje', 'Paladín', 'Pícaro',
+    'Bárbaro',
+    'Bardo',
+    'Brujo',
+    'Clérigo',
+    'Druida',
+    'Explorador',
+    'Guerrero',
+    'Hechicero',
+    'Mago',
+    'Monje',
+    'Paladín',
+    'Pícaro',
   ];
 
   // ===========================================================================
@@ -217,9 +227,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     weaponAttackAbility = weapon?.attackAbility ?? AbilityType.strength;
     weaponCriticalMinimumNaturalRoll = weapon?.criticalMinimumNaturalRoll ?? 20;
     weaponEmpoweredCritical = weapon?.empoweredCritical ?? false;
-    weaponEmpoweredCriticalMultiplier = weapon?.empoweredCriticalMultiplier ?? 2;
+    weaponEmpoweredCriticalMultiplier =
+        weapon?.empoweredCriticalMultiplier ?? 2;
     weaponEmpoweredCriticalFormulaController = TextEditingController(
-      text: weapon?.empoweredCriticalFormula ??
+      text:
+          weapon?.empoweredCriticalFormula ??
           '(MAX + MOD) * ${weapon?.empoweredCriticalMultiplier ?? 2}',
     );
     weaponProficient = weapon?.proficient ?? true;
@@ -463,7 +475,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
         empoweredCritical: weaponEmpoweredCritical,
         empoweredCriticalMultiplier: weaponEmpoweredCriticalMultiplier,
-        empoweredCriticalFormula: weaponEmpoweredCriticalFormulaController.text.trim().isEmpty
+        empoweredCriticalFormula:
+            weaponEmpoweredCriticalFormulaController.text.trim().isEmpty
             ? '(MAX + MOD) * 2'
             : weaponEmpoweredCriticalFormulaController.text.trim(),
         damageDice: primaryDamage?.diceNotation ?? '1d6',
@@ -952,20 +965,28 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                     const SectionHeader(
                       icon: Icons.groups_2_rounded,
                       title: 'Clases recomendadas',
-                      subtitle: 'El objeto puede recomendarse para una o varias clases',
+                      subtitle:
+                          'El objeto puede recomendarse para una o varias clases',
                     ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _classOptions.map((className) => FilterChip(
-                        label: Text(className),
-                        selected: recommendedClasses.contains(className),
-                        onSelected: (selected) => setState(() {
-                          if (selected) { recommendedClasses.add(className); }
-                          else { recommendedClasses.remove(className); }
-                        }),
-                      )).toList(),
+                      children: _classOptions
+                          .map(
+                            (className) => FilterChip(
+                              label: Text(className),
+                              selected: recommendedClasses.contains(className),
+                              onSelected: (selected) => setState(() {
+                                if (selected) {
+                                  recommendedClasses.add(className);
+                                } else {
+                                  recommendedClasses.remove(className);
+                                }
+                              }),
+                            ),
+                          )
+                          .toList(),
                     ),
                   ],
                 ),
@@ -1149,7 +1170,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   magicBonusController: magicBonusController,
                   criticalMinimumNaturalRoll: weaponCriticalMinimumNaturalRoll,
                   empoweredCritical: weaponEmpoweredCritical,
-                  empoweredCriticalMultiplier: weaponEmpoweredCriticalMultiplier,
+                  empoweredCriticalMultiplier:
+                      weaponEmpoweredCriticalMultiplier,
                   empoweredCriticalFormulaController:
                       weaponEmpoweredCriticalFormulaController,
                   damages: weaponDamages,

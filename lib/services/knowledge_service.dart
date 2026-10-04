@@ -184,11 +184,15 @@ class KnowledgeService {
     required List<String> passiveIds,
   }) async {
     for (final abilityId in abilityIds) {
-      final alreadyHas = character.characterAbilities.any((a) => a.id == abilityId);
+      final alreadyHas = character.characterAbilities.any(
+        (a) => a.id == abilityId,
+      );
       if (alreadyHas) continue;
       final ability = await AbilityLibraryService.getAbilityById(abilityId);
       if (ability != null) {
-        character.characterAbilities.add(CharacterAbility.fromMap(ability.toMap()));
+        character.characterAbilities.add(
+          CharacterAbility.fromMap(ability.toMap()),
+        );
       }
     }
 
@@ -206,7 +210,9 @@ class KnowledgeService {
     Character character,
     CharacterKnowledge entry,
   ) async {
-    for (final passiveId in List<String>.from(entry.temporaryPassiveIdsGranted)) {
+    for (final passiveId in List<String>.from(
+      entry.temporaryPassiveIdsGranted,
+    )) {
       character.removePassive(passiveId);
     }
     entry.temporaryPassiveIdsGranted.clear();

@@ -77,7 +77,9 @@ class _RestScreenState extends State<RestScreen> {
                         isSelected
                             ? Icons.radio_button_checked_rounded
                             : Icons.radio_button_unchecked_rounded,
-                        color: isSelected ? colors.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: isSelected
+                            ? colors.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -95,7 +97,9 @@ class _RestScreenState extends State<RestScreen> {
                               subtitle,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -195,7 +199,10 @@ class _RestScreenState extends State<RestScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Modificador de Constitución: ${conMod >= 0 ? '+$conMod' : conMod}',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
                     ),
                     const Divider(height: 24),
                     Text(
@@ -378,10 +385,7 @@ class _RestScreenState extends State<RestScreen> {
 
       for (final resource in character.resources) {
         if (resource.hasMaximum && resource.restoreOnLongRest) {
-          character.restoreResourceFull(
-            resource.id,
-            dispatchTriggers: false,
-          );
+          character.restoreResourceFull(resource.id, dispatchTriggers: false);
         }
       }
     });

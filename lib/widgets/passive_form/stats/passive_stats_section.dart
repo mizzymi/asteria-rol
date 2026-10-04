@@ -106,10 +106,7 @@ class _SavingThrowModesCard extends StatelessWidget {
   final Map<AbilityType, SavingThrowRollMode> values;
   final void Function(AbilityType ability, SavingThrowRollMode mode) onChanged;
 
-  const _SavingThrowModesCard({
-    required this.values,
-    required this.onChanged,
-  });
+  const _SavingThrowModesCard({required this.values, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -124,9 +121,7 @@ class _SavingThrowModesCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CircleAvatar(
-                  child: Icon(Icons.casino_rounded, size: 19),
-                ),
+                const CircleAvatar(child: Icon(Icons.casino_rounded, size: 19)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

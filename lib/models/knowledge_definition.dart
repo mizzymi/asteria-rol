@@ -180,9 +180,11 @@ class KnowledgeDefinition {
     this.unlockedPassiveIds = const [],
   });
 
-  int get effectiveRequiredProgress => circles.isNotEmpty ? circles.length : requiredProgress;
+  int get effectiveRequiredProgress =>
+      circles.isNotEmpty ? circles.length : requiredProgress;
 
-  List<KnowledgeCheckOption> get effectiveCheckOptions => checkOptions.isNotEmpty
+  List<KnowledgeCheckOption> get effectiveCheckOptions =>
+      checkOptions.isNotEmpty
       ? checkOptions
       : [KnowledgeCheckOption.ability(AbilityType.intelligence)];
 

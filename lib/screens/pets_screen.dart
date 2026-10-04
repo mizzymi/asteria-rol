@@ -104,7 +104,8 @@ class _PetsScreenState extends State<PetsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               itemCount: pets.length,
               separatorBuilder: (_, _) => const SizedBox(height: 14),
-              itemBuilder: (context, index) => _buildPetCard(theme, pets[index]),
+              itemBuilder: (context, index) =>
+                  _buildPetCard(theme, pets[index]),
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(),
@@ -116,7 +117,8 @@ class _PetsScreenState extends State<PetsScreen> {
 
   Widget _buildPetCard(ThemeData theme, Pet pet) {
     final colors = theme.colorScheme;
-    final hasImage = pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
+    final hasImage =
+        pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
     final healthRatio = pet.maxHealth <= 0
         ? 0.0
         : (pet.currentHealth / pet.maxHealth).clamp(0.0, 1.0);
@@ -173,8 +175,12 @@ class _PetsScreenState extends State<PetsScreen> {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                            Theme.of(context).colorScheme.scrim.withValues(alpha: .72),
+                            Theme.of(
+                              context,
+                            ).colorScheme.surface.withValues(alpha: 0),
+                            Theme.of(
+                              context,
+                            ).colorScheme.scrim.withValues(alpha: .72),
                           ],
                           stops: const [.28, 1],
                         ),
@@ -193,7 +199,9 @@ class _PetsScreenState extends State<PetsScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleLarge?.copyWith(
-                            color: Theme.of(context).colorScheme.onInverseSurface,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onInverseSurface,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -203,7 +211,9 @@ class _PetsScreenState extends State<PetsScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onInverseSurface,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onInverseSurface,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -216,7 +226,9 @@ class _PetsScreenState extends State<PetsScreen> {
                     child: PopupMenuButton<String>(
                       iconColor: Theme.of(context).colorScheme.onInverseSurface,
                       style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.scrim.withValues(alpha: .35),
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.scrim.withValues(alpha: .35),
                       ),
                       onSelected: (value) {
                         if (value == 'edit') _openForm(pet: pet);
@@ -251,7 +263,11 @@ class _PetsScreenState extends State<PetsScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.favorite_rounded, size: 18, color: colors.error),
+                      Icon(
+                        Icons.favorite_rounded,
+                        size: 18,
+                        color: colors.error,
+                      ),
                       const SizedBox(width: 7),
                       Text(
                         '${pet.currentHealth}/${pet.maxHealth} PV',
@@ -260,9 +276,17 @@ class _PetsScreenState extends State<PetsScreen> {
                         ),
                       ),
                       const Spacer(),
-                      _statChip(context, Icons.shield_rounded, 'CA ${pet.armorClass}'),
+                      _statChip(
+                        context,
+                        Icons.shield_rounded,
+                        'CA ${pet.armorClass}',
+                      ),
                       const SizedBox(width: 6),
-                      _statChip(context, Icons.directions_run_rounded, '${pet.speed}'),
+                      _statChip(
+                        context,
+                        Icons.directions_run_rounded,
+                        '${pet.speed}',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -296,9 +320,9 @@ class _PetsScreenState extends State<PetsScreen> {
           const SizedBox(width: 4),
           Text(
             text,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
         ],
       ),

@@ -55,7 +55,9 @@ class CampaignImportExportService {
     };
 
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/${_safeName(campaign.name)}.asteria-campaign');
+    final file = File(
+      '${dir.path}/${_safeName(campaign.name)}.asteria-campaign',
+    );
 
     await PortableStreamingArchive.write(
       file: file,
@@ -93,7 +95,7 @@ class CampaignImportExportService {
 
   /// Compatibilidad con exportaciones JSON antiguas.
   static Future<({Campaign campaign, List<Character> characters})>
-      decodePortable(String raw) async {
+  decodePortable(String raw) async {
     final decoded = jsonDecode(raw);
     if (decoded is! Map) {
       throw const FormatException('Archivo de campaña inválido.');
@@ -128,7 +130,7 @@ class CampaignImportExportService {
   }
 
   static Future<({Campaign campaign, List<Character> characters})>
-      _decodeBinary(File file) async {
+  _decodeBinary(File file) async {
     final header = await PortableStreamingArchive.read(
       file: file,
       magicBytes: _binaryMagic,
@@ -136,11 +138,11 @@ class CampaignImportExportService {
     );
     if (header['type'] != formatType ||
         (header['version'] as num?)?.toInt() != formatVersion) {
-      throw const FormatException('El archivo no es una campaña de Asteria v2.');
+      throw const FormatException(
+        'El archivo no es una campaña de Asteria v2.',
+      );
     }
-    return _modelsFromRoot(
-      Map<String, dynamic>.from(header['root'] as Map),
-    );
+    return _modelsFromRoot(Map<String, dynamic>.from(header['root'] as Map));
   }
 
   static ({Campaign campaign, List<Character> characters}) _modelsFromRoot(
@@ -163,7 +165,7 @@ class CampaignImportExportService {
 
   /// Importa una campaña portable como una copia independiente.
   static Future<({Campaign campaign, List<Character> characters})>
-      importPortableAsCopy(String raw) async {
+  importPortableAsCopy(String raw) async {
     return _asCopy(await decodePortable(raw));
   }
 
@@ -207,12 +209,13 @@ class CampaignImportExportService {
 
   /// Compatibilidad API con importaciones desde texto JSON antiguas.
   static Future<({Campaign campaign, List<Character> characters})>
-      importPortable(String raw) async {
+  importPortable(String raw) async {
     return decodePortable(raw);
   }
 
-  static Future<({Campaign campaign, List<Character> characters})>
-      importFile(File file) async {
+  static Future<({Campaign campaign, List<Character> characters})> importFile(
+    File file,
+  ) async {
     if (await PortableStreamingArchive.hasMagic(file, _binaryMagic)) {
       return _decodeBinary(file);
     }
@@ -220,7 +223,7 @@ class CampaignImportExportService {
   }
 
   static Future<({Campaign campaign, List<Character> characters})>
-      importFileAsCopy(File file) async {
+  importFileAsCopy(File file) async {
     final decoded = await importFile(file);
     return _asCopy(decoded);
   }

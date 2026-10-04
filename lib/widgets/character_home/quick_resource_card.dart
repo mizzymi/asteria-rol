@@ -125,15 +125,13 @@ class QuickResourceCard extends StatelessWidget {
                       height: 26,
                       decoration: BoxDecoration(
                         color: accent.withValues(
-                          alpha: theme.brightness == Brightness.dark ? 0.16 : 0.10,
+                          alpha: theme.brightness == Brightness.dark
+                              ? 0.16
+                              : 0.10,
                         ),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        Icons.edit_rounded,
-                        size: 13,
-                        color: accent,
-                      ),
+                      child: Icon(Icons.edit_rounded, size: 13, color: accent),
                     ),
                   ],
                 ),

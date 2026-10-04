@@ -14,12 +14,12 @@ class CampaignMission {
   }) : acceptedCharacterIds = acceptedCharacterIds ?? <String>[];
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'title': title,
-        'description': description,
-        'completed': completed,
-        'acceptedCharacterIds': acceptedCharacterIds,
-      };
+    'id': id,
+    'title': title,
+    'description': description,
+    'completed': completed,
+    'acceptedCharacterIds': acceptedCharacterIds,
+  };
 
   factory CampaignMission.fromMap(Map<dynamic, dynamic> map) {
     final rawIds = map['acceptedCharacterIds'];

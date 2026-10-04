@@ -416,7 +416,9 @@ class ActionResolver {
         .fold<int>(0, (sum, part) => sum + part.total);
 
     final resolvedMitigation = resolvedDiceResult.parts
-        .where((part) => part.request.effectType == AbilityEffectType.mitigation)
+        .where(
+          (part) => part.request.effectType == AbilityEffectType.mitigation,
+        )
         .fold<int>(0, (sum, part) => sum + part.total);
 
     return ActionTargetResult(
@@ -1172,9 +1174,13 @@ class ActionResolver {
       minimumRollSources: sources,
       forcedCritical: forcedCritical,
       empowered: effectiveEmpoweredCritical,
-      empoweredMultiplier: character.empoweredCriticalMultiplierForAbility(ability),
+      empoweredMultiplier: character.empoweredCriticalMultiplierForAbility(
+        ability,
+      ),
       empoweredFormula: character.empoweredCriticalFormulaForAbility(ability),
-      currentTurn: character.combatTurnSequence <= 0 ? 1 : character.combatTurnSequence,
+      currentTurn: character.combatTurnSequence <= 0
+          ? 1
+          : character.combatTurnSequence,
       resources: character.empoweredCriticalResourceValues,
       resourceMaximums: character.empoweredCriticalResourceMaximumValues,
       counters: character.empoweredCriticalCounterValues,
@@ -2119,11 +2125,11 @@ class ActionResolver {
           if (_abilityEffectEnabledForContext(effect, context))
             for (final part in effect.parts)
               if (_partCanApplyToAnyTarget(
-              plan: plan,
-              context: context,
-              part: part,
-            ))
-              part,
+                plan: plan,
+                context: context,
+                part: part,
+              ))
+                part,
       ];
     } else {
       selected = selectedParts(
@@ -4693,9 +4699,13 @@ class ActionResolver {
       ),
       forcedCritical: forcedCritical,
       empowered: empowered ?? character.empoweredCriticalForAbility(ability),
-      empoweredMultiplier: character.empoweredCriticalMultiplierForAbility(ability),
+      empoweredMultiplier: character.empoweredCriticalMultiplierForAbility(
+        ability,
+      ),
       empoweredFormula: character.empoweredCriticalFormulaForAbility(ability),
-      currentTurn: character.combatTurnSequence <= 0 ? 1 : character.combatTurnSequence,
+      currentTurn: character.combatTurnSequence <= 0
+          ? 1
+          : character.combatTurnSequence,
       resources: character.empoweredCriticalResourceValues,
       resourceMaximums: character.empoweredCriticalResourceMaximumValues,
       counters: character.empoweredCriticalCounterValues,
@@ -4713,9 +4723,13 @@ class ActionResolver {
       minimumRollSources: character.criticalMinimumRollSourcesForWeapon(weapon),
       forcedCritical: forcedCritical,
       empowered: empowered ?? character.empoweredCriticalForWeapon(weapon),
-      empoweredMultiplier: character.empoweredCriticalMultiplierForWeapon(weapon),
+      empoweredMultiplier: character.empoweredCriticalMultiplierForWeapon(
+        weapon,
+      ),
       empoweredFormula: character.empoweredCriticalFormulaForWeapon(weapon),
-      currentTurn: character.combatTurnSequence <= 0 ? 1 : character.combatTurnSequence,
+      currentTurn: character.combatTurnSequence <= 0
+          ? 1
+          : character.combatTurnSequence,
       resources: character.empoweredCriticalResourceValues,
       resourceMaximums: character.empoweredCriticalResourceMaximumValues,
       counters: character.empoweredCriticalCounterValues,

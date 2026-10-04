@@ -51,8 +51,12 @@ class ItemGridCard extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                        Theme.of(context).colorScheme.scrim.withValues(alpha: 0.72),
+                        Theme.of(
+                          context,
+                        ).colorScheme.surface.withValues(alpha: 0),
+                        Theme.of(
+                          context,
+                        ).colorScheme.scrim.withValues(alpha: 0.72),
                       ],
                     ),
                   ),
@@ -66,7 +70,9 @@ class ItemGridCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.72),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.scrim.withValues(alpha: 0.72),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(

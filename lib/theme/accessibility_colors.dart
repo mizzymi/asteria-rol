@@ -20,19 +20,14 @@ class AccessibilityColors {
     Color foreground,
     Color background, {
     double minimum = 5.0,
-  }) =>
-      contrastRatio(foreground, background) >= minimum;
+  }) => contrastRatio(foreground, background) >= minimum;
 
   static Color ensureContrast(
     Color foreground,
     Color background, {
     double minimum = 5.0,
   }) {
-    return ensureContrastAgainst(
-      foreground,
-      [background],
-      minimum: minimum,
-    );
+    return ensureContrastAgainst(foreground, [background], minimum: minimum);
   }
 
   static Color ensureContrastAgainst(

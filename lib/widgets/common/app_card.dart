@@ -42,7 +42,9 @@ class AppCard extends StatelessWidget {
             emphasized ? 0.22 : 0.12,
           )!
         : emphasized
-        ? theme.colorScheme.primaryContainer.withValues(alpha: theme.brightness == Brightness.dark ? 0.42 : 0.60)
+        ? theme.colorScheme.primaryContainer.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.42 : 0.60,
+          )
         : theme.colorScheme.surfaceContainerLow;
 
     // =========================================================================
@@ -50,9 +52,13 @@ class AppCard extends StatelessWidget {
     // =========================================================================
 
     final borderColor = accentColor != null
-        ? baseAccent.withValues(alpha: theme.brightness == Brightness.dark ? 0.34 : 0.28)
+        ? baseAccent.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.34 : 0.28,
+          )
         : emphasized
-        ? theme.colorScheme.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.30 : 0.22)
+        ? theme.colorScheme.primary.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.30 : 0.22,
+          )
         : theme.colorScheme.outlineVariant.withValues(alpha: 0.52);
 
     // =========================================================================

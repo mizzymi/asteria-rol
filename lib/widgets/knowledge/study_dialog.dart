@@ -12,10 +12,8 @@ Future<StudyRollResult?> showStudyDialog(
 }) {
   return showDialog<StudyRollResult>(
     context: context,
-    builder: (dialogContext) => _StudyDialogContent(
-      character: character,
-      definition: definition,
-    ),
+    builder: (dialogContext) =>
+        _StudyDialogContent(character: character, definition: definition),
   );
 }
 
@@ -114,9 +112,8 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                       children: [
                         Text(
                           'Círculo ${current + 1} · ${currentCircle.title}',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 4),
                         Text('CD $currentDc'),
@@ -151,9 +148,9 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
               const SizedBox(height: 14),
               Text(
                 'Tirada de aprendizaje',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<KnowledgeCheckOption>(
@@ -175,7 +172,10 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                 },
               ),
               const SizedBox(height: 14),
-              const Text('Modo de tirada:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Modo de tirada:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 6),
               SegmentedButton<ActionDiceMode>(
                 segments: const [
@@ -191,18 +191,29 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                   ),
                 ],
                 selected: {diceMode},
-                onSelectionChanged: (value) => setState(() => diceMode = value.first),
+                onSelectionChanged: (value) =>
+                    setState(() => diceMode = value.first),
               ),
               const SizedBox(height: 14),
-              const Text('Tipo de descanso:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Tipo de descanso:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 6),
               SegmentedButton<RestStudyType>(
                 segments: const [
-                  ButtonSegment(value: RestStudyType.shortRest, label: Text('Corto (1 d20)')),
-                  ButtonSegment(value: RestStudyType.longRest, label: Text('Largo (2 d20)')),
+                  ButtonSegment(
+                    value: RestStudyType.shortRest,
+                    label: Text('Corto (1 d20)'),
+                  ),
+                  ButtonSegment(
+                    value: RestStudyType.longRest,
+                    label: Text('Largo (2 d20)'),
+                  ),
                 ],
                 selected: {restType},
-                onSelectionChanged: (value) => setState(() => restType = value.first),
+                onSelectionChanged: (value) =>
+                    setState(() => restType = value.first),
               ),
               if (diceMode == ActionDiceMode.physical) ...[
                 const SizedBox(height: 14),
@@ -243,7 +254,9 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                 : Icons.casino_rounded,
           ),
           label: Text(
-            diceMode == ActionDiceMode.physical ? 'Registrar tirada' : 'Tirar estudio',
+            diceMode == ActionDiceMode.physical
+                ? 'Registrar tirada'
+                : 'Tirar estudio',
           ),
           onPressed: () async {
             final rolls = <int>[];

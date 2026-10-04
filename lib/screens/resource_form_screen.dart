@@ -453,7 +453,8 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                 children: availableColors.asMap().entries.map((entry) {
                   final index = entry.key;
                   final option = entry.value;
-                  final selected = index == colorValue.abs() % availableColors.length;
+                  final selected =
+                      index == colorValue.abs() % availableColors.length;
 
                   return InkWell(
                     borderRadius: BorderRadius.circular(18),
@@ -463,7 +464,10 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                       });
                     },
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 2,
+                        vertical: 4,
+                      ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -476,7 +480,9 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                               border: Border.all(
                                 color: selected
                                     ? theme.colorScheme.onSurface
-                                    : theme.colorScheme.surface.withValues(alpha: 0),
+                                    : theme.colorScheme.surface.withValues(
+                                        alpha: 0,
+                                      ),
                                 width: 3,
                               ),
                               boxShadow: selected
@@ -558,7 +564,11 @@ class _ResourceFormScreenState extends State<ResourceFormScreen> {
                                   .withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: selected ? color : Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                          color: selected
+                              ? color
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.surface.withValues(alpha: 0),
                         ),
                       ),
                       child: Icon(

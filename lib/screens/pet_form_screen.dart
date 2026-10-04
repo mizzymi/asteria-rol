@@ -110,7 +110,8 @@ class _PetFormScreenState extends State<PetFormScreen> {
         wisdom: _wis,
         charisma: _cha,
       ),
-      characterAbilities: widget.pet?.characterAbilities ?? <CharacterAbility>[],
+      characterAbilities:
+          widget.pet?.characterAbilities ?? <CharacterAbility>[],
       passives: widget.pet?.passives ?? [],
       weapons: widget.pet?.weapons ?? [],
       statModifiers: widget.pet?.statModifiers ?? {},
@@ -186,7 +187,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   border: Border.all(
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     width: 2,
                                   ),
                                   borderRadius: BorderRadius.circular(18),
@@ -274,11 +277,15 @@ class _PetFormScreenState extends State<PetFormScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (_avatarPath.isNotEmpty && File(_avatarPath).existsSync())
+                      if (_avatarPath.isNotEmpty &&
+                          File(_avatarPath).existsSync())
                         Image.file(
                           File(_avatarPath),
                           fit: BoxFit.cover,
-                          alignment: Alignment(_avatarAlignmentX, _avatarAlignmentY),
+                          alignment: Alignment(
+                            _avatarAlignmentX,
+                            _avatarAlignmentY,
+                          ),
                         )
                       else
                         DecoratedBox(
@@ -295,7 +302,8 @@ class _PetFormScreenState extends State<PetFormScreen> {
                           child: Icon(
                             Icons.pets_rounded,
                             size: 72,
-                            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.72),
+                            color: theme.colorScheme.onPrimaryContainer
+                                .withValues(alpha: 0.72),
                           ),
                         ),
                       Positioned.fill(
@@ -305,8 +313,12 @@ class _PetFormScreenState extends State<PetFormScreen> {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                                Theme.of(context).colorScheme.scrim.withValues(alpha: 0.42),
+                                Theme.of(
+                                  context,
+                                ).colorScheme.surface.withValues(alpha: 0),
+                                Theme.of(
+                                  context,
+                                ).colorScheme.scrim.withValues(alpha: 0.42),
                               ],
                             ),
                           ),
@@ -320,9 +332,13 @@ class _PetFormScreenState extends State<PetFormScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                _avatarPath.isEmpty ? 'Añadir imagen' : 'Cambiar imagen',
+                                _avatarPath.isEmpty
+                                    ? 'Añadir imagen'
+                                    : 'Cambiar imagen',
                                 style: theme.textTheme.titleMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onInverseSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onInverseSurface,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -483,7 +499,11 @@ class _PetFormScreenState extends State<PetFormScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -501,7 +521,10 @@ class _PetFormScreenState extends State<PetFormScreen> {
               ),
               Text(
                 modText,
-                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),

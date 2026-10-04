@@ -231,7 +231,9 @@ class _MasterScreenState extends State<MasterScreen> {
                     await AppModeService.setMode(AsteriaAppMode.player);
                     if (!context.mounted) return;
                     Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const CharacterSelectionScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const CharacterSelectionScreen(),
+                      ),
                       (_) => false,
                     );
                   },
@@ -490,8 +492,12 @@ class _CampaignCard extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                          Theme.of(context).colorScheme.scrim.withValues(alpha: .72),
+                          Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0),
+                          Theme.of(
+                            context,
+                          ).colorScheme.scrim.withValues(alpha: .72),
                         ],
                       ),
                     ),

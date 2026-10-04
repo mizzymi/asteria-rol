@@ -1,8 +1,4 @@
-enum KnowledgeStatus {
-  discovered,
-  studying,
-  mastered,
-}
+enum KnowledgeStatus { discovered, studying, mastered }
 
 class CharacterKnowledge {
   final String knowledgeId;

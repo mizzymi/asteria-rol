@@ -97,7 +97,9 @@ class CharacterImportExportService {
     );
     if (header['format'] != formatType ||
         (header['version'] as num?)?.toInt() != formatVersion) {
-      throw const FormatException('El archivo no es un personaje de Asteria v3.');
+      throw const FormatException(
+        'El archivo no es un personaje de Asteria v3.',
+      );
     }
     final root = Map<String, dynamic>.from(header['root'] as Map);
     if (root['character'] is! Map) {

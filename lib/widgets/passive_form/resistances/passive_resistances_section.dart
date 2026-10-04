@@ -35,9 +35,7 @@ class PassiveResistancesSection extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CircleAvatar(
-                  child: Icon(Icons.shield_rounded, size: 19),
-                ),
+                const CircleAvatar(child: Icon(Icons.shield_rounded, size: 19)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -93,10 +91,7 @@ class PassiveResistancesSection extends StatelessWidget {
                 ),
                 subtitle: Text(values[index].tier.label),
                 onTap: () async {
-                  final result = await _edit(
-                    context,
-                    initial: values[index],
-                  );
+                  final result = await _edit(context, initial: values[index]);
                   if (result == null) {
                     return;
                   }
@@ -120,7 +115,6 @@ class PassiveResistancesSection extends StatelessWidget {
     );
   }
 }
-
 
 class _DamageResistanceEditorDialog extends StatefulWidget {
   final DamageResistance? initial;
@@ -158,12 +152,9 @@ class _DamageResistanceEditorDialogState
       return;
     }
 
-    Navigator.of(context).pop(
-      DamageResistance(
-        damageType: damageType,
-        tier: _tier,
-      ),
-    );
+    Navigator.of(
+      context,
+    ).pop(DamageResistance(damageType: damageType, tier: _tier));
   }
 
   @override
@@ -194,10 +185,8 @@ class _DamageResistanceEditorDialogState
             ),
             items: DamageResistanceTier.values
                 .map(
-                  (value) => DropdownMenuItem(
-                    value: value,
-                    child: Text(value.label),
-                  ),
+                  (value) =>
+                      DropdownMenuItem(value: value, child: Text(value.label)),
                 )
                 .toList(growable: false),
             onChanged: (value) {
@@ -221,10 +210,7 @@ class _DamageResistanceEditorDialogState
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancelar'),
         ),
-        FilledButton(
-          onPressed: _save,
-          child: const Text('Guardar'),
-        ),
+        FilledButton(onPressed: _save, child: const Text('Guardar')),
       ],
     );
   }
