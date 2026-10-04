@@ -12,6 +12,39 @@ class ItemTypeColors {
         theme.extension<AsteriaSemanticColors>() ??
         AsteriaSemanticColors.asteria(scheme);
 
+    if (!semantic.isRainbow) {
+      switch (type) {
+        case ItemType.armor:
+        case ItemType.shield:
+        case ItemType.helmet:
+          return scheme.primary;
+        case ItemType.gloves:
+        case ItemType.ring:
+        case ItemType.amulet:
+          return scheme.secondary;
+        case ItemType.boots:
+        case ItemType.cape:
+        case ItemType.accessory:
+          return scheme.tertiary;
+        case ItemType.weapon:
+        case ItemType.ammunition:
+          return scheme.error;
+        case ItemType.consumable:
+        case ItemType.potion:
+        case ItemType.scroll:
+        case ItemType.book:
+          return scheme.secondary;
+        case ItemType.tool:
+        case ItemType.material:
+          return scheme.tertiary;
+        case ItemType.special:
+          return scheme.primary;
+        case ItemType.container:
+        case ItemType.misc:
+          return scheme.onSurfaceVariant;
+      }
+    }
+
     switch (type) {
       case ItemType.armor:
       case ItemType.shield:
