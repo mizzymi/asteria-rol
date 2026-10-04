@@ -73,7 +73,7 @@ class RainbowActionStyle {
     Color accent,
   ) {
     if (!enabled(context)) {
-      return IconButton.styleFrom(foregroundColor: accent);
+      return IconButton.styleFrom();
     }
 
     return IconButton.styleFrom(
