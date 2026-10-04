@@ -4,6 +4,7 @@ import '../models/character.dart';
 import '../models/character_effect.dart';
 
 import '../services/character_storage_service.dart';
+import '../theme/asteria_semantic_colors.dart';
 
 import '../widgets/common/empty_state.dart';
 import '../widgets/effects/effect_card.dart';
@@ -205,6 +206,11 @@ class _EffectsScreenState extends State<EffectsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
     final effects = character.effects;
 
     final hasExpired = effects.any((effect) => effect.expired);
@@ -216,6 +222,7 @@ class _EffectsScreenState extends State<EffectsScreen> {
           if (hasExpired)
             IconButton(
               tooltip: 'Eliminar expirados',
+              style: IconButton.styleFrom(foregroundColor: semantic.delete),
               onPressed: clearExpired,
               icon: const Icon(Icons.cleaning_services_rounded),
             ),
@@ -281,6 +288,8 @@ class _EffectsScreenState extends State<EffectsScreen> {
       // NUEVO EFECTO
       // =======================================================================
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: semantic.effects.withValues(alpha: 0.18),
+        foregroundColor: semantic.effects,
         onPressed: createEffect,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nuevo efecto'),
