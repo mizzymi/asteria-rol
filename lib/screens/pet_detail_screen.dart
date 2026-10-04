@@ -14,6 +14,7 @@ import '../models/character_effect.dart';
 import '../services/character_storage_service.dart';
 import '../services/action_resolution_flow.dart';
 import '../services/ability_library_service.dart';
+import '../theme/asteria_semantic_colors.dart';
 import '../services/passive_library_service.dart';
 import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
 import 'ability_form_screen.dart';
@@ -662,10 +663,21 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       appBar: AppBar(
         title: Text(pet.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_rounded),
-            tooltip: 'Editar mascota',
-            onPressed: _editPet,
+          Builder(
+            builder: (context) {
+              final theme = Theme.of(context);
+              final semantic =
+                  theme.extension<AsteriaSemanticColors>() ??
+                  AsteriaSemanticColors.asteria(theme.colorScheme);
+              return IconButton(
+                style: IconButton.styleFrom(
+                  foregroundColor: semantic.edit,
+                ),
+                icon: const Icon(Icons.edit_rounded),
+                tooltip: 'Editar mascota',
+                onPressed: _editPet,
+              );
+            },
           ),
         ],
       ),
@@ -1063,6 +1075,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Widget _buildHero(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
     final hasImage =
         pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
 
@@ -1088,7 +1103,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [colors.primaryContainer, colors.tertiaryContainer],
+                    colors: [
+                      semantic.neutral.withValues(alpha: .40),
+                      semantic.library.withValues(alpha: .40),
+                    ],
                   ),
                 ),
                 child: Icon(
@@ -1198,6 +1216,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Widget _buildOverviewCard(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
     final healthRatio = pet.maxHealth <= 0
         ? 0.0
         : (pet.currentHealth / pet.maxHealth).clamp(0.0, 1.0);
@@ -1219,7 +1240,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.favorite_rounded, color: colors.error),
+                        Icon(
+                          Icons.favorite_rounded,
+                          color: semantic.negative,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Puntos de vida',
@@ -1312,15 +1336,27 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   ) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
+
+    final accent = switch (label) {
+      'CA' => semantic.settings,
+      'Velocidad' => semantic.positive,
+      'Competencia' => semantic.neutral,
+      _ => semantic.pets,
+    };
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
+        color: Color.lerp(colors.surfaceContainerHighest, accent, 0.20),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: .42)),
       ),
       child: Column(
         children: [
-          Icon(icon, color: colors.primary, size: 21),
+          Icon(icon, color: accent, size: 21),
           const SizedBox(height: 5),
           Text(
             value,
@@ -1348,9 +1384,21 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     required Widget action,
   }) {
     final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
+    final accent = switch (title) {
+      'Efectos activos' => semantic.effects,
+      'Ataques básicos' => semantic.negative,
+      'Habilidades activas' => semantic.abilities,
+      'Pasivas' => semantic.neutral,
+      _ => semantic.pets,
+    };
+
     return Row(
       children: [
-        Icon(icon, size: 21, color: theme.colorScheme.primary),
+        Icon(icon, size: 21, color: accent),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
