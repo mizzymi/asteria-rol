@@ -10,6 +10,7 @@ class AsteriaSemanticColors
   final Color items;
   final Color story;
   final Color journal;
+  final Color resources;
   final Color dice;
   final Color knowledge;
   final Color combat;
@@ -24,6 +25,7 @@ class AsteriaSemanticColors
     required this.items,
     required this.story,
     required this.journal,
+    required this.resources,
     required this.dice,
     required this.knowledge,
     required this.combat,
@@ -40,6 +42,7 @@ class AsteriaSemanticColors
       items: scheme.primary,
       story: scheme.primary,
       journal: scheme.primary,
+      resources: scheme.primary,
       dice: scheme.primary,
       knowledge: scheme.primary,
       combat: scheme.primary,
@@ -61,6 +64,7 @@ class AsteriaSemanticColors
       items: tone(const Color(0xFF2E7D32), const Color(0xFF66D17A)),
       story: tone(const Color(0xFF00897B), const Color(0xFF4DD0C8)),
       journal: tone(const Color(0xFF007C91), const Color(0xFF4CC9E8)),
+      resources: tone(const Color(0xFF00897B), const Color(0xFF5CE1C4)),
       dice: tone(const Color(0xFF1565C0), const Color(0xFF64A8FF)),
       knowledge: tone(const Color(0xFF6A1B9A), const Color(0xFFC77DFF)),
       combat: tone(const Color(0xFF3949AB), const Color(0xFF8C9EFF)),
@@ -78,6 +82,7 @@ class AsteriaSemanticColors
     Color? items,
     Color? story,
     Color? journal,
+    Color? resources,
     Color? dice,
     Color? knowledge,
     Color? combat,
@@ -92,6 +97,7 @@ class AsteriaSemanticColors
       items: items ?? this.items,
       story: story ?? this.story,
       journal: journal ?? this.journal,
+      resources: resources ?? this.resources,
       dice: dice ?? this.dice,
       knowledge: knowledge ?? this.knowledge,
       combat: combat ?? this.combat,
@@ -117,6 +123,7 @@ class AsteriaSemanticColors
       items: Color.lerp(items, other.items, t) ?? items,
       story: Color.lerp(story, other.story, t) ?? story,
       journal: Color.lerp(journal, other.journal, t) ?? journal,
+      resources: Color.lerp(resources, other.resources, t) ?? resources,
       dice: Color.lerp(dice, other.dice, t) ?? dice,
       knowledge: Color.lerp(knowledge, other.knowledge, t) ?? knowledge,
       combat: Color.lerp(combat, other.combat, t) ?? combat,
