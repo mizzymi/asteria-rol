@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/character.dart';
 import '../models/pet.dart';
 import '../services/character_storage_service.dart';
+import '../theme/asteria_semantic_colors.dart';
 import '../widgets/common/empty_state.dart';
 import 'pet_detail_screen.dart';
 import 'pet_form_screen.dart';
@@ -84,6 +85,9 @@ class _PetsScreenState extends State<PetsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
     final pets = character.pets;
 
     return Scaffold(
@@ -108,6 +112,8 @@ class _PetsScreenState extends State<PetsScreen> {
                   _buildPetCard(theme, pets[index]),
             ),
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: semantic.create.withValues(alpha: 0.18),
+        foregroundColor: semantic.create,
         onPressed: () => _openForm(),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nueva mascota'),
@@ -117,6 +123,9 @@ class _PetsScreenState extends State<PetsScreen> {
 
   Widget _buildPetCard(ThemeData theme, Pet pet) {
     final colors = theme.colorScheme;
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(colors);
     final hasImage =
         pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
     final healthRatio = pet.maxHealth <= 0
@@ -234,20 +243,26 @@ class _PetsScreenState extends State<PetsScreen> {
                         if (value == 'edit') _openForm(pet: pet);
                         if (value == 'delete') _deletePet(pet);
                       },
-                      itemBuilder: (_) => const [
+                      itemBuilder: (_) => [
                         PopupMenuItem(
                           value: 'edit',
                           child: ListTile(
-                            leading: Icon(Icons.edit_rounded),
-                            title: Text('Editar'),
+                            leading: Icon(
+                              Icons.edit_rounded,
+                              color: semantic.edit,
+                            ),
+                            title: const Text('Editar'),
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
                         PopupMenuItem(
                           value: 'delete',
                           child: ListTile(
-                            leading: Icon(Icons.delete_outline_rounded),
-                            title: Text('Eliminar'),
+                            leading: Icon(
+                              Icons.delete_outline_rounded,
+                              color: semantic.delete,
+                            ),
+                            title: const Text('Eliminar'),
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
@@ -266,7 +281,7 @@ class _PetsScreenState extends State<PetsScreen> {
                       Icon(
                         Icons.favorite_rounded,
                         size: 18,
-                        color: colors.error,
+                        color: semantic.negative,
                       ),
                       const SizedBox(width: 7),
                       Text(
@@ -280,12 +295,14 @@ class _PetsScreenState extends State<PetsScreen> {
                         context,
                         Icons.shield_rounded,
                         'CA ${pet.armorClass}',
+                        semantic.settings,
                       ),
                       const SizedBox(width: 6),
                       _statChip(
                         context,
                         Icons.directions_run_rounded,
                         '${pet.speed}',
+                        semantic.positive,
                       ),
                     ],
                   ),
@@ -305,18 +322,24 @@ class _PetsScreenState extends State<PetsScreen> {
     );
   }
 
-  Widget _statChip(BuildContext context, IconData icon, String text) {
+  Widget _statChip(
+    BuildContext context,
+    IconData icon,
+    String text,
+    Color accent,
+  ) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
+        color: Color.lerp(colors.surfaceContainerHighest, accent, 0.20),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: .42)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: colors.onSurfaceVariant),
+          Icon(icon, size: 15, color: accent),
           const SizedBox(width: 4),
           Text(
             text,
