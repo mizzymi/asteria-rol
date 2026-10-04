@@ -86,7 +86,24 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
 
   late final TextEditingController formulaController;
 
-  late final TextEditingController damageTypeController;
+  static const _damageTypeOptions = <String>[
+    '',
+    'Cortante',
+    'Perforante',
+    'Contundente',
+    'Fuego',
+    'Frío',
+    'Ácido',
+    'Rayo',
+    'Trueno',
+    'Veneno',
+    'Psíquico',
+    'Radiante',
+    'Necrótico',
+    'Fuerza',
+  ];
+
+  late String selectedDamageType;
 
   @override
   void initState() {
@@ -120,7 +137,10 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
       text: bonus.formula?.expression ?? '',
     );
 
-    damageTypeController = TextEditingController(text: bonus.damageType);
+    final storedDamageType = bonus.damageType.trim();
+    selectedDamageType = _damageTypeOptions.contains(storedDamageType)
+        ? storedDamageType
+        : '';
   }
 
   @override
@@ -128,7 +148,6 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
     nameController.dispose();
     flatController.dispose();
     formulaController.dispose();
-    damageTypeController.dispose();
 
     super.dispose();
   }
@@ -144,9 +163,7 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
         ? null
         : CharacterFormula(expression: expression);
 
-    bonus.damageType = widget.allowDamageType
-        ? damageTypeController.text.trim()
-        : '';
+    bonus.damageType = widget.allowDamageType ? selectedDamageType : '';
 
     Navigator.pop(context, bonus);
   }
@@ -231,16 +248,26 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
               if (widget.allowDamageType) ...[
                 const SizedBox(height: 18),
 
-                TextFormField(
-                  controller: damageTypeController,
-                  textCapitalization: TextCapitalization.sentences,
+                DropdownButtonFormField<String>(
+                  initialValue: selectedDamageType,
+                  isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'Tipo de daño',
-                    hintText: 'Cortante',
+                    labelText: 'Tipo de mitigación',
                     helperText:
-                        'Déjalo vacío para mitigar cualquier tipo de daño.',
+                        'General mitiga cualquier daño. También puedes limitarla a un tipo concreto.',
                     prefixIcon: Icon(Icons.shield_rounded),
                   ),
+                  items: _damageTypeOptions.map((type) {
+                    return DropdownMenuItem<String>(
+                      value: type,
+                      child: Text(type.isEmpty ? 'General' : type),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedDamageType = value ?? '';
+                    });
+                  },
                 ),
               ],
 
