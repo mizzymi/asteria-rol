@@ -11,14 +11,61 @@ class StoryColors {
         AsteriaSemanticColors.asteria(theme.colorScheme);
   }
 
-  static Color backstory(BuildContext context) => _semantic(context).story;
-  static Color appearance(BuildContext context) => _semantic(context).library;
-  static Color personality(BuildContext context) => _semantic(context).neutral;
-  static Color ideals(BuildContext context) => _semantic(context).condition;
-  static Color bonds(BuildContext context) => _semantic(context).journal;
-  static Color flaws(BuildContext context) => _semantic(context).negative;
-  static Color goals(BuildContext context) => _semantic(context).create;
-  static Color notes(BuildContext context) => _semantic(context).notes;
+  static Color backstory(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.story
+        : Theme.of(context).colorScheme.primary;
+  }
+
+  static Color appearance(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.library
+        : Theme.of(context).colorScheme.secondary;
+  }
+
+  static Color personality(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.neutral
+        : Theme.of(context).colorScheme.tertiary;
+  }
+
+  static Color ideals(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.condition
+        : Theme.of(context).colorScheme.secondary;
+  }
+
+  static Color bonds(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.journal
+        : Theme.of(context).colorScheme.tertiary;
+  }
+
+  static Color flaws(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.negative
+        : Theme.of(context).colorScheme.error;
+  }
+
+  static Color goals(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.create
+        : Theme.of(context).colorScheme.primary;
+  }
+
+  static Color notes(BuildContext context) {
+    final semantic = _semantic(context);
+    return semantic.isRainbow
+        ? semantic.notes
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+  }
 
   static Color background(
     BuildContext context,
