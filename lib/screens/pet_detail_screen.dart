@@ -964,16 +964,28 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                           passive.name,
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        subtitle: Text(
-                          passive.hasCharges
-                              ? '${passive.triggers.length} triggers  •  Cargas ${passive.chargesText}'
-                              : '${passive.triggers.length} triggers configurados',
-                        ),
-                        onTap: () => _editPassive(passive),
-                        trailing: passive.hasCharges
-                            ? Row(
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 3),
+                            Text(
+                              '${passive.triggers.length} triggers configurados',
+                            ),
+                            if (passive.hasCharges) ...[
+                              const SizedBox(height: 8),
+                              Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  Text(
+                                    'Cargas',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  const SizedBox(width: 8),
                                   Container(
                                     decoration: BoxDecoration(
                                       color: Theme.of(
@@ -1041,58 +1053,37 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                       ],
                                     ),
                                   ),
-                                  PopupMenuButton<String>(
-                                    onSelected: (value) async {
-                                      if (value == 'edit') {
-                                        await _editPassive(passive);
-                                      }
-                                      if (value == 'delete') {
-                                        setState(
-                                          () => pet.passives.removeWhere(
-                                            (p) => p.id == passive.id,
-                                          ),
-                                        );
-                                        await _save();
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Editar'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Eliminar'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              )
-                            : PopupMenuButton<String>(
-                                onSelected: (value) async {
-                                  if (value == 'edit') {
-                                    await _editPassive(passive);
-                                  }
-                                  if (value == 'delete') {
-                                    setState(
-                                      () => pet.passives.removeWhere(
-                                        (p) => p.id == passive.id,
-                                      ),
-                                    );
-                                    await _save();
-                                  }
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Editar'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Eliminar'),
-                                  ),
                                 ],
                               ),
+                            ],
+                          ],
+                        ),
+                        onTap: () => _editPassive(passive),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            if (value == 'edit') {
+                              await _editPassive(passive);
+                            }
+                            if (value == 'delete') {
+                              setState(
+                                () => pet.passives.removeWhere(
+                                  (p) => p.id == passive.id,
+                                ),
+                              );
+                              await _save();
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Editar'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Eliminar'),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
