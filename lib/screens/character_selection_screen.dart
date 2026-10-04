@@ -13,6 +13,7 @@ import '../services/character_import_export_service.dart';
 import '../services/character_storage_service.dart';
 import '../services/theme_preference_service.dart';
 import '../theme/asteria_semantic_colors.dart';
+import '../theme/rainbow_action_style.dart';
 import 'campaign_detail_screen.dart';
 import 'campaign_form_screen.dart';
 import 'character_form_screen.dart';
@@ -432,6 +433,12 @@ class _CharacterSelectionScreenState extends State<CharacterSelectionScreen> {
       ),
       floatingActionButton: campaigns.isEmpty
           ? FloatingActionButton.extended(
+              backgroundColor: semantic.isRainbow
+                  ? RainbowActionStyle.background(context, semantic.create)
+                  : null,
+              foregroundColor: semantic.isRainbow
+                  ? RainbowActionStyle.foreground(context)
+                  : null,
               onPressed: _createCampaign,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Nueva campaña'),
@@ -741,10 +748,23 @@ class _Header extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        IconButton.filledTonal(
-          tooltip: 'Más opciones',
-          onPressed: onMenu,
-          icon: const Icon(Icons.more_horiz_rounded),
+        Builder(
+          builder: (context) {
+            final theme = Theme.of(context);
+            final semantic =
+                theme.extension<AsteriaSemanticColors>() ??
+                AsteriaSemanticColors.asteria(theme.colorScheme);
+
+            return IconButton.filledTonal(
+              style: RainbowActionStyle.iconButton(
+                context,
+                semantic.settings,
+              ),
+              tooltip: 'Más opciones',
+              onPressed: onMenu,
+              icon: const Icon(Icons.more_horiz_rounded),
+            );
+          },
         ),
       ],
     );
@@ -1061,8 +1081,14 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final background = Color.lerp(colors.surfaceContainerLow, color, 0.14) ??
-        colors.surfaceContainerLow;
+    final rainbow = RainbowActionStyle.enabled(context);
+    final foreground = rainbow
+        ? RainbowActionStyle.foreground(context)
+        : color;
+    final background = rainbow
+        ? RainbowActionStyle.background(context, color)
+        : Color.lerp(colors.surfaceContainerLow, color, 0.14) ??
+              colors.surfaceContainerLow;
 
     return Card(
       color: background,
@@ -1074,8 +1100,10 @@ class _QuickAction extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: color.withValues(alpha: 0.16),
-                child: Icon(icon, color: color),
+                backgroundColor: rainbow
+                    ? foreground.withValues(alpha: 0.10)
+                    : color.withValues(alpha: 0.16),
+                child: Icon(icon, color: foreground),
               ),
               const SizedBox(width: 11),
               Expanded(
