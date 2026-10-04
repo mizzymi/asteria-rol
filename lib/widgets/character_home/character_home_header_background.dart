@@ -38,23 +38,14 @@ class CharacterHomeHeaderBackground extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (semantic.isRainbow)
-            DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFE91E63),
-                    Color(0xFFF44336),
-                    Color(0xFFFF9800),
-                    Color(0xFFFFD54F),
-                    Color(0xFF4CAF50),
-                    Color(0xFF00BCD4),
-                    Color(0xFF2196F3),
-                    Color(0xFF7E57C2),
-                  ],
-                ),
-              ),
+            Image.asset(
+              isDark
+                  ? 'assets/rainbowthemedark.png'
+                  : 'assets/rainbowthemelight.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              gaplessPlayback: true,
+              filterQuality: FilterQuality.medium,
             )
           else
             Image.memory(
@@ -67,7 +58,9 @@ class CharacterHomeHeaderBackground extends StatelessWidget {
           DecoratedBox(
             decoration: BoxDecoration(
               color: isDark
-                  ? colors.surface.withValues(alpha: 0.14)
+                  ? colors.surface.withValues(
+                      alpha: semantic.isRainbow ? 0.06 : 0.14,
+                    )
                   : colors.surface.withValues(alpha: 0.00),
             ),
           ),
@@ -79,17 +72,27 @@ class CharacterHomeHeaderBackground extends StatelessWidget {
                 stops: const [0.0, 0.28, 0.58, 0.82, 1.0],
                 colors: isDark
                     ? [
-                        colors.surface.withValues(alpha: 0.22),
-                        colors.surface.withValues(alpha: 0.30),
-                        fadeColor.withValues(alpha: 0.54),
+                        colors.surface.withValues(
+                          alpha: semantic.isRainbow ? 0.10 : 0.22,
+                        ),
+                        colors.surface.withValues(
+                          alpha: semantic.isRainbow ? 0.16 : 0.30,
+                        ),
+                        fadeColor.withValues(
+                          alpha: semantic.isRainbow ? 0.42 : 0.54,
+                        ),
                         fadeColor.withValues(alpha: 0.88),
                         colors.surface,
                       ]
                     : [
+                        colors.surface.withValues(alpha: 0.01),
                         colors.surface.withValues(alpha: 0.02),
-                        colors.surface.withValues(alpha: 0.03),
-                        fadeColor.withValues(alpha: 0.10),
-                        fadeColor.withValues(alpha: 0.72),
+                        fadeColor.withValues(
+                          alpha: semantic.isRainbow ? 0.06 : 0.10,
+                        ),
+                        fadeColor.withValues(
+                          alpha: semantic.isRainbow ? 0.64 : 0.72,
+                        ),
                         fadeColor,
                       ],
               ),
