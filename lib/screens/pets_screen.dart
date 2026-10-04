@@ -6,6 +6,7 @@ import '../models/character.dart';
 import '../models/pet.dart';
 import '../services/character_storage_service.dart';
 import '../theme/asteria_semantic_colors.dart';
+import '../theme/rainbow_action_style.dart';
 import '../widgets/common/empty_state.dart';
 import 'pet_detail_screen.dart';
 import 'pet_form_screen.dart';
@@ -112,8 +113,12 @@ class _PetsScreenState extends State<PetsScreen> {
                   _buildPetCard(theme, pets[index]),
             ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: semantic.create.withValues(alpha: 0.18),
-        foregroundColor: semantic.create,
+        backgroundColor: semantic.isRainbow
+            ? RainbowActionStyle.background(context, semantic.create)
+            : null,
+        foregroundColor: semantic.isRainbow
+            ? RainbowActionStyle.foreground(context)
+            : null,
         onPressed: () => _openForm(),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nueva mascota'),
