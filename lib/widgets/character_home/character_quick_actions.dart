@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/rainbow_action_style.dart';
 import 'character_home_colors.dart';
 
 class CharacterQuickActions extends StatelessWidget {
@@ -104,19 +105,27 @@ class _QuickActionButton extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final background = CharacterHomeColors.tintedSurface(
-      context,
-      color,
-      lightStrength: 0.14,
-      darkStrength: 0.12,
-    );
+    final rainbow = RainbowActionStyle.enabled(context);
+    final background = rainbow
+        ? RainbowActionStyle.background(context, color)
+        : CharacterHomeColors.tintedSurface(
+            context,
+            color,
+            lightStrength: 0.14,
+            darkStrength: 0.12,
+          );
+    final foreground = rainbow
+        ? RainbowActionStyle.foreground(context)
+        : color;
 
-    final iconBackground = CharacterHomeColors.tintedSurface(
-      context,
-      color,
-      lightStrength: 0.26,
-      darkStrength: 0.18,
-    );
+    final iconBackground = rainbow
+        ? foreground.withValues(alpha: 0.10)
+        : CharacterHomeColors.tintedSurface(
+            context,
+            color,
+            lightStrength: 0.26,
+            darkStrength: 0.18,
+          );
 
     final borderColor = CharacterHomeColors.tintedBorder(
       context,
@@ -159,7 +168,7 @@ class _QuickActionButton extends StatelessWidget {
                     color: iconBackground,
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(icon, size: 21, color: color),
+                  child: Icon(icon, size: 21, color: foreground),
                 ),
                 const SizedBox(height: 7),
                 Text(
@@ -168,7 +177,7 @@ class _QuickActionButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: colors.onSurface,
+                    color: rainbow ? foreground : colors.onSurface,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
