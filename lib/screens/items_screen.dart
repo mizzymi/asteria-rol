@@ -17,6 +17,7 @@ import '../services/item_library_service.dart';
 
 import '../theme/item_type_colors.dart';
 import '../theme/asteria_semantic_colors.dart';
+import '../theme/accessibility_colors.dart';
 import '../utils/number_format.dart';
 
 import '../widgets/items/slot_selection_dialog.dart';
@@ -1388,7 +1389,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
           actions: [
             IconButton(
               tooltip: gridView ? 'Vista de lista' : 'Vista de cuadrícula',
-              style: IconButton.styleFrom(foregroundColor: semantic.grid),
+              style: IconButton.styleFrom(
+                backgroundColor: semantic.grid,
+                foregroundColor: AccessibilityColors.ensureContrast(
+                  theme.colorScheme.onSurface,
+                  semantic.grid,
+                  minimum: 5.0,
+                ),
+              ),
               onPressed: _toggleViewMode,
               icon: Icon(
                 gridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
@@ -1396,7 +1404,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
             ),
             IconButton(
               tooltip: 'Configurar ranuras',
-              style: IconButton.styleFrom(foregroundColor: semantic.settings),
+              style: IconButton.styleFrom(
+                backgroundColor: semantic.settings,
+                foregroundColor: AccessibilityColors.ensureContrast(
+                  theme.colorScheme.onSurface,
+                  semantic.settings,
+                  minimum: 5.0,
+                ),
+              ),
               onPressed: () {
                 EquipmentSlotsConfigDialog.show(
                   context,
@@ -1446,21 +1461,40 @@ class _ItemsScreenState extends State<ItemsScreen> {
               ),
             IconButton(
               tooltip: 'Biblioteca de objetos',
-              style: IconButton.styleFrom(foregroundColor: semantic.library),
+              style: IconButton.styleFrom(
+                backgroundColor: semantic.library,
+                foregroundColor: AccessibilityColors.ensureContrast(
+                  theme.colorScheme.onSurface,
+                  semantic.library,
+                  minimum: 5.0,
+                ),
+              ),
               onPressed: addItemFromLibrary,
               icon: const Icon(Icons.local_library_rounded),
             ),
             IconButton(
               tooltip: 'Importar objeto',
               style: IconButton.styleFrom(
-                foregroundColor: semantic.importAction,
+                backgroundColor: semantic.importAction,
+                foregroundColor: AccessibilityColors.ensureContrast(
+                  theme.colorScheme.onSurface,
+                  semantic.importAction,
+                  minimum: 5.0,
+                ),
               ),
               onPressed: importItem,
               icon: const Icon(Icons.file_download_rounded),
             ),
             IconButton(
               tooltip: 'Tiendas',
-              style: IconButton.styleFrom(foregroundColor: semantic.shop),
+              style: IconButton.styleFrom(
+                backgroundColor: semantic.shop,
+                foregroundColor: AccessibilityColors.ensureContrast(
+                  theme.colorScheme.onSurface,
+                  semantic.shop,
+                  minimum: 5.0,
+                ),
+              ),
               onPressed: openShop,
               icon: const Icon(Icons.storefront_rounded),
             ),
