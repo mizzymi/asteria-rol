@@ -12,6 +12,7 @@ class CombatAbilityCard extends StatelessWidget {
   final ItemDefinition? sourceItem;
 
   final VoidCallback onUse;
+  final VoidCallback? onExpand;
 
   const CombatAbilityCard({
     super.key,
@@ -19,6 +20,7 @@ class CombatAbilityCard extends StatelessWidget {
     required this.ability,
     required this.onUse,
     this.sourceItem,
+    this.onExpand,
   });
 
   @override
@@ -107,6 +109,15 @@ class CombatAbilityCard extends StatelessWidget {
                   ],
                 ),
               ),
+
+              if (onExpand != null) ...[
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Ver completa',
+                  onPressed: onExpand,
+                  icon: const Icon(Icons.open_in_full_rounded),
+                ),
+              ],
             ],
           ),
 

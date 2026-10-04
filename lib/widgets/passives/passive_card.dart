@@ -44,6 +44,7 @@ class PassiveCard extends StatefulWidget {
   final VoidCallback? onRestoreCharges;
   final VoidCallback? onRoll;
   final VoidCallback? onMove;
+  final bool initialExpanded;
 
   const PassiveCard({
     super.key,
@@ -58,6 +59,7 @@ class PassiveCard extends StatefulWidget {
     this.onRestoreCharges,
     this.onRoll,
     this.onMove,
+    this.initialExpanded = false,
   });
 
   @override
@@ -65,7 +67,13 @@ class PassiveCard extends StatefulWidget {
 }
 
 class _PassiveCardState extends State<PassiveCard> {
-  bool expanded = false;
+  late bool expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    expanded = widget.initialExpanded;
+  }
 
   CharacterPassive get passive => widget.passive;
 

@@ -13,6 +13,7 @@ class CombatPassiveCard extends StatelessWidget {
 
   final VoidCallback? onRoll;
   final VoidCallback? onApplyLinkedEffects;
+  final VoidCallback? onExpand;
 
   const CombatPassiveCard({
     super.key,
@@ -21,6 +22,7 @@ class CombatPassiveCard extends StatelessWidget {
     this.sourceItem,
     this.onRoll,
     this.onApplyLinkedEffects,
+    this.onExpand,
   });
 
   @override
@@ -111,11 +113,18 @@ class CombatPassiveCard extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              Icon(
-                Icons.check_circle_rounded,
-                size: 19,
-                color: CharacterHomeColors.notes(context),
-              ),
+              if (onExpand != null)
+                IconButton(
+                  tooltip: 'Ver completa',
+                  onPressed: onExpand,
+                  icon: const Icon(Icons.open_in_full_rounded),
+                )
+              else
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 19,
+                  color: CharacterHomeColors.notes(context),
+                ),
             ],
           ),
 

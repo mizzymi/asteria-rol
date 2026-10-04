@@ -29,6 +29,7 @@ class AbilityCard extends StatefulWidget {
   final VoidCallback? onRestore;
   final VoidCallback onCombatActions;
   final VoidCallback? onMove;
+  final bool initialExpanded;
 
   const AbilityCard({
     super.key,
@@ -40,6 +41,7 @@ class AbilityCard extends StatefulWidget {
     required this.onRestore,
     required this.onCombatActions,
     this.onMove,
+    this.initialExpanded = false,
   });
 
   @override
@@ -47,7 +49,14 @@ class AbilityCard extends StatefulWidget {
 }
 
 class _AbilityCardState extends State<AbilityCard> {
-  bool expanded = false;
+  late bool expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    expanded = widget.initialExpanded;
+  }
+
   @override
   Widget build(BuildContext context) {
     final attributeColor = AbilityAttributeColors.color(
