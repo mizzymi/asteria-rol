@@ -30,9 +30,9 @@ class CharacterHomeColors {
   static Color story(BuildContext context) => _semantic(context).story;
   static Color journal(BuildContext context) => _semantic(context).journal;
 
-  // Los recursos conservan su paleta actual en todos los temas.
-  static Color resources(BuildContext context) =>
-      Theme.of(context).colorScheme.primary;
+  // El acceso/sección Recursos sí cambia con el tema visual.
+  // Los colores internos de cada recurso siguen viniendo de ResourcePalette.
+  static Color resources(BuildContext context) => _semantic(context).resources;
 
   static Color dice(BuildContext context) => _semantic(context).dice;
   static Color knowledge(BuildContext context) => _semantic(context).knowledge;
