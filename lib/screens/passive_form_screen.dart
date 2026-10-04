@@ -840,6 +840,9 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
       passive: widget.passive,
       ownerPassiveId: passiveId,
       ownerUsesCharges: hasCharges,
+      title: 'Mitigación de daño',
+      formulaDescription: 'Reduce el daño recibido antes de descontar PV.',
+      allowDamageType: true,
     );
 
     if (result == null || !mounted) {
