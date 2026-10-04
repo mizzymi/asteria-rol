@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/rainbow_action_style.dart';
 import 'character_home_colors.dart';
 
 class CharacterMenuCard extends StatelessWidget {
@@ -23,19 +24,28 @@ class CharacterMenuCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    final background = CharacterHomeColors.tintedSurface(
-      context,
-      color,
-      lightStrength: 0.16,
-      darkStrength: 0.13,
-    );
+    final rainbow = RainbowActionStyle.enabled(context);
+    final background = rainbow
+        ? RainbowActionStyle.background(context, color)
+        : CharacterHomeColors.tintedSurface(
+            context,
+            color,
+            lightStrength: 0.16,
+            darkStrength: 0.13,
+          );
 
-    final iconBackground = CharacterHomeColors.tintedSurface(
-      context,
-      color,
-      lightStrength: 0.24,
-      darkStrength: 0.20,
-    );
+    final foreground = rainbow
+        ? RainbowActionStyle.foreground(context)
+        : color;
+
+    final iconBackground = rainbow
+        ? foreground.withValues(alpha: 0.10)
+        : CharacterHomeColors.tintedSurface(
+            context,
+            color,
+            lightStrength: 0.24,
+            darkStrength: 0.20,
+          );
 
     final borderColor = CharacterHomeColors.tintedBorder(context, color);
 
@@ -72,7 +82,7 @@ class CharacterMenuCard extends StatelessWidget {
                     color: iconBackground,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, size: 23, color: color),
+                  child: Icon(icon, size: 23, color: foreground),
                 ),
                 const SizedBox(width: 13),
                 Expanded(
@@ -84,6 +94,7 @@ class CharacterMenuCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleSmall?.copyWith(
+                          color: rainbow ? foreground : null,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -93,7 +104,9 @@ class CharacterMenuCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
+                          color: rainbow
+                              ? foreground.withValues(alpha: 0.82)
+                              : colors.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -111,7 +124,7 @@ class CharacterMenuCard extends StatelessWidget {
                   child: Icon(
                     Icons.chevron_right_rounded,
                     size: 21,
-                    color: color,
+                    color: foreground,
                   ),
                 ),
               ],
