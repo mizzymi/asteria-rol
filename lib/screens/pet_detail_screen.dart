@@ -15,6 +15,7 @@ import '../services/character_storage_service.dart';
 import '../services/action_resolution_flow.dart';
 import '../services/ability_library_service.dart';
 import '../theme/asteria_semantic_colors.dart';
+import '../theme/rainbow_action_style.dart';
 import '../services/passive_library_service.dart';
 import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
 import 'ability_form_screen.dart';
@@ -659,6 +660,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<AsteriaSemanticColors>() ??
+        AsteriaSemanticColors.asteria(theme.colorScheme);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(pet.name),
@@ -670,8 +676,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   theme.extension<AsteriaSemanticColors>() ??
                   AsteriaSemanticColors.asteria(theme.colorScheme);
               return IconButton(
-                style: IconButton.styleFrom(
-                  foregroundColor: semantic.edit,
+                style: RainbowActionStyle.iconButton(
+                  context,
+                  semantic.edit,
                 ),
                 icon: const Icon(Icons.edit_rounded),
                 tooltip: 'Editar mascota',
@@ -695,6 +702,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Efectos activos',
                   icon: Icons.auto_awesome_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.effects,
+                    ),
                     onPressed: _addEffect,
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
@@ -782,6 +793,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Ataques básicos',
                   icon: Icons.gavel_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.negative,
+                    ),
                     onPressed: () => _addOrEditWeapon(),
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
@@ -846,6 +861,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Habilidades activas',
                   icon: Icons.flash_on_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.abilities,
+                    ),
                     onPressed: _addAbility,
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
@@ -912,6 +931,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   title: 'Pasivas',
                   icon: Icons.auto_awesome_rounded,
                   action: FilledButton.tonalIcon(
+                    style: RainbowActionStyle.filledButton(
+                      context,
+                      semantic.neutral,
+                    ),
                     onPressed: _addPassive,
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Añadir'),
