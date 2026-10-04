@@ -23,6 +23,7 @@ Future<HealingBonus?> showHealingBonusEditorDialog(
   required bool ownerUsesCharges,
   String title = 'Curación adicional',
   String formulaDescription = 'Se suma a la curación.',
+  bool allowDamageType = false,
 }) {
   return showDialog<HealingBonus>(
     context: context,
@@ -36,6 +37,7 @@ Future<HealingBonus?> showHealingBonusEditorDialog(
         ownerUsesCharges: ownerUsesCharges,
         title: title,
         formulaDescription: formulaDescription,
+        allowDamageType: allowDamageType,
       );
     },
   );
@@ -56,6 +58,8 @@ class HealingBonusEditorDialog extends StatefulWidget {
 
   final String formulaDescription;
 
+  final bool allowDamageType;
+
   const HealingBonusEditorDialog({
     super.key,
     required this.bonus,
@@ -65,6 +69,7 @@ class HealingBonusEditorDialog extends StatefulWidget {
     required this.ownerUsesCharges,
     this.title = 'Curación adicional',
     this.formulaDescription = 'Se suma a la curación.',
+    this.allowDamageType = false,
   });
 
   @override
@@ -80,6 +85,8 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
   late final TextEditingController flatController;
 
   late final TextEditingController formulaController;
+
+  late final TextEditingController damageTypeController;
 
   @override
   void initState() {
@@ -100,6 +107,7 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
       formula: widget.bonus.formula != null
           ? CharacterFormula(expression: widget.bonus.formula!.expression)
           : null,
+      damageType: widget.bonus.damageType,
       chargeScaling: widget.bonus.chargeScaling,
       costs: List.from(widget.bonus.costs),
     );
@@ -111,6 +119,8 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
     formulaController = TextEditingController(
       text: bonus.formula?.expression ?? '',
     );
+
+    damageTypeController = TextEditingController(text: bonus.damageType);
   }
 
   @override
@@ -118,6 +128,7 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
     nameController.dispose();
     flatController.dispose();
     formulaController.dispose();
+    damageTypeController.dispose();
 
     super.dispose();
   }
@@ -132,6 +143,10 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
     bonus.formula = expression.isEmpty
         ? null
         : CharacterFormula(expression: expression);
+
+    bonus.damageType = widget.allowDamageType
+        ? damageTypeController.text.trim()
+        : '';
 
     Navigator.pop(context, bonus);
   }
@@ -212,6 +227,22 @@ class _HealingBonusEditorDialogState extends State<HealingBonusEditorDialog> {
 
                 description: widget.formulaDescription,
               ),
+
+              if (widget.allowDamageType) ...[
+                const SizedBox(height: 18),
+
+                TextFormField(
+                  controller: damageTypeController,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de daño',
+                    hintText: 'Cortante',
+                    helperText:
+                        'Déjalo vacío para mitigar cualquier tipo de daño.',
+                    prefixIcon: Icon(Icons.shield_rounded),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 24),
 
