@@ -3540,33 +3540,60 @@ class ActionResolutionFlow {
     BuildContext context, {
     required int baseAmount,
     required bool isDamage,
+    String damageType = '',
   }) async {
     final healthBefore = character.currentHealth;
 
-    var effectiveBaseAmount = baseAmount;
+    final normalizedDamageType = damageType.trim();
+    final resistedBaseAmount = isDamage && normalizedDamageType.isNotEmpty
+        ? character.applyDamageResistance(baseAmount, normalizedDamageType)
+        : baseAmount;
+    final resistanceReduction = math.max(0, baseAmount - resistedBaseAmount);
+
+    var effectiveBaseAmount = resistedBaseAmount;
     var reactionMitigation = 0;
+
+    if (isDamage &&
+        baseAmount > 0 &&
+        resistedBaseAmount == 0 &&
+        normalizedDamageType.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Inmunidad a $normalizedDamageType: el daño se reduce '
+            'de $baseAmount a 0.',
+          ),
+        ),
+      );
+      character.refreshPassiveTriggers();
+      return true;
+    }
 
     // La reacción defensiva se ofrece ANTES de evaluar pasivas o efectos
     // disparados por damageReceived. De este modo el daño que reciben esos
     // triggers ya es el daño restante tras la reacción.
-    if (isDamage && baseAmount > 0) {
+    if (isDamage && effectiveBaseAmount > 0) {
       reactionMitigation = await _offerDamageMitigationReaction(
         context,
-        incomingDamage: baseAmount,
+        incomingDamage: effectiveBaseAmount,
       );
 
       if (!context.mounted) {
         return false;
       }
 
-      effectiveBaseAmount = math.max(0, baseAmount - reactionMitigation);
+      effectiveBaseAmount = math.max(
+        0,
+        effectiveBaseAmount - reactionMitigation,
+      );
 
       if (effectiveBaseAmount == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               reactionMitigation > 0
-                  ? 'La reacción ha mitigado todo el daño ($baseAmount).'
+                  ? 'La reacción ha mitigado todo el daño restante '
+                        '($resistedBaseAmount).'
                   : 'No hay daño que aplicar.',
             ),
           ),
@@ -3778,6 +3805,11 @@ class ActionResolutionFlow {
       final summary = <String>[
         'PV: $healthBefore → $healthAfter',
         if (isDamage) 'Daño inicial: $baseAmount',
+        if (isDamage && normalizedDamageType.isNotEmpty)
+          'Tipo de daño: $normalizedDamageType',
+        if (isDamage && resistanceReduction > 0)
+          'Resistencia: -$resistanceReduction '
+              '(queda $resistedBaseAmount)',
         if (reactionMitigation > 0)
           'Mitigación de reacción: -$reactionMitigation',
         if (reactionMitigation > 0)
