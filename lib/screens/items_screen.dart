@@ -1261,6 +1261,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
       context: context,
       showDragHandle: true,
       builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final semantic =
+            theme.extension<AsteriaSemanticColors>() ??
+            AsteriaSemanticColors.asteria(theme.colorScheme);
+
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
@@ -1268,19 +1273,28 @@ class _ItemsScreenState extends State<ItemsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.inventory_2_rounded),
+                  leading: Icon(
+                    Icons.inventory_2_rounded,
+                    color: semantic.create,
+                  ),
                   title: const Text('Nuevo objeto'),
                   subtitle: const Text('Crear un objeto desde cero'),
                   onTap: () => Navigator.pop(sheetContext, 'item'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.local_library_rounded),
+                  leading: Icon(
+                    Icons.local_library_rounded,
+                    color: semantic.library,
+                  ),
                   title: const Text('Desde biblioteca'),
                   subtitle: const Text('Añadir un objeto guardado'),
                   onTap: () => Navigator.pop(sheetContext, 'library'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.create_new_folder_rounded),
+                  leading: Icon(
+                    Icons.create_new_folder_rounded,
+                    color: semantic.settings,
+                  ),
                   title: const Text('Nueva carpeta'),
                   subtitle: const Text('Organiza tus objetos'),
                   onTap: () => Navigator.pop(sheetContext, 'folder'),
@@ -1407,19 +1421,25 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       break;
                   }
                 },
-                itemBuilder: (_) => const [
+                itemBuilder: (_) => [
                   PopupMenuItem(
                     value: 'rename',
                     child: ListTile(
-                      leading: Icon(Icons.edit_rounded),
-                      title: Text('Renombrar'),
+                      leading: Icon(
+                        Icons.edit_rounded,
+                        color: semantic.edit,
+                      ),
+                      title: const Text('Renombrar'),
                     ),
                   ),
                   PopupMenuItem(
                     value: 'delete',
                     child: ListTile(
-                      leading: Icon(Icons.delete_outline_rounded),
-                      title: Text('Eliminar'),
+                      leading: Icon(
+                        Icons.delete_outline_rounded,
+                        color: semantic.delete,
+                      ),
+                      title: const Text('Eliminar'),
                     ),
                   ),
                 ],
