@@ -38,6 +38,7 @@ import '../widgets/passive_form/general/passive_notes_section.dart';
 
 import '../widgets/passive_form/resources/passive_resources_section.dart';
 import '../widgets/passive_form/resources/resource_modifier_editor_dialog.dart';
+import '../widgets/passive_form/resistances/passive_resistances_section.dart';
 
 import '../widgets/passive_form/roll/passive_own_roll_section.dart';
 
@@ -54,6 +55,7 @@ import 'effect_form_screen.dart';
 
 enum _PassiveFormSection {
   stats,
+  resistances,
   generalBonuses,
   resources,
   charges,
@@ -1368,7 +1370,7 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                 icon: Icons.bar_chart_rounded,
 
                 subtitle:
-                    'Stats, salvaciones, resistencias y habilidades.',
+                    'Stats base, modificadores, salvaciones y habilidades.',
               ),
 
               if (_sectionExpanded(_PassiveFormSection.stats)) ...[
@@ -1385,7 +1387,6 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
                   savingThrowRollModes: savingThrowRollModes,
 
-                  damageResistances: damageResistances,
 
                   skillBonuses: skillBonuses,
 
@@ -1413,15 +1414,39 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                     });
                   },
 
-                  onDamageResistancesChanged: (values) {
-                    setState(() {
-                      damageResistances = values;
-                    });
-                  },
 
                   onSkillChanged: (skill, bonus) {
                     setState(() {
                       skillBonuses[skill] = bonus;
+                    });
+                  },
+                ),
+              ],
+
+              const SizedBox(height: 28),
+
+              // ===============================================================
+              // RESISTENCIAS
+              // ===============================================================
+              _section(
+                section: _PassiveFormSection.resistances,
+
+                title: 'Resistencias',
+
+                icon: Icons.shield_rounded,
+
+                subtitle:
+                    'Resistencias al daño e inmunidades por tipo.',
+              ),
+
+              if (_sectionExpanded(_PassiveFormSection.resistances)) ...[
+                const SizedBox(height: 12),
+
+                PassiveResistancesSection(
+                  values: damageResistances,
+                  onChanged: (values) {
+                    setState(() {
+                      damageResistances = values;
                     });
                   },
                 ),
