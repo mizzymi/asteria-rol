@@ -27,6 +27,8 @@ import '../widgets/combat/combat_ability_card.dart';
 import '../widgets/abilities/ability_card.dart';
 import '../widgets/passives/passive_card.dart';
 
+import 'journal_screen.dart';
+
 class CombatScreen extends StatefulWidget {
   final Character character;
 
@@ -528,6 +530,26 @@ class _CombatScreenState extends State<CombatScreen> {
                 )
               : null,
           title: const Text('Combate'),
+          actions: [
+            IconButton(
+              tooltip: 'Diario',
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => JournalScreen(character: character),
+                  ),
+                );
+
+                if (!mounted) {
+                  return;
+                }
+
+                setState(() {});
+              },
+              icon: const Icon(Icons.menu_book_rounded),
+            ),
+          ],
         ),
 
         body: SafeArea(
