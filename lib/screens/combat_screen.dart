@@ -24,6 +24,8 @@ import '../widgets/character_home/character_home_colors.dart';
 import '../widgets/combat/combat_resource_card.dart';
 import '../widgets/action_resolution/result/action_resolution_result_dialog.dart';
 import '../widgets/combat/combat_ability_card.dart';
+import '../widgets/abilities/ability_card.dart';
+import '../widgets/passives/passive_card.dart';
 
 class CombatScreen extends StatefulWidget {
   final Character character;
@@ -147,6 +149,80 @@ class _CombatScreenState extends State<CombatScreen> {
 
   Future<void> _save() async {
     await CharacterStorageService.saveCharacter(character);
+  }
+
+  Future<void> _showAbilityDetails(
+    CharacterAbility ability,
+    ItemDefinition? sourceItem,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 0.94,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+            child: AbilityCard(
+              ability: ability,
+              character: character,
+              sourceItem: sourceItem,
+              onEdit: null,
+              onDelete: null,
+              onRestore: null,
+              onMove: null,
+              initialExpanded: true,
+              onCombatActions: () {
+                _resolveAbility(ability);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showPassiveDetails(
+    CharacterPassive passive,
+    ItemDefinition? sourceItem,
+  ) async {
+    final canApplyLinkedEffects =
+        passive.linkedEffects.isNotEmpty &&
+        !passive.hasAutomaticLinkedEffectTriggers;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 0.94,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+            child: PassiveCard(
+              passive: passive,
+              character: character,
+              sourceItem: sourceItem,
+              showPassiveBadge: true,
+              initialExpanded: true,
+              onRoll: passive.hasRoll
+                  ? () {
+                      _rollPassive(passive);
+                    }
+                  : null,
+              onApplyLinkedEffects: canApplyLinkedEffects
+                  ? () {
+                      _applyPassiveLinkedEffects(passive);
+                    }
+                  : null,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ===========================================================================
