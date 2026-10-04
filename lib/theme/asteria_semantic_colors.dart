@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 @immutable
 class AsteriaSemanticColors
     extends ThemeExtension<AsteriaSemanticColors> {
+  final bool isRainbow;
   final Color stats;
   final Color abilities;
   final Color effects;
@@ -34,6 +35,7 @@ class AsteriaSemanticColors
   final Color delete;
 
   const AsteriaSemanticColors({
+    required this.isRainbow,
     required this.stats,
     required this.abilities,
     required this.effects,
@@ -64,6 +66,7 @@ class AsteriaSemanticColors
 
   factory AsteriaSemanticColors.asteria(ColorScheme scheme) {
     return AsteriaSemanticColors(
+      isRainbow: false,
       stats: scheme.primary,
       abilities: scheme.primary,
       effects: scheme.primary,
@@ -99,6 +102,7 @@ class AsteriaSemanticColors
     Color tone(Color light, Color darkColor) => dark ? darkColor : light;
 
     return AsteriaSemanticColors(
+      isRainbow: true,
       stats: tone(const Color(0xFFD81B60), const Color(0xFFFF5C93)),
       abilities: tone(const Color(0xFFD32F2F), const Color(0xFFFF6B6B)),
       effects: tone(const Color(0xFFEF6C00), const Color(0xFFFFA24A)),
@@ -130,6 +134,7 @@ class AsteriaSemanticColors
 
   @override
   AsteriaSemanticColors copyWith({
+    bool? isRainbow,
     Color? stats,
     Color? abilities,
     Color? effects,
@@ -158,6 +163,7 @@ class AsteriaSemanticColors
     Color? delete,
   }) {
     return AsteriaSemanticColors(
+      isRainbow: isRainbow ?? this.isRainbow,
       stats: stats ?? this.stats,
       abilities: abilities ?? this.abilities,
       effects: effects ?? this.effects,
@@ -197,6 +203,7 @@ class AsteriaSemanticColors
     }
 
     return AsteriaSemanticColors(
+      isRainbow: t < 0.5 ? isRainbow : other.isRainbow,
       stats: Color.lerp(stats, other.stats, t) ?? stats,
       abilities: Color.lerp(abilities, other.abilities, t) ?? abilities,
       effects: Color.lerp(effects, other.effects, t) ?? effects,
