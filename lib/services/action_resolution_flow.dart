@@ -218,7 +218,9 @@ class ActionResolutionFlow {
               return null;
             }
 
-            damage += amount;
+            damage += target.isSelf
+                ? character.applyDamageResistance(amount, action.damageType)
+                : amount;
             break;
 
           case PassiveTriggerActionType.heal:
