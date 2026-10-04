@@ -26,6 +26,7 @@ import '../models/action_target_result.dart';
 import '../models/prepared_action_resolution.dart';
 import '../models/action_execution_result.dart';
 import '../models/action_saving_throw.dart';
+import '../models/saving_throw_roll_mode.dart';
 import '../models/action_effect_result.dart';
 import '../models/passive.dart';
 import '../models/action_hit_behavior.dart';
@@ -1140,6 +1141,9 @@ class ActionResolver {
             ability: effect.savingThrowAbility,
             dc: statResolver.effectSaveDc(plan: prepared.plan, effect: effect),
             successEffect: effect.saveSuccessEffect,
+            rollMode: target.isSelf
+                ? character.savingThrowRollMode(effect.savingThrowAbility)
+                : SavingThrowRollMode.normal,
           ),
         );
       }
@@ -1316,6 +1320,50 @@ class ActionResolver {
     final relevantParts = diceResult.parts.where(
       (part) => part.request.effectType == effectType,
     );
+
+    // Las resistencias solo pueden resolverse automáticamente para el propio
+    // personaje, porque conocemos sus pasivas. Se aplican por componente de
+    // daño para respetar el tipo (fuego, frío, cortante, etc.).
+    if (effectType == AbilityEffectType.damage && target.isSelf) {
+      var resistedTotal = 0;
+
+      for (final part in relevantParts) {
+        var partTotal = part.total;
+        final request = part.request;
+
+        if (request.sourceType == ActionDiceSourceType.ability &&
+            request.effectId.isNotEmpty) {
+          ActionSavingThrowResult? save;
+          for (final candidate in savingThrowResults) {
+            if (candidate.request.targetId == target.id &&
+                candidate.request.effectId == request.effectId) {
+              save = candidate;
+              break;
+            }
+          }
+
+          if (save != null && save.saved) {
+            switch (save.request.successEffect) {
+              case SaveSuccessEffect.full:
+                break;
+              case SaveSuccessEffect.half:
+                partTotal ~/= 2;
+                break;
+              case SaveSuccessEffect.none:
+                partTotal = 0;
+                break;
+            }
+          }
+        }
+
+        resistedTotal += character.applyDamageResistance(
+          partTotal,
+          request.damageType,
+        );
+      }
+
+      return resistedTotal;
+    }
 
     final groupedAbilityEffects = <String, int>{};
 
@@ -2501,6 +2549,7 @@ class ActionResolver {
         saveResolver.resolve(
           request: request,
           naturalRoll: input.naturalRoll,
+          secondNaturalRoll: input.secondNaturalRoll,
           modifier: modifier,
         ),
       );
