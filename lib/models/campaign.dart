@@ -23,14 +23,14 @@ class Campaign {
        createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'imagePath': imagePath,
-        'createdAt': createdAt.toIso8601String(),
-        'shops': shops.map((e) => e.toMap()).toList(),
-        'missions': missions.map((e) => e.toMap()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'imagePath': imagePath,
+    'createdAt': createdAt.toIso8601String(),
+    'shops': shops.map((e) => e.toMap()).toList(),
+    'missions': missions.map((e) => e.toMap()).toList(),
+  };
 
   factory Campaign.fromMap(Map<dynamic, dynamic> map) {
     return Campaign(
@@ -41,15 +41,17 @@ class Campaign {
       createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? ''),
       shops: map['shops'] is List
           ? (map['shops'] as List)
-              .whereType<Map>()
-              .map((e) => CampaignShop.fromMap(Map<dynamic, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map((e) => CampaignShop.fromMap(Map<dynamic, dynamic>.from(e)))
+                .toList()
           : <CampaignShop>[],
       missions: map['missions'] is List
           ? (map['missions'] as List)
-              .whereType<Map>()
-              .map((e) => CampaignMission.fromMap(Map<dynamic, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) => CampaignMission.fromMap(Map<dynamic, dynamic>.from(e)),
+                )
+                .toList()
           : <CampaignMission>[],
     );
   }

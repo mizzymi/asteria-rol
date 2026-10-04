@@ -266,13 +266,9 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
   // ===========================================================================
 
   Future<void> applyDamage() async {
-    final amount = await _askCombatAmount(
-      title: 'Recibir daño',
-      label: 'Daño',
-      icon: Icons.heart_broken_rounded,
-    );
+    final input = await _askDamageInput();
 
-    if (amount == null || amount <= 0) {
+    if (input == null || input.amount <= 0) {
       return;
     }
 
@@ -281,8 +277,9 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     final flow = ActionResolutionFlow(character: character);
     await flow.resolveHealthChange(
       context,
-      baseAmount: amount,
+      baseAmount: input.amount,
       isDamage: true,
+      damageType: input.damageType,
     );
 
     if (!mounted) return;
@@ -313,6 +310,70 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
     if (!mounted) return;
     setState(() {});
     await saveCharacter();
+  }
+
+  Future<({int amount, String damageType})?> _askDamageInput() {
+    final amountController = TextEditingController();
+    final damageTypeController = TextEditingController();
+
+    return showDialog<({int amount, String damageType})>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Recibir daño'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: amountController,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Daño',
+                  prefixIcon: Icon(Icons.heart_broken_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: damageTypeController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Tipo de daño',
+                  hintText: 'Fuego, frío, contundente, radiante...',
+                  prefixIcon: Icon(Icons.local_fire_department_rounded),
+                  helperText: 'Las resistencias se aplicarán automáticamente.',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final amount = int.tryParse(amountController.text.trim());
+                final damageType = damageTypeController.text.trim();
+
+                if (amount == null || amount <= 0 || damageType.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(dialogContext, (
+                  amount: amount,
+                  damageType: damageType,
+                ));
+              },
+              child: const Text('Aplicar'),
+            ),
+          ],
+        );
+      },
+    ).whenComplete(() {
+      amountController.dispose();
+      damageTypeController.dispose();
+    });
   }
 
   Future<int?> _askCombatAmount({
@@ -487,7 +548,9 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
       // =========================================================================
       appBar: AppBar(
         backgroundColor: colors.surface.withValues(alpha: 0),
-        surfaceTintColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+        surfaceTintColor: Theme.of(
+          context,
+        ).colorScheme.surface.withValues(alpha: 0),
         elevation: 0,
 
         title: InkWell(
@@ -534,251 +597,254 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(18, 84, 18, 40),
               children: [
-            // ===================================================================
-            // PERSONAJE
-            // ===================================================================
-            CharacterHeaderCard(
-              character: character,
-              onEditLevel: editLevel,
-              onEditClasses: editClasses,
-              onAvatarTap: showAvatar,
-              onChangeAvatar: changeAvatar,
-            ),
-
-            const SizedBox(height: 24),
-
-            // ===================================================================
-            // STATS PRINCIPALES
-            // ===================================================================
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: CombatStatCard(
-                    icon: Icons.favorite_rounded,
-                    title: 'PG',
-                    value: '${character.currentHealth}/${character.maxHealth}',
-                    color: CharacterHomeColors.health(context),
-                  ),
+                // ===================================================================
+                // PERSONAJE
+                // ===================================================================
+                CharacterHeaderCard(
+                  character: character,
+                  onEditLevel: editLevel,
+                  onEditClasses: editClasses,
+                  onAvatarTap: showAvatar,
+                  onChangeAvatar: changeAvatar,
                 ),
 
-                const SizedBox(width: 8),
+                const SizedBox(height: 24),
 
-                Expanded(
-                  child: CombatStatCard(
-                    icon: Icons.shield_rounded,
-                    title: 'CA',
-                    value: '${character.calculatedArmorClass}',
-                    color: CharacterHomeColors.armor(context),
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                Expanded(
-                  child: CombatStatCard(
-                    icon: Icons.bolt_rounded,
-                    title: 'INI',
-                    value: _signed(character.initiative),
-                    color: CharacterHomeColors.initiative(context),
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                Expanded(
-                  child: CombatStatCard(
-                    icon: Icons.directions_run_rounded,
-                    title: 'VEL',
-                    value: '${character.totalSpeed}',
-                    color: CharacterHomeColors.speed(context),
-                  ),
-                ),
-              ],
-            ),
-
-            // ===================================================================
-            // RECURSOS RÁPIDOS
-            // ===================================================================
-            if (quickResources.isNotEmpty) ...[
-              const SizedBox(height: 24),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Recursos',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
+                // ===================================================================
+                // STATS PRINCIPALES
+                // ===================================================================
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: CombatStatCard(
+                        icon: Icons.favorite_rounded,
+                        title: 'PG',
+                        value:
+                            '${character.currentHealth}/${character.maxHealth}',
+                        color: CharacterHomeColors.health(context),
                       ),
                     ),
+
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: CombatStatCard(
+                        icon: Icons.shield_rounded,
+                        title: 'CA',
+                        value: '${character.calculatedArmorClass}',
+                        color: CharacterHomeColors.armor(context),
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: CombatStatCard(
+                        icon: Icons.bolt_rounded,
+                        title: 'INI',
+                        value: _signed(character.initiative),
+                        color: CharacterHomeColors.initiative(context),
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: CombatStatCard(
+                        icon: Icons.directions_run_rounded,
+                        title: 'VEL',
+                        value: '${character.totalSpeed}',
+                        color: CharacterHomeColors.speed(context),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // ===================================================================
+                // RECURSOS RÁPIDOS
+                // ===================================================================
+                if (quickResources.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Recursos',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+
+                      TextButton(
+                        onPressed: openResources,
+                        child: const Text('Ver todos'),
+                      ),
+                    ],
                   ),
 
-                  TextButton(
-                    onPressed: openResources,
-                    child: const Text('Ver todos'),
+                  const SizedBox(height: 8),
+
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      const spacing = 8.0;
+                      final cardWidth = (constraints.maxWidth - spacing) / 2;
+
+                      return Wrap(
+                        spacing: spacing,
+                        runSpacing: spacing,
+                        children: quickResources
+                            .map((resource) {
+                              return SizedBox(
+                                width: cardWidth,
+                                child: QuickResourceCard(
+                                  resource: resource,
+                                  effectiveCurrent: character
+                                      .resourceEffectiveCurrent(resource),
+                                  effectiveMax: character.resourceEffectiveMax(
+                                    resource,
+                                  ),
+                                  onTap: () {
+                                    editResourceQuick(resource);
+                                  },
+                                ),
+                              );
+                            })
+                            .toList(growable: false),
+                      );
+                    },
                   ),
                 ],
-              ),
 
-              const SizedBox(height: 8),
+                // ===================================================================
+                // ESTADOS ACTIVOS
+                // ===================================================================
+                if (character.enabledEffects.isNotEmpty) ...[
+                  const SizedBox(height: 20),
 
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  const spacing = 8.0;
-                  final cardWidth = (constraints.maxWidth - spacing) / 2;
-
-                  return Wrap(
-                    spacing: spacing,
-                    runSpacing: spacing,
-                    children: quickResources.map((resource) {
-                      return SizedBox(
-                        width: cardWidth,
-                        child: QuickResourceCard(
-                          resource: resource,
-                          effectiveCurrent: character.resourceEffectiveCurrent(
-                            resource,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Estados activos',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
                           ),
-                          effectiveMax: character.resourceEffectiveMax(resource),
+                        ),
+                      ),
+
+                      TextButton(
+                        onPressed: () {
+                          openScreen(EffectsScreen(character: character));
+                        },
+                        child: const Text('Ver todos'),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...homeEffectStacks.map(
+                        (stack) => ActiveEffectChip(
+                          effect: stack.effect,
+                          count: stack.count,
                           onTap: () {
-                            editResourceQuick(resource);
+                            openScreen(EffectsScreen(character: character));
                           },
                         ),
-                      );
-                    }).toList(growable: false),
-                  );
-                },
-              ),
-            ],
-
-            // ===================================================================
-            // ESTADOS ACTIVOS
-            // ===================================================================
-            if (character.enabledEffects.isNotEmpty) ...[
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Estados activos',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
                       ),
-                    ),
-                  ),
 
-                  TextButton(
-                    onPressed: () {
-                      openScreen(EffectsScreen(character: character));
-                    },
-                    child: const Text('Ver todos'),
+                      if (hiddenEffectCount > 0)
+                        _MoreEffectsChip(
+                          count: hiddenEffectCount,
+                          onTap: () {
+                            openScreen(EffectsScreen(character: character));
+                          },
+                        ),
+                    ],
                   ),
                 ],
-              ),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 26),
 
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ...homeEffectStacks.map(
-                    (stack) => ActiveEffectChip(
-                      effect: stack.effect,
-                      count: stack.count,
-                      onTap: () {
-                        openScreen(EffectsScreen(character: character));
-                      },
-                    ),
-                  ),
+                CharacterQuickActions(
+                  onCombat: () {
+                    openScreen(CombatScreen(character: character));
+                  },
 
-                  if (hiddenEffectCount > 0)
-                    _MoreEffectsChip(
-                      count: hiddenEffectCount,
-                      onTap: () {
-                        openScreen(EffectsScreen(character: character));
-                      },
-                    ),
-                ],
-              ),
-            ],
+                  onRest: () {
+                    openScreen(RestScreen(character: character));
+                  },
 
-            const SizedBox(height: 26),
+                  onPets: () {
+                    openScreen(PetsScreen(character: character));
+                  },
 
-            CharacterQuickActions(
-              onCombat: () {
-                openScreen(CombatScreen(character: character));
-              },
+                  petCount:
+                      character.pets.length, // <--- Añadido conteo de mascotas
+                ),
+                // ===================================================================
+                // NAVEGACIÓN
+                // ===================================================================
+                const SizedBox(height: 28),
 
-              onRest: () {
-                openScreen(RestScreen(character: character));
-              },
+                CharacterHomeNavigationSection(
+                  activeEffectsCount: character.enabledEffects.length,
+                  resourceCount: character.resources.length,
+                  counterCount: character.counters.length,
+                  onStats: () {
+                    openScreen(StatsScreen(character: character));
+                  },
 
-              onPets: () {
-                openScreen(PetsScreen(character: character));
-              },
+                  onAbilities: () {
+                    openScreen(
+                      AbilitiesScreen(
+                        character: character,
+                        onCharacterChanged: () async {
+                          if (!mounted) {
+                            return;
+                          }
 
-              petCount:
-              character.pets.length, // <--- Añadido conteo de mascotas
+                          setState(() {});
+                        },
+                      ),
+                    );
+                  },
 
-            ),
-            // ===================================================================
-            // NAVEGACIÓN
-            // ===================================================================
-            const SizedBox(height: 28),
+                  onEffects: () {
+                    openScreen(EffectsScreen(character: character));
+                  },
 
-            CharacterHomeNavigationSection(
-              activeEffectsCount: character.enabledEffects.length,
-              resourceCount: character.resources.length,
-              counterCount: character.counters.length,
-              onStats: () {
-                openScreen(StatsScreen(character: character));
-              },
+                  onItems: () {
+                    openScreen(ItemsScreen(character: character));
+                  },
 
-              onAbilities: () {
-                openScreen(
-                  AbilitiesScreen(
-                    character: character,
-                    onCharacterChanged: () async {
-                      if (!mounted) {
-                        return;
-                      }
+                  onStory: () {
+                    openScreen(StoryScreen(character: character));
+                  },
 
-                      setState(() {});
-                    },
-                  ),
-                );
-              },
+                  onJournal: () {
+                    openScreen(JournalScreen(character: character));
+                  },
 
-              onEffects: () {
-                openScreen(EffectsScreen(character: character));
-              },
+                  onResources: openResources,
 
-              onItems: () {
-                openScreen(ItemsScreen(character: character));
-              },
+                  onCounters: openCounters,
 
-              onStory: () {
-                openScreen(StoryScreen(character: character));
-              },
+                  onDice: () {
+                    openScreen(DiceScreen(character: character));
+                  },
 
-              onJournal: () {
-                openScreen(JournalScreen(character: character));
-              },
-
-              onResources: openResources,
-
-              onCounters: openCounters,
-
-              onDice: () {
-                openScreen(DiceScreen(character: character));
-              },
-
-              onKnowledge: () {
-                openScreen(KnowledgeScreen(character: character));
-              },
-            ),
+                  onKnowledge: () {
+                    openScreen(KnowledgeScreen(character: character));
+                  },
+                ),
               ],
             ),
           ),

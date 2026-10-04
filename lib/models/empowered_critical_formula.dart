@@ -60,6 +60,7 @@ class EmpoweredCriticalFormula {
       return max + modifier;
     }
   }
+
   static String _replaceLookupFunctions(
     String source, {
     required Map<String, double> resources,
@@ -94,7 +95,8 @@ class EmpoweredCriticalFormula {
   }) {
     var result = source;
     final normalizedValues = <String, double>{
-      for (final entry in values.entries) _normalizeLookupKey(entry.key): entry.value,
+      for (final entry in values.entries)
+        _normalizeLookupKey(entry.key): entry.value,
     };
 
     for (final functionName in functionNames) {
@@ -116,7 +118,6 @@ class EmpoweredCriticalFormula {
   static String _normalizeLookupKey(String value) {
     return value.trim().toLowerCase();
   }
-
 }
 
 class _CriticalFormulaParser {
@@ -177,7 +178,8 @@ class _CriticalFormulaParser {
     if (index < source.length && _isLetter(source.codeUnitAt(index))) {
       final start = index;
       while (index < source.length &&
-          (_isLetter(source.codeUnitAt(index)) || source.codeUnitAt(index) == 95)) {
+          (_isLetter(source.codeUnitAt(index)) ||
+              source.codeUnitAt(index) == 95)) {
         index++;
       }
       final name = source.substring(start, index);

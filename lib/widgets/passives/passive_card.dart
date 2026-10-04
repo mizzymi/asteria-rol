@@ -10,6 +10,8 @@ import '../../models/character_effect.dart';
 import '../../models/item.dart';
 import '../../models/passive.dart';
 import '../../models/skill.dart';
+import '../../models/saving_throw_roll_mode.dart';
+import '../../models/damage_resistance.dart';
 
 import '../../services/passive_display_formatter.dart';
 
@@ -193,7 +195,10 @@ class _PassiveHeader extends StatelessWidget {
                               color,
                               strength: 0.22,
                             ),
-                            child: Icon(Icons.auto_awesome_rounded, color: color),
+                            child: Icon(
+                              Icons.auto_awesome_rounded,
+                              color: color,
+                            ),
                           ),
                   ),
                 );
@@ -1013,6 +1018,44 @@ class _PassiveExpandedContent extends StatelessWidget {
     }
 
     // -------------------------------------------------------------------------
+    // VENTAJA / DESVENTAJA EN SALVACIONES
+    // -------------------------------------------------------------------------
+
+    for (final entry in passive.savingThrowRollModes.entries) {
+      if (entry.value == SavingThrowRollMode.normal) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: entry.value == SavingThrowRollMode.advantage
+              ? Icons.trending_up_rounded
+              : Icons.trending_down_rounded,
+          label: '${entry.value.label} · Salv. ${entry.key.shortLabel}',
+          color: PassiveColors.savingThrow(context),
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // RESISTENCIAS
+    // -------------------------------------------------------------------------
+
+    for (final resistance in passive.damageResistances) {
+      if (!resistance.isValid) {
+        continue;
+      }
+
+      effects.add(
+        PassiveEffectBadge(
+          icon: Icons.shield_rounded,
+          label: '${resistance.tier.label} · ${resistance.damageType}',
+          color: PassiveColors.armorClass(context),
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
     // CRÍTICO
     // -------------------------------------------------------------------------
 
@@ -1146,7 +1189,6 @@ class _PassiveExpandedContent extends StatelessWidget {
     return effects;
   }
 
-
   // ===========================================================================
   // HELPERS
   // ===========================================================================
@@ -1195,7 +1237,6 @@ class _PassiveExpandedContent extends StatelessWidget {
   }
 }
 
-
 class _PassiveMechanicTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -1217,11 +1258,7 @@ class _PassiveMechanicTile extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: PassiveColors.softBackground(
-          context,
-          color,
-          strength: 0.08,
-        ),
+        color: PassiveColors.softBackground(context, color, strength: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.16)),
       ),

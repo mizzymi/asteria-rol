@@ -489,11 +489,14 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
                     const SizedBox(height: 18),
 
                     _buildExtraEffectSection(),
+                  ],
 
-                    if (!effect.mitigatesDamage) ...[
-                      const SizedBox(height: 18),
-                      _buildSavingThrowSection(),
-                    ],
+                  // Una habilidad puede limitarse a aplicar un estado/efecto.
+                  // En ese caso sigue siendo válido exigir una salvación aunque
+                  // no exista daño, curación ni mitigación.
+                  if (!effect.mitigatesDamage) ...[
+                    const SizedBox(height: 18),
+                    _buildSavingThrowSection(),
                   ],
 
                   const SizedBox(height: 18),
@@ -578,9 +581,8 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
 
                 extraTypeController.clear();
 
-                // Una salvación sin efecto
-                // tampoco tiene utilidad.
-                effect.usesSavingThrow = false;
+                // Conservamos la salvación: un efecto sin daño/curación
+                // puede controlar un estado o efecto vinculado.
               }
             });
 
@@ -639,7 +641,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
             Icon(
               effect.mitigatesDamage
                   ? Icons.shield_rounded
-                  : (effect.heals ? Icons.favorite_rounded : Icons.flash_on_rounded),
+                  : (effect.heals
+                        ? Icons.favorite_rounded
+                        : Icons.flash_on_rounded),
               color: Theme.of(context).colorScheme.primary,
             ),
 
@@ -838,7 +842,9 @@ class _AbilityEffectEditorState extends State<AbilityEffectEditor> {
                         : 'Tipo de daño extra'),
               hintText: effect.mitigatesDamage
                   ? 'Escudo, bloqueo, reducción...'
-                  : (effect.heals ? 'Curación mágica' : 'Fuego, radiante, veneno...'),
+                  : (effect.heals
+                        ? 'Curación mágica'
+                        : 'Fuego, radiante, veneno...'),
             ),
             onChanged: (_) {
               notifyParent();

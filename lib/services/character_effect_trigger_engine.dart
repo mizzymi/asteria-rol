@@ -710,7 +710,11 @@ class CharacterEffectTriggerEngine {
         continue;
       }
 
-      character.takeDamage(amount, dispatchTriggers: true);
+      final resistedAmount = character.applyDamageResistance(
+        amount,
+        bonus.damageType,
+      );
+      character.takeDamage(resistedAmount, dispatchTriggers: true);
     }
 
     for (final bonus in trigger.healingBonuses) {

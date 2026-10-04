@@ -5,10 +5,7 @@ import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 
 class PortableImageFileReference {
-  const PortableImageFileReference({
-    required this.key,
-    required this.file,
-  });
+  const PortableImageFileReference({required this.key, required this.file});
 
   final String key;
   final File file;
@@ -208,10 +205,7 @@ class PortableImageBundle {
           final nextPath = [...path, key];
 
           if (_isImagePathKey(key)) {
-            final encoded = _resolveEncodedImage(
-              images,
-              _pathKey(nextPath),
-            );
+            final encoded = _resolveEncodedImage(images, _pathKey(nextPath));
             if (encoded != null && encoded.isNotEmpty) {
               try {
                 node[rawKey] = await _saveBytes(
@@ -239,7 +233,6 @@ class PortableImageBundle {
 
     await walk(root, const []);
   }
-
 
   static String? _resolveEncodedImage(
     Map<String, String> images,
@@ -276,10 +269,7 @@ class PortableImageBundle {
     if (!await dir.exists()) await dir.create(recursive: true);
 
     final ext = _extension(bytes);
-    final safeNamespace = namespace.replaceAll(
-      RegExp(r'[^a-zA-Z0-9_-]+'),
-      '_',
-    );
+    final safeNamespace = namespace.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
     final file = File(
       '${dir.path}/${safeNamespace}_${DateTime.now().microsecondsSinceEpoch}.$ext',
     );

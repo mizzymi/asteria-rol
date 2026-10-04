@@ -104,7 +104,8 @@ class ActiveEffectChip extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (_durationText(effect) case final duration? when duration.isNotEmpty) ...[
+                    if (_durationText(effect) case final duration?
+                        when duration.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Row(
                         mainAxisSize: MainAxisSize.min,

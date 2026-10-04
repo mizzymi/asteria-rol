@@ -30,6 +30,7 @@ import '../widgets/items/equipment_slots_config_dialog.dart';
 import '../widgets/items/item_image_viewer.dart';
 
 import 'item_form_screen.dart';
+import 'item_library_screen.dart';
 import 'campaign_shop_detail_screen.dart';
 
 typedef InventoryItemView = ({
@@ -131,21 +132,27 @@ class _ItemsScreenState extends State<ItemsScreen> {
     // La búsqueda de un objeto también incluye el contenido que concede:
     // habilidades activas y pasivas. Así, por ejemplo, buscar el nombre de
     // una pasiva devuelve el objeto que la contiene.
-    final abilitySearchText = definition.abilities.map((ability) {
-      return '${ability.name} ${ability.description} ${ability.notes} ${ability.actionType.label}';
-    }).join(' ');
+    final abilitySearchText = definition.abilities
+        .map((ability) {
+          return '${ability.name} ${ability.description} ${ability.notes} ${ability.actionType.label}';
+        })
+        .join(' ');
 
-    final passiveSearchText = definition.passives.map((passive) {
-      final triggerText = passive.triggers.map((trigger) {
-        final actionText = trigger.actions
-            .map((action) => action.type.name)
-            .join(' ');
-        return '${trigger.event.name} ${trigger.customEvent ?? ''} $actionText';
-      }).join(' ');
+    final passiveSearchText = definition.passives
+        .map((passive) {
+          final triggerText = passive.triggers
+              .map((trigger) {
+                final actionText = trigger.actions
+                    .map((action) => action.type.name)
+                    .join(' ');
+                return '${trigger.event.name} ${trigger.customEvent ?? ''} $actionText';
+              })
+              .join(' ');
 
-      return '${passive.name} ${passive.description} ${passive.notes} '
-          '${passive.rechargeDescription} ${passive.sourceType.name} $triggerText';
-    }).join(' ');
+          return '${passive.name} ${passive.description} ${passive.notes} '
+              '${passive.rechargeDescription} ${passive.sourceType.name} $triggerText';
+        })
+        .join(' ');
 
     final haystack = _normalizeSearchText(
       '${inventory.customName ?? ''} ${inventory.notes ?? ''} '
@@ -821,6 +828,47 @@ class _ItemsScreenState extends State<ItemsScreen> {
     }
   }
 
+  Future<void> addItemFromLibrary() async {
+    final item = await Navigator.push<ItemDefinition>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ItemLibraryScreen(mode: ItemLibraryMode.select),
+      ),
+    );
+
+    if (item == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _inventoryService.addItem(
+        character: character,
+        definition: item,
+        quantity: 1,
+      );
+
+      if (character.inventoryItems.isNotEmpty) {
+        final addedItem = character.inventoryItems.lastWhere(
+          (entry) => entry.itemId == item.id,
+          orElse: () => character.inventoryItems.last,
+        );
+        addedItem.folderId = _currentFolderId;
+      }
+
+      character.normalizeHealth();
+    });
+
+    await save();
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${item.name} añadido desde la biblioteca.')),
+    );
+  }
+
   Future<void> importItem() async {
     try {
       final item = await ItemImportExportService.pickAndImportDefinition();
@@ -919,7 +967,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
     if (campaignId == null || campaignId.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Este personaje todavía no pertenece a una campaña.')),
+        const SnackBar(
+          content: Text('Este personaje todavía no pertenece a una campaña.'),
+        ),
       );
       return;
     }
@@ -1008,7 +1058,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
               children: [
                 if (definition.hasImage) ...[
                   Material(
-                    color: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surface.withValues(alpha: 0),
                     borderRadius: BorderRadius.circular(22),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
@@ -1221,6 +1273,12 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   onTap: () => Navigator.pop(sheetContext, 'item'),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.local_library_rounded),
+                  title: const Text('Desde biblioteca'),
+                  subtitle: const Text('Añadir un objeto guardado'),
+                  onTap: () => Navigator.pop(sheetContext, 'library'),
+                ),
+                ListTile(
                   leading: const Icon(Icons.create_new_folder_rounded),
                   title: const Text('Nueva carpeta'),
                   subtitle: const Text('Organiza tus objetos'),
@@ -1236,6 +1294,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
     switch (result) {
       case 'item':
         await createItem();
+        break;
+      case 'library':
+        await addItemFromLibrary();
         break;
       case 'folder':
         await _createFolder();
@@ -1261,17 +1322,20 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
     final searchFolderIds = searching ? _itemFolderSearchScope() : <String>{};
 
-    final itemsInFolder = allItems.where((entry) {
-      if (!searching) {
-        return entry.inventory.folderId == _currentFolderId;
-      }
+    final itemsInFolder = allItems
+        .where((entry) {
+          if (!searching) {
+            return entry.inventory.folderId == _currentFolderId;
+          }
 
-      final folderId = entry.inventory.folderId;
-      final inScope = folderId == _currentFolderId ||
-          (folderId != null && searchFolderIds.contains(folderId));
+          final folderId = entry.inventory.folderId;
+          final inScope =
+              folderId == _currentFolderId ||
+              (folderId != null && searchFolderIds.contains(folderId));
 
-      return inScope && _matchesItemSearch(entry, query);
-    }).toList(growable: false);
+          return inScope && _matchesItemSearch(entry, query);
+        })
+        .toList(growable: false);
 
     final equipped = itemsInFolder
         .where((entry) => entry.inventory.equipped)
@@ -1353,6 +1417,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 ],
               ),
             IconButton(
+              tooltip: 'Biblioteca de objetos',
+              onPressed: addItemFromLibrary,
+              icon: const Icon(Icons.local_library_rounded),
+            ),
+            IconButton(
               tooltip: 'Importar objeto',
               onPressed: importItem,
               icon: const Icon(Icons.file_download_rounded),
@@ -1385,167 +1454,194 @@ class _ItemsScreenState extends State<ItemsScreen> {
                             onAction: searching ? null : _showCreateMenu,
                           )
                         : ListView(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 100),
-                children: [
-                  if (searching)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: Text(
-                        '${itemsInFolder.length} ${itemsInFolder.length == 1 ? 'resultado' : 'resultados'} · Incluye subcarpetas',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ),
-                  // =======================================================================
-                  // SUBCARPETAS
-                  // =======================================================
-                  ...folders.map(
-                    (folder) => _ContentFolderTile(
-                      icon: Icons.folder_rounded,
-                      name: folder.name,
-                      count: character.itemCountInFolder(
-                        folder.id,
-                      ), 
-                      onTap: () => _openFolder(folder.id),
-                    ),
-                  ),
-
-                  if (folders.isNotEmpty && itemsInFolder.isNotEmpty)
-                    const SizedBox(height: 14),
-
-                  // =======================================================
-                  // EQUIPADOS (si aplica en la vista actual)
-                  // =======================================================
-                  if (equipped.isNotEmpty) ...[
-                    SectionHeader(
-                      icon: Icons.check_circle_rounded,
-                      title: 'Equipados',
-                      subtitle:
-                          '${equipped.length} ${equipped.length == 1 ? 'objeto equipado' : 'objetos equipados'}',
-                    ),
-                    const SizedBox(height: 14),
-                    if (gridView)
-                      buildItemGrid(equipped)
-                    else
-                      ...equipped.map((entry) {
-                        final inventoryItem = entry.inventory;
-                        final definition = entry.definition;
-
-                        return ItemCard(
-                          inventoryItem: inventoryItem,
-                          definition: definition,
-                          character: character,
-                          onEquip: () => toggleEquip(inventoryItem, definition),
-                          onEdit: () => editItem(inventoryItem, definition),
-                          onDelete: () => deleteItem(inventoryItem, definition),
-                          onMove: () => moveInventoryItem(inventoryItem),
-                          onExport: () => exportItem(definition),
-                          onSaveToLibrary: () => saveItemToLibrary(definition),
-                          onQuickQuantityEdit: definition.calculable
-                              ? () => editItemQuantityQuick(
-                                  inventoryItem,
-                                  definition,
-                                )
-                              : null,
-                          onWeaponAttack:
-                              definition.isWeapon && inventoryItem.equipped
-                              ? () => resolveWeapon(definition)
-                              : null,
-                        );
-                      }),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // =======================================================
-                  // INVENTARIO / DISPONIBLES
-                  // =======================================================
-                  if (inventory.isNotEmpty || equipped.isEmpty) ...[
-                    SectionHeader(
-                      icon: Icons.backpack_rounded,
-                      title: 'Inventario',
-                      subtitle: inventory.isEmpty
-                          ? 'No hay objetos sin equipar en esta carpeta'
-                          : '${inventory.length} ${inventory.length == 1 ? 'objeto disponible' : 'objetos disponibles'}',
-                    ),
-                    const SizedBox(height: 14),
-
-                    if (inventory.isEmpty && equipped.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outlineVariant
-                                .withValues(alpha: 0.45),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.inventory_2_outlined,
-                              size: 34,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Esta carpeta está vacía.',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
+                            padding: const EdgeInsets.fromLTRB(18, 14, 18, 100),
+                            children: [
+                              if (searching)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: Text(
+                                    '${itemsInFolder.length} ${itemsInFolder.length == 1 ? 'resultado' : 'resultados'} · Incluye subcarpetas',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (gridView)
-                      buildItemGrid(inventory)
-                    else
-                      ...inventory.map((entry) {
-                        final inventoryItem = entry.inventory;
-                        final definition = entry.definition;
+                                ),
+                              // =======================================================================
+                              // SUBCARPETAS
+                              // =======================================================
+                              ...folders.map(
+                                (folder) => _ContentFolderTile(
+                                  icon: Icons.folder_rounded,
+                                  name: folder.name,
+                                  count: character.itemCountInFolder(folder.id),
+                                  onTap: () => _openFolder(folder.id),
+                                ),
+                              ),
 
-                        return ItemCard(
-                          inventoryItem: inventoryItem,
-                          definition: definition,
-                          character: character,
-                          onEquip: () => toggleEquip(inventoryItem, definition),
-                          onEdit: () => editItem(inventoryItem, definition),
-                          onDelete: () => deleteItem(inventoryItem, definition),
-                          onMove: () => moveInventoryItem(inventoryItem),
-                          onExport: () => exportItem(definition),
-                          onSaveToLibrary: () => saveItemToLibrary(definition),
-                          onQuickQuantityEdit: definition.calculable
-                              ? () => editItemQuantityQuick(
-                                  inventoryItem,
-                                  definition,
-                                )
-                              : null,
-                          onWeaponAttack:
-                              definition.isWeapon && inventoryItem.equipped
-                              ? () => resolveWeapon(definition)
-                              : null,
-                          onConsumableUse:
-                              (definition.type == ItemType.consumable ||
-                                  definition.type == ItemType.potion ||
-                                  definition.consumable != null)
-                              ? () => useConsumable(inventoryItem, definition)
-                              : null,
-                        );
-                      }),
-                  ],
-                ],
-              ),
+                              if (folders.isNotEmpty &&
+                                  itemsInFolder.isNotEmpty)
+                                const SizedBox(height: 14),
+
+                              // =======================================================
+                              // EQUIPADOS (si aplica en la vista actual)
+                              // =======================================================
+                              if (equipped.isNotEmpty) ...[
+                                SectionHeader(
+                                  icon: Icons.check_circle_rounded,
+                                  title: 'Equipados',
+                                  subtitle:
+                                      '${equipped.length} ${equipped.length == 1 ? 'objeto equipado' : 'objetos equipados'}',
+                                ),
+                                const SizedBox(height: 14),
+                                if (gridView)
+                                  buildItemGrid(equipped)
+                                else
+                                  ...equipped.map((entry) {
+                                    final inventoryItem = entry.inventory;
+                                    final definition = entry.definition;
+
+                                    return ItemCard(
+                                      inventoryItem: inventoryItem,
+                                      definition: definition,
+                                      character: character,
+                                      onEquip: () => toggleEquip(
+                                        inventoryItem,
+                                        definition,
+                                      ),
+                                      onEdit: () =>
+                                          editItem(inventoryItem, definition),
+                                      onDelete: () =>
+                                          deleteItem(inventoryItem, definition),
+                                      onMove: () =>
+                                          moveInventoryItem(inventoryItem),
+                                      onExport: () => exportItem(definition),
+                                      onSaveToLibrary: () =>
+                                          saveItemToLibrary(definition),
+                                      onQuickQuantityEdit: definition.calculable
+                                          ? () => editItemQuantityQuick(
+                                              inventoryItem,
+                                              definition,
+                                            )
+                                          : null,
+                                      onWeaponAttack:
+                                          definition.isWeapon &&
+                                              inventoryItem.equipped
+                                          ? () => resolveWeapon(definition)
+                                          : null,
+                                    );
+                                  }),
+                                const SizedBox(height: 24),
+                              ],
+
+                              // =======================================================
+                              // INVENTARIO / DISPONIBLES
+                              // =======================================================
+                              if (inventory.isNotEmpty || equipped.isEmpty) ...[
+                                SectionHeader(
+                                  icon: Icons.backpack_rounded,
+                                  title: 'Inventario',
+                                  subtitle: inventory.isEmpty
+                                      ? 'No hay objetos sin equipar en esta carpeta'
+                                      : '${inventory.length} ${inventory.length == 1 ? 'objeto disponible' : 'objetos disponibles'}',
+                                ),
+                                const SizedBox(height: 14),
+
+                                if (inventory.isEmpty && equipped.isEmpty)
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(18),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceContainerLow,
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .outlineVariant
+                                            .withValues(alpha: 0.45),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.inventory_2_outlined,
+                                          size: 34,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Esta carpeta está vacía.',
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else if (gridView)
+                                  buildItemGrid(inventory)
+                                else
+                                  ...inventory.map((entry) {
+                                    final inventoryItem = entry.inventory;
+                                    final definition = entry.definition;
+
+                                    return ItemCard(
+                                      inventoryItem: inventoryItem,
+                                      definition: definition,
+                                      character: character,
+                                      onEquip: () => toggleEquip(
+                                        inventoryItem,
+                                        definition,
+                                      ),
+                                      onEdit: () =>
+                                          editItem(inventoryItem, definition),
+                                      onDelete: () =>
+                                          deleteItem(inventoryItem, definition),
+                                      onMove: () =>
+                                          moveInventoryItem(inventoryItem),
+                                      onExport: () => exportItem(definition),
+                                      onSaveToLibrary: () =>
+                                          saveItemToLibrary(definition),
+                                      onQuickQuantityEdit: definition.calculable
+                                          ? () => editItemQuantityQuick(
+                                              inventoryItem,
+                                              definition,
+                                            )
+                                          : null,
+                                      onWeaponAttack:
+                                          definition.isWeapon &&
+                                              inventoryItem.equipped
+                                          ? () => resolveWeapon(definition)
+                                          : null,
+                                      onConsumableUse:
+                                          (definition.type ==
+                                                  ItemType.consumable ||
+                                              definition.type ==
+                                                  ItemType.potion ||
+                                              definition.consumable != null)
+                                          ? () => useConsumable(
+                                              inventoryItem,
+                                              definition,
+                                            )
+                                          : null,
+                                    );
+                                  }),
+                              ],
+                            ],
+                          ),
                   ),
                 ],
               ),

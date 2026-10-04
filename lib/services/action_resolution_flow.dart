@@ -218,7 +218,9 @@ class ActionResolutionFlow {
               return null;
             }
 
-            damage += amount;
+            damage += target.isSelf
+                ? character.applyDamageResistance(amount, action.damageType)
+                : amount;
             break;
 
           case PassiveTriggerActionType.heal:
@@ -421,7 +423,9 @@ class ActionResolutionFlow {
                     amount,
                     dispatchTriggers: true,
                   );
-                  breakdown.add('Contador $counterId: ${amount > 0 ? '+' : ''}$amount');
+                  breakdown.add(
+                    'Contador $counterId: ${amount > 0 ? '+' : ''}$amount',
+                  );
                 }
               }
             }
@@ -520,9 +524,7 @@ class ActionResolutionFlow {
     if (allDicePools.isEmpty) {
       final formula = formulaExpression.trim();
       breakdown.add(
-        formula.isEmpty
-            ? '$label: $modifier'
-            : '$label: $formula = $modifier',
+        formula.isEmpty ? '$label: $modifier' : '$label: $formula = $modifier',
       );
       return modifier;
     }
@@ -586,8 +588,8 @@ class ActionResolutionFlow {
 
     final total = result.parts.fold<int>(0, (sum, part) => sum + part.total);
     breakdown.add(
-        _passiveDiceBreakdown(label, formulaExpression, result, total),
-      );
+      _passiveDiceBreakdown(label, formulaExpression, result, total),
+    );
     return total;
   }
 
@@ -787,11 +789,7 @@ class ActionResolutionFlow {
     }
 
     if (prepared.definition.requiresAttackRoll) {
-      return _resolveAttack(
-        context,
-        resolver: resolver,
-        prepared: prepared,
-      );
+      return _resolveAttack(context, resolver: resolver, prepared: prepared);
     }
 
     final selectedDiceMode = await showActionDiceModeSheet(
@@ -924,11 +922,7 @@ class ActionResolutionFlow {
     }
 
     if (prepared.definition.requiresAttackRoll) {
-      return _resolveAttack(
-        context,
-        resolver: resolver,
-        prepared: prepared,
-      );
+      return _resolveAttack(context, resolver: resolver, prepared: prepared);
     }
 
     final selectedDiceMode = await showActionDiceModeSheet(
@@ -1042,11 +1036,7 @@ class ActionResolutionFlow {
     }
 
     if (prepared.definition.requiresAttackRoll) {
-      return _resolveAttack(
-        context,
-        resolver: resolver,
-        prepared: prepared,
-      );
+      return _resolveAttack(context, resolver: resolver, prepared: prepared);
     }
 
     final selectedDiceMode = await showActionDiceModeSheet(
@@ -1242,7 +1232,9 @@ class ActionResolutionFlow {
                             children: [
                               Icon(
                                 Icons.shield_rounded,
-                                color: Theme.of(dialogContext).colorScheme.primary,
+                                color: Theme.of(
+                                  dialogContext,
+                                ).colorScheme.primary,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -1254,7 +1246,9 @@ class ActionResolutionFlow {
                                       style: Theme.of(dialogContext)
                                           .textTheme
                                           .titleSmall
-                                          ?.copyWith(fontWeight: FontWeight.w900),
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w900,
+                                          ),
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
@@ -1263,24 +1257,27 @@ class ActionResolutionFlow {
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: Theme.of(dialogContext)
-                                                .colorScheme
-                                                .onSurfaceVariant,
+                                            color: Theme.of(
+                                              dialogContext,
+                                            ).colorScheme.onSurfaceVariant,
                                           ),
                                     ),
                                     const SizedBox(height: 9),
                                     ..._mitigationReactionDetails(reaction).map(
                                       (detail) => Padding(
-                                        padding: const EdgeInsets.only(bottom: 4),
+                                        padding: const EdgeInsets.only(
+                                          bottom: 4,
+                                        ),
                                         child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Icon(
                                               detail.icon,
                                               size: 15,
-                                              color: Theme.of(dialogContext)
-                                                  .colorScheme
-                                                  .primary,
+                                              color: Theme.of(
+                                                dialogContext,
+                                              ).colorScheme.primary,
                                             ),
                                             const SizedBox(width: 6),
                                             Expanded(
@@ -1290,7 +1287,8 @@ class ActionResolutionFlow {
                                                     .textTheme
                                                     .bodySmall
                                                     ?.copyWith(
-                                                      fontWeight: detail.emphasized
+                                                      fontWeight:
+                                                          detail.emphasized
                                                           ? FontWeight.w800
                                                           : FontWeight.w500,
                                                     ),
@@ -1382,16 +1380,15 @@ class ActionResolutionFlow {
         details.add(
           _ReactionDetail(
             icon: Icons.flash_on_rounded,
-            text: formula.isEmpty
-                ? 'Daño$suffix'
-                : 'Daño: $formula$suffix',
+            text: formula.isEmpty ? 'Daño$suffix' : 'Daño: $formula$suffix',
           ),
         );
       }
     }
 
     // Compatibilidad con habilidades antiguas que todavía no usan effects.
-    if (reaction.effects.isEmpty && reaction.effectType != AbilityEffectType.none) {
+    if (reaction.effects.isEmpty &&
+        reaction.effectType != AbilityEffectType.none) {
       final pieces = <String>[];
       if (reaction.diceNotation.isNotEmpty) {
         pieces.add(reaction.diceNotation);
@@ -1449,10 +1446,7 @@ class ActionResolutionFlow {
     final description = reaction.description.trim();
     if (description.isNotEmpty) {
       details.add(
-        _ReactionDetail(
-          icon: Icons.info_outline_rounded,
-          text: description,
-        ),
+        _ReactionDetail(icon: Icons.info_outline_rounded, text: description),
       );
     }
 
@@ -1469,10 +1463,7 @@ class ActionResolutionFlow {
     return details;
   }
 
-  String _abilityEffectFormula(
-    AbilityEffect effect,
-    CharacterAbility ability,
-  ) {
+  String _abilityEffectFormula(AbilityEffect effect, CharacterAbility ability) {
     final partFormulas = <String>[];
 
     if (effect.parts.isNotEmpty) {
@@ -2984,7 +2975,11 @@ class ActionResolutionFlow {
                         ),
                         title: Text(o.passiveName),
                         subtitle: Text(
-                          '${isDeathTrigger ? 'Al morir' : isDamage ? 'Al recibir daño' : 'Al recibir curación'} · ${o.actions.length} acción(es)',
+                          '${isDeathTrigger
+                              ? 'Al morir'
+                              : isDamage
+                              ? 'Al recibir daño'
+                              : 'Al recibir curación'} · ${o.actions.length} acción(es)',
                         ),
                         onChanged: (value) {
                           setDialogState(() {
@@ -3019,7 +3014,6 @@ class ActionResolutionFlow {
       },
     );
   }
-
 
   Future<void> _showPassiveTriggerResultsDialog(
     BuildContext context,
@@ -3183,21 +3177,20 @@ class ActionResolutionFlow {
                                           label:
                                               'Mitigado ${results[i].mitigation}',
                                           background: colors.tertiaryContainer,
-                                          foreground: colors.onTertiaryContainer,
+                                          foreground:
+                                              colors.onTertiaryContainer,
                                         ),
                                       if (results[i].healing > 0)
                                         resultChip(
                                           icon: Icons.favorite_rounded,
-                                          label:
-                                              '+${results[i].healing} PV',
+                                          label: '+${results[i].healing} PV',
                                           background: colors.primaryContainer,
                                           foreground: colors.onPrimaryContainer,
                                         ),
                                       if (results[i].damage > 0)
                                         resultChip(
                                           icon: Icons.flash_on_rounded,
-                                          label:
-                                              '${results[i].damage} de daño',
+                                          label: '${results[i].damage} de daño',
                                           background: colors.errorContainer,
                                           foreground: colors.onErrorContainer,
                                         ),
@@ -3206,8 +3199,7 @@ class ActionResolutionFlow {
                                           icon: Icons.auto_fix_high_rounded,
                                           label:
                                               '${results[i].effects.length} efecto${results[i].effects.length == 1 ? '' : 's'}',
-                                          background:
-                                              colors.secondaryContainer,
+                                          background: colors.secondaryContainer,
                                           foreground:
                                               colors.onSecondaryContainer,
                                         ),
@@ -3225,7 +3217,9 @@ class ActionResolutionFlow {
                             ),
                             Theme(
                               data: theme.copyWith(
-                                dividerColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                                dividerColor: Theme.of(
+                                  context,
+                                ).colorScheme.surface.withValues(alpha: 0),
                               ),
                               child: ExpansionTile(
                                 tilePadding: const EdgeInsets.symmetric(
@@ -3262,8 +3256,7 @@ class ActionResolutionFlow {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        for (final line
-                                            in results[i].breakdown)
+                                        for (final line in results[i].breakdown)
                                           Padding(
                                             padding: const EdgeInsets.only(
                                               bottom: 6,
@@ -3343,8 +3336,7 @@ class ActionResolutionFlow {
       return;
     }
 
-    final deathResolutionId =
-        'death-${DateTime.now().microsecondsSinceEpoch}';
+    final deathResolutionId = 'death-${DateTime.now().microsecondsSinceEpoch}';
     final deathResults = await _resolvePassiveTriggeredExternalOutcomes(
       context,
       resolver: resolver,
@@ -3538,33 +3530,60 @@ class ActionResolutionFlow {
     BuildContext context, {
     required int baseAmount,
     required bool isDamage,
+    String damageType = '',
   }) async {
     final healthBefore = character.currentHealth;
 
-    var effectiveBaseAmount = baseAmount;
+    final normalizedDamageType = damageType.trim();
+    final resistedBaseAmount = isDamage && normalizedDamageType.isNotEmpty
+        ? character.applyDamageResistance(baseAmount, normalizedDamageType)
+        : baseAmount;
+    final resistanceReduction = math.max(0, baseAmount - resistedBaseAmount);
+
+    var effectiveBaseAmount = resistedBaseAmount;
     var reactionMitigation = 0;
+
+    if (isDamage &&
+        baseAmount > 0 &&
+        resistedBaseAmount == 0 &&
+        normalizedDamageType.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Inmunidad a $normalizedDamageType: el daño se reduce '
+            'de $baseAmount a 0.',
+          ),
+        ),
+      );
+      character.refreshPassiveTriggers();
+      return true;
+    }
 
     // La reacción defensiva se ofrece ANTES de evaluar pasivas o efectos
     // disparados por damageReceived. De este modo el daño que reciben esos
     // triggers ya es el daño restante tras la reacción.
-    if (isDamage && baseAmount > 0) {
+    if (isDamage && effectiveBaseAmount > 0) {
       reactionMitigation = await _offerDamageMitigationReaction(
         context,
-        incomingDamage: baseAmount,
+        incomingDamage: effectiveBaseAmount,
       );
 
       if (!context.mounted) {
         return false;
       }
 
-      effectiveBaseAmount = math.max(0, baseAmount - reactionMitigation);
+      effectiveBaseAmount = math.max(
+        0,
+        effectiveBaseAmount - reactionMitigation,
+      );
 
       if (effectiveBaseAmount == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               reactionMitigation > 0
-                  ? 'La reacción ha mitigado todo el daño ($baseAmount).'
+                  ? 'La reacción ha mitigado todo el daño restante '
+                        '($resistedBaseAmount).'
                   : 'No hay daño que aplicar.',
             ),
           ),
@@ -3588,7 +3607,10 @@ class ActionResolutionFlow {
       }
 
       passiveMitigation = resolvedPassiveMitigation;
-      effectiveBaseAmount = math.max(0, effectiveBaseAmount - passiveMitigation);
+      effectiveBaseAmount = math.max(
+        0,
+        effectiveBaseAmount - passiveMitigation,
+      );
 
       if (effectiveBaseAmount == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3776,12 +3798,16 @@ class ActionResolutionFlow {
       final summary = <String>[
         'PV: $healthBefore → $healthAfter',
         if (isDamage) 'Daño inicial: $baseAmount',
+        if (isDamage && normalizedDamageType.isNotEmpty)
+          'Tipo de daño: $normalizedDamageType',
+        if (isDamage && resistanceReduction > 0)
+          'Resistencia: -$resistanceReduction '
+              '(queda $resistedBaseAmount)',
         if (reactionMitigation > 0)
           'Mitigación de reacción: -$reactionMitigation',
         if (reactionMitigation > 0)
           'Daño tras reacción: ${math.max(0, baseAmount - reactionMitigation)}',
-        if (passiveMitigation > 0)
-          'Mitigación de pasivas: -$passiveMitigation',
+        if (passiveMitigation > 0) 'Mitigación de pasivas: -$passiveMitigation',
         if (passiveMitigation > 0) 'Daño tras mitigación: $effectiveBaseAmount',
         if (!isDamage) 'Curación inicial: +$baseAmount',
         if (totalMitigation > 0)
@@ -3952,10 +3978,7 @@ class ActionResolutionFlow {
             return execution;
           }
 
-          await handleCharacterDeath(
-            context,
-            resolver: resolver,
-          );
+          await handleCharacterDeath(context, resolver: resolver);
         }
       }
 

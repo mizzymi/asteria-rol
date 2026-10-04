@@ -14,9 +14,7 @@ class ItemImportExportService {
 
   static const int formatVersion = 4;
 
-  static final _binaryMagic = PortableStreamingArchive.magic(
-    'ASTERIA_ITEM_V4',
-  );
+  static final _binaryMagic = PortableStreamingArchive.magic('ASTERIA_ITEM_V4');
 
   static const String formatType = 'asteria-item';
 
@@ -37,10 +35,7 @@ class ItemImportExportService {
       file: file,
       magicBytes: _binaryMagic,
       root: root,
-      header: <String, dynamic>{
-        'type': formatType,
-        'version': formatVersion,
-      },
+      header: <String, dynamic>{'type': formatType, 'version': formatVersion},
     );
     return file;
   }
@@ -110,11 +105,15 @@ class ItemImportExportService {
       );
       if (header['type'] != formatType ||
           (header['version'] as num?)?.toInt() != formatVersion) {
-        throw const FormatException('El archivo no es un objeto de Asteria v4.');
+        throw const FormatException(
+          'El archivo no es un objeto de Asteria v4.',
+        );
       }
       final root = Map<String, dynamic>.from(header['root'] as Map);
       if (root['definition'] is! Map) {
-        throw const FormatException('La definición del objeto está incompleta.');
+        throw const FormatException(
+          'La definición del objeto está incompleta.',
+        );
       }
       return ItemDefinition.fromMap(
         Map<dynamic, dynamic>.from(root['definition'] as Map),
@@ -155,7 +154,9 @@ class ItemImportExportService {
     if (version == 3) {
       final rawDefinition = map['definition'];
       if (rawDefinition is! Map) {
-        throw const FormatException('La definición del objeto está incompleta.');
+        throw const FormatException(
+          'La definición del objeto está incompleta.',
+        );
       }
       final definitionMap = Map<String, dynamic>.from(rawDefinition);
       if (map['images'] is Map) {

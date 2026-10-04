@@ -186,12 +186,13 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   Future<void> _editHealth() async {
-    final input = await showDialog<({String operation, int amount})>(
-      context: context,
-      builder: (dialogContext) {
-        return const _SimpleHealthDialog();
-      },
-    );
+    final input =
+        await showDialog<({String operation, int amount, String damageType})>(
+          context: context,
+          builder: (dialogContext) {
+            return const _SimpleHealthDialog();
+          },
+        );
 
     if (input == null || input.amount <= 0 || !mounted) {
       return;
@@ -204,6 +205,7 @@ class _CombatScreenState extends State<CombatScreen> {
       context,
       baseAmount: input.amount,
       isDamage: isDamage,
+      damageType: isDamage ? input.damageType : '',
     );
 
     if (!mounted) {
@@ -433,299 +435,318 @@ class _CombatScreenState extends State<CombatScreen> {
         currentContentItem == null &&
         character.equippedContentItems.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Combate')),
+    return PopScope(
+      canPop: !_contentCanGoBack,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _contentCanGoBack) {
+          _goBackContent();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _contentCanGoBack
+              ? IconButton(
+                  tooltip: 'Volver a combate',
+                  onPressed: _goBackContent,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                )
+              : null,
+          title: const Text('Combate'),
+        ),
 
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
-          children: [
-            // =================================================================
-            // ESTADO DEL COMBATE
-            // =================================================================
-            CombatStateCard(
-              character: character,
-              onToggleCombat: _toggleCombat,
-              onToggleTurn: _toggleTurn,
-              onNextRound: _nextRound,
-            ),
-
-            const SizedBox(height: 20),
-
-            // =================================================================
-            // VIDA
-            // =================================================================
-            Text(
-              'Estado',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+            children: [
+              // =================================================================
+              // ESTADO DEL COMBATE
+              // =================================================================
+              CombatStateCard(
+                character: character,
+                onToggleCombat: _toggleCombat,
+                onToggleTurn: _toggleTurn,
+                onNextRound: _nextRound,
               ),
-            ),
 
-            const SizedBox(height: 10),
+              const SizedBox(height: 20),
 
-            CombatHealthCard(character: character, onTap: _editHealth),
-
-            const SizedBox(height: 10),
-
-            Row(
-              children: [
-                Expanded(
-                  child: CombatStatCard(
-                    icon: Icons.shield_rounded,
-                    title: 'CA',
-                    value: '${character.calculatedArmorClass}',
-                    color: CharacterHomeColors.armor(context),
-                  ),
+              // =================================================================
+              // VIDA
+              // =================================================================
+              Text(
+                'Estado',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
                 ),
-
-                const SizedBox(width: 8),
-
-                Expanded(
-                  child: CombatStatCard(
-                    icon: Icons.bolt_rounded,
-                    title: 'INI',
-                    value:
-                        '${character.initiative >= 0 ? '+' : ''}${character.initiative}',
-                    color: CharacterHomeColors.initiative(context),
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                Expanded(
-                  child: CombatStatCard(
-                    icon: Icons.directions_run_rounded,
-                    title: 'VEL',
-                    value: '${character.totalSpeed}',
-                    color: CharacterHomeColors.speed(context),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(width: 24),
-
-            // =================================================================
-            // RECURSOS
-            // =================================================================
-            Text(
-              'Recursos',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
               ),
-            ),
 
-            const SizedBox(height: 10),
+              const SizedBox(height: 10),
 
-            if (character.resources.isEmpty)
-              CombatEmptySection(
-                icon: Icons.battery_0_bar_rounded,
-                text: 'Sin recursos configurados',
-              )
-            else
-              ...character.resources
-                  .where((resource) => resource.visible)
-                  .map(
-                    (resource) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: CombatResourceCard(
-                        resource: resource,
+              CombatHealthCard(character: character, onTap: _editHealth),
 
-                        effectiveCurrent: character.resourceEffectiveCurrent(
-                          resource,
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: CombatStatCard(
+                      icon: Icons.shield_rounded,
+                      title: 'CA',
+                      value: '${character.calculatedArmorClass}',
+                      color: CharacterHomeColors.armor(context),
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: CombatStatCard(
+                      icon: Icons.bolt_rounded,
+                      title: 'INI',
+                      value:
+                          '${character.initiative >= 0 ? '+' : ''}${character.initiative}',
+                      color: CharacterHomeColors.initiative(context),
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: CombatStatCard(
+                      icon: Icons.directions_run_rounded,
+                      title: 'VEL',
+                      value: '${character.totalSpeed}',
+                      color: CharacterHomeColors.speed(context),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(width: 24),
+
+              // =================================================================
+              // RECURSOS
+              // =================================================================
+              Text(
+                'Recursos',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              if (character.resources.isEmpty)
+                CombatEmptySection(
+                  icon: Icons.battery_0_bar_rounded,
+                  text: 'Sin recursos configurados',
+                )
+              else
+                ...character.resources
+                    .where((resource) => resource.visible)
+                    .map(
+                      (resource) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: CombatResourceCard(
+                          resource: resource,
+
+                          effectiveCurrent: character.resourceEffectiveCurrent(
+                            resource,
+                          ),
+
+                          effectiveMax: character.resourceEffectiveMax(
+                            resource,
+                          ),
+
+                          onTap: () {
+                            _editResource(resource);
+                          },
                         ),
+                      ),
+                    ),
 
-                        effectiveMax: character.resourceEffectiveMax(resource),
+              const SizedBox(height: 24),
 
-                        onTap: () {
-                          _editResource(resource);
-                        },
+              // =================================================================
+              // ARMAS
+              // =================================================================
+              Text(
+                'Armas',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              if (equippedWeapons.isEmpty)
+                const CombatEmptySection(
+                  icon: Icons.gavel_rounded,
+                  text: 'No hay armas equipadas',
+                )
+              else
+                ...equippedWeapons.map(
+                  (entry) => CombatWeaponCard(
+                    character: character,
+                    item: entry.definition,
+                    inventoryItem: entry.inventory,
+                    onAttack: () {
+                      _resolveWeapon(entry.definition);
+                    },
+                  ),
+                ),
+
+              const SizedBox(height: 24),
+
+              const SizedBox(height: 24),
+
+              // =================================================================
+              // HABILIDADES Y PASIVAS
+              // =================================================================
+              Row(
+                children: [
+                  if (_contentCanGoBack) ...[
+                    IconButton(
+                      tooltip: 'Volver',
+                      onPressed: _goBackContent,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+
+                    const SizedBox(width: 4),
+                  ],
+
+                  Expanded(
+                    child: Text(
+                      _contentTitle,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
-
-            const SizedBox(height: 24),
-
-            // =================================================================
-            // ARMAS
-            // =================================================================
-            Text(
-              'Armas',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            if (equippedWeapons.isEmpty)
-              const CombatEmptySection(
-                icon: Icons.gavel_rounded,
-                text: 'No hay armas equipadas',
-              )
-            else
-              ...equippedWeapons.map(
-                (entry) => CombatWeaponCard(
-                  character: character,
-                  item: entry.definition,
-                  inventoryItem: entry.inventory,
-                  onAttack: () {
-                    _resolveWeapon(entry.definition);
-                  },
-                ),
-              ),
-
-            const SizedBox(height: 24),
-
-            const SizedBox(height: 24),
-
-            // =================================================================
-            // HABILIDADES Y PASIVAS
-            // =================================================================
-            Row(
-              children: [
-                if (_contentCanGoBack) ...[
-                  IconButton(
-                    tooltip: 'Volver',
-                    onPressed: _goBackContent,
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  ),
-
-                  const SizedBox(width: 4),
                 ],
+              ),
 
-                Expanded(
-                  child: Text(
-                    _contentTitle,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
+              const SizedBox(height: 10),
+
+              // =================================================================
+              // SUBCARPETAS PERSONALIZADAS
+              // =================================================================
+              ...contentFolders.map(
+                (folder) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: CombatContentFolderCard(
+                    name: folder.name,
+
+                    count: character.directContentCountInFolder(folder.id),
+
+                    onTap: () {
+                      _openContentFolder(folder.id);
+                    },
+                  ),
+                ),
+              ),
+
+              // =================================================================
+              // OBJETOS
+              // =================================================================
+              if (showObjectsFolder)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: CombatContentFolderCard(
+                    name: 'Objetos',
+
+                    count: character.equippedContentItems.fold<int>(
+                      0,
+                      (sum, item) => sum + character.itemContentCount(item),
                     ),
+
+                    automatic: true,
+
+                    onTap: _openContentItems,
                   ),
                 ),
-              ],
-            ),
 
-            const SizedBox(height: 10),
+              // =================================================================
+              // OBJETOS INDIVIDUALES
+              // =================================================================
+              ...itemFolders.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: CombatContentFolderCard(
+                    name: item.name,
 
-            // =================================================================
-            // SUBCARPETAS PERSONALIZADAS
-            // =================================================================
-            ...contentFolders.map(
-              (folder) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: CombatContentFolderCard(
-                  name: folder.name,
+                    count: character.itemContentCount(item),
 
-                  count: character.directContentCountInFolder(folder.id),
+                    automatic: true,
 
-                  onTap: () {
-                    _openContentFolder(folder.id);
-                  },
-                ),
-              ),
-            ),
-
-            // =================================================================
-            // OBJETOS
-            // =================================================================
-            if (showObjectsFolder)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: CombatContentFolderCard(
-                  name: 'Objetos',
-
-                  count: character.equippedContentItems.fold<int>(
-                    0,
-                    (sum, item) => sum + character.itemContentCount(item),
+                    onTap: () {
+                      _openContentItem(item);
+                    },
                   ),
-
-                  automatic: true,
-
-                  onTap: _openContentItems,
                 ),
               ),
 
-            // =================================================================
-            // OBJETOS INDIVIDUALES
-            // =================================================================
-            ...itemFolders.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: CombatContentFolderCard(
-                  name: item.name,
+              // =================================================================
+              // HABILIDADES
+              // =================================================================
+              ...contentAbilities.map((ability) {
+                final sourceItem = character.itemForAbility(ability);
 
-                  count: character.itemContentCount(item),
+                return CombatAbilityCard(
+                  character: character,
 
-                  automatic: true,
+                  ability: ability,
 
-                  onTap: () {
-                    _openContentItem(item);
+                  sourceItem: sourceItem,
+
+                  onUse: () {
+                    _resolveAbility(ability);
                   },
+                );
+              }),
+
+              // =================================================================
+              // PASIVAS
+              // =================================================================
+              ...contentPassives.map((passive) {
+                final sourceItem = character.itemForPassive(passive);
+
+                final canApplyLinkedEffects =
+                    passive.linkedEffects.isNotEmpty &&
+                    !passive.hasAutomaticLinkedEffectTriggers;
+
+                return CombatPassiveCard(
+                  character: character,
+
+                  passive: passive,
+
+                  sourceItem: sourceItem,
+
+                  onRoll: passive.hasRoll
+                      ? () {
+                          _rollPassive(passive);
+                        }
+                      : null,
+
+                  onApplyLinkedEffects: canApplyLinkedEffects
+                      ? () {
+                          _applyPassiveLinkedEffects(passive);
+                        }
+                      : null,
+                );
+              }),
+
+              if (contentFolders.isEmpty &&
+                  itemFolders.isEmpty &&
+                  !showObjectsFolder &&
+                  contentAbilities.isEmpty &&
+                  contentPassives.isEmpty)
+                const CombatEmptySection(
+                  icon: Icons.auto_awesome_outlined,
+                  text: 'No hay habilidades ni pasivas en esta carpeta',
                 ),
-              ),
-            ),
-
-            // =================================================================
-            // HABILIDADES
-            // =================================================================
-            ...contentAbilities.map((ability) {
-              final sourceItem = character.itemForAbility(ability);
-
-              return CombatAbilityCard(
-                character: character,
-
-                ability: ability,
-
-                sourceItem: sourceItem,
-
-                onUse: () {
-                  _resolveAbility(ability);
-                },
-              );
-            }),
-
-            // =================================================================
-            // PASIVAS
-            // =================================================================
-            ...contentPassives.map((passive) {
-              final sourceItem = character.itemForPassive(passive);
-
-              final canApplyLinkedEffects =
-                  passive.linkedEffects.isNotEmpty &&
-                  !passive.hasAutomaticLinkedEffectTriggers;
-
-              return CombatPassiveCard(
-                character: character,
-
-                passive: passive,
-
-                sourceItem: sourceItem,
-
-                onRoll: passive.hasRoll
-                    ? () {
-                        _rollPassive(passive);
-                      }
-                    : null,
-
-                onApplyLinkedEffects: canApplyLinkedEffects
-                    ? () {
-                        _applyPassiveLinkedEffects(passive);
-                      }
-                    : null,
-              );
-            }),
-
-            if (contentFolders.isEmpty &&
-                itemFolders.isEmpty &&
-                !showObjectsFolder &&
-                contentAbilities.isEmpty &&
-                contentPassives.isEmpty)
-              const CombatEmptySection(
-                icon: Icons.auto_awesome_outlined,
-                text: 'No hay habilidades ni pasivas en esta carpeta',
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1360,11 +1381,13 @@ class _SimpleHealthDialog extends StatefulWidget {
 
 class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
   final amountController = TextEditingController();
+  final damageTypeController = TextEditingController();
   String operation = '-';
 
   @override
   void dispose() {
     amountController.dispose();
+    damageTypeController.dispose();
     super.dispose();
   }
 
@@ -1439,6 +1462,20 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
               ),
             ),
           ),
+          if (operation == '-') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: damageTypeController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Tipo de daño',
+                hintText: 'Fuego, frío, contundente, radiante...',
+                prefixIcon: Icon(Icons.local_fire_department_rounded),
+                helperText:
+                    'Se usará para aplicar automáticamente las resistencias.',
+              ),
+            ),
+          ],
         ],
       ),
       actions: [
@@ -1447,8 +1484,27 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          onPressed: () =>
-              Navigator.pop(context, (operation: operation, amount: amount)),
+          onPressed: () {
+            if (amount <= 0) {
+              return;
+            }
+
+            final damageType = damageTypeController.text.trim();
+            if (operation == '-' && damageType.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Indica el tipo de daño recibido.'),
+                ),
+              );
+              return;
+            }
+
+            Navigator.pop(context, (
+              operation: operation,
+              amount: amount,
+              damageType: operation == '-' ? damageType : '',
+            ));
+          },
           child: const Text('Continuar'),
         ),
       ],

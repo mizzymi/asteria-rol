@@ -534,7 +534,9 @@ class _DefinitionImage extends StatelessWidget {
       context,
       PageRouteBuilder(
         opaque: false,
-        barrierColor: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.92),
+        barrierColor: Theme.of(
+          context,
+        ).colorScheme.scrim.withValues(alpha: 0.92),
         pageBuilder: (_, _, _) {
           return Scaffold(
             backgroundColor: Theme.of(context).colorScheme.scrim,

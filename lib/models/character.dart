@@ -33,6 +33,8 @@ import 'weapon_damage.dart';
 import 'damage_bonus.dart';
 import 'critical_damage_bonus.dart';
 import 'healing_bonus.dart';
+import 'damage_resistance.dart';
+import 'saving_throw_roll_mode.dart';
 import 'action_trigger_context.dart';
 import 'pet.dart'; // <--- Importante: Importar el modelo de mascota
 
@@ -994,7 +996,6 @@ class Character {
     return false;
   }
 
-
   int empoweredCriticalMultiplierForWeapon(Weapon weapon) {
     var result = weapon.empoweredCritical
         ? weapon.empoweredCriticalMultiplier.clamp(2, 10).toInt()
@@ -1017,28 +1018,30 @@ class Character {
     return result;
   }
 
-
   String empoweredCriticalFormulaForWeapon(Weapon weapon) {
-    if (weapon.empoweredCritical && weapon.empoweredCriticalFormula.trim().isNotEmpty) {
+    if (weapon.empoweredCritical &&
+        weapon.empoweredCriticalFormula.trim().isNotEmpty) {
       return weapon.empoweredCriticalFormula.trim();
     }
     for (final passive in enabledPassives) {
-      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (passive.empoweredCritical &&
+          passive.empoweredCriticalFormula.trim().isNotEmpty) {
         return passive.empoweredCriticalFormula.trim();
       }
     }
     for (final effect in enabledEffects) {
-      if (effect.empoweredCritical && effect.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (effect.empoweredCritical &&
+          effect.empoweredCriticalFormula.trim().isNotEmpty) {
         return effect.empoweredCriticalFormula.trim();
       }
     }
     return '(MAX + MOD) * ${empoweredCriticalMultiplierForWeapon(weapon)}';
   }
 
-
   int empoweredCriticalChargesForWeapon(Weapon weapon) {
     for (final passive in enabledPassives) {
-      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (passive.empoweredCritical &&
+          passive.empoweredCriticalFormula.trim().isNotEmpty) {
         return passive.hasCharges ? passive.currentCharges : 0;
       }
     }
@@ -1047,7 +1050,8 @@ class Character {
 
   int empoweredCriticalMaxChargesForWeapon(Weapon weapon) {
     for (final passive in enabledPassives) {
-      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (passive.empoweredCritical &&
+          passive.empoweredCriticalFormula.trim().isNotEmpty) {
         return passive.hasCharges ? passive.maxCharges : 0;
       }
     }
@@ -2080,7 +2084,6 @@ class Character {
     return false;
   }
 
-
   int empoweredCriticalMultiplierForAbility(CharacterAbility ability) {
     var result = ability.empoweredCritical
         ? ability.empoweredCriticalMultiplier.clamp(2, 10).toInt()
@@ -2103,31 +2106,34 @@ class Character {
     return result;
   }
 
-
   String empoweredCriticalFormulaForAbility(CharacterAbility ability) {
-    if (ability.empoweredCritical && ability.empoweredCriticalFormula.trim().isNotEmpty) {
+    if (ability.empoweredCritical &&
+        ability.empoweredCriticalFormula.trim().isNotEmpty) {
       return ability.empoweredCriticalFormula.trim();
     }
     for (final passive in enabledPassives) {
-      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (passive.empoweredCritical &&
+          passive.empoweredCriticalFormula.trim().isNotEmpty) {
         return passive.empoweredCriticalFormula.trim();
       }
     }
     for (final effect in enabledEffects) {
-      if (effect.empoweredCritical && effect.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (effect.empoweredCritical &&
+          effect.empoweredCriticalFormula.trim().isNotEmpty) {
         return effect.empoweredCriticalFormula.trim();
       }
     }
     return '(MAX + MOD) * ${empoweredCriticalMultiplierForAbility(ability)}';
   }
 
-
   int empoweredCriticalChargesForAbility(CharacterAbility ability) {
-    if (ability.empoweredCritical && ability.empoweredCriticalFormula.trim().isNotEmpty) {
+    if (ability.empoweredCritical &&
+        ability.empoweredCriticalFormula.trim().isNotEmpty) {
       return ability.hasLimitedUses ? ability.currentUses : 0;
     }
     for (final passive in enabledPassives) {
-      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (passive.empoweredCritical &&
+          passive.empoweredCriticalFormula.trim().isNotEmpty) {
         return passive.hasCharges ? passive.currentCharges : 0;
       }
     }
@@ -2135,11 +2141,13 @@ class Character {
   }
 
   int empoweredCriticalMaxChargesForAbility(CharacterAbility ability) {
-    if (ability.empoweredCritical && ability.empoweredCriticalFormula.trim().isNotEmpty) {
+    if (ability.empoweredCritical &&
+        ability.empoweredCriticalFormula.trim().isNotEmpty) {
       return ability.hasLimitedUses ? ability.maxUses : 0;
     }
     for (final passive in enabledPassives) {
-      if (passive.empoweredCritical && passive.empoweredCriticalFormula.trim().isNotEmpty) {
+      if (passive.empoweredCritical &&
+          passive.empoweredCriticalFormula.trim().isNotEmpty) {
         return passive.hasCharges ? passive.maxCharges : 0;
       }
     }
@@ -2185,7 +2193,10 @@ class Character {
       return 1;
     }
 
-    final conMod = baseAbilityModifier(AbilityType.constitution);
+    // La vida por nivel usa la CONSTITUCIÓN EFECTIVA. Esto incluye tanto
+    // aumentos a la puntuación base de CON como bonus directos a su
+    // modificador concedidos por pasivas/efectos.
+    final conMod = abilityModifier(AbilityType.constitution);
 
     int total = 0;
 
@@ -2757,6 +2768,68 @@ class Character {
         (proficient ? proficiencyBonus : 0) +
         passiveSavingThrowBonus(ability) +
         effectSavingThrowBonus(ability);
+  }
+
+  SavingThrowRollMode savingThrowRollMode(AbilityType ability) {
+    var hasAdvantage = false;
+    var hasDisadvantage = false;
+
+    for (final passive in enabledPassives) {
+      final mode =
+          passive.savingThrowRollModes[ability] ?? SavingThrowRollMode.normal;
+      switch (mode) {
+        case SavingThrowRollMode.normal:
+          break;
+        case SavingThrowRollMode.advantage:
+          hasAdvantage = true;
+          break;
+        case SavingThrowRollMode.disadvantage:
+          hasDisadvantage = true;
+          break;
+      }
+    }
+
+    // Ventaja y desventaja se cancelan entre sí.
+    if (hasAdvantage == hasDisadvantage) {
+      return SavingThrowRollMode.normal;
+    }
+
+    return hasAdvantage
+        ? SavingThrowRollMode.advantage
+        : SavingThrowRollMode.disadvantage;
+  }
+
+  DamageResistanceTier? damageResistanceTier(String damageType) {
+    final normalizedType = normalizeDamageType(damageType);
+    if (normalizedType.isEmpty) {
+      return null;
+    }
+
+    var points = 0;
+
+    for (final passive in enabledPassives) {
+      for (final resistance in passive.damageResistances) {
+        if (resistance.normalizedDamageType != normalizedType) {
+          continue;
+        }
+        points += resistance.tier.resistancePoints;
+      }
+    }
+
+    return DamageResistanceTierData.fromPoints(points);
+  }
+
+  int applyDamageResistance(int damage, String damageType) {
+    if (damage <= 0) {
+      return 0;
+    }
+
+    final tier = damageResistanceTier(damageType);
+    if (tier == null) {
+      return damage;
+    }
+
+    return tier.applyToDamage(damage);
   }
 
   int effectSavingThrowBonus(AbilityType ability) {

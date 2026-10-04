@@ -7,6 +7,8 @@ import '../models/character_effect.dart';
 import '../models/critical_damage_bonus.dart';
 import '../models/damage_bonus.dart';
 import '../models/dice_pool.dart';
+import '../models/damage_resistance.dart';
+import '../models/saving_throw_roll_mode.dart';
 import '../models/healing_bonus.dart';
 import '../models/passive.dart';
 import '../models/passive_resource_modifier.dart';
@@ -36,6 +38,7 @@ import '../widgets/passive_form/general/passive_notes_section.dart';
 
 import '../widgets/passive_form/resources/passive_resources_section.dart';
 import '../widgets/passive_form/resources/resource_modifier_editor_dialog.dart';
+import '../widgets/passive_form/resistances/passive_resistances_section.dart';
 
 import '../widgets/passive_form/roll/passive_own_roll_section.dart';
 
@@ -52,6 +55,7 @@ import 'effect_form_screen.dart';
 
 enum _PassiveFormSection {
   stats,
+  resistances,
   generalBonuses,
   resources,
   charges,
@@ -135,6 +139,10 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
   late Map<AbilityType, FormulaBonus> abilityModifierBonuses;
 
   late Map<AbilityType, FormulaBonus> savingThrowBonuses;
+
+  late Map<AbilityType, SavingThrowRollMode> savingThrowRollModes;
+
+  late List<DamageResistance> damageResistances;
 
   late Map<DndSkill, FormulaBonus> skillBonuses;
 
@@ -323,6 +331,19 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
             : FormulaBonus(),
     };
 
+    savingThrowRollModes = {
+      for (final ability in AbilityType.values)
+        ability:
+            passive?.savingThrowRollModes[ability] ??
+            SavingThrowRollMode.normal,
+    };
+
+    damageResistances =
+        passive?.damageResistances
+            .map((resistance) => DamageResistance.fromMap(resistance.toMap()))
+            .toList() ??
+        [];
+
     // =========================================================================
     // HABILIDADES
     // =========================================================================
@@ -397,7 +418,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
     empoweredCritical = passive?.empoweredCritical ?? false;
     empoweredCriticalMultiplier = passive?.empoweredCriticalMultiplier ?? 2;
     empoweredCriticalFormulaController = TextEditingController(
-      text: passive?.empoweredCriticalFormula ??
+      text:
+          passive?.empoweredCriticalFormula ??
           '(MAX + MOD) * ${passive?.empoweredCriticalMultiplier ?? 2}',
     );
 
@@ -1177,6 +1199,16 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
       savingThrowBonuses: cleanedSavingThrows,
 
+      savingThrowRollModes: {
+        for (final entry in savingThrowRollModes.entries)
+          if (entry.value != SavingThrowRollMode.normal) entry.key: entry.value,
+      },
+
+      damageResistances: damageResistances
+          .where((resistance) => resistance.isValid)
+          .map((resistance) => DamageResistance.fromMap(resistance.toMap()))
+          .toList(),
+
       skillBonuses: cleanedSkills,
 
       // =======================================================================
@@ -1221,7 +1253,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
       empoweredCritical: empoweredCritical,
       empoweredCriticalMultiplier: empoweredCriticalMultiplier,
-      empoweredCriticalFormula: empoweredCriticalFormulaController.text.trim().isEmpty
+      empoweredCriticalFormula:
+          empoweredCriticalFormulaController.text.trim().isEmpty
           ? '(MAX + MOD) * 2'
           : empoweredCriticalFormulaController.text.trim(),
 
@@ -1353,6 +1386,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
 
                   savingThrowBonuses: savingThrowBonuses,
 
+                  savingThrowRollModes: savingThrowRollModes,
+
                   skillBonuses: skillBonuses,
 
                   onAbilityScoreChanged: (ability, bonus) {
@@ -1373,9 +1408,43 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                     });
                   },
 
+                  onSavingThrowRollModeChanged: (ability, mode) {
+                    setState(() {
+                      savingThrowRollModes[ability] = mode;
+                    });
+                  },
+
                   onSkillChanged: (skill, bonus) {
                     setState(() {
                       skillBonuses[skill] = bonus;
+                    });
+                  },
+                ),
+              ],
+
+              const SizedBox(height: 28),
+
+              // ===============================================================
+              // RESISTENCIAS
+              // ===============================================================
+              _section(
+                section: _PassiveFormSection.resistances,
+
+                title: 'Resistencias',
+
+                icon: Icons.shield_rounded,
+
+                subtitle: 'Resistencias al daño e inmunidades por tipo.',
+              ),
+
+              if (_sectionExpanded(_PassiveFormSection.resistances)) ...[
+                const SizedBox(height: 12),
+
+                PassiveResistancesSection(
+                  values: damageResistances,
+                  onChanged: (values) {
+                    setState(() {
+                      damageResistances = values;
                     });
                   },
                 ),
@@ -1648,7 +1717,8 @@ class _PassiveFormScreenState extends State<PassiveFormScreen> {
                     controller: empoweredCriticalFormulaController,
                     decoration: const InputDecoration(
                       labelText: 'Fórmula de crítico',
-                      helperText: 'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
+                      helperText:
+                          'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
                       prefixIcon: Icon(Icons.functions_rounded),
                     ),
                   ),

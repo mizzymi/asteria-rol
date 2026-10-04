@@ -56,11 +56,17 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
     _rarityController = TextEditingController(text: d?.rarity ?? '');
     _difficultyController = TextEditingController(text: d?.difficulty ?? '');
     _levelController = TextEditingController(text: d?.levelLabel ?? '');
-    _studyRequirementController = TextEditingController(text: d?.studyRequirement ?? '');
-    _legacyProgressController = TextEditingController(text: '${d?.requiredProgress ?? 3}');
+    _studyRequirementController = TextEditingController(
+      text: d?.studyRequirement ?? '',
+    );
+    _legacyProgressController = TextEditingController(
+      text: '${d?.requiredProgress ?? 3}',
+    );
     _legacyDcController = TextEditingController(text: '${d?.studyDc ?? 15}');
     _category = d?.category ?? KnowledgeCategory.arcana;
-    _checkOptions = List<KnowledgeCheckOption>.from(d?.checkOptions ?? const []);
+    _checkOptions = List<KnowledgeCheckOption>.from(
+      d?.checkOptions ?? const [],
+    );
     if (_checkOptions.isEmpty) {
       _checkOptions.add(KnowledgeCheckOption.ability(AbilityType.intelligence));
     }
@@ -100,7 +106,8 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
       return;
     }
     setState(() {
-      if (!_unlockedAbilityIds.contains(ability.id)) _unlockedAbilityIds.add(ability.id);
+      if (!_unlockedAbilityIds.contains(ability.id))
+        _unlockedAbilityIds.add(ability.id);
     });
   }
 
@@ -117,7 +124,8 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
       return;
     }
     setState(() {
-      if (!_unlockedPassiveIds.contains(passive.id)) _unlockedPassiveIds.add(passive.id);
+      if (!_unlockedPassiveIds.contains(passive.id))
+        _unlockedPassiveIds.add(passive.id);
     });
   }
 
@@ -170,8 +178,14 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
             children: [
               SegmentedButton<KnowledgeCheckKind>(
                 segments: const [
-                  ButtonSegment(value: KnowledgeCheckKind.ability, label: Text('Atributo')),
-                  ButtonSegment(value: KnowledgeCheckKind.skill, label: Text('Habilidad')),
+                  ButtonSegment(
+                    value: KnowledgeCheckKind.ability,
+                    label: Text('Atributo'),
+                  ),
+                  ButtonSegment(
+                    value: KnowledgeCheckKind.skill,
+                    label: Text('Habilidad'),
+                  ),
                 ],
                 selected: {kind},
                 onSelectionChanged: (v) => setDialogState(() => kind = v.first),
@@ -182,23 +196,34 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                   initialValue: ability,
                   decoration: const InputDecoration(labelText: 'Atributo'),
                   items: AbilityType.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.label)),
+                      )
                       .toList(),
-                  onChanged: (v) => setDialogState(() => ability = v ?? ability),
+                  onChanged: (v) =>
+                      setDialogState(() => ability = v ?? ability),
                 )
               else
                 DropdownButtonFormField<DndSkill>(
                   initialValue: skill,
                   decoration: const InputDecoration(labelText: 'Habilidad'),
                   items: DndSkill.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text('${e.label} (${e.ability.shortLabel})')))
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text('${e.label} (${e.ability.shortLabel})'),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setDialogState(() => skill = v ?? skill),
                 ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
               onPressed: () => Navigator.pop(
                 ctx,
@@ -216,7 +241,9 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
     if (option == null || !mounted) {
       return;
     }
-    final duplicate = _checkOptions.any((e) => e.kind == option.kind && e.value == option.value);
+    final duplicate = _checkOptions.any(
+      (e) => e.kind == option.kind && e.value == option.value,
+    );
     if (!duplicate) {
       setState(() => _checkOptions.add(option));
     }
@@ -237,29 +264,42 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                 ? const Text('No hay habilidades guardadas en la biblioteca.')
                 : ListView(
                     shrinkWrap: true,
-                    children: items.map((a) => CheckboxListTile(
-                      value: selected.contains(a.id),
-                      title: Text(a.name),
-                      onChanged: (v) => setState(() {
-                        if (v == true) {
-                          selected.add(a.id);
-                        } else {
-                          selected.remove(a.id);
-                        }
-                      }),
-                    )).toList(),
+                    children: items
+                        .map(
+                          (a) => CheckboxListTile(
+                            value: selected.contains(a.id),
+                            title: Text(a.name),
+                            onChanged: (v) => setState(() {
+                              if (v == true) {
+                                selected.add(a.id);
+                              } else {
+                                selected.remove(a.id);
+                              }
+                            }),
+                          ),
+                        )
+                        .toList(),
                   ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, selected), child: const Text('Aceptar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, selected),
+              child: const Text('Aceptar'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<Set<String>?> _pickPassives(Set<String> initial, {required String title}) async {
+  Future<Set<String>?> _pickPassives(
+    Set<String> initial, {
+    required String title,
+  }) async {
     final items = await PassiveLibraryService.loadPassives();
     if (!mounted) return null;
     var selected = Set<String>.from(initial);
@@ -274,22 +314,32 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                 ? const Text('No hay pasivas guardadas en la biblioteca.')
                 : ListView(
                     shrinkWrap: true,
-                    children: items.map((p) => CheckboxListTile(
-                      value: selected.contains(p.id),
-                      title: Text(p.name),
-                      onChanged: (v) => setState(() {
-                        if (v == true) {
-                          selected.add(p.id);
-                        } else {
-                          selected.remove(p.id);
-                        }
-                      }),
-                    )).toList(),
+                    children: items
+                        .map(
+                          (p) => CheckboxListTile(
+                            value: selected.contains(p.id),
+                            title: Text(p.name),
+                            onChanged: (v) => setState(() {
+                              if (v == true) {
+                                selected.add(p.id);
+                              } else {
+                                selected.remove(p.id);
+                              }
+                            }),
+                          ),
+                        )
+                        .toList(),
                   ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, selected), child: const Text('Aceptar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, selected),
+              child: const Text('Aceptar'),
+            ),
           ],
         ),
       ),
@@ -316,13 +366,34 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: title, decoration: const InputDecoration(labelText: 'Nombre del círculo')),
+                  TextField(
+                    controller: title,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del círculo',
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  TextField(controller: dc, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'CD')),
+                  TextField(
+                    controller: dc,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'CD'),
+                  ),
                   const SizedBox(height: 10),
-                  TextField(controller: description, maxLines: 4, decoration: const InputDecoration(labelText: 'Enseñanza / descripción')),
+                  TextField(
+                    controller: description,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Enseñanza / descripción',
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  TextField(controller: reward, maxLines: 3, decoration: const InputDecoration(labelText: 'Recompensa / efecto narrativo')),
+                  TextField(
+                    controller: reward,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Recompensa / efecto narrativo',
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   _RewardPickerTile(
                     icon: Icons.flash_on_rounded,
@@ -340,7 +411,10 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                     title: 'Pasivas permanentes',
                     count: passives.length,
                     onTap: () async {
-                      final picked = await _pickPassives(passives, title: 'Pasivas permanentes');
+                      final picked = await _pickPassives(
+                        passives,
+                        title: 'Pasivas permanentes',
+                      );
                       if (picked != null) {
                         setDialogState(() => passives = picked);
                       }
@@ -351,7 +425,10 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                     title: 'Pasivas temporales mientras estudia',
                     count: temporary.length,
                     onTap: () async {
-                      final picked = await _pickPassives(temporary, title: 'Pasivas temporales');
+                      final picked = await _pickPassives(
+                        temporary,
+                        title: 'Pasivas temporales',
+                      );
                       if (picked != null) {
                         setDialogState(() => temporary = picked);
                       }
@@ -362,17 +439,24 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
               onPressed: () {
                 final parsedDc = int.tryParse(dc.text.trim());
-                if (title.text.trim().isEmpty || parsedDc == null || parsedDc <= 0) {
+                if (title.text.trim().isEmpty ||
+                    parsedDc == null ||
+                    parsedDc <= 0) {
                   return;
                 }
                 Navigator.pop(
                   ctx,
                   KnowledgeCircle(
-                    id: circle?.id ?? 'circle_${DateTime.now().microsecondsSinceEpoch}',
+                    id:
+                        circle?.id ??
+                        'circle_${DateTime.now().microsecondsSinceEpoch}',
                     title: title.text.trim(),
                     dc: parsedDc,
                     description: description.text.trim(),
@@ -448,7 +532,13 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.definition == null ? 'Nuevo Saber' : 'Editar Saber'),
-        actions: [IconButton(icon: const Icon(Icons.check_rounded), tooltip: 'Guardar', onPressed: _save)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.check_rounded),
+            tooltip: 'Guardar',
+            onPressed: _save,
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -457,51 +547,150 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
           children: [
             TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Título del saber o libro *', prefixIcon: Icon(Icons.auto_stories_rounded)),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Introduce un nombre' : null,
+              decoration: const InputDecoration(
+                labelText: 'Título del saber o libro *',
+                prefixIcon: Icon(Icons.auto_stories_rounded),
+              ),
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Introduce un nombre' : null,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<KnowledgeCategory>(
               initialValue: _category,
-              decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category_rounded)),
-              items: KnowledgeCategory.values.map((e) => DropdownMenuItem(value: e, child: Text(e.name.toUpperCase()))).toList(),
+              decoration: const InputDecoration(
+                labelText: 'Categoría',
+                prefixIcon: Icon(Icons.category_rounded),
+              ),
+              items: KnowledgeCategory.values
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(e.name.toUpperCase()),
+                    ),
+                  )
+                  .toList(),
               onChanged: (v) => setState(() => _category = v ?? _category),
             ),
             const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: TextFormField(controller: _rarityController, decoration: const InputDecoration(labelText: 'Rareza', hintText: 'Legendaria'))),
-              const SizedBox(width: 10),
-              Expanded(child: TextFormField(controller: _difficultyController, decoration: const InputDecoration(labelText: 'Dificultad', hintText: 'Muy alta'))),
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _rarityController,
+                    decoration: const InputDecoration(
+                      labelText: 'Rareza',
+                      hintText: 'Legendaria',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    controller: _difficultyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Dificultad',
+                      hintText: 'Muy alta',
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
-            TextFormField(controller: _levelController, decoration: const InputDecoration(labelText: 'Nivel / grado', hintText: 'Principiante')),
+            TextFormField(
+              controller: _levelController,
+              decoration: const InputDecoration(
+                labelText: 'Nivel / grado',
+                hintText: 'Principiante',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextFormField(controller: _descriptionController, maxLines: 4, decoration: const InputDecoration(labelText: 'Descripción / historia', alignLabelWithHint: true)),
+            TextFormField(
+              controller: _descriptionController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Descripción / historia',
+                alignLabelWithHint: true,
+              ),
+            ),
             const SizedBox(height: 10),
-            TextFormField(controller: _studyRequirementController, maxLines: 2, decoration: const InputDecoration(labelText: 'Requisito especial de estudio', hintText: 'Ej.: requiere práctica física', alignLabelWithHint: true)),
+            TextFormField(
+              controller: _studyRequirementController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Requisito especial de estudio',
+                hintText: 'Ej.: requiere práctica física',
+                alignLabelWithHint: true,
+              ),
+            ),
             const SizedBox(height: 22),
-            _SectionTitle(title: 'Tiradas permitidas', actionLabel: 'Añadir', onAction: _addCheckOption),
+            _SectionTitle(
+              title: 'Tiradas permitidas',
+              actionLabel: 'Añadir',
+              onAction: _addCheckOption,
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _checkOptions.asMap().entries.map((entry) => InputChip(
-                avatar: Icon(entry.value.kind == KnowledgeCheckKind.skill ? Icons.psychology_rounded : Icons.person_rounded, size: 17),
-                label: Text(entry.value.label),
-                onDeleted: _checkOptions.length <= 1 ? null : () => setState(() => _checkOptions.removeAt(entry.key)),
-              )).toList(),
+              children: _checkOptions
+                  .asMap()
+                  .entries
+                  .map(
+                    (entry) => InputChip(
+                      avatar: Icon(
+                        entry.value.kind == KnowledgeCheckKind.skill
+                            ? Icons.psychology_rounded
+                            : Icons.person_rounded,
+                        size: 17,
+                      ),
+                      label: Text(entry.value.label),
+                      onDeleted: _checkOptions.length <= 1
+                          ? null
+                          : () => setState(
+                              () => _checkOptions.removeAt(entry.key),
+                            ),
+                    ),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 24),
-            _SectionTitle(title: 'Círculos de aprendizaje', actionLabel: 'Añadir círculo', onAction: () => _editCircle()),
+            _SectionTitle(
+              title: 'Círculos de aprendizaje',
+              actionLabel: 'Añadir círculo',
+              onAction: () => _editCircle(),
+            ),
             const SizedBox(height: 8),
             if (_circles.isEmpty) ...[
-              Text('Sin círculos: se usará el modo clásico por éxitos.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              Text(
+                'Sin círculos: se usará el modo clásico por éxitos.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: TextFormField(controller: _legacyDcController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'CD clásica'))),
-                const SizedBox(width: 10),
-                Expanded(child: TextFormField(controller: _legacyProgressController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Éxitos necesarios'))),
-              ]),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _legacyDcController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'CD clásica',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _legacyProgressController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Éxitos necesarios',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ] else
               ..._circles.asMap().entries.map((entry) {
                 final c = entry.value;
@@ -509,46 +698,97 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: CircleAvatar(child: Text('${entry.key + 1}')),
-                    title: Text(c.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text('CD ${c.dc}${c.rewardDescription.isNotEmpty ? ' · ${c.rewardDescription}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(icon: const Icon(Icons.edit_rounded), onPressed: () => _editCircle(circle: c, index: entry.key)),
-                      IconButton(icon: const Icon(Icons.delete_outline_rounded), onPressed: () => setState(() => _circles.removeAt(entry.key))),
-                    ]),
+                    title: Text(
+                      c.title,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      'CD ${c.dc}${c.rewardDescription.isNotEmpty ? ' · ${c.rewardDescription}' : ''}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_rounded),
+                          onPressed: () =>
+                              _editCircle(circle: c, index: entry.key),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          onPressed: () =>
+                              setState(() => _circles.removeAt(entry.key)),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }),
             const SizedBox(height: 24),
             _SectionTitle(title: 'Recompensas al completar el libro'),
             const SizedBox(height: 8),
-            Row(children: [
-              Expanded(child: FilledButton.tonalIcon(onPressed: _createAbility, icon: const Icon(Icons.add_rounded), label: const Text('Crear habilidad'))),
-              const SizedBox(width: 8),
-              Expanded(child: FilledButton.tonalIcon(onPressed: _createPassive, icon: const Icon(Icons.add_rounded), label: const Text('Crear pasiva'))),
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _createAbility,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Crear habilidad'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _createPassive,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Crear pasiva'),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
-            ..._unlockedAbilityIds.map((id) => FutureBuilder<CharacterAbility?>(
-              future: AbilityLibraryService.getAbilityById(id),
-              builder: (context, snap) => ListTile(
-                leading: const Icon(Icons.flash_on_rounded),
-                title: Text(snap.data?.name ?? id),
-                subtitle: const Text('Habilidad al completar'),
-                onTap: () => _editAbility(id),
-                trailing: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() => _unlockedAbilityIds.remove(id))),
+            ..._unlockedAbilityIds.map(
+              (id) => FutureBuilder<CharacterAbility?>(
+                future: AbilityLibraryService.getAbilityById(id),
+                builder: (context, snap) => ListTile(
+                  leading: const Icon(Icons.flash_on_rounded),
+                  title: Text(snap.data?.name ?? id),
+                  subtitle: const Text('Habilidad al completar'),
+                  onTap: () => _editAbility(id),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () =>
+                        setState(() => _unlockedAbilityIds.remove(id)),
+                  ),
+                ),
               ),
-            )),
-            ..._unlockedPassiveIds.map((id) => FutureBuilder<CharacterPassive?>(
-              future: PassiveLibraryService.getPassiveById(id),
-              builder: (context, snap) => ListTile(
-                leading: const Icon(Icons.auto_awesome_rounded),
-                title: Text(snap.data?.name ?? id),
-                subtitle: const Text('Pasiva al completar'),
-                onTap: () => _editPassive(id),
-                trailing: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() => _unlockedPassiveIds.remove(id))),
+            ),
+            ..._unlockedPassiveIds.map(
+              (id) => FutureBuilder<CharacterPassive?>(
+                future: PassiveLibraryService.getPassiveById(id),
+                builder: (context, snap) => ListTile(
+                  leading: const Icon(Icons.auto_awesome_rounded),
+                  title: Text(snap.data?.name ?? id),
+                  subtitle: const Text('Pasiva al completar'),
+                  onTap: () => _editPassive(id),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () =>
+                        setState(() => _unlockedPassiveIds.remove(id)),
+                  ),
+                ),
               ),
-            )),
+            ),
             const SizedBox(height: 16),
-            TextFormField(controller: _notesController, maxLines: 2, decoration: const InputDecoration(labelText: 'Notas personales del personaje', alignLabelWithHint: true)),
+            TextFormField(
+              controller: _notesController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Notas personales del personaje',
+                alignLabelWithHint: true,
+              ),
+            ),
           ],
         ),
       ),
@@ -565,11 +805,24 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-      if (actionLabel != null && onAction != null)
-        TextButton.icon(onPressed: onAction, icon: const Icon(Icons.add_rounded), label: Text(actionLabel!)),
-    ]);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ),
+        if (actionLabel != null && onAction != null)
+          TextButton.icon(
+            onPressed: onAction,
+            icon: const Icon(Icons.add_rounded),
+            label: Text(actionLabel!),
+          ),
+      ],
+    );
   }
 }
 
@@ -579,7 +832,12 @@ class _RewardPickerTile extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
 
-  const _RewardPickerTile({required this.icon, required this.title, required this.count, required this.onTap});
+  const _RewardPickerTile({
+    required this.icon,
+    required this.title,
+    required this.count,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {

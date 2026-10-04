@@ -111,7 +111,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
     empoweredCritical = ability?.empoweredCritical ?? false;
     empoweredCriticalMultiplier = ability?.empoweredCriticalMultiplier ?? 2;
     empoweredCriticalFormulaController = TextEditingController(
-      text: ability?.empoweredCriticalFormula ??
+      text:
+          ability?.empoweredCriticalFormula ??
           '(MAX + MOD) * ${ability?.empoweredCriticalMultiplier ?? 2}',
     );
 
@@ -766,7 +767,8 @@ class _AbilityFormScreenState extends State<AbilityFormScreen> {
 
       empoweredCritical: empoweredCritical,
       empoweredCriticalMultiplier: empoweredCriticalMultiplier,
-      empoweredCriticalFormula: empoweredCriticalFormulaController.text.trim().isEmpty
+      empoweredCriticalFormula:
+          empoweredCriticalFormulaController.text.trim().isEmpty
           ? '(MAX + MOD) * 2'
           : empoweredCriticalFormulaController.text.trim(),
 

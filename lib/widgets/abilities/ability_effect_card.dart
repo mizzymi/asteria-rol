@@ -135,8 +135,7 @@ class AbilityEffectCard extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Theme
-                            .of(context)
+                        color: Theme.of(context)
                             .colorScheme
                             .surfaceContainerHighest
                             .withValues(alpha: 0.4),
@@ -158,9 +157,7 @@ class AbilityEffectCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  part.typeName
-                                      .trim()
-                                      .isNotEmpty
+                                  part.typeName.trim().isNotEmpty
                                       ? part.typeName
                                       : effect.effectType.label,
                                   style: const TextStyle(

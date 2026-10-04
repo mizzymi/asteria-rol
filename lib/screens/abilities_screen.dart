@@ -727,6 +727,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
     );
     if (ability == null) return;
 
+    // Al crear una habilidad dentro de una carpeta, la colocamos
+    // directamente en la carpeta desde la que se abrió el formulario.
+    ability.folderId ??= _currentFolderId;
+
     setState(() {
       character.addCharacterAbility(ability);
     });
@@ -946,7 +950,10 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(dialogContext),
-                    icon: Icon(Icons.close_rounded, color: Theme.of(context).colorScheme.scrim),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: Theme.of(context).colorScheme.scrim,
+                    ),
                   ),
                   Expanded(
                     child: Text(
@@ -1001,7 +1008,14 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60)],
+                        colors: [
+                          Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0),
+                          Theme.of(
+                            context,
+                          ).colorScheme.scrim.withValues(alpha: 0.60),
+                        ],
                       ),
                     ),
                   ),
@@ -1010,7 +1024,9 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
                     bottom: 12,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.60),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.scrim.withValues(alpha: 0.60),
                         shape: BoxShape.circle,
                       ),
                       child: Padding(
@@ -1032,42 +1048,98 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
   }
 
   Future<void> _showAbilityGridDetails(CharacterAbility ability) async {
-    final sourceItem = character.itemForAbility(ability);
+    final abilityId = ability.id;
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (sheetContext) => FractionallySizedBox(
-        heightFactor: 0.88,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-          child: Column(
-            children: [
-              _detailImageHero(
-                imagePath: ability.imagePath,
-                alignmentX: ability.imageAlignmentX,
-                alignmentY: ability.imageAlignmentY,
-                title: ability.name,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            // El formulario de edición reemplaza la instancia de la habilidad
+            // dentro del personaje. Mientras este bottom sheet siga abierto
+            // debemos volver a leerla por id para no seguir mostrando la copia
+            // antigua capturada al abrir la cuadrícula.
+            final currentAbility =
+                character.characterAbilityById(abilityId) ?? ability;
+            final sourceItem = character.itemForAbility(currentAbility);
+
+            return FractionallySizedBox(
+              heightFactor: 0.88,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                child: Column(
+                  children: [
+                    _detailImageHero(
+                      imagePath: currentAbility.imagePath,
+                      alignmentX: currentAbility.imageAlignmentX,
+                      alignmentY: currentAbility.imageAlignmentY,
+                      title: currentAbility.name,
+                    ),
+                    AbilityCard(
+                      key: ValueKey(
+                        'grid-detail-${currentAbility.id}-'
+                        '${currentAbility.name}-'
+                        '${currentAbility.currentUses}',
+                      ),
+                      ability: currentAbility,
+                      character: character,
+                      sourceItem: sourceItem,
+                      onMove: sourceItem == null
+                          ? () async {
+                              await moveAbility(currentAbility);
+                              if (sheetContext.mounted) {
+                                setSheetState(() {});
+                              }
+                            }
+                          : null,
+                      onEdit: sourceItem == null
+                          ? () async {
+                              await editAbility(currentAbility);
+                              if (sheetContext.mounted) {
+                                setSheetState(() {});
+                              }
+                            }
+                          : null,
+                      onDelete: sourceItem == null
+                          ? () async {
+                              await deleteAbility(currentAbility);
+                              if (!sheetContext.mounted) {
+                                return;
+                              }
+
+                              if (character.characterAbilityById(abilityId) ==
+                                  null) {
+                                Navigator.of(sheetContext).pop();
+                              } else {
+                                setSheetState(() {});
+                              }
+                            }
+                          : null,
+                      onRestore: currentAbility.hasLimitedUses
+                          ? () async {
+                              await restoreAbility(currentAbility);
+                              if (sheetContext.mounted) {
+                                setSheetState(() {});
+                              }
+                            }
+                          : null,
+                      onCombatActions: () async {
+                        await showAbilityCombatActions(currentAbility);
+                        if (sheetContext.mounted) {
+                          setSheetState(() {});
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
-              AbilityCard(
-                ability: ability,
-                character: character,
-                sourceItem: sourceItem,
-                onMove: sourceItem == null ? () => moveAbility(ability) : null,
-                onEdit: sourceItem == null ? () => editAbility(ability) : null,
-                onDelete: sourceItem == null
-                    ? () => deleteAbility(ability)
-                    : null,
-                onRestore: ability.hasLimitedUses
-                    ? () => restoreAbility(ability)
-                    : null,
-                onCombatActions: () => showAbilityCombatActions(ability),
-              ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1265,25 +1337,21 @@ class _AbilitiesScreenState extends State<AbilitiesScreen> {
       final scope = _abilityFolderSearchScope();
 
       // Resultados de las carpetas normales de Habilidades/Pasivas.
-      final matchedAbilities = character.characterAbilities
-          .where((ability) {
-            final folderId = ability.folderId;
-            final inScope =
-                folderId == _currentFolderId ||
-                (folderId != null && scope.contains(folderId));
-            return inScope && _matchesAbilitySearch(ability, query);
-          })
-          .toList();
+      final matchedAbilities = character.characterAbilities.where((ability) {
+        final folderId = ability.folderId;
+        final inScope =
+            folderId == _currentFolderId ||
+            (folderId != null && scope.contains(folderId));
+        return inScope && _matchesAbilitySearch(ability, query);
+      }).toList();
 
-      final matchedPassives = character.passives
-          .where((passive) {
-            final folderId = passive.folderId;
-            final inScope =
-                folderId == _currentFolderId ||
-                (folderId != null && scope.contains(folderId));
-            return inScope && _matchesPassiveSearch(passive, query);
-          })
-          .toList();
+      final matchedPassives = character.passives.where((passive) {
+        final folderId = passive.folderId;
+        final inScope =
+            folderId == _currentFolderId ||
+            (folderId != null && scope.contains(folderId));
+        return inScope && _matchesPassiveSearch(passive, query);
+      }).toList();
 
       // "Objetos" es una carpeta virtual que cuelga de la raíz de esta
       // pantalla. Por tanto, una búsqueda iniciada desde la raíz también debe
@@ -1797,7 +1865,11 @@ class _CompactContentGridCard extends StatelessWidget {
               ColoredBox(
                 color: colors.primary,
                 child: Center(
-                  child: Icon(fallbackIcon, size: 34, color: Theme.of(context).colorScheme.onInverseSurface),
+                  child: Icon(
+                    fallbackIcon,
+                    size: 34,
+                    color: Theme.of(context).colorScheme.onInverseSurface,
+                  ),
                 ),
               ),
             DecoratedBox(
@@ -1806,7 +1878,10 @@ class _CompactContentGridCard extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   stops: [0.42, 1],
-                  colors: [Theme.of(context).colorScheme.surface.withValues(alpha: 0), Theme.of(context).colorScheme.scrim.withValues(alpha: 0.80)],
+                  colors: [
+                    Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                    Theme.of(context).colorScheme.scrim.withValues(alpha: 0.80),
+                  ],
                 ),
               ),
             ),
@@ -1823,8 +1898,13 @@ class _CompactContentGridCard extends StatelessWidget {
                     color: Theme.of(context).colorScheme.onInverseSurface,
                     fontWeight: FontWeight.w900,
                     height: 1.05,
-                    shadows:  [
-                      Shadow(blurRadius: 3, color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.54)),
+                    shadows: [
+                      Shadow(
+                        blurRadius: 3,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.scrim.withValues(alpha: 0.54),
+                      ),
                     ],
                   ),
                 ),

@@ -36,7 +36,9 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
 
   Future<void> _syncRewards() async {
     for (final entry in character.knowledges) {
-      final definition = await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId);
+      final definition = await KnowledgeLibraryService.getDefinitionById(
+        entry.knowledgeId,
+      );
       if (definition == null) continue;
       await const KnowledgeService().syncKnowledgeRewards(
         character: character,
@@ -73,7 +75,9 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   }
 
   Future<void> _editKnowledgeFull(CharacterKnowledge entry) async {
-    final existing = await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId);
+    final existing = await KnowledgeLibraryService.getDefinitionById(
+      entry.knowledgeId,
+    );
     if (!mounted) return;
 
     final result = await Navigator.push<Map<String, dynamic>>(
@@ -98,8 +102,8 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
     entry.status = entry.currentProgress >= maxProgress
         ? KnowledgeStatus.mastered
         : entry.currentProgress > 0
-            ? KnowledgeStatus.studying
-            : KnowledgeStatus.discovered;
+        ? KnowledgeStatus.studying
+        : KnowledgeStatus.discovered;
 
     await const KnowledgeService().syncKnowledgeRewards(
       character: character,
@@ -110,7 +114,8 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   }
 
   Future<void> _study(CharacterKnowledge entry) async {
-    final definition = await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId) ??
+    final definition =
+        await KnowledgeLibraryService.getDefinitionById(entry.knowledgeId) ??
         KnowledgeDefinition(id: entry.knowledgeId, name: entry.knowledgeId);
     if (!mounted) return;
 
@@ -148,8 +153,14 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
         title: const Text('Eliminar saber'),
         content: const Text('¿Deseas eliminar este saber de tus registros?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
         ],
       ),
     );
@@ -165,9 +176,15 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   @override
   Widget build(BuildContext context) {
     final knowledges = character.knowledges;
-    final studying = knowledges.where((k) => k.status == KnowledgeStatus.studying).toList();
-    final discovered = knowledges.where((k) => k.status == KnowledgeStatus.discovered).toList();
-    final mastered = knowledges.where((k) => k.status == KnowledgeStatus.mastered).toList();
+    final studying = knowledges
+        .where((k) => k.status == KnowledgeStatus.studying)
+        .toList();
+    final discovered = knowledges
+        .where((k) => k.status == KnowledgeStatus.discovered)
+        .toList();
+    final mastered = knowledges
+        .where((k) => k.status == KnowledgeStatus.mastered)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Compendio de Saberes')),
@@ -175,7 +192,8 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
           ? EmptyState(
               icon: Icons.auto_stories_rounded,
               title: 'Sin conocimientos',
-              message: 'Añade libros, manuales o tratados con círculos de aprendizaje y recompensas.',
+              message:
+                  'Añade libros, manuales o tratados con círculos de aprendizaje y recompensas.',
               actionLabel: 'Añadir saber manual',
               onAction: _createKnowledge,
             )
@@ -246,7 +264,9 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      mastered ? Icons.check_circle_rounded : Icons.menu_book_rounded,
+                      mastered
+                          ? Icons.check_circle_rounded
+                          : Icons.menu_book_rounded,
                       color: mastered ? colors.tertiary : colors.primary,
                     ),
                     const SizedBox(width: 10),
@@ -254,16 +274,24 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                          Text(
+                            title,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                           if (definition != null) ...[
                             const SizedBox(height: 4),
                             Wrap(
                               spacing: 6,
                               runSpacing: 4,
                               children: [
-                                if (definition.rarity.isNotEmpty) _MiniBadge(definition.rarity),
-                                if (definition.difficulty.isNotEmpty) _MiniBadge(definition.difficulty),
-                                if (definition.levelLabel.isNotEmpty) _MiniBadge(definition.levelLabel),
+                                if (definition.rarity.isNotEmpty)
+                                  _MiniBadge(definition.rarity),
+                                if (definition.difficulty.isNotEmpty)
+                                  _MiniBadge(definition.difficulty),
+                                if (definition.levelLabel.isNotEmpty)
+                                  _MiniBadge(definition.levelLabel),
                               ],
                             ),
                           ],
@@ -276,8 +304,14 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                         if (value == 'delete') _deleteKnowledge(entry);
                       },
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'edit', child: Text('Editar libro')),
-                        PopupMenuItem(value: 'delete', child: Text('Eliminar saber')),
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Editar libro'),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Eliminar saber'),
+                        ),
                       ],
                     ),
                   ],
@@ -288,7 +322,9 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                     definition!.description,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -302,7 +338,12 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text('$progress/$total', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(
+                      '$progress/$total',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ],
                 ),
                 if (!mastered && currentCircle != null) ...[
@@ -316,20 +357,30 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                     ),
                     child: Text(
                       'Siguiente: ${currentCircle.title} · CD ${currentCircle.dc}',
-                      style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
-                if (definition != null && definition.effectiveCheckOptions.isNotEmpty) ...[
+                if (definition != null &&
+                    definition.effectiveCheckOptions.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
                     'Tirada: ${definition.effectiveCheckOptions.map((e) => e.label).join(' o ')}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
                 ],
                 if (entry.notes.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text(entry.notes, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+                  Text(
+                    entry.notes,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
                 ],
                 if (!mastered) ...[
                   const SizedBox(height: 12),
@@ -364,7 +415,12 @@ class _MiniBadge extends StatelessWidget {
         color: colors.primaryContainer.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(text, style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
+      child: Text(
+        text,
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w800),
+      ),
     );
   }
 }

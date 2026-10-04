@@ -186,7 +186,8 @@ class ItemWeaponSection extends StatelessWidget {
             controller: empoweredCriticalFormulaController,
             decoration: const InputDecoration(
               labelText: 'Fórmula de crítico',
-              helperText: 'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
+              helperText:
+                  'TIRADA, MAX, MOD, TURNO, CARGAS, RECURSO("Ki"), CONTADOR("Combo")',
               prefixIcon: Icon(Icons.functions_rounded),
             ),
           ),

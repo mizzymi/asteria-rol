@@ -2,8 +2,7 @@ class CharacterContentFolder {
   final String id;
   String name;
   String? parentId;
-  final bool
-  isItemFolder;
+  final bool isItemFolder;
 
   CharacterContentFolder({
     required this.id,

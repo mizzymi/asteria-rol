@@ -8,10 +8,10 @@ class CampaignEconomyService {
   const CampaignEconomyService._();
 
   static String resourceIdFor(String campaignId, String currencyName) {
-    final normalized = currencyName
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    final normalized = currencyName.trim().toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
     return 'campaign_${campaignId}_currency_$normalized';
   }
 
@@ -22,7 +22,9 @@ class CampaignEconomyService {
     var changed = false;
     for (final shop in campaign.shops) {
       if (shop.currencyKind != CampaignShopCurrencyKind.resource) continue;
-      final name = shop.currencyName.trim().isEmpty ? 'Oro' : shop.currencyName.trim();
+      final name = shop.currencyName.trim().isEmpty
+          ? 'Oro'
+          : shop.currencyName.trim();
       final id = resourceIdFor(campaign.id, name);
       final exists = character.resources.any(
         (r) => r.id == id || r.name.toLowerCase() == name.toLowerCase(),

@@ -119,10 +119,7 @@ class ActionDicePartResult {
       );
       final maximum = request.empoweredCriticalMaximum > 0
           ? request.empoweredCriticalMaximum
-          : request.dicePools.fold<int>(
-              0,
-              (sum, pool) => sum + pool.maximum,
-            );
+          : request.dicePools.fold<int>(0, (sum, pool) => sum + pool.maximum);
       return EmpoweredCriticalFormula.evaluate(
         formula,
         roll: rolled,

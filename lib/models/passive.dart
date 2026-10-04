@@ -7,6 +7,8 @@ import 'skill.dart';
 import 'damage_bonus.dart';
 import 'critical_damage_bonus.dart';
 import 'dice_pool.dart';
+import 'damage_resistance.dart';
+import 'saving_throw_roll_mode.dart';
 
 enum PassiveTriggerMode { once, whileCondition }
 
@@ -328,6 +330,7 @@ class CharacterPassive {
   String id;
   String name;
   String description;
+
   /// Ruta local de la imagen representativa de la pasiva.
   String? imagePath;
 
@@ -352,6 +355,14 @@ class CharacterPassive {
   Map<DndSkill, FormulaBonus> skillBonuses;
 
   Map<AbilityType, FormulaBonus> savingThrowBonuses;
+
+  /// Ventaja/desventaja permanente mientras la pasiva esté activa.
+  Map<AbilityType, SavingThrowRollMode> savingThrowRollModes;
+
+  /// Resistencias aportadas por esta pasiva. Las resistencias del mismo tipo
+  /// se apilan por niveles (2 menores = normal, 2 normales = mayor,
+  /// 2 mayores = inmunidad).
+  List<DamageResistance> damageResistances;
 
   List<DamageBonus> damageBonuses;
 
@@ -453,6 +464,8 @@ class CharacterPassive {
     Map<AbilityType, FormulaBonus>? abilityScoreBonuses,
     Map<DndSkill, FormulaBonus>? skillBonuses,
     Map<AbilityType, FormulaBonus>? savingThrowBonuses,
+    Map<AbilityType, SavingThrowRollMode>? savingThrowRollModes,
+    List<DamageResistance>? damageResistances,
     List<DamageBonus>? damageBonuses,
     List<HealingBonus>? healingBonuses,
     List<HealingBonus>? mitigationBonuses,
@@ -495,6 +508,12 @@ class CharacterPassive {
 
        savingThrowBonuses = Map<AbilityType, FormulaBonus>.from(
          savingThrowBonuses ?? {},
+       ),
+       savingThrowRollModes = Map<AbilityType, SavingThrowRollMode>.from(
+         savingThrowRollModes ?? {},
+       ),
+       damageResistances = List<DamageResistance>.from(
+         damageResistances ?? const [],
        ),
        damageBonuses = List<DamageBonus>.from(damageBonuses ?? []),
        criticalDamageBonuses = List<CriticalDamageBonus>.from(
@@ -554,6 +573,10 @@ class CharacterPassive {
         abilityScoreBonuses.values.any((bonus) => bonus.hasValue) ||
         skillBonuses.values.any((bonus) => bonus.hasValue) ||
         savingThrowBonuses.values.any((bonus) => bonus.hasValue) ||
+        savingThrowRollModes.values.any(
+          (mode) => mode != SavingThrowRollMode.normal,
+        ) ||
+        damageResistances.any((resistance) => resistance.isValid) ||
         damageBonuses.any((damage) => damage.hasDamage) ||
         criticalDamageBonuses.any((damage) => damage.canTrigger) ||
         healingBonuses.any((bonus) => bonus.hasHealing) ||
@@ -673,6 +696,17 @@ class CharacterPassive {
         for (final entry in savingThrowBonuses.entries)
           entry.key.name: entry.value.toMap(),
       },
+
+      'savingThrowRollModes': {
+        for (final entry in savingThrowRollModes.entries)
+          if (entry.value != SavingThrowRollMode.normal)
+            entry.key.name: entry.value.name,
+      },
+
+      'damageResistances': damageResistances
+          .where((resistance) => resistance.isValid)
+          .map((resistance) => resistance.toMap())
+          .toList(),
 
       'damageBonuses': damageBonuses.map((damage) => damage.toMap()).toList(),
 
@@ -836,6 +870,50 @@ class CharacterPassive {
 
         if (bonus.hasValue) {
           savingThrowBonuses[ability] = bonus;
+        }
+      }
+    }
+
+    final savingThrowRollModes = <AbilityType, SavingThrowRollMode>{};
+
+    final rawSaveModes = map['savingThrowRollModes'];
+
+    if (rawSaveModes is Map) {
+      final saveModeMap = Map<dynamic, dynamic>.from(rawSaveModes);
+
+      for (final ability in AbilityType.values) {
+        final rawMode = saveModeMap[ability.name]?.toString();
+        if (rawMode == null) {
+          continue;
+        }
+
+        final mode = SavingThrowRollMode.values.firstWhere(
+          (value) => value.name == rawMode,
+          orElse: () => SavingThrowRollMode.normal,
+        );
+
+        if (mode != SavingThrowRollMode.normal) {
+          savingThrowRollModes[ability] = mode;
+        }
+      }
+    }
+
+    final damageResistances = <DamageResistance>[];
+    final rawResistances = map['damageResistances'];
+    if (rawResistances is List) {
+      for (final rawResistance in rawResistances) {
+        if (rawResistance is! Map) {
+          continue;
+        }
+        try {
+          final resistance = DamageResistance.fromMap(
+            Map<dynamic, dynamic>.from(rawResistance),
+          );
+          if (resistance.isValid) {
+            damageResistances.add(resistance);
+          }
+        } catch (_) {
+          continue;
         }
       }
     }
@@ -1079,6 +1157,10 @@ class CharacterPassive {
 
       savingThrowBonuses: savingThrowBonuses,
 
+      savingThrowRollModes: savingThrowRollModes,
+
+      damageResistances: damageResistances,
+
       abilityModifierBonuses: abilityModifierBonuses,
 
       abilityScoreBonuses: abilityScoreBonuses,
@@ -1123,8 +1205,11 @@ class CharacterPassive {
 
       empoweredCritical: map['empoweredCritical'] as bool? ?? false,
       empoweredCriticalMultiplier:
-          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10).toInt(),
-      empoweredCriticalFormula: map['empoweredCriticalFormula'] as String? ??
+          ((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2)
+              .clamp(2, 10)
+              .toInt(),
+      empoweredCriticalFormula:
+          map['empoweredCriticalFormula'] as String? ??
           '(MAX + MOD) * ${((map['empoweredCriticalMultiplier'] as num?)?.toInt() ?? 2).clamp(2, 10)}',
     );
 
