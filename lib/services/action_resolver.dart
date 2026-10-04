@@ -832,10 +832,11 @@ class ActionResolver {
     // ===========================================================================
 
     final hasExtra =
-        effect.dicePools.isNotEmpty ||
-        effect.abilityModifierMultipliers.values.any((value) => value != 0) ||
-        effect.effectBonus != 0 ||
-        effect.legacyAddAbilityModifier;
+        !effect.dealsDamage &&
+        (effect.dicePools.isNotEmpty ||
+            effect.abilityModifierMultipliers.values.any((value) => value != 0) ||
+            effect.effectBonus != 0 ||
+            effect.legacyAddAbilityModifier);
 
     if (hasExtra &&
         _passesHitGate(
@@ -2351,9 +2352,10 @@ class ActionResolver {
       final modifierLabel = _abilityModifierMultipliersLabel(extraMultipliers);
 
       final hasExtra =
-          effect.dicePools.isNotEmpty ||
-          extraMultipliers.values.any((value) => value != 0) ||
-          effect.effectBonus != 0;
+          !effect.dealsDamage &&
+          (effect.dicePools.isNotEmpty ||
+              extraMultipliers.values.any((value) => value != 0) ||
+              effect.effectBonus != 0);
 
       if (hasExtra) {
         final baseModifier = statResolver.effectModifier(
