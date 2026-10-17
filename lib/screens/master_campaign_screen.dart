@@ -167,15 +167,41 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       creatureHosts.fold<int>(0, (sum, h) => sum + h.pets.length);
 
   Future<void> _exportCampaign() async {
+    final part = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(
+              title: Text('Exportar campaña por partes'),
+              subtitle: Text('Comparte un paquete cada vez. Impórtalos en la misma campaña y mantendrán sus IDs.'),
+            ),
+            for (final option in const [
+              ('base', 'Datos de campaña', Icons.auto_stories_rounded),
+              ('shops', 'Tiendas', Icons.storefront_rounded),
+              ('creatures', 'Criaturas', Icons.pets_rounded),
+              ('npcs', 'NPC', Icons.people_alt_rounded),
+              ('missions', 'Misiones', Icons.flag_rounded),
+              ('players', 'Personajes jugadores', Icons.person_rounded),
+            ])
+              ListTile(
+                leading: Icon(option.$3),
+                title: Text(option.$2),
+                onTap: () => Navigator.pop(sheetContext, option.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (part == null) return;
     try {
-      await CampaignImportExportService.shareCampaign(
-        campaign,
-        includePlayerCharacters: false,
-      );
+      await CampaignImportExportService.shareCampaignPart(campaign, part);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo exportar la campaña: $error')),
+        SnackBar(content: Text('No se pudo exportar esta parte: $error')),
       );
     }
   }
@@ -196,7 +222,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
         actions: [
           IconButton(
             onPressed: _exportCampaign,
-            tooltip: 'Exportar campaña completa',
+            tooltip: 'Exportar campaña por partes',
             icon: const Icon(Icons.ios_share_rounded),
           ),
           IconButton(
