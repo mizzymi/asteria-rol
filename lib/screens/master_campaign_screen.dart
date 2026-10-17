@@ -6,6 +6,7 @@ import '../models/character.dart';
 import '../models/pet.dart';
 import '../services/campaign_storage_service.dart';
 import '../services/character_storage_service.dart';
+import '../services/custom_class_storage_service.dart';
 import '../services/campaign_economy_service.dart';
 import '../services/campaign_shop_import_export_service.dart';
 import '../services/campaign_import_export_service.dart';
@@ -187,21 +188,12 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       _creaturesPage(),
       _shopsPage(),
       _missionsPage(),
+      CustomClassesScreen(campaignId: campaign.id),
     ];
     return Scaffold(
       appBar: AppBar(
         title: Text(campaign.name),
         actions: [
-          IconButton(
-            tooltip: 'Clases de esta campaña',
-            icon: const Icon(Icons.school_rounded),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CustomClassesScreen(campaignId: campaign.id),
-              ),
-            ),
-          ),
           IconButton(
             onPressed: _exportCampaign,
             tooltip: 'Exportar campaña completa',
@@ -243,6 +235,11 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
             icon: Icon(Icons.flag_outlined),
             selectedIcon: Icon(Icons.flag_rounded),
             label: 'Misiones',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.school_outlined),
+            selectedIcon: Icon(Icons.school_rounded),
+            label: 'Clases',
           ),
         ],
       ),
@@ -367,6 +364,12 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                     label: 'Misiones',
                     value: '${campaign.missions.length}',
                     onTap: () => setState(() => _index = 4),
+                  ),
+                  _OverviewTile(
+                    icon: Icons.school_rounded,
+                    label: 'Clases',
+                    value: '${CustomClassStorageService.getClasses(campaign.id).length}',
+                    onTap: () => setState(() => _index = 5),
                   ),
                 ],
               ),
