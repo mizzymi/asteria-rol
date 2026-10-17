@@ -13,7 +13,7 @@ class CustomClassStorageService {
 
   static Box get _box => Hive.box(boxName);
 
-  static List<CustomClassDefinition> getClasses() {
+  static List<CustomClassDefinition> getClasses(String campaignId) {
     final result = <CustomClassDefinition>[];
     for (final value in _box.values) {
       if (value is! Map) continue;
@@ -21,7 +21,8 @@ class CustomClassStorageService {
         final definition = CustomClassDefinition.fromMap(
           Map<dynamic, dynamic>.from(value),
         );
-        if (definition.classId.trim().isNotEmpty) {
+        if (definition.classId.trim().isNotEmpty &&
+            definition.campaignId == campaignId) {
           result.add(definition);
         }
       } catch (_) {
@@ -32,21 +33,27 @@ class CustomClassStorageService {
     return result;
   }
 
-  static CustomClassDefinition? getClass(String classId) {
-    final value = _box.get(classId);
+  static String _key(String campaignId, String classId) => '$campaignId::$classId';
+
+  static CustomClassDefinition? getClass(String campaignId, String classId) {
+    final value = _box.get(_key(campaignId, classId));
     if (value is! Map) return null;
     try {
-      return CustomClassDefinition.fromMap(Map<dynamic, dynamic>.from(value));
+      final definition = CustomClassDefinition.fromMap(Map<dynamic, dynamic>.from(value));
+      return definition.campaignId == campaignId ? definition : null;
     } catch (_) {
       return null;
     }
   }
 
   static Future<void> saveClass(CustomClassDefinition definition) async {
-    await _box.put(definition.classId, definition.toMap());
+    if (definition.campaignId.trim().isEmpty || definition.classId.trim().isEmpty) {
+      throw const FormatException('La clase requiere campaignId y classId.');
+    }
+    await _box.put(_key(definition.campaignId, definition.classId), definition.toMap());
   }
 
-  static Future<void> deleteClass(String classId) async {
-    await _box.delete(classId);
+  static Future<void> deleteClass(String campaignId, String classId) async {
+    await _box.delete(_key(campaignId, classId));
   }
 }
