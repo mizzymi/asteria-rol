@@ -1,3 +1,4 @@
+import 'campaign_export_wizard_screen.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/campaign.dart';
@@ -178,6 +179,13 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
               title: Text('Exportar campaña por partes'),
               subtitle: Text('Comparte un paquete cada vez. Impórtalos en la misma campaña y mantendrán sus IDs.'),
             ),
+            ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('Exportar todo'),
+              subtitle: const Text('Un archivo cada vez para ahorrar espacio'),
+              onTap: () => Navigator.pop(sheetContext, 'all'),
+            ),
+            const Divider(),
             for (final option in const [
               ('base', 'Datos de campaña', Icons.auto_stories_rounded),
               ('shops', 'Tiendas', Icons.storefront_rounded),
@@ -196,6 +204,13 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       ),
     );
     if (part == null) return;
+    if (part == 'all') {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(builder: (_) => CampaignExportWizardScreen(campaign: campaign)),
+      );
+      return;
+    }
     try {
       await CampaignImportExportService.shareCampaignPart(campaign, part);
     } catch (error) {
