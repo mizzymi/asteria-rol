@@ -531,6 +531,10 @@ class CharacterAbility {
 
   String? folderId;
 
+  /// Procedencia estable cuando la habilidad fue concedida por una clase.
+  String? sourceClassId;
+  String? sourceRewardId;
+
   // ==========================================================================
   // ATAQUE
   // ==========================================================================
@@ -639,6 +643,8 @@ class CharacterAbility {
     this.imageAlignmentY = 0,
     this.actionType = AbilityActionType.action,
     this.folderId,
+    this.sourceClassId,
+    this.sourceRewardId,
     this.targetType = AbilityTargetType.external,
     this.targetResolutionMode = AbilityTargetResolutionMode.shared,
     this.requiresAttackRoll = false,
@@ -793,6 +799,9 @@ class CharacterAbility {
       'actionType': actionType.name,
 
       'folderId': folderId,
+
+      'sourceClassId': sourceClassId,
+      'sourceRewardId': sourceRewardId,
 
       'requiresAttackRoll': requiresAttackRoll,
 
@@ -1188,6 +1197,9 @@ class CharacterAbility {
       ),
 
       folderId: map['folderId']?.toString(),
+
+      sourceClassId: map['sourceClassId']?.toString(),
+      sourceRewardId: map['sourceRewardId']?.toString(),
 
       targetType: AbilityTargetType.values.firstWhere(
         (item) => item.name == map['targetType'],
