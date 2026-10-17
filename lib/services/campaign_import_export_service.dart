@@ -80,11 +80,23 @@ class CampaignImportExportService {
     final subject = '${campaign.name} · $part';
     if (Platform.isAndroid) {
       const channel = MethodChannel('asteria_rol/export_share');
-      await channel.invokeMethod<void>('shareFile', <String, String>{
-        'path': file.path,
-        'subject': subject,
-        'text': 'Parte $part de una campaña de Asteria Rol.',
-      });
+      try {
+        await channel.invokeMethod<void>('shareFile', <String, String>{
+          'path': file.path,
+          'subject': subject,
+          'text': 'Parte $part de una campaña de Asteria Rol.',
+        });
+      } on MissingPluginException {
+        // Un hot reload no incorpora cambios en MainActivity.kt.
+        // Evitamos SharePlus como fallback en archivos grandes:
+        // copiaría el archivo a caché y puede provocar ENOSPC.
+        throw StateError(
+          'La función de exportación de Android no está instalada. '
+          'Cierra la aplicación, recompila e instala una versión completa '
+          'de Asteria Rol (flutter clean, flutter pub get y flutter run). '
+          'No basta con hot reload.',
+        );
+      }
     } else {
       await SharePlus.instance.share(
         ShareParams(
