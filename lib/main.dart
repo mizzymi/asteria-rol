@@ -5,6 +5,7 @@ import 'screens/master_screen.dart';
 import 'services/app_mode_service.dart';
 import 'services/character_storage_service.dart';
 import 'services/campaign_storage_service.dart';
+import 'services/custom_class_storage_service.dart';
 import 'services/theme_preference_service.dart';
 import 'theme/app_theme.dart';
 
@@ -13,6 +14,7 @@ Future<void> main() async {
 
   await CharacterStorageService.init();
   await CampaignStorageService.init();
+  await CustomClassStorageService.init();
   await ThemePreferenceService.init();
 
   final lastMode = await AppModeService.getLastMode();
