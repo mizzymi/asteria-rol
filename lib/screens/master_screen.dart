@@ -1,3 +1,4 @@
+import 'campaign_export_wizard_screen.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -52,6 +53,7 @@ class _MasterScreenState extends State<MasterScreen> {
       ('npcs', 'NPC'),
       ('missions', 'Misiones'),
       ('players', 'Personajes jugadores'),
+      ('classes', 'Clases'),
     ];
     final part = await showModalBottomSheet<String>(
       context: context,
@@ -62,6 +64,13 @@ class _MasterScreenState extends State<MasterScreen> {
           children: [
             const ListTile(title: Text('Exportar por partes'),
               subtitle: Text('Comparte cada sección individualmente.')),
+            ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('Exportar todo'),
+              subtitle: const Text('Por secciones, sin generar un archivo gigante'),
+              onTap: () => Navigator.pop(sheetContext, 'all'),
+            ),
+            const Divider(),
             for (final section in sections)
               ListTile(
                 title: Text(section.$2),
@@ -73,6 +82,13 @@ class _MasterScreenState extends State<MasterScreen> {
       ),
     );
     if (part == null) return;
+    if (part == 'all') {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(builder: (_) => CampaignExportWizardScreen(campaign: campaign)),
+      );
+      return;
+    }
     try {
       await CampaignImportExportService.shareCampaignPart(campaign, part);
     } catch (error) {
