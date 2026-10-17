@@ -45,6 +45,9 @@ class ClassProgressionService {
     final pending = <PendingClassProgressionChoice>[];
 
     for (final definition in definitions) {
+      if (character.campaignId == null || definition.campaignId != character.campaignId) {
+        continue;
+      }
       for (final classEntry in character.classes) {
         if (classEntry.classId != definition.classId) continue;
         classEntry.customName = definition.name;
