@@ -11,7 +11,9 @@ import '../services/custom_class_storage_service.dart';
 import 'custom_class_form_screen.dart';
 
 class CustomClassesScreen extends StatefulWidget {
-  const CustomClassesScreen({super.key});
+  final String campaignId;
+
+  const CustomClassesScreen({super.key, required this.campaignId});
 
   @override
   State<CustomClassesScreen> createState() => _CustomClassesScreenState();
@@ -27,7 +29,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
   }
 
   void _reload() {
-    classes = CustomClassStorageService.getClasses();
+    classes = CustomClassStorageService.getClasses(widget.campaignId);
     if (mounted) setState(() {});
   }
 
@@ -35,7 +37,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CustomClassFormScreen(definition: definition),
+        builder: (_) => CustomClassFormScreen(definition: definition, campaignId: widget.campaignId),
       ),
     );
     _reload();
@@ -72,7 +74,10 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
         throw const FormatException('La clase no tiene classId.');
       }
 
-      final existing = CustomClassStorageService.getClass(imported.classId);
+      if (imported.campaignId != widget.campaignId) {
+        throw const FormatException('Esta clase pertenece a otra campaña.');
+      }
+      final existing = CustomClassStorageService.getClass(widget.campaignId, imported.classId);
       if (existing != null && imported.version < existing.version) {
         throw FormatException(
           'La versión importada (${imported.version}) es anterior a la instalada (${existing.version}).',
@@ -83,7 +88,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
 
       var updatedCharacters = 0;
       final definitions = CustomClassStorageService.getClasses();
-      for (final character in CharacterStorageService.getCharacters()) {
+      for (final character in CharacterStorageService.getCharacters().where((c) => c.campaignId == widget.campaignId)) {
         final outcome = ClassProgressionService.reconcile(
           character,
           definitions,
@@ -135,7 +140,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
       ),
     );
     if (confirmed != true) return;
-    await CustomClassStorageService.deleteClass(definition.classId);
+    await CustomClassStorageService.deleteClass(widget.campaignId, definition.classId);
     _reload();
   }
 
