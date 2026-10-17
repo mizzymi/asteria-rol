@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/character.dart';
@@ -7,6 +10,7 @@ import '../models/dnd_class.dart';
 import '../services/character_storage_service.dart';
 import '../services/class_progression_service.dart';
 import '../services/custom_class_storage_service.dart';
+import '../services/custom_class_import_export_service.dart';
 
 class ClassEditorScreen extends StatefulWidget {
   final Character character;
@@ -153,6 +157,56 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
     }
 
     if (mounted) setState(() {});
+  }
+
+  Future<void> _importCustomClass() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria-class', 'json'],
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final path = result.files.single.path;
+      if (path == null) {
+        throw const FormatException('No se pudo acceder al archivo.');
+      }
+
+      final imported = await CustomClassImportExportService.importFile(
+        File(path),
+      );
+      if (imported.classId.trim().isEmpty) {
+        throw const FormatException('La clase no tiene classId.');
+      }
+
+      final existing = CustomClassStorageService.getClass(imported.classId);
+      if (existing != null && imported.version < existing.version) {
+        throw FormatException(
+          'La versión importada (${imported.version}) es anterior a la instalada (${existing.version}).',
+        );
+      }
+
+      await CustomClassStorageService.saveClass(imported);
+      await _reconcileProgression();
+
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            existing == null
+                ? 'Clase “${imported.name}” importada.'
+                : 'Clase “${imported.name}” actualizada a v${imported.version}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar la clase: $error')),
+      );
+    }
   }
 
   Future<void> addClass() async {
@@ -427,7 +481,16 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Clases')),
+      appBar: AppBar(
+        title: const Text('Clases'),
+        actions: [
+          IconButton(
+            tooltip: 'Importar clase',
+            onPressed: _importCustomClass,
+            icon: const Icon(Icons.file_download_rounded),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
