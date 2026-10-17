@@ -1121,7 +1121,7 @@ class _CharacterQuickCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               Text(
-                '${character.dndClass.label} · Nv. ${character.level}',
+                '${character.primaryClassLevel.label} · Nv. ${character.level}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall,
