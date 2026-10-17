@@ -70,6 +70,7 @@ class _MasterScreenState extends State<MasterScreen> {
         throw const FormatException('No se pudo acceder al archivo.');
       }
 
+      final part = await CampaignImportExportService.readPart(File(path));
       final imported = await CampaignImportExportService.importFile(File(path));
       final campaignId = imported.campaign.id;
       if (campaignId.isEmpty) {
@@ -104,7 +105,26 @@ class _MasterScreenState extends State<MasterScreen> {
         }
       }
 
-      await CampaignStorageService.saveCampaign(imported.campaign);
+      // Los paquetes parciales actualizan una sola categoría sin borrar las demás.
+      if (part != null) {
+        const supported = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players'};
+        if (!supported.contains(part)) {
+          throw FormatException('Sección de campaña no compatible: $part');
+        }
+      }
+      final targetCampaign = existingCampaign ?? imported.campaign;
+      if (part == null || part == 'base') {
+        targetCampaign.name = imported.campaign.name;
+        targetCampaign.description = imported.campaign.description;
+        targetCampaign.imagePath = imported.campaign.imagePath;
+      }
+      if (part == null || part == 'shops') {
+        targetCampaign.shops = imported.campaign.shops;
+      }
+      if (part == null || part == 'missions') {
+        targetCampaign.missions = imported.campaign.missions;
+      }
+      await CampaignStorageService.saveCampaign(targetCampaign);
       for (final character in imported.characters) {
         character.campaignId = campaignId;
         await CharacterStorageService.saveCharacter(character);
@@ -112,7 +132,7 @@ class _MasterScreenState extends State<MasterScreen> {
 
       // El archivo de campaña es una instantánea completa. Si la campaña ya
       // existe, eliminamos al final las fichas locales ausentes en el archivo.
-      if (isUpdate) {
+      if (isUpdate && part == null) {
         final existingCharacters = CharacterStorageService.getCharacters()
             .where((character) => character.campaignId == campaignId)
             .toList();
@@ -129,7 +149,7 @@ class _MasterScreenState extends State<MasterScreen> {
         }
       }
 
-      await CampaignEconomyService.syncCampaignCurrencies(imported.campaign);
+      await CampaignEconomyService.syncCampaignCurrencies(targetCampaign);
 
       if (!mounted) return;
       _reload();
