@@ -24,7 +24,6 @@ import '../widgets/character_home/health_edit_dialog.dart';
 import '../widgets/character_home/level_edit_dialog.dart';
 import '../services/class_progression_service.dart';
 import '../services/custom_class_storage_service.dart';
-import 'class_editor_screen.dart';
 
 import 'rest_screen.dart';
 import 'combat_screen.dart';
