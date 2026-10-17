@@ -153,7 +153,7 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
 
     final progression = ClassProgressionService.reconcile(
       character,
-      CustomClassStorageService.getClasses(),
+      CustomClassStorageService.getClasses(character.campaignId ?? ''),
     );
 
     await saveCharacter();
