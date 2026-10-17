@@ -667,7 +667,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
                         child: _PreviewValue(
                           icon: Icons.casino_rounded,
                           label: 'Dado de golpe',
-                          value: 'd${selectedClass.hitDie}',
+                          value: 'd${widget.character?.primaryClassLevel.isCustom == true ? widget.character!.primaryClassLevel.hitDie : (chosenCustomClass?.hitDie ?? selectedClass.hitDie)}',
                         ),
                       ),
                       Expanded(
