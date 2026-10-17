@@ -67,16 +67,17 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
         throw const FormatException('No se pudo acceder al archivo.');
       }
 
-      final imported = await CustomClassImportExportService.importFile(
+      final source = await CustomClassImportExportService.importFile(
         File(path),
       );
+      final imported = CustomClassDefinition.fromMap({
+        ...source.toMap(),
+        'campaignId': widget.campaignId,
+      });
       if (imported.classId.trim().isEmpty) {
         throw const FormatException('La clase no tiene classId.');
       }
 
-      if (imported.campaignId != widget.campaignId) {
-        throw const FormatException('Esta clase pertenece a otra campaña.');
-      }
       final existing = CustomClassStorageService.getClass(widget.campaignId, imported.classId);
       if (existing != null && imported.version < existing.version) {
         throw FormatException(
@@ -87,7 +88,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
       await CustomClassStorageService.saveClass(imported);
 
       var updatedCharacters = 0;
-      final definitions = CustomClassStorageService.getClasses();
+      final definitions = CustomClassStorageService.getClasses(widget.campaignId);
       for (final character in CharacterStorageService.getCharacters().where((c) => c.campaignId == widget.campaignId)) {
         final outcome = ClassProgressionService.reconcile(
           character,
