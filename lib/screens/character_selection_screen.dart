@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../models/campaign.dart';
 import '../models/character.dart';
-import '../models/dnd_class.dart';
 import '../services/app_mode_service.dart';
 import '../services/campaign_storage_service.dart';
 import '../services/campaign_economy_service.dart';
