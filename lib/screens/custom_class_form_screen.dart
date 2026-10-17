@@ -100,7 +100,14 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('Recompensa de nivel'),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Row(
+              children: [
+                Icon(Icons.workspace_premium_rounded),
+                SizedBox(width: 10),
+                Expanded(child: Text('Recompensa de nivel')),
+              ],
+            ),
             content: SizedBox(
               width: 520,
               child: SingleChildScrollView(
@@ -153,10 +160,10 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                     ),
                     const SizedBox(height: 6),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: 10,
+                      runSpacing: 10,
                       children: [
-                        OutlinedButton.icon(
+                        FilledButton.tonalIcon(
                           icon: const Icon(Icons.auto_awesome_rounded),
                           label: const Text('Crear habilidad'),
                           onPressed: () async {
@@ -173,7 +180,7 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                             });
                           },
                         ),
-                        OutlinedButton.icon(
+                        FilledButton.tonalIcon(
                           icon: const Icon(Icons.shield_outlined),
                           label: const Text('Crear pasiva'),
                           onPressed: () async {
@@ -203,10 +210,17 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                     else
                       ...available.map((content) {
                         final key = '${content.type.name}:${content.contentId}';
-                        return CheckboxListTile(
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 3),
+                          child: CheckboxListTile(
                           value: selected.contains(key),
+                          secondary: Icon(
+                            content.type == ClassProgressionContentType.ability
+                                ? Icons.auto_awesome_rounded
+                                : Icons.shield_rounded,
+                          ),
                           dense: true,
-                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.trailing,
                           title: Text(content.name),
                           subtitle: Text(
                             content.type == ClassProgressionContentType.ability
@@ -222,6 +236,7 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                               }
                             });
                           },
+                        ),
                         );
                       }),
                   ],
@@ -297,6 +312,57 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
     Navigator.pop(context, definition);
   }
 
+  Widget _section({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    String? subtitle,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.55)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: colors.onPrimaryContainer),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                      if (subtitle != null)
+                        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -313,138 +379,250 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
           children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nombre de la clase',
-                prefixIcon: Icon(Icons.shield_rounded),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primaryContainer,
+                    Theme.of(context).colorScheme.surfaceContainerHigh,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
               ),
-              validator: (value) =>
-                  value == null || value.trim().isEmpty ? 'Obligatorio' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _versionController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Versión',
-                helperText: editing
-                    ? 'Mantén el classId y aumenta la versión al publicar cambios.'
-                    : 'Empieza en 1 y aumenta al publicar actualizaciones.',
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              initialValue: _hitDie,
-              decoration: const InputDecoration(labelText: 'Dado de golpe'),
-              items: const [4, 6, 8, 10, 12, 20]
-                  .map(
-                    (value) => DropdownMenuItem(
-                      value: value,
-                      child: Text('d$value'),
+              child: Row(
+                children: [
+                  const Icon(Icons.shield_rounded, size: 40),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(editing ? 'Diseña tu clase' : 'Nueva clase',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 4),
+                        const Text('Define su identidad y lo que aprenderán sus personajes.'),
+                      ],
                     ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => _hitDie = value);
-              },
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              minLines: 3,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                labelText: 'Descripción',
-                alignLabelWithHint: true,
+            const SizedBox(height: 16),
+            _section(
+              icon: Icons.edit_note_rounded,
+              title: 'Identidad',
+              subtitle: 'Nombre, descripción y reglas básicas',
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de la clase',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty ? 'Obligatorio' : null,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _versionController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Versión',
+                            prefixIcon: Icon(Icons.history_rounded),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: _hitDie,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Dado de golpe',
+                            prefixIcon: Icon(Icons.casino_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [4, 6, 8, 10, 12, 20].map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text('d$value'),
+                            ),
+                          ).toList(),
+                          onChanged: (value) {
+                            if (value != null) setState(() => _hitDie = value);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _descriptionController,
+                    minLines: 3,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Descripción',
+                      hintText: 'El origen, el estilo de combate y los talentos de esta clase...',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _section(
+              icon: Icons.verified_user_rounded,
+              title: 'Competencias de salvación',
+              subtitle: 'Selecciona los atributos en los que destaca esta clase',
+              child: Wrap(
+                spacing: 9,
+                runSpacing: 9,
+                children: AbilityType.values.map((ability) {
+                  final selected = _savingThrows.contains(ability);
+                  return FilterChip(
+                    selected: selected,
+                    showCheckmark: true,
+                    avatar: Icon(selected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded, size: 18),
+                    label: Text(ability.label),
+                    onSelected: (value) {
+                      setState(() {
+                        if (value) {
+                          _savingThrows.add(ability);
+                        } else {
+                          _savingThrows.remove(ability);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _section(
+              icon: Icons.account_tree_rounded,
+              title: 'Progresión por nivel',
+              subtitle: 'Concede habilidades, pasivas o elecciones al subir de nivel',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_rewards.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 28),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      ),
+                      child: const Column(
+                        children: [
+                          Icon(Icons.auto_awesome_outlined, size: 34),
+                          SizedBox(height: 10),
+                          Text('Aún no hay recompensas',
+                            style: TextStyle(fontWeight: FontWeight.w800)),
+                          SizedBox(height: 4),
+                          Text('Puedes dejar niveles vacíos y añadir recompensas cuando quieras.',
+                            textAlign: TextAlign.center),
+                        ],
+                      ),
+                    )
+                  else
+                    ..._rewards.map((reward) {
+                      final choice = reward.mode == ClassProgressionRewardMode.choice;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        color: Theme.of(context).colorScheme.surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  color: Theme.of(context).colorScheme.primaryContainer,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text('NV.', style: TextStyle(fontSize: 10,
+                                      fontWeight: FontWeight.w700)),
+                                    Text('${reward.level}', style: const TextStyle(
+                                      fontSize: 20, fontWeight: FontWeight.w900)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(reward.name, style: const TextStyle(
+                                      fontWeight: FontWeight.w900)),
+                                    const SizedBox(height: 4),
+                                    Row(children: [
+                                      Icon(choice ? Icons.rule_rounded : Icons.bolt_rounded,
+                                        size: 15),
+                                      const SizedBox(width: 4),
+                                      Flexible(child: Text(
+                                        choice ? 'Elección del jugador' : 'Entrega automática',
+                                        style: Theme.of(context).textTheme.bodySmall)),
+                                    ]),
+                                    const SizedBox(height: 4),
+                                    Text(reward.contents.map((item) => item.name).join(' · '),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.bodySmall),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Eliminar recompensa',
+                                onPressed: () => setState(
+                                  () => _rewards.remove(reward)),
+                                icon: const Icon(Icons.delete_outline_rounded),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  const SizedBox(height: 10),
+                  FilledButton.tonalIcon(
+                    onPressed: _addReward,
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                    label: const Text('Añadir recompensa de nivel'),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 22),
-            Text(
-              'Salvaciones con competencia',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: AbilityType.values.map((ability) {
-                final selected = _savingThrows.contains(ability);
-                return FilterChip(
-                  selected: selected,
-                  label: Text(ability.label),
-                  onSelected: (value) {
-                    setState(() {
-                      if (value) {
-                        _savingThrows.add(ability);
-                      } else {
-                        _savingThrows.remove(ability);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 26),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Progresión por nivel',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: _addReward,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Recompensa'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_rewards.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Sin recompensas especiales. Puedes dejar niveles vacíos.',
-                  ),
-                ),
-              )
-            else
-              ..._rewards.map(
-                (reward) => Card(
-                  child: ListTile(
-                    leading: CircleAvatar(child: Text('${reward.level}')),
-                    title: Text(
-                      reward.name,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: Text(
-                      '${reward.mode == ClassProgressionRewardMode.automatic ? 'Automática' : 'Elección'} · '
-                      '${reward.contents.map((item) => item.name).join(', ')}',
-                    ),
-                    trailing: IconButton(
-                      tooltip: 'Eliminar recompensa',
-                      onPressed: () {
-                        setState(() => _rewards.remove(reward));
-                      },
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.save_rounded),
               label: const Text('Guardar clase'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              ),
             ),
           ],
         ),
