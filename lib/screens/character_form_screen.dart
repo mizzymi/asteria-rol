@@ -8,6 +8,7 @@ import '../models/character.dart';
 import '../models/character_class_level.dart';
 import '../models/campaign.dart';
 import '../models/dnd_class.dart';
+import '../models/custom_class_definition.dart';
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
 import '../services/campaign_storage_service.dart';
