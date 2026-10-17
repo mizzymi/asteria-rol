@@ -17,6 +17,7 @@ import 'campaign_shop_detail_screen.dart';
 import 'campaign_shop_form_screen.dart';
 import 'campaign_mission_detail_screen.dart';
 import 'campaign_mission_form_screen.dart';
+import 'custom_classes_screen.dart';
 
 class MasterCampaignScreen extends StatefulWidget {
   final Campaign campaign;
@@ -191,6 +192,16 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       appBar: AppBar(
         title: Text(campaign.name),
         actions: [
+          IconButton(
+            tooltip: 'Clases de esta campaña',
+            icon: const Icon(Icons.school_rounded),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CustomClassesScreen(campaignId: campaign.id),
+              ),
+            ),
+          ),
           IconButton(
             onPressed: _exportCampaign,
             tooltip: 'Exportar campaña completa',
