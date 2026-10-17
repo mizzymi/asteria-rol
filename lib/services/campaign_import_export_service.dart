@@ -54,7 +54,9 @@ class CampaignImportExportService {
           .toList(),
     };
 
-    final dir = await getTemporaryDirectory();
+    // Fuera de cache: share_plus copiará el archivo a su directorio
+    // FileProvider autorizado en Android antes de compartirlo.
+    final dir = await getApplicationDocumentsDirectory();
     final file = File(
       '${dir.path}/${_safeName(campaign.name)}.asteria-campaign',
     );
