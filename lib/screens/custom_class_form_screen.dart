@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../models/character.dart';
+import '../models/ability.dart';
+import '../models/passive.dart';
 import '../models/custom_class_definition.dart';
 import '../models/skill.dart';
-import '../services/character_storage_service.dart';
+import 'ability_form_screen.dart';
+import 'passive_form_screen.dart';
 import '../services/custom_class_storage_service.dart';
 
 class CustomClassFormScreen extends StatefulWidget {
@@ -24,6 +26,7 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
   late int _hitDie;
   late Set<AbilityType> _savingThrows;
   late List<ClassProgressionReward> _rewards;
+  final List<ClassProgressionContent> _draftContents = [];
 
   bool get editing => widget.definition != null;
 
@@ -56,26 +59,33 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
   }
 
   List<ClassProgressionContent> get _availableContent {
-    final result = <String, ClassProgressionContent>{};
-    for (final Character character in CharacterStorageService.getCharacters().where((c) => c.campaignId == widget.campaignId)) {
-      for (final ability in character.characterAbilities) {
-        if (ability.id.trim().isEmpty) continue;
-        result.putIfAbsent(
-          'ability:${ability.id}',
-          () => ClassProgressionContent.fromAbility(ability),
-        );
-      }
-      for (final passive in character.passives) {
-        if (passive.id.trim().isEmpty) continue;
-        result.putIfAbsent(
-          'passive:${passive.id}',
-          () => ClassProgressionContent.fromPassive(passive),
-        );
+    final contents = <String, ClassProgressionContent>{};
+    for (final reward in _rewards) {
+      for (final content in reward.contents) {
+        contents['${content.type.name}:${content.contentId}'] = content;
       }
     }
-    final values = result.values.toList();
-    values.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    return values;
+    for (final content in _draftContents) {
+      contents['${content.type.name}:${content.contentId}'] = content;
+    }
+    return contents.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  Future<ClassProgressionContent?> _createContent(
+    BuildContext dialogContext,
+    ClassProgressionContentType type,
+  ) async {
+    if (type == ClassProgressionContentType.ability) {
+      final ability = await Navigator.of(dialogContext).push<CharacterAbility>(
+        MaterialPageRoute(builder: (_) => const AbilityFormScreen()),
+      );
+      return ability == null ? null : ClassProgressionContent.fromAbility(ability);
+    }
+    final passive = await Navigator.of(dialogContext).push<CharacterPassive>(
+      MaterialPageRoute(builder: (_) => const PassiveFormScreen()),
+    );
+    return passive == null ? null : ClassProgressionContent.fromPassive(passive);
   }
 
   Future<void> _addReward() async {
@@ -142,11 +152,52 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.auto_awesome_rounded),
+                          label: const Text('Crear habilidad'),
+                          onPressed: () async {
+                            final content = await _createContent(
+                              dialogContext,
+                              ClassProgressionContentType.ability,
+                            );
+                            if (content == null || !dialogContext.mounted) return;
+                            setDialogState(() {
+                              available.add(content);
+                              selected.add(
+                                '${content.type.name}:${content.contentId}',
+                              );
+                            });
+                          },
+                        ),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.shield_outlined),
+                          label: const Text('Crear pasiva'),
+                          onPressed: () async {
+                            final content = await _createContent(
+                              dialogContext,
+                              ClassProgressionContentType.passive,
+                            );
+                            if (content == null || !dialogContext.mounted) return;
+                            setDialogState(() {
+                              available.add(content);
+                              selected.add(
+                                '${content.type.name}:${content.contentId}',
+                              );
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     if (available.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Text(
-                          'No hay habilidades o pasivas disponibles. Crea primero el contenido en una ficha del Máster y vuelve aquí.',
+                          'Todavía no hay contenido. Crea aquí una habilidad o una pasiva para esta clase.',
                         ),
                       )
                     else
@@ -213,6 +264,11 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
 
     if (reward == null || !mounted) return;
     setState(() {
+      for (final content in reward.contents) {
+        if (!_draftContents.any((item) => item.type == content.type && item.contentId == content.contentId)) {
+          _draftContents.add(content);
+        }
+      }
       _rewards.add(reward);
       _rewards.sort((a, b) => a.level.compareTo(b.level));
     });
