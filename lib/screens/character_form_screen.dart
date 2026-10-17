@@ -158,7 +158,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
   Future<void> _resolveClassProgression(Character character) async {
     final result = ClassProgressionService.reconcile(
       character,
-      CustomClassStorageService.getClasses(),
+      CustomClassStorageService.getClasses(character.campaignId ?? ''),
     );
 
     for (final pending in result.pendingChoices) {
