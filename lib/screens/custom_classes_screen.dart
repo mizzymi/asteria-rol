@@ -42,7 +42,10 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CustomClassFormScreen(definition: definition, campaignId: widget.campaignId),
+        builder: (_) => CustomClassFormScreen(
+          definition: definition,
+          campaignId: widget.campaignId,
+        ),
       ),
     );
     _reload();
@@ -120,7 +123,10 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
         throw const FormatException('La clase no tiene classId.');
       }
 
-      final existing = CustomClassStorageService.getClass(widget.campaignId, imported.classId);
+      final existing = CustomClassStorageService.getClass(
+        widget.campaignId,
+        imported.classId,
+      );
       if (existing != null && imported.version < existing.version) {
         throw FormatException(
           'La versión importada (${imported.version}) es anterior a la instalada (${existing.version}).',
@@ -130,8 +136,12 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
       await CustomClassStorageService.saveClass(imported);
 
       var updatedCharacters = 0;
-      final definitions = CustomClassStorageService.getClasses(widget.campaignId);
-      for (final character in CharacterStorageService.getCharacters().where((c) => c.campaignId == widget.campaignId)) {
+      final definitions = CustomClassStorageService.getClasses(
+        widget.campaignId,
+      );
+      for (final character in CharacterStorageService.getCharacters().where(
+        (c) => c.campaignId == widget.campaignId,
+      )) {
         final outcome = ClassProgressionService.reconcile(
           character,
           definitions,
@@ -183,7 +193,10 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
       ),
     );
     if (confirmed != true) return;
-    await CustomClassStorageService.deleteClass(widget.campaignId, definition.classId);
+    await CustomClassStorageService.deleteClass(
+      widget.campaignId,
+      definition.classId,
+    );
     _reload();
   }
 
@@ -214,8 +227,8 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                     Text(
                       'Todavía no hay clases personalizadas',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -231,7 +244,6 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                           icon: const Icon(Icons.add_rounded),
                           label: const Text('Nueva clase'),
                         ),
-
                       ],
                     ),
                   ],
@@ -244,7 +256,9 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                 for (final definition in classes)
                   Card(
                     child: ListTile(
-                      leading: CircleAvatar(child: Text('d${definition.hitDie}')),
+                      leading: CircleAvatar(
+                        child: Text('d${definition.hitDie}'),
+                      ),
                       title: Text(
                         definition.name,
                         style: const TextStyle(fontWeight: FontWeight.w900),

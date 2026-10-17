@@ -12,7 +12,11 @@ class CustomClassFormScreen extends StatefulWidget {
   final CustomClassDefinition? definition;
   final String campaignId;
 
-  const CustomClassFormScreen({super.key, this.definition, required this.campaignId});
+  const CustomClassFormScreen({
+    super.key,
+    this.definition,
+    required this.campaignId,
+  });
 
   @override
   State<CustomClassFormScreen> createState() => _CustomClassFormScreenState();
@@ -80,12 +84,16 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
       final ability = await Navigator.of(dialogContext).push<CharacterAbility>(
         MaterialPageRoute(builder: (_) => const AbilityFormScreen()),
       );
-      return ability == null ? null : ClassProgressionContent.fromAbility(ability);
+      return ability == null
+          ? null
+          : ClassProgressionContent.fromAbility(ability);
     }
     final passive = await Navigator.of(dialogContext).push<CharacterPassive>(
       MaterialPageRoute(builder: (_) => const PassiveFormScreen()),
     );
-    return passive == null ? null : ClassProgressionContent.fromPassive(passive);
+    return passive == null
+        ? null
+        : ClassProgressionContent.fromPassive(passive);
   }
 
   Future<void> _addReward() async {
@@ -100,7 +108,9 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
             title: const Row(
               children: [
                 Icon(Icons.workspace_premium_rounded),
@@ -171,7 +181,8 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                               dialogContext,
                               ClassProgressionContentType.ability,
                             );
-                            if (content == null || !dialogContext.mounted) return;
+                            if (content == null || !dialogContext.mounted)
+                              return;
                             setDialogState(() {
                               available.add(content);
                               selected.add(
@@ -188,7 +199,8 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                               dialogContext,
                               ClassProgressionContentType.passive,
                             );
-                            if (content == null || !dialogContext.mounted) return;
+                            if (content == null || !dialogContext.mounted)
+                              return;
                             setDialogState(() {
                               available.add(content);
                               selected.add(
@@ -213,30 +225,32 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 3),
                           child: CheckboxListTile(
-                          value: selected.contains(key),
-                          secondary: Icon(
-                            content.type == ClassProgressionContentType.ability
-                                ? Icons.auto_awesome_rounded
-                                : Icons.shield_rounded,
+                            value: selected.contains(key),
+                            secondary: Icon(
+                              content.type ==
+                                      ClassProgressionContentType.ability
+                                  ? Icons.auto_awesome_rounded
+                                  : Icons.shield_rounded,
+                            ),
+                            dense: true,
+                            controlAffinity: ListTileControlAffinity.trailing,
+                            title: Text(content.name),
+                            subtitle: Text(
+                              content.type ==
+                                      ClassProgressionContentType.ability
+                                  ? 'Habilidad'
+                                  : 'Pasiva',
+                            ),
+                            onChanged: (checked) {
+                              setDialogState(() {
+                                if (checked == true) {
+                                  selected.add(key);
+                                } else {
+                                  selected.remove(key);
+                                }
+                              });
+                            },
                           ),
-                          dense: true,
-                          controlAffinity: ListTileControlAffinity.trailing,
-                          title: Text(content.name),
-                          subtitle: Text(
-                            content.type == ClassProgressionContentType.ability
-                                ? 'Habilidad'
-                                : 'Pasiva',
-                          ),
-                          onChanged: (checked) {
-                            setDialogState(() {
-                              if (checked == true) {
-                                selected.add(key);
-                              } else {
-                                selected.remove(key);
-                              }
-                            });
-                          },
-                        ),
                         );
                       }),
                   ],
@@ -280,7 +294,10 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
     if (reward == null || !mounted) return;
     setState(() {
       for (final content in reward.contents) {
-        if (!_draftContents.any((item) => item.type == content.type && item.contentId == content.contentId)) {
+        if (!_draftContents.any(
+          (item) =>
+              item.type == content.type && item.contentId == content.contentId,
+        )) {
           _draftContents.add(content);
         }
       }
@@ -346,10 +363,16 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w900)),
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
                       if (subtitle != null)
-                        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                     ],
                   ),
                 ),
@@ -400,11 +423,15 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(editing ? 'Diseña tu clase' : 'Nueva clase',
+                        Text(
+                          editing ? 'Diseña tu clase' : 'Nueva clase',
                           style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w900)),
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
                         const SizedBox(height: 4),
-                        const Text('Define su identidad y lo que aprenderán sus personajes.'),
+                        const Text(
+                          'Define su identidad y lo que aprenderán sus personajes.',
+                        ),
                       ],
                     ),
                   ),
@@ -425,8 +452,9 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                       prefixIcon: Icon(Icons.badge_outlined),
                       border: OutlineInputBorder(),
                     ),
-                    validator: (value) =>
-                        value == null || value.trim().isEmpty ? 'Obligatorio' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Obligatorio'
+                        : null,
                   ),
                   const SizedBox(height: 14),
                   Row(
@@ -452,12 +480,14 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                             prefixIcon: Icon(Icons.casino_outlined),
                             border: OutlineInputBorder(),
                           ),
-                          items: const [4, 6, 8, 10, 12, 20].map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text('d$value'),
-                            ),
-                          ).toList(),
+                          items: const [4, 6, 8, 10, 12, 20]
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text('d$value'),
+                                ),
+                              )
+                              .toList(),
                           onChanged: (value) {
                             if (value != null) setState(() => _hitDie = value);
                           },
@@ -472,7 +502,8 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                     maxLines: 6,
                     decoration: const InputDecoration(
                       labelText: 'Descripción',
-                      hintText: 'El origen, el estilo de combate y los talentos de esta clase...',
+                      hintText:
+                          'El origen, el estilo de combate y los talentos de esta clase...',
                       alignLabelWithHint: true,
                       border: OutlineInputBorder(),
                     ),
@@ -484,7 +515,8 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
             _section(
               icon: Icons.verified_user_rounded,
               title: 'Competencias de salvación',
-              subtitle: 'Selecciona los atributos en los que destaca esta clase',
+              subtitle:
+                  'Selecciona los atributos en los que destaca esta clase',
               child: Wrap(
                 spacing: 9,
                 runSpacing: 9,
@@ -493,9 +525,12 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                   return FilterChip(
                     selected: selected,
                     showCheckmark: true,
-                    avatar: Icon(selected
-                        ? Icons.check_circle_rounded
-                        : Icons.radio_button_unchecked_rounded, size: 18),
+                    avatar: Icon(
+                      selected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 18,
+                    ),
                     label: Text(ability.label),
                     onSelected: (value) {
                       setState(() {
@@ -514,42 +549,56 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
             _section(
               icon: Icons.account_tree_rounded,
               title: 'Progresión por nivel',
-              subtitle: 'Concede habilidades, pasivas o elecciones al subir de nivel',
+              subtitle:
+                  'Concede habilidades, pasivas o elecciones al subir de nivel',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (_rewards.isEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 28),
+                        horizontal: 20,
+                        vertical: 28,
+                      ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(18),
-                        color: Theme.of(context).colorScheme.surfaceContainerLow,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerLow,
                       ),
                       child: const Column(
                         children: [
                           Icon(Icons.auto_awesome_outlined, size: 34),
                           SizedBox(height: 10),
-                          Text('Aún no hay recompensas',
-                            style: TextStyle(fontWeight: FontWeight.w800)),
+                          Text(
+                            'Aún no hay recompensas',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
                           SizedBox(height: 4),
-                          Text('Puedes dejar niveles vacíos y añadir recompensas cuando quieras.',
-                            textAlign: TextAlign.center),
+                          Text(
+                            'Puedes dejar niveles vacíos y añadir recompensas cuando quieras.',
+                            textAlign: TextAlign.center,
+                          ),
                         ],
                       ),
                     )
                   else
                     ..._rewards.map((reward) {
-                      final choice = reward.mode == ClassProgressionRewardMode.choice;
+                      final choice =
+                          reward.mode == ClassProgressionRewardMode.choice;
                       return Card(
                         margin: const EdgeInsets.only(bottom: 10),
-                        color: Theme.of(context).colorScheme.surfaceContainerLow,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerLow,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 8),
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
                           child: Row(
                             children: [
                               Container(
@@ -557,15 +606,27 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                                 height: 56,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(14),
-                                  color: Theme.of(context).colorScheme.primaryContainer,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primaryContainer,
                                 ),
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text('NV.', style: TextStyle(fontSize: 10,
-                                      fontWeight: FontWeight.w700)),
-                                    Text('${reward.level}', style: const TextStyle(
-                                      fontSize: 20, fontWeight: FontWeight.w900)),
+                                    const Text(
+                                      'NV.',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${reward.level}',
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -574,29 +635,52 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(reward.name, style: const TextStyle(
-                                      fontWeight: FontWeight.w900)),
+                                    Text(
+                                      reward.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
                                     const SizedBox(height: 4),
-                                    Row(children: [
-                                      Icon(choice ? Icons.rule_rounded : Icons.bolt_rounded,
-                                        size: 15),
-                                      const SizedBox(width: 4),
-                                      Flexible(child: Text(
-                                        choice ? 'Elección del jugador' : 'Entrega automática',
-                                        style: Theme.of(context).textTheme.bodySmall)),
-                                    ]),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          choice
+                                              ? Icons.rule_rounded
+                                              : Icons.bolt_rounded,
+                                          size: 15,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            choice
+                                                ? 'Elección del jugador'
+                                                : 'Entrega automática',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                     const SizedBox(height: 4),
-                                    Text(reward.contents.map((item) => item.name).join(' · '),
+                                    Text(
+                                      reward.contents
+                                          .map((item) => item.name)
+                                          .join(' · '),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context).textTheme.bodySmall),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
                                   ],
                                 ),
                               ),
                               IconButton(
                                 tooltip: 'Eliminar recompensa',
-                                onPressed: () => setState(
-                                  () => _rewards.remove(reward)),
+                                onPressed: () =>
+                                    setState(() => _rewards.remove(reward)),
                                 icon: const Icon(Icons.delete_outline_rounded),
                               ),
                             ],
@@ -621,7 +705,8 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ],

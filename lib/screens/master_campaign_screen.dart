@@ -368,7 +368,8 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                   _OverviewTile(
                     icon: Icons.school_rounded,
                     label: 'Clases',
-                    value: '${CustomClassStorageService.getClasses(campaign.id).length}',
+                    value:
+                        '${CustomClassStorageService.getClasses(campaign.id).length}',
                     onTap: () => setState(() => _index = 5),
                   ),
                 ],

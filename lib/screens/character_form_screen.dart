@@ -186,10 +186,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
                         : Icons.shield_outlined,
                   ),
                   title: Text(option.name),
-                  onTap: () => Navigator.pop(
-                    dialogContext,
-                    option.contentId,
-                  ),
+                  onTap: () => Navigator.pop(dialogContext, option.contentId),
                 ),
             ],
           ),

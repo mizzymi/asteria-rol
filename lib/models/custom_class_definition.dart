@@ -99,7 +99,8 @@ class ClassProgressionReward {
     required this.contents,
   });
 
-  bool get isValid => rewardId.trim().isNotEmpty && level > 0 && contents.isNotEmpty;
+  bool get isValid =>
+      rewardId.trim().isNotEmpty && level > 0 && contents.isNotEmpty;
 
   Map<String, dynamic> toMap() => {
     'rewardId': rewardId,
@@ -151,8 +152,9 @@ class CustomClassDefinition {
     this.hitDie = 8,
     Set<AbilityType>? savingThrowProficiencies,
     List<ClassProgressionReward>? rewards,
-  }) : savingThrowProficiencies =
-           Set<AbilityType>.from(savingThrowProficiencies ?? const {}),
+  }) : savingThrowProficiencies = Set<AbilityType>.from(
+         savingThrowProficiencies ?? const {},
+       ),
        rewards = List<ClassProgressionReward>.from(rewards ?? const []);
 
   Map<String, dynamic> toMap() => {

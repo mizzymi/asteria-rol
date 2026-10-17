@@ -45,15 +45,17 @@ class ClassProgressionService {
     final pending = <PendingClassProgressionChoice>[];
 
     for (final definition in definitions) {
-      if (character.campaignId == null || definition.campaignId != character.campaignId) {
+      if (character.campaignId == null ||
+          definition.campaignId != character.campaignId) {
         continue;
       }
       for (final classEntry in character.classes) {
         if (classEntry.classId != definition.classId) continue;
         classEntry.customName = definition.name;
         classEntry.customHitDie = definition.hitDie;
-        classEntry.customSavingThrowProficiencies =
-            Set.of(definition.savingThrowProficiencies);
+        classEntry.customSavingThrowProficiencies = Set.of(
+          definition.savingThrowProficiencies,
+        );
       }
 
       final classLevel = _levelForClass(character, definition.classId);

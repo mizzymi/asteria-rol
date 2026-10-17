@@ -14,9 +14,10 @@ class CustomClassImportExportService {
 
   static Future<File> createExportFile(CustomClassDefinition definition) async {
     final dir = await getTemporaryDirectory();
-    final safe = definition.name
-        .trim()
-        .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+    final safe = definition.name.trim().replaceAll(
+      RegExp(r'[^a-zA-Z0-9_-]+'),
+      '_',
+    );
     final file = File(
       '${dir.path}/${safe.isEmpty ? 'clase' : safe}.asteria-class',
     );

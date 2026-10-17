@@ -33,13 +33,16 @@ class CustomClassStorageService {
     return result;
   }
 
-  static String _key(String campaignId, String classId) => '$campaignId::$classId';
+  static String _key(String campaignId, String classId) =>
+      '$campaignId::$classId';
 
   static CustomClassDefinition? getClass(String campaignId, String classId) {
     final value = _box.get(_key(campaignId, classId));
     if (value is! Map) return null;
     try {
-      final definition = CustomClassDefinition.fromMap(Map<dynamic, dynamic>.from(value));
+      final definition = CustomClassDefinition.fromMap(
+        Map<dynamic, dynamic>.from(value),
+      );
       return definition.campaignId == campaignId ? definition : null;
     } catch (_) {
       return null;
@@ -47,10 +50,14 @@ class CustomClassStorageService {
   }
 
   static Future<void> saveClass(CustomClassDefinition definition) async {
-    if (definition.campaignId.trim().isEmpty || definition.classId.trim().isEmpty) {
+    if (definition.campaignId.trim().isEmpty ||
+        definition.classId.trim().isEmpty) {
       throw const FormatException('La clase requiere campaignId y classId.');
     }
-    await _box.put(_key(definition.campaignId, definition.classId), definition.toMap());
+    await _box.put(
+      _key(definition.campaignId, definition.classId),
+      definition.toMap(),
+    );
   }
 
   static Future<void> deleteClass(String campaignId, String classId) async {

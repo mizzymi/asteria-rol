@@ -1504,7 +1504,14 @@ class _SimpleHealthDialogState extends State<_SimpleHealthDialog> {
   List<({String damageType, DamageResistance? resistance, bool hasMitigation})>
   get damageTypeOptions {
     final options =
-        <String, ({String damageType, DamageResistance? resistance, bool hasMitigation})>{};
+        <
+          String,
+          ({
+            String damageType,
+            DamageResistance? resistance,
+            bool hasMitigation,
+          })
+        >{};
 
     for (final resistance in widget.character.effectiveDamageResistances) {
       final damageType = resistance.damageType.trim();

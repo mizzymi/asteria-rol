@@ -27,8 +27,7 @@ class CharacterClassLevel {
     Set<AbilityType>? customSavingThrowProficiencies,
     this.level = 1,
   }) : classId = classId ?? 'core:${dndClass.name}',
-       customSavingThrowProficiencies =
-           customSavingThrowProficiencies == null
+       customSavingThrowProficiencies = customSavingThrowProficiencies == null
            ? null
            : Set<AbilityType>.from(customSavingThrowProficiencies);
 
@@ -49,8 +48,9 @@ class CharacterClassLevel {
       'classId': classId,
       'customName': customName,
       'customHitDie': customHitDie,
-      'customSavingThrowProficiencies':
-          customSavingThrowProficiencies?.map((value) => value.name).toList(),
+      'customSavingThrowProficiencies': customSavingThrowProficiencies
+          ?.map((value) => value.name)
+          .toList(),
       'level': level,
     };
   }
@@ -75,8 +75,7 @@ class CharacterClassLevel {
       classId: map['classId']?.toString() ?? 'core:${dndClass.name}',
       customName: map['customName']?.toString(),
       customHitDie: (map['customHitDie'] as num?)?.toInt(),
-      customSavingThrowProficiencies:
-          rawSaves is List ? customSaves : null,
+      customSavingThrowProficiencies: rawSaves is List ? customSaves : null,
       level: (map['level'] as num?)?.toInt() ?? 1,
     );
   }

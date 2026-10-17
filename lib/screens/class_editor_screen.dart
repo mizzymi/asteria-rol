@@ -72,15 +72,18 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
   }
 
   void _syncCustomClassSnapshots(List<CustomClassDefinition> definitions) {
-    final byId = {for (final definition in definitions) definition.classId: definition};
+    final byId = {
+      for (final definition in definitions) definition.classId: definition,
+    };
     for (final classLevel in character.classes) {
       if (!classLevel.isCustom) continue;
       final definition = byId[classLevel.classId];
       if (definition == null) continue;
       classLevel.customName = definition.name;
       classLevel.customHitDie = definition.hitDie;
-      classLevel.customSavingThrowProficiencies =
-          Set.of(definition.savingThrowProficiencies);
+      classLevel.customSavingThrowProficiencies = Set.of(
+        definition.savingThrowProficiencies,
+      );
     }
   }
 
@@ -129,10 +132,7 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                           ? 'Habilidad activa'
                           : 'Pasiva',
                     ),
-                    onTap: () => Navigator.pop(
-                      dialogContext,
-                      option.contentId,
-                    ),
+                    onTap: () => Navigator.pop(dialogContext, option.contentId),
                   ),
               ],
             ),
@@ -175,7 +175,9 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
 
       final campaignId = character.campaignId;
       if (campaignId == null || campaignId.isEmpty) {
-        throw const FormatException('Selecciona una campaña antes de importar una clase.');
+        throw const FormatException(
+          'Selecciona una campaña antes de importar una clase.',
+        );
       }
       final source = await CustomClassImportExportService.importFile(
         File(path),
@@ -188,7 +190,10 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
         throw const FormatException('La clase no tiene classId.');
       }
 
-      final existing = CustomClassStorageService.getClass(character.campaignId ?? '', imported.classId);
+      final existing = CustomClassStorageService.getClass(
+        character.campaignId ?? '',
+        imported.classId,
+      );
       if (existing != null && imported.version < existing.version) {
         throw FormatException(
           'La versión importada (${imported.version}) es anterior a la instalada (${existing.version}).',
@@ -218,9 +223,12 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
   }
 
   Future<void> addClass() async {
-    final options = classOptions.where(
-      (option) => !character.classes.any((item) => item.classId == option.key),
-    ).toList();
+    final options = classOptions
+        .where(
+          (option) =>
+              !character.classes.any((item) => item.classId == option.key),
+        )
+        .toList();
 
     if (options.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -534,15 +542,18 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
             const SizedBox(height: 18),
             Text(
               'Clases',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             ...List.generate(character.classes.length, (index) {
               final item = character.classes[index];
               final definition = item.isCustom
-                  ? CustomClassStorageService.getClass(character.campaignId ?? '', item.classId)
+                  ? CustomClassStorageService.getClass(
+                      character.campaignId ?? '',
+                      item.classId,
+                    )
                   : null;
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),

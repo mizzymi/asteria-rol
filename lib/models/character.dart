@@ -270,8 +270,12 @@ class Character {
          dndClass: dndClass,
          level: level,
        ),
-       appliedClassRewardIds = Set<String>.from(appliedClassRewardIds ?? const {}),
-       classProgressionChoices = Map<String, String>.from(classProgressionChoices ?? const {}),
+       appliedClassRewardIds = Set<String>.from(
+         appliedClassRewardIds ?? const {},
+       ),
+       classProgressionChoices = Map<String, String>.from(
+         classProgressionChoices ?? const {},
+       ),
        abilities = abilities ?? AbilityScores(),
        contentFolders = contentFolders ?? <CharacterContentFolder>[],
        skillProficiencies =
@@ -1993,9 +1997,7 @@ class Character {
       return '';
     }
 
-    return classes
-        .map((item) => '${item.level}d${item.hitDie}')
-        .join(' + ');
+    return classes.map((item) => '${item.level}d${item.hitDie}').join(' + ');
   }
 
   int calculateAbilityMultipliers(Map<AbilityType, int> multipliers) {
@@ -3978,7 +3980,9 @@ class Character {
     final rawAppliedRewards = map['appliedClassRewardIds'];
     if (rawAppliedRewards is List) {
       appliedClassRewardIds.addAll(
-        rawAppliedRewards.map((value) => value.toString()).where((value) => value.isNotEmpty),
+        rawAppliedRewards
+            .map((value) => value.toString())
+            .where((value) => value.isNotEmpty),
       );
     }
 
