@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/ability_scores.dart';
 import '../models/character.dart';
+import '../models/character_class_level.dart';
 import '../models/campaign.dart';
 import '../models/dnd_class.dart';
 import '../services/avatar_storage_service.dart';
@@ -196,6 +197,22 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
 
     final oldCharacter = widget.character;
 
+    final preservedClasses = oldCharacter == null
+        ? null
+        : oldCharacter.classes
+              .map((item) => CharacterClassLevel.fromMap(item.toMap()))
+              .toList();
+
+    if (preservedClasses != null &&
+        preservedClasses.isNotEmpty &&
+        !preservedClasses.first.isCustom) {
+      preservedClasses.first.dndClass = selectedClass;
+      preservedClasses.first.classId = 'core:${selectedClass.name}';
+      preservedClasses.first.customName = null;
+      preservedClasses.first.customHitDie = null;
+      preservedClasses.first.customSavingThrowProficiencies = null;
+    }
+
     final character = Character(
       id: id,
       name: nameController.text.trim(),
@@ -203,8 +220,9 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       campaignId: selectedCampaignId,
       ownerType: oldCharacter?.ownerType ?? widget.ownerType,
       race: raceController.text.trim(),
-      dndClass: selectedClass,
-      level: level,
+      classes: preservedClasses,
+      dndClass: oldCharacter == null ? selectedClass : null,
+      level: oldCharacter == null ? level : null,
       appliedClassRewardIds: oldCharacter?.appliedClassRewardIds,
       classProgressionChoices: oldCharacter?.classProgressionChoices,
       abilities: abilities,
@@ -239,6 +257,10 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
           oldCharacter?.criticalMinimumNaturalRoll ?? 20,
       shortRestRule: oldCharacter?.shortRestRule ?? 'single',
     );
+
+    if (oldCharacter != null) {
+      character.level = level;
+    }
 
     character.normalizeHealth();
 
