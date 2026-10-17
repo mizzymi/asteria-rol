@@ -43,15 +43,40 @@ class _MasterScreenState extends State<MasterScreen> {
   }
 
   Future<void> _exportCampaign(Campaign campaign) async {
+    const sections = <(String, String)>[
+      ('base', 'Datos de campaña'),
+      ('shops', 'Tiendas'),
+      ('creatures', 'Criaturas'),
+      ('npcs', 'NPC'),
+      ('missions', 'Misiones'),
+      ('players', 'Personajes jugadores'),
+    ];
+    final part = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Exportar por partes'),
+              subtitle: Text('Comparte cada sección individualmente.')),
+            for (final section in sections)
+              ListTile(
+                title: Text(section.$2),
+                trailing: const Icon(Icons.ios_share_rounded),
+                onTap: () => Navigator.pop(sheetContext, section.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (part == null) return;
     try {
-      await CampaignImportExportService.shareCampaign(
-        campaign,
-        includePlayerCharacters: false,
-      );
+      await CampaignImportExportService.shareCampaignPart(campaign, part);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo exportar la campaña: $error')),
+        SnackBar(content: Text('No se pudo exportar esta parte: $error')),
       );
     }
   }
