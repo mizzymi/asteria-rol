@@ -11,6 +11,8 @@ import '../models/dnd_class.dart';
 import '../services/avatar_storage_service.dart';
 import '../services/character_storage_service.dart';
 import '../services/campaign_storage_service.dart';
+import '../services/class_progression_service.dart';
+import '../services/custom_class_storage_service.dart';
 
 class CharacterFormScreen extends StatefulWidget {
   final Character? character;
@@ -152,6 +154,62 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     return preview.maxHealth;
   }
 
+  Future<void> _resolveClassProgression(Character character) async {
+    final result = ClassProgressionService.reconcile(
+      character,
+      CustomClassStorageService.getClasses(),
+    );
+
+    for (final pending in result.pendingChoices) {
+      if (!mounted) return;
+      final selected = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(
+            pending.reward.name.trim().isEmpty
+                ? 'Elección de nivel ${pending.reward.level}'
+                : pending.reward.name,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${pending.definition.name} · nivel ${pending.reward.level}',
+              ),
+              const SizedBox(height: 10),
+              for (final option in pending.reward.contents)
+                ListTile(
+                  leading: Icon(
+                    option.type == ClassProgressionContentType.ability
+                        ? Icons.auto_awesome_rounded
+                        : Icons.shield_outlined,
+                  ),
+                  title: Text(option.name),
+                  onTap: () => Navigator.pop(
+                    dialogContext,
+                    option.contentId,
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Elegir más tarde'),
+            ),
+          ],
+        ),
+      );
+      if (selected == null) continue;
+      ClassProgressionService.applyChoice(
+        character,
+        definition: pending.definition,
+        reward: pending.reward,
+        contentId: selected,
+      );
+    }
+  }
+
   Future<void> pickAvatar() async {
     final image = await picker.pickImage(
       source: ImageSource.gallery,
@@ -263,6 +321,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     }
 
     character.normalizeHealth();
+    await _resolveClassProgression(character);
 
     await CharacterStorageService.saveCharacter(character);
 
