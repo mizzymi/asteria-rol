@@ -8,8 +8,9 @@ import '../services/custom_class_storage_service.dart';
 
 class CustomClassFormScreen extends StatefulWidget {
   final CustomClassDefinition? definition;
+  final String campaignId;
 
-  const CustomClassFormScreen({super.key, this.definition});
+  const CustomClassFormScreen({super.key, this.definition, required this.campaignId});
 
   @override
   State<CustomClassFormScreen> createState() => _CustomClassFormScreenState();
@@ -56,7 +57,7 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
 
   List<ClassProgressionContent> get _availableContent {
     final result = <String, ClassProgressionContent>{};
-    for (final Character character in CharacterStorageService.getCharacters()) {
+    for (final Character character in CharacterStorageService.getCharacters().where((c) => c.campaignId == widget.campaignId)) {
       for (final ability in character.characterAbilities) {
         if (ability.id.trim().isEmpty) continue;
         result.putIfAbsent(
@@ -226,6 +227,7 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
 
     final definition = CustomClassDefinition(
       classId: classId,
+      campaignId: widget.campaignId,
       version: version < 1 ? 1 : version,
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
