@@ -13,7 +13,9 @@ class CustomClassImportExportService {
   static const int formatVersion = 1;
 
   static Future<File> createExportFile(CustomClassDefinition definition) async {
-    final dir = await getTemporaryDirectory();
+    // Fuera de cache: share_plus copiará el archivo a su directorio
+    // FileProvider autorizado en Android antes de compartirlo.
+    final dir = await getApplicationDocumentsDirectory();
     final safe = definition.name.trim().replaceAll(
       RegExp(r'[^a-zA-Z0-9_-]+'),
       '_',
