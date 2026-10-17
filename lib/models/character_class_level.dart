@@ -7,7 +7,7 @@ class CharacterClassLevel {
   /// las reglas deben usar classId, label, hitDie y savingThrowProficiencies.
   DndClass dndClass;
 
-  /// ID estable. Las clases oficiales usan core:<enum>; las personalizadas
+  /// ID estable. Las clases oficiales usan `core:tipo_de_clase`; las personalizadas
   /// conservan el classId definido por el Máster.
   String classId;
 
