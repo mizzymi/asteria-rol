@@ -6,6 +6,7 @@ import '../models/character.dart';
 import '../models/pet.dart';
 import '../services/campaign_storage_service.dart';
 import '../services/character_storage_service.dart';
+import '../services/custom_class_storage_service.dart';
 import '../services/campaign_economy_service.dart';
 import '../services/campaign_shop_import_export_service.dart';
 import '../services/campaign_import_export_service.dart';
@@ -17,6 +18,7 @@ import 'campaign_shop_detail_screen.dart';
 import 'campaign_shop_form_screen.dart';
 import 'campaign_mission_detail_screen.dart';
 import 'campaign_mission_form_screen.dart';
+import 'custom_classes_screen.dart';
 
 class MasterCampaignScreen extends StatefulWidget {
   final Campaign campaign;
@@ -186,6 +188,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       _creaturesPage(),
       _shopsPage(),
       _missionsPage(),
+      CustomClassesScreen(campaignId: campaign.id, embedded: true),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -232,6 +235,11 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
             icon: Icon(Icons.flag_outlined),
             selectedIcon: Icon(Icons.flag_rounded),
             label: 'Misiones',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.school_outlined),
+            selectedIcon: Icon(Icons.school_rounded),
+            label: 'Clases',
           ),
         ],
       ),
@@ -356,6 +364,13 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                     label: 'Misiones',
                     value: '${campaign.missions.length}',
                     onTap: () => setState(() => _index = 4),
+                  ),
+                  _OverviewTile(
+                    icon: Icons.school_rounded,
+                    label: 'Clases',
+                    value:
+                        '${CustomClassStorageService.getClasses(campaign.id).length}',
+                    onTap: () => setState(() => _index = 5),
                   ),
                 ],
               ),

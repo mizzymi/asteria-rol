@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../models/campaign.dart';
 import '../models/character.dart';
-import '../models/dnd_class.dart';
 import '../services/app_mode_service.dart';
 import '../services/campaign_storage_service.dart';
 import '../services/campaign_economy_service.dart';
@@ -1121,7 +1120,7 @@ class _CharacterQuickCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               Text(
-                '${character.dndClass.label} · Nv. ${character.level}',
+                '${character.primaryClassLevel.label} · Nv. ${character.level}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall,

@@ -834,7 +834,9 @@ class ActionResolver {
     final hasExtra =
         !effect.dealsDamage &&
         (effect.dicePools.isNotEmpty ||
-            effect.abilityModifierMultipliers.values.any((value) => value != 0) ||
+            effect.abilityModifierMultipliers.values.any(
+              (value) => value != 0,
+            ) ||
             effect.effectBonus != 0 ||
             effect.legacyAddAbilityModifier);
 

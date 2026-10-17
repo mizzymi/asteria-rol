@@ -58,6 +58,14 @@ class Character {
   ///
   /// La primera clase se considera la clase principal / inicial.
   List<CharacterClassLevel> classes;
+
+  /// Recompensas de progresión ya concedidas. Clave: classId::rewardId.
+  Set<String> appliedClassRewardIds;
+
+  /// Elección realizada para recompensas de tipo choice.
+  /// Clave: classId::rewardId, valor: contentId elegido.
+  Map<String, String> classProgressionChoices;
+
   List<CharacterContentFolder> contentFolders;
   AbilityScores abilities;
 
@@ -213,6 +221,8 @@ class Character {
 
     /// Nuevo sistema.
     List<CharacterClassLevel>? classes,
+    Set<String>? appliedClassRewardIds,
+    Map<String, String>? classProgressionChoices,
 
     /// Compatibilidad temporal con código antiguo.
     DndClass? dndClass,
@@ -260,6 +270,12 @@ class Character {
          dndClass: dndClass,
          level: level,
        ),
+       appliedClassRewardIds = Set<String>.from(
+         appliedClassRewardIds ?? const {},
+       ),
+       classProgressionChoices = Map<String, String>.from(
+         classProgressionChoices ?? const {},
+       ),
        abilities = abilities ?? AbilityScores(),
        contentFolders = contentFolders ?? <CharacterContentFolder>[],
        skillProficiencies =
@@ -292,7 +308,7 @@ class Character {
     if (savingThrowProficiencies == null) {
       this.savingThrowProficiencies = {
         for (final ability in AbilityType.values)
-          ability: primaryClass.savingThrowProficiencies.contains(ability),
+          ability: primaryClassLevel.savingThrowProficiencies.contains(ability),
       };
     }
 
@@ -1129,13 +1145,15 @@ class Character {
     _refreshAfterCharacterStructureChange();
   }
 
-  DndClass get primaryClass {
+  CharacterClassLevel get primaryClassLevel {
     if (classes.isEmpty) {
-      return DndClass.fighter;
+      return CharacterClassLevel(dndClass: DndClass.fighter, level: 1);
     }
 
-    return classes.first.dndClass;
+    return classes.first;
   }
+
+  DndClass get primaryClass => primaryClassLevel.dndClass;
 
   DndClass get dndClass => primaryClass;
 
@@ -1156,9 +1174,7 @@ class Character {
       return 'Sin clase';
     }
 
-    return classes
-        .map((item) => '${item.dndClass.label} ${item.level}')
-        .join(' / ');
+    return classes.map((item) => '${item.label} ${item.level}').join(' / ');
   }
 
   void _refreshAfterCharacterStructureChange() {
@@ -1974,16 +1990,14 @@ class Character {
     );
   }
 
-  int get hitDie => primaryClass.hitDie;
+  int get hitDie => primaryClassLevel.hitDie;
 
   String get hitDiceText {
     if (classes.isEmpty) {
       return '';
     }
 
-    return classes
-        .map((item) => '${item.level}d${item.dndClass.hitDie}')
-        .join(' + ');
+    return classes.map((item) => '${item.level}d${item.hitDie}').join(' + ');
   }
 
   int calculateAbilityMultipliers(Map<AbilityType, int> multipliers) {
@@ -2203,7 +2217,7 @@ class Character {
     for (final classLevel in classes) {
       final levels = classLevel.level < 1 ? 1 : classLevel.level;
 
-      final hitDie = classLevel.dndClass.hitDie;
+      final hitDie = classLevel.hitDie;
 
       final healthPerLevel = hitDie + conMod;
 
@@ -2895,7 +2909,7 @@ class Character {
   void resetSavingThrowProficienciesFromClass() {
     savingThrowProficiencies = {
       for (final ability in AbilityType.values)
-        ability: primaryClass.savingThrowProficiencies.contains(ability),
+        ability: primaryClassLevel.savingThrowProficiencies.contains(ability),
     };
   }
 
@@ -3635,6 +3649,8 @@ class Character {
       'ownerType': ownerType,
       'race': race,
       'classes': classes.map((item) => item.toMap()).toList(),
+      'appliedClassRewardIds': appliedClassRewardIds.toList(),
+      'classProgressionChoices': classProgressionChoices,
       'dndClass': primaryClass.name,
       'level': level,
       'abilities': abilities.toMap(),
@@ -3960,6 +3976,28 @@ class Character {
       );
     }
 
+    final appliedClassRewardIds = <String>{};
+    final rawAppliedRewards = map['appliedClassRewardIds'];
+    if (rawAppliedRewards is List) {
+      appliedClassRewardIds.addAll(
+        rawAppliedRewards
+            .map((value) => value.toString())
+            .where((value) => value.isNotEmpty),
+      );
+    }
+
+    final classProgressionChoices = <String, String>{};
+    final rawProgressionChoices = map['classProgressionChoices'];
+    if (rawProgressionChoices is Map) {
+      for (final entry in rawProgressionChoices.entries) {
+        final key = entry.key.toString();
+        final value = entry.value?.toString() ?? '';
+        if (key.isNotEmpty && value.isNotEmpty) {
+          classProgressionChoices[key] = value;
+        }
+      }
+    }
+
     final rawAbilities = map['abilities'];
     final abilities = rawAbilities is Map
         ? AbilityScores.fromMap(Map<dynamic, dynamic>.from(rawAbilities))
@@ -3995,7 +4033,7 @@ class Character {
         savingThrowProficiencies[ability] = savingMap[ability.name] == true;
       }
     } else {
-      final initialClass = classes.first.dndClass;
+      final initialClass = classes.first;
 
       for (final ability in AbilityType.values) {
         savingThrowProficiencies[ability] = initialClass
@@ -4132,6 +4170,8 @@ class Character {
       ownerType: map['ownerType']?.toString() ?? 'player',
       race: map['race']?.toString() ?? '',
       classes: classes,
+      appliedClassRewardIds: appliedClassRewardIds,
+      classProgressionChoices: classProgressionChoices,
       abilities: abilities,
       contentFolders: contentFolders,
       currentHealth: (map['currentHealth'] as num?)?.toInt(),

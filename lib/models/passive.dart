@@ -340,6 +340,10 @@ class CharacterPassive {
   String? folderId;
   PassiveSourceType sourceType;
 
+  /// Procedencia estable cuando la pasiva fue concedida por una clase.
+  String? sourceClassId;
+  String? sourceRewardId;
+
   bool enabled;
 
   FormulaBonus armorClassBonus;
@@ -454,6 +458,8 @@ class CharacterPassive {
     this.imageAlignmentY = 0,
     this.folderId,
     this.sourceType = PassiveSourceType.custom,
+    this.sourceClassId,
+    this.sourceRewardId,
     this.enabled = true,
     FormulaBonus? armorClassBonus,
     FormulaBonus? initiativeBonus,
@@ -669,6 +675,8 @@ class CharacterPassive {
       'imageAlignmentY': imageAlignmentY,
       'folderId': folderId,
       'sourceType': sourceType.name,
+      'sourceClassId': sourceClassId,
+      'sourceRewardId': sourceRewardId,
       'enabled': enabled,
 
       'armorClassBonus': armorClassBonus.toMap(),
@@ -1135,6 +1143,9 @@ class CharacterPassive {
       imageAlignmentY: (map['imageAlignmentY'] as num?)?.toDouble() ?? 0,
 
       folderId: map['folderId']?.toString(),
+
+      sourceClassId: map['sourceClassId']?.toString(),
+      sourceRewardId: map['sourceRewardId']?.toString(),
 
       sourceType: PassiveSourceType.values.firstWhere(
         (item) => item.name == map['sourceType'],
