@@ -12,8 +12,13 @@ import 'custom_class_form_screen.dart';
 
 class CustomClassesScreen extends StatefulWidget {
   final String campaignId;
+  final bool embedded;
 
-  const CustomClassesScreen({super.key, required this.campaignId});
+  const CustomClassesScreen({
+    super.key,
+    required this.campaignId,
+    this.embedded = false,
+  });
 
   @override
   State<CustomClassesScreen> createState() => _CustomClassesScreenState();
@@ -41,6 +46,43 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
       ),
     );
     _reload();
+  }
+
+  Future<void> _newClass() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text('Nueva clase'),
+                subtitle: Text('¿Qué quieres hacer?'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_circle_outline_rounded),
+                title: const Text('Crear clase'),
+                onTap: () => Navigator.pop(sheetContext, 'create'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_download_outlined),
+                title: const Text('Importar clase'),
+                onTap: () => Navigator.pop(sheetContext, 'import'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'create') {
+      await _edit();
+    } else if (action == 'import') {
+      await _import();
+    }
   }
 
   Future<void> _export(CustomClassDefinition definition) async {
@@ -148,21 +190,18 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Clases personalizadas'),
-        actions: [
-          IconButton(
-            tooltip: 'Importar clase',
-            onPressed: _import,
-            icon: const Icon(Icons.file_download_rounded),
-          ),
-          IconButton(
-            tooltip: 'Nueva clase',
-            onPressed: () => _edit(),
-            icon: const Icon(Icons.add_rounded),
-          ),
-        ],
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text('Clases personalizadas'),
+              actions: [
+                IconButton(
+                  tooltip: 'Nueva clase',
+                  onPressed: _newClass,
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
+            ),
       body: classes.isEmpty
           ? Center(
               child: Padding(
@@ -188,15 +227,11 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                       spacing: 10,
                       children: [
                         OutlinedButton.icon(
-                          onPressed: _import,
-                          icon: const Icon(Icons.file_download_rounded),
-                          label: const Text('Importar'),
-                        ),
-                        FilledButton.icon(
-                          onPressed: () => _edit(),
+                          onPressed: _newClass,
                           icon: const Icon(Icons.add_rounded),
-                          label: const Text('Crear clase'),
+                          label: const Text('Nueva clase'),
                         ),
+
                       ],
                     ),
                   ],
@@ -243,7 +278,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
               ],
             ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _edit(),
+        onPressed: _newClass,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nueva clase'),
       ),
