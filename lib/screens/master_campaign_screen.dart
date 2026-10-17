@@ -188,7 +188,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       _creaturesPage(),
       _shopsPage(),
       _missionsPage(),
-      CustomClassesScreen(campaignId: campaign.id),
+      CustomClassesScreen(campaignId: campaign.id, embedded: true),
     ];
     return Scaffold(
       appBar: AppBar(
