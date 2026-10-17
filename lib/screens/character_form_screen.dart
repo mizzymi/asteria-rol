@@ -256,11 +256,9 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
 
     final oldCharacter = widget.character;
 
-    final preservedClasses = oldCharacter == null
-        ? null
-        : oldCharacter.classes
-              .map((item) => CharacterClassLevel.fromMap(item.toMap()))
-              .toList();
+    final preservedClasses = oldCharacter?.classes
+        .map((item) => CharacterClassLevel.fromMap(item.toMap()))
+        .toList();
 
     if (preservedClasses != null &&
         preservedClasses.isNotEmpty &&
