@@ -173,16 +173,21 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
         throw const FormatException('No se pudo acceder al archivo.');
       }
 
-      final imported = await CustomClassImportExportService.importFile(
+      final campaignId = character.campaignId;
+      if (campaignId == null || campaignId.isEmpty) {
+        throw const FormatException('Selecciona una campaña antes de importar una clase.');
+      }
+      final source = await CustomClassImportExportService.importFile(
         File(path),
       );
+      final imported = CustomClassDefinition.fromMap({
+        ...source.toMap(),
+        'campaignId': campaignId,
+      });
       if (imported.classId.trim().isEmpty) {
         throw const FormatException('La clase no tiene classId.');
       }
 
-      if (imported.campaignId != character.campaignId) {
-        throw const FormatException('La clase pertenece a otra campaña.');
-      }
       final existing = CustomClassStorageService.getClass(character.campaignId ?? '', imported.classId);
       if (existing != null && imported.version < existing.version) {
         throw FormatException(
