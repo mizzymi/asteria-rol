@@ -134,6 +134,7 @@ class ClassProgressionReward {
 
 class CustomClassDefinition {
   final String classId;
+  final String campaignId;
   int version;
   String name;
   String description;
@@ -143,6 +144,7 @@ class CustomClassDefinition {
 
   CustomClassDefinition({
     required this.classId,
+    required this.campaignId,
     this.version = 1,
     required this.name,
     this.description = '',
@@ -155,6 +157,7 @@ class CustomClassDefinition {
 
   Map<String, dynamic> toMap() => {
     'classId': classId,
+    'campaignId': campaignId,
     'version': version,
     'name': name,
     'description': description,
@@ -192,6 +195,7 @@ class CustomClassDefinition {
 
     return CustomClassDefinition(
       classId: map['classId']?.toString() ?? '',
+      campaignId: map['campaignId']?.toString() ?? '',
       version: (map['version'] as num?)?.toInt() ?? 1,
       name: map['name']?.toString() ?? 'Clase personalizada',
       description: map['description']?.toString() ?? '',
