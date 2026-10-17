@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -54,9 +56,11 @@ class CampaignImportExportService {
           .toList(),
     };
 
-    // Fuera de cache: share_plus copiará el archivo a su directorio
-    // FileProvider autorizado en Android antes de compartirlo.
-    final dir = await getApplicationDocumentsDirectory();
+    // Android comparte directamente desde filesDir mediante FileProvider,
+    // sin duplicar grandes exportaciones en la caché de share_plus.
+    final dir = Platform.isAndroid
+        ? await getApplicationSupportDirectory()
+        : await getApplicationDocumentsDirectory();
     final file = File(
       '${dir.path}/${_safeName(campaign.name)}.asteria-campaign',
     );
@@ -84,15 +88,27 @@ class CampaignImportExportService {
       campaign,
       includePlayerCharacters: includePlayerCharacters,
     );
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: 'application/octet-stream')],
-        subject: 'Campaña de Asteria: ${campaign.name}',
-        text: includePlayerCharacters
-            ? 'Campaña completa de Asteria con sus imágenes incluidas.'
-            : 'Campaña de Máster de Asteria, sin fichas de jugadores.',
-      ),
-    );
+    final subject = 'Campaña de Asteria: ${campaign.name}';
+    final text = includePlayerCharacters
+        ? 'Campaña completa de Asteria con sus imágenes incluidas.'
+        : 'Campaña de Máster de Asteria, sin fichas de jugadores.';
+
+    if (Platform.isAndroid) {
+      const channel = MethodChannel('asteria_rol/export_share');
+      await channel.invokeMethod<void>('shareFile', <String, String>{
+        'path': file.path,
+        'subject': subject,
+        'text': text,
+      });
+    } else {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'application/octet-stream')],
+          subject: subject,
+          text: text,
+        ),
+      );
+    }
   }
 
   /// Compatibilidad con exportaciones JSON antiguas.
