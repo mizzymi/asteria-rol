@@ -22,6 +22,9 @@ import '../widgets/character_home/character_home_colors.dart';
 import '../widgets/character_home/combat_stat_card.dart';
 import '../widgets/character_home/health_edit_dialog.dart';
 import '../widgets/character_home/level_edit_dialog.dart';
+import '../services/class_progression_service.dart';
+import '../services/custom_class_storage_service.dart';
+import 'class_editor_screen.dart';
 
 import 'rest_screen.dart';
 import 'combat_screen.dart';
@@ -148,7 +151,26 @@ class _CharacterHomeScreenState extends State<CharacterHomeScreen> {
       character.normalizeHealth();
     });
 
+    final progression = ClassProgressionService.reconcile(
+      character,
+      CustomClassStorageService.getClasses(),
+    );
+
     await saveCharacter();
+
+    if (!mounted) return;
+
+    if (progression.pendingChoices.isNotEmpty) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ClassEditorScreen(character: character),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {});
+      await saveCharacter();
+    }
   }
 
   // ===========================================================================
