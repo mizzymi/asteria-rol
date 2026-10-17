@@ -264,10 +264,9 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                       subtitle: Text(
-                        'v${definition.version} · ${definition.rewards.length} recompensas\n'
-                        'ID: ${definition.classId}',
+                        'Versión ${definition.version} · ${definition.rewards.length} recompensas',
                       ),
-                      isThreeLine: true,
+                      isThreeLine: false,
                       onTap: () => _edit(definition),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) {
