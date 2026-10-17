@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/campaign.dart';
 import '../models/character.dart';
 import 'character_storage_service.dart';
+import 'custom_class_storage_service.dart';
 import 'portable_image_bundle.dart';
 import 'portable_streaming_archive.dart';
 
@@ -27,7 +28,7 @@ class CampaignImportExportService {
   /// Exporta una sección independiente, conservando los IDs originales.
   /// El paquete se puede importar sin sustituir el resto de la campaña.
   static Future<File> createExportPart(Campaign campaign, String part) async {
-    const parts = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players'};
+    const parts = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players', 'classes'};
     if (!parts.contains(part)) {
       throw const FormatException('Sección de campaña desconocida.');
     }
@@ -60,6 +61,9 @@ class CampaignImportExportService {
       root: <String, dynamic>{
         'campaign': campaignMap,
         'characters': characters,
+        if (part == 'classes')
+          'classes': CustomClassStorageService.getClasses(campaign.id)
+              .map((definition) => definition.toMap()).toList(),
       },
       header: <String, dynamic>{
         'type': formatType,
@@ -89,6 +93,30 @@ class CampaignImportExportService {
         ),
       );
     }
+  }
+
+  static Future<void> deleteExportPart(Campaign campaign, String part) async {
+    final dir = Platform.isAndroid
+        ? await getApplicationSupportDirectory()
+        : await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/${_safeName(campaign.name)}_$part.asteria-campaign');
+    if (await file.exists()) await file.delete();
+  }
+
+  static Future<List<Map<String, dynamic>>> importClassPart(File file) async {
+    final header = await PortableStreamingArchive.read(
+      file: file,
+      magicBytes: _binaryMagic,
+      namespace: 'campaign_classes',
+    );
+    if (header['part'] != 'classes') {
+      throw const FormatException('El archivo no contiene clases.');
+    }
+    final root = Map<String, dynamic>.from(header['root'] as Map);
+    return (root['classes'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
 
   /// Lee la sección declarada en una exportación, si existe.
