@@ -25,7 +25,7 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
   Character get character => widget.character;
 
   List<CustomClassDefinition> get customClasses =>
-      CustomClassStorageService.getClasses();
+      CustomClassStorageService.getClasses(character.campaignId ?? '');
 
   List<_ClassOption> get classOptions {
     final result = <_ClassOption>[
@@ -180,7 +180,10 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
         throw const FormatException('La clase no tiene classId.');
       }
 
-      final existing = CustomClassStorageService.getClass(imported.classId);
+      if (imported.campaignId != character.campaignId) {
+        throw const FormatException('La clase pertenece a otra campaña.');
+      }
+      final existing = CustomClassStorageService.getClass(character.campaignId ?? '', imported.classId);
       if (existing != null && imported.version < existing.version) {
         throw FormatException(
           'La versión importada (${imported.version}) es anterior a la instalada (${existing.version}).',
@@ -534,7 +537,7 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
             ...List.generate(character.classes.length, (index) {
               final item = character.classes[index];
               final definition = item.isCustom
-                  ? CustomClassStorageService.getClass(item.classId)
+                  ? CustomClassStorageService.getClass(character.campaignId ?? '', item.classId)
                   : null;
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
