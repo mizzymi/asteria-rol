@@ -181,8 +181,9 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                               dialogContext,
                               ClassProgressionContentType.ability,
                             );
-                            if (content == null || !dialogContext.mounted)
-                              return;
+                            if (content == null || !dialogContext.mounted) {
+                                return;
+                            }
                             setDialogState(() {
                               available.add(content);
                               selected.add(
@@ -199,8 +200,9 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                               dialogContext,
                               ClassProgressionContentType.passive,
                             );
-                            if (content == null || !dialogContext.mounted)
-                              return;
+                            if (content == null || !dialogContext.mounted) {
+                                return;
+                            }
                             setDialogState(() {
                               available.add(content);
                               selected.add(
