@@ -24,6 +24,97 @@ class CampaignImportExportService {
     'ASTERIA_CAMPAIGN_V2',
   );
 
+  /// Exporta una sección independiente, conservando los IDs originales.
+  /// El paquete se puede importar sin sustituir el resto de la campaña.
+  static Future<File> createExportPart(Campaign campaign, String part) async {
+    const parts = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players'};
+    if (!parts.contains(part)) {
+      throw const FormatException('Sección de campaña desconocida.');
+    }
+    final campaignMap = Map<String, dynamic>.from(campaign.toMap());
+    final shops = campaignMap['shops'];
+    final missions = campaignMap['missions'];
+    campaignMap['shops'] = part == 'shops' ? shops : <dynamic>[];
+    campaignMap['missions'] = part == 'missions' ? missions : <dynamic>[];
+
+    final characters = CharacterStorageService.getCharacters()
+        .where((character) =>
+            character.campaignId == campaign.id &&
+            ((part == 'npcs' && character.ownerType == 'npc') ||
+             (part == 'creatures' && character.ownerType == 'creatureHost') ||
+             (part == 'players' && character.ownerType == 'player')))
+        .map((character) => Map<String, dynamic>.from(character.toMap()))
+        .toList();
+
+    final dir = Platform.isAndroid
+        ? await getApplicationSupportDirectory()
+        : await getApplicationDocumentsDirectory();
+    final file = File(
+      '${dir.path}/${_safeName(campaign.name)}_$part.asteria-campaign',
+    );
+    // Evita conservar una exportación antigua mientras se escribe la nueva.
+    if (await file.exists()) await file.delete();
+    await PortableStreamingArchive.write(
+      file: file,
+      magicBytes: _binaryMagic,
+      root: <String, dynamic>{
+        'campaign': campaignMap,
+        'characters': characters,
+      },
+      header: <String, dynamic>{
+        'type': formatType,
+        'version': formatVersion,
+        'part': part,
+        'exportedAt': DateTime.now().toIso8601String(),
+      },
+    );
+    return file;
+  }
+
+  static Future<void> shareCampaignPart(Campaign campaign, String part) async {
+    final file = await createExportPart(campaign, part);
+    final subject = '${campaign.name} · $part';
+    if (Platform.isAndroid) {
+      const channel = MethodChannel('asteria_rol/export_share');
+      await channel.invokeMethod<void>('shareFile', <String, String>{
+        'path': file.path,
+        'subject': subject,
+        'text': 'Parte $part de una campaña de Asteria Rol.',
+      });
+    } else {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'application/octet-stream')],
+          subject: subject,
+        ),
+      );
+    }
+  }
+
+  /// Lee la sección declarada en una exportación, si existe.
+  static Future<String?> readPart(File file) async {
+    if (!await PortableStreamingArchive.hasMagic(file, _binaryMagic)) {
+      return null;
+    }
+    final handle = await file.open(mode: FileMode.read);
+    try {
+      await handle.setPosition(_binaryMagic.length);
+      final lengthBytes = await handle.read(4);
+      if (lengthBytes.length != 4) throw const FormatException('Cabecera incompleta');
+      final size = (lengthBytes[0] << 24) | (lengthBytes[1] << 16) |
+          (lengthBytes[2] << 8) | lengthBytes[3];
+      if (size <= 0 || size > 64 * 1024 * 1024) {
+        throw const FormatException('Cabecera inválida');
+      }
+      final headerBytes = await handle.read(size);
+      if (headerBytes.length != size) throw const FormatException('Cabecera incompleta');
+      final header = jsonDecode(utf8.decode(headerBytes));
+      return header is Map ? header['part']?.toString() : null;
+    } finally {
+      await handle.close();
+    }
+  }
+
   static Future<File> createExportFile(
     Campaign campaign, {
     bool includePlayerCharacters = true,
