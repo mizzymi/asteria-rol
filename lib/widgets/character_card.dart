@@ -55,7 +55,7 @@ class CharacterCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${character.race} · ${character.dndClass.label}',
+                      '${character.race} · ${character.primaryClassLevel.label}',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 3),
