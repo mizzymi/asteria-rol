@@ -11,7 +11,6 @@ import '../services/character_storage_service.dart';
 import 'campaign_form_screen.dart';
 import 'character_selection_screen.dart';
 import 'master_campaign_screen.dart';
-import 'custom_classes_screen.dart';
 
 class MasterScreen extends StatefulWidget {
   const MasterScreen({super.key});
@@ -213,20 +212,6 @@ class _MasterScreenState extends State<MasterScreen> {
                       onPressed: _importCampaign,
                       tooltip: 'Importar campaña',
                       icon: const Icon(Icons.file_download_rounded),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CustomClassesScreen(),
-                          ),
-                        );
-                        _reload();
-                      },
-                      tooltip: 'Clases personalizadas',
-                      icon: const Icon(Icons.school_rounded),
                     ),
                     const SizedBox(width: 8),
                     IconButton.filledTonal(
