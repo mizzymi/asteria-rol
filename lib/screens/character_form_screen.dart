@@ -61,6 +61,17 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
   late final TextEditingController personalityController;
 
   late DndClass selectedClass;
+  String? selectedCustomClassId;
+
+  List<CustomClassDefinition> get campaignClasses =>
+      CustomClassStorageService.getClasses(selectedCampaignId ?? '');
+
+  CustomClassDefinition? get chosenCustomClass {
+    for (final definition in campaignClasses) {
+      if (definition.classId == selectedCustomClassId) return definition;
+    }
+    return null;
+  }
 
   late List<Campaign> campaigns;
   String? selectedCampaignId;
@@ -92,6 +103,12 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     levelController = TextEditingController(text: '${character?.level ?? 1}');
 
     selectedClass = character?.dndClass ?? DndClass.fighter;
+    selectedCustomClassId = character?.primaryClassLevel.isCustom == true
+        ? character!.primaryClassLevel.classId
+        : null;
+    if (character == null && campaignClasses.isNotEmpty) {
+      selectedCustomClassId = campaignClasses.first.classId;
+    }
 
     final abilities = character?.abilities ?? AbilityScores();
 
@@ -147,6 +164,16 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     final preview = Character(
       id: 'preview',
       name: 'preview',
+      classes: chosenCustomClass == null ? null : [
+        CharacterClassLevel(
+          dndClass: DndClass.fighter,
+          classId: chosenCustomClass!.classId,
+          customName: chosenCustomClass!.name,
+          customHitDie: chosenCustomClass!.hitDie,
+          customSavingThrowProficiencies: chosenCustomClass!.savingThrowProficiencies,
+          level: int.tryParse(levelController.text) ?? 1,
+        ),
+      ],
       dndClass: selectedClass,
       level: int.tryParse(levelController.text) ?? 1,
       abilities: currentAbilities,
@@ -267,6 +294,20 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       preservedClasses.first.customSavingThrowProficiencies = null;
     }
 
+    final customDefinition = chosenCustomClass;
+    final startingClasses = oldCharacter == null && customDefinition != null
+        ? <CharacterClassLevel>[
+            CharacterClassLevel(
+              dndClass: DndClass.fighter,
+              classId: customDefinition.classId,
+              customName: customDefinition.name,
+              customHitDie: customDefinition.hitDie,
+              customSavingThrowProficiencies: customDefinition.savingThrowProficiencies,
+              level: level,
+            ),
+          ]
+        : preservedClasses;
+
     final character = Character(
       id: id,
       name: nameController.text.trim(),
@@ -274,7 +315,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       campaignId: selectedCampaignId,
       ownerType: oldCharacter?.ownerType ?? widget.ownerType,
       race: raceController.text.trim(),
-      classes: preservedClasses,
+      classes: startingClasses,
       dndClass: oldCharacter == null ? selectedClass : null,
       level: oldCharacter == null ? level : null,
       appliedClassRewardIds: oldCharacter?.appliedClassRewardIds,
@@ -472,8 +513,14 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
                       ),
                     )
                     .toList(),
-                onChanged: (value) =>
-                    setState(() => selectedCampaignId = value),
+                onChanged: (value) {
+                  setState(() {
+                    selectedCampaignId = value;
+                    selectedCustomClassId = campaignClasses.isNotEmpty
+                        ? campaignClasses.first.classId
+                        : null;
+                  });
+                },
                 validator: (value) => value == null || value.isEmpty
                     ? 'Selecciona una campaña'
                     : null,
@@ -491,28 +538,51 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
 
               const SizedBox(height: 14),
 
-              DropdownButtonFormField<DndClass>(
-                initialValue: selectedClass,
-                decoration: const InputDecoration(
-                  labelText: 'Clase',
-                  prefixIcon: Icon(Icons.shield_rounded),
+              if (editing && widget.character!.primaryClassLevel.isCustom)
+                ListTile(
+                  leading: const Icon(Icons.shield_rounded),
+                  title: Text(widget.character!.primaryClassLevel.label),
+                  subtitle: const Text('Clase personalizada actual'),
+                )
+              else if (campaignClasses.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  key: ValueKey('class-$selectedCampaignId'),
+                  initialValue: selectedCustomClassId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Clase de la campaña',
+                    prefixIcon: Icon(Icons.shield_rounded),
+                  ),
+                  items: campaignClasses.map((definition) {
+                    return DropdownMenuItem(
+                      value: definition.classId,
+                      child: Text('${definition.name} · d${definition.hitDie}'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => selectedCustomClassId = value);
+                  },
+                  validator: (value) =>
+                      value == null ? 'Selecciona una clase' : null,
+                )
+              else
+                DropdownButtonFormField<DndClass>(
+                  key: ValueKey('core-$selectedCampaignId'),
+                  initialValue: selectedClass,
+                  decoration: const InputDecoration(
+                    labelText: 'Clase',
+                    prefixIcon: Icon(Icons.shield_rounded),
+                  ),
+                  items: DndClass.values.map((dndClass) {
+                    return DropdownMenuItem(
+                      value: dndClass,
+                      child: Text('${dndClass.label} · d${dndClass.hitDie}'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => selectedClass = value);
+                  },
                 ),
-                items: DndClass.values.map((dndClass) {
-                  return DropdownMenuItem(
-                    value: dndClass,
-                    child: Text('${dndClass.label} · d${dndClass.hitDie}'),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-
-                  setState(() {
-                    selectedClass = value;
-                  });
-                },
-              ),
 
               const SizedBox(height: 14),
 
