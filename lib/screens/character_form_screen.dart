@@ -205,6 +205,8 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       race: raceController.text.trim(),
       dndClass: selectedClass,
       level: level,
+      appliedClassRewardIds: oldCharacter?.appliedClassRewardIds,
+      classProgressionChoices: oldCharacter?.classProgressionChoices,
       abilities: abilities,
       currentHealth: oldCharacter?.currentHealth,
       armorClass: int.tryParse(armorClassController.text) ?? 10,
