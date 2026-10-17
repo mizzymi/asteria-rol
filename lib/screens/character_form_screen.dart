@@ -164,16 +164,19 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     final preview = Character(
       id: 'preview',
       name: 'preview',
-      classes: chosenCustomClass == null ? null : [
-        CharacterClassLevel(
-          dndClass: DndClass.fighter,
-          classId: chosenCustomClass!.classId,
-          customName: chosenCustomClass!.name,
-          customHitDie: chosenCustomClass!.hitDie,
-          customSavingThrowProficiencies: chosenCustomClass!.savingThrowProficiencies,
-          level: int.tryParse(levelController.text) ?? 1,
-        ),
-      ],
+      classes: chosenCustomClass == null
+          ? null
+          : [
+              CharacterClassLevel(
+                dndClass: DndClass.fighter,
+                classId: chosenCustomClass!.classId,
+                customName: chosenCustomClass!.name,
+                customHitDie: chosenCustomClass!.hitDie,
+                customSavingThrowProficiencies:
+                    chosenCustomClass!.savingThrowProficiencies,
+                level: int.tryParse(levelController.text) ?? 1,
+              ),
+            ],
       dndClass: selectedClass,
       level: int.tryParse(levelController.text) ?? 1,
       abilities: currentAbilities,
@@ -302,7 +305,8 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
               classId: customDefinition.classId,
               customName: customDefinition.name,
               customHitDie: customDefinition.hitDie,
-              customSavingThrowProficiencies: customDefinition.savingThrowProficiencies,
+              customSavingThrowProficiencies:
+                  customDefinition.savingThrowProficiencies,
               level: level,
             ),
           ]
@@ -667,7 +671,8 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
                         child: _PreviewValue(
                           icon: Icons.casino_rounded,
                           label: 'Dado de golpe',
-                          value: 'd${widget.character?.primaryClassLevel.isCustom == true ? widget.character!.primaryClassLevel.hitDie : (chosenCustomClass?.hitDie ?? selectedClass.hitDie)}',
+                          value:
+                              'd${widget.character?.primaryClassLevel.isCustom == true ? widget.character!.primaryClassLevel.hitDie : (chosenCustomClass?.hitDie ?? selectedClass.hitDie)}',
                         ),
                       ),
                       Expanded(
