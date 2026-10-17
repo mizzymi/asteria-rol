@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/campaign.dart';
 import '../models/character.dart';
+import '../models/custom_class_definition.dart';
+import '../services/custom_class_storage_service.dart';
 import '../services/campaign_storage_service.dart';
 import '../services/campaign_import_export_service.dart';
 import '../services/campaign_economy_service.dart';
@@ -97,6 +99,9 @@ class _MasterScreenState extends State<MasterScreen> {
 
       final part = await CampaignImportExportService.readPart(File(path));
       final imported = await CampaignImportExportService.importFile(File(path));
+      final importedClasses = part == 'classes'
+          ? await CampaignImportExportService.importClassPart(File(path))
+          : <Map<String, dynamic>>[];
       final campaignId = imported.campaign.id;
       if (campaignId.isEmpty) {
         throw const FormatException(
@@ -132,7 +137,7 @@ class _MasterScreenState extends State<MasterScreen> {
 
       // Los paquetes parciales actualizan una sola categoría sin borrar las demás.
       if (part != null) {
-        const supported = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players'};
+        const supported = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players', 'classes'};
         if (!supported.contains(part)) {
           throw FormatException('Sección de campaña no compatible: $part');
         }
@@ -174,6 +179,13 @@ class _MasterScreenState extends State<MasterScreen> {
         }
       }
 
+      for (final map in importedClasses) {
+        final definition = CustomClassDefinition.fromMap(map);
+        if (definition.campaignId != campaignId || definition.classId.isEmpty) {
+          throw const FormatException('Clase de campaña inválida.');
+        }
+        await CustomClassStorageService.saveClass(definition);
+      }
       await CampaignEconomyService.syncCampaignCurrencies(targetCampaign);
 
       if (!mounted) return;
