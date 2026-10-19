@@ -121,8 +121,12 @@ class ClassProgressionService {
       }
     }
     if (selected == null) return false;
-    if (!reward.stackable && character.classProgressionChoices.entries.any((entry) =>
-      entry.key.startsWith('${definition.classId}::') && entry.value == contentId)) return false;
+    if (!reward.stackable &&
+        character.classProgressionChoices.entries.any((entry) =>
+            entry.key.startsWith('${definition.classId}::') &&
+            entry.value == contentId)) {
+      return false;
+    }
 
     _grantContent(character, definition, reward, selected, slot: slot);
     character.classProgressionChoices[slotKey] = contentId;
