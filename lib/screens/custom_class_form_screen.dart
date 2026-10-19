@@ -100,6 +100,8 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
     final available = _availableContent;
     int level = 1;
     var mode = ClassProgressionRewardMode.automatic;
+    int choiceCount = 1;
+    bool stackable = false;
     String name = '';
     final selected = <String>{};
 
@@ -214,6 +216,21 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    if (mode == ClassProgressionRewardMode.choice) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        initialValue: '1',
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Número de elecciones', helperText: 'Ej. 5 elecciones entre las mismas opciones'),
+                        onChanged: (value) => choiceCount = int.tryParse(value) ?? 1,
+                      ),
+                      SwitchListTile(
+                        title: const Text('Permitir acumular mejoras'),
+                        subtitle: const Text('Una opción elegida en otro nivel puede volver a obtenerse; sus bonificaciones se suman.'),
+                        value: stackable,
+                        onChanged: (value) => setDialogState(() => stackable = value),
+                      ),
+                    ],
                     if (available.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
@@ -266,7 +283,7 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  if (level < 1 || selected.isEmpty) return;
+                  if (level < 1 || selected.isEmpty || choiceCount < 1 || (mode == ClassProgressionRewardMode.choice && !stackable && choiceCount > selected.length)) return;
                   final contents = available.where((content) {
                     final key = '${content.type.name}:${content.contentId}';
                     return selected.contains(key);
@@ -282,6 +299,8 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                           ? 'Recompensa de nivel $level'
                           : name.trim(),
                       contents: contents,
+                      choiceCount: mode == ClassProgressionRewardMode.choice ? choiceCount : 1,
+                      stackable: stackable,
                     ),
                   );
                 },
