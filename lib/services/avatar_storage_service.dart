@@ -10,7 +10,10 @@ class AvatarStorageService {
   }) async {
     final source = File(sourcePath);
     if (!await source.exists()) {
-      throw FileSystemException('No se encuentra la imagen seleccionada', sourcePath);
+      throw FileSystemException(
+        'No se encuentra la imagen seleccionada',
+        sourcePath,
+      );
     }
 
     final directory = await getApplicationDocumentsDirectory();

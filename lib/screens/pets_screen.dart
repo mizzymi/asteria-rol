@@ -55,21 +55,24 @@ class _PetsScreenState extends State<PetsScreen> {
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const ListTile(title: Text('Añadir mascota')),
-          ListTile(
-            leading: const Icon(Icons.add_rounded),
-            title: const Text('Crear mascota'),
-            onTap: () => Navigator.pop(sheetContext, 'create'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.file_download_outlined),
-            title: const Text('Importar criatura o mascota'),
-            subtitle: const Text('Archivo .asteria-creature'),
-            onTap: () => Navigator.pop(sheetContext, 'import'),
-          ),
-          const SizedBox(height: 12),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Añadir mascota')),
+            ListTile(
+              leading: const Icon(Icons.add_rounded),
+              title: const Text('Crear mascota'),
+              onTap: () => Navigator.pop(sheetContext, 'create'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.file_download_outlined),
+              title: const Text('Importar criatura o mascota'),
+              subtitle: const Text('Archivo .asteria-creature'),
+              onTap: () => Navigator.pop(sheetContext, 'import'),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     );
     if (!mounted) return;

@@ -90,7 +90,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Future<void> _editPet() async {
     final result = await Navigator.push<Pet>(
       context,
-      MaterialPageRoute(builder: (_) => PetFormScreen(pet: pet, isMasterCreature: widget.isMasterCreature)),
+      MaterialPageRoute(
+        builder: (_) =>
+            PetFormScreen(pet: pet, isMasterCreature: widget.isMasterCreature),
+      ),
     );
 
     if (result == null || !mounted) {
@@ -689,7 +692,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               return IconButton(
                 style: RainbowActionStyle.iconButton(context, semantic.edit),
                 icon: const Icon(Icons.edit_rounded),
-                tooltip: widget.isMasterCreature ? 'Editar criatura' : 'Editar mascota',
+                tooltip: widget.isMasterCreature
+                    ? 'Editar criatura'
+                    : 'Editar mascota',
                 onPressed: _editPet,
               );
             },

@@ -79,7 +79,8 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
   String? avatarPath;
 
   String? pendingAvatarPath;
-  late final String _newCharacterId = DateTime.now().microsecondsSinceEpoch.toString();
+  late final String _newCharacterId = DateTime.now().microsecondsSinceEpoch
+      .toString();
 
   final ImagePicker picker = ImagePicker();
 
@@ -294,7 +295,9 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('El avatar seleccionado ya no existe. Selecciona otra imagen.'),
+            content: Text(
+              'El avatar seleccionado ya no existe. Selecciona otra imagen.',
+            ),
           ),
         );
         return;

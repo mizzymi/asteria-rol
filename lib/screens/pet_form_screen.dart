@@ -253,9 +253,11 @@ class _PetFormScreenState extends State<PetFormScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isMasterCreature
-            ? (widget.pet == null ? 'Nueva criatura' : 'Editar criatura')
-            : (widget.pet == null ? 'Nueva mascota' : 'Editar mascota')),
+        title: Text(
+          widget.isMasterCreature
+              ? (widget.pet == null ? 'Nueva criatura' : 'Editar criatura')
+              : (widget.pet == null ? 'Nueva mascota' : 'Editar mascota'),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.check_rounded),
@@ -377,7 +379,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
             TextFormField(
               controller: _nameController,
               decoration: InputDecoration(
-                labelText: widget.isMasterCreature ? 'Nombre de la criatura *' : 'Nombre del compañero *',
+                labelText: widget.isMasterCreature
+                    ? 'Nombre de la criatura *'
+                    : 'Nombre del compañero *',
                 prefixIcon: Icon(Icons.pets_rounded),
                 border: OutlineInputBorder(),
               ),
@@ -452,7 +456,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              widget.isMasterCreature ? 'Atributos de la criatura' : 'Atributos del compañero',
+              widget.isMasterCreature
+                  ? 'Atributos de la criatura'
+                  : 'Atributos del compañero',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
