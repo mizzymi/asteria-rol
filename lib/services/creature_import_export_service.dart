@@ -36,13 +36,16 @@ class CreatureImportExportService {
         decoded['pet'] is! Map) {
       throw const FormatException('El archivo no es una criatura de Asteria.');
     }
-    final petMap = Map<String, dynamic>.from(decoded['pet'] as Map);
+    final root = <String, dynamic>{
+      'pet': Map<String, dynamic>.from(decoded['pet'] as Map),
+    };
     if (decoded['images'] is Map) {
       await PortableImageBundle.restoreInto(
-        petMap, Map<String, dynamic>.from(decoded['images'] as Map),
+        root, Map<String, dynamic>.from(decoded['images'] as Map),
         namespace: 'creature',
       );
     }
+    final petMap = Map<String, dynamic>.from(root['pet'] as Map);
     petMap['id'] = 'pet_${DateTime.now().microsecondsSinceEpoch}';
     return Pet.fromMap(petMap);
   }
