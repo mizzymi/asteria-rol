@@ -21,7 +21,6 @@ class _CampaignExportWizardScreenState
     ('npcs', 'NPC', Icons.people_rounded),
     ('missions', 'Misiones', Icons.flag_rounded),
     ('classes', 'Clases', Icons.school_rounded),
-    ('players', 'Personajes jugadores', Icons.person_rounded),
   ];
 
   int index = 0;
@@ -84,7 +83,7 @@ class _CampaignExportWizardScreenState
     final completed = index >= sections.length;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Exportar toda la campaña')),
+      appBar: AppBar(title: const Text('Exportar campaña del Máster')),
       body: Padding(
         padding: const EdgeInsets.all(22),
         child: Column(
@@ -101,7 +100,7 @@ class _CampaignExportWizardScreenState
             const SizedBox(height: 12),
             Text(
               completed
-                  ? 'Se han compartido todas las secciones. Impórtalas en la misma campaña.'
+                  ? 'Se han compartido las secciones del Máster, sin fichas de jugadores. Impórtalas en la misma campaña.'
                   : 'Se crea un solo archivo cada vez. Tras guardarlo o enviarlo, confirma para liberar espacio y continuar.',
             ),
             const SizedBox(height: 24),
