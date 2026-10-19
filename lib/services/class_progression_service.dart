@@ -77,8 +77,9 @@ class ClassProgressionService {
         if (reward.mode == ClassProgressionRewardMode.choice) {
           for (var slot = 0; slot < reward.choiceCount; slot++) {
             final slotKey = slot == 0 ? key : '$key::$slot';
-            if (character.classProgressionChoices.containsKey(slotKey))
+            if (character.classProgressionChoices.containsKey(slotKey)) {
               continue;
+            }
             pending.add(
               PendingClassProgressionChoice(
                 definition: definition,
@@ -115,8 +116,9 @@ class ClassProgressionService {
     final slotKey = slot == 0 ? key : '$key::$slot';
     if (slot < 0 ||
         slot >= reward.choiceCount ||
-        character.classProgressionChoices.containsKey(slotKey))
+        character.classProgressionChoices.containsKey(slotKey)) {
       return false;
+    }
     if (character.appliedClassRewardIds.contains(key)) return false;
 
     ClassProgressionContent? selected;
