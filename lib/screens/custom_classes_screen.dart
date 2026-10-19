@@ -293,7 +293,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height:8),
+                      const SizedBox(height: 8),
                     ],
                   ),
               ],

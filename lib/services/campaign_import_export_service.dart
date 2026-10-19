@@ -28,7 +28,15 @@ class CampaignImportExportService {
   /// Exporta una sección independiente, conservando los IDs originales.
   /// El paquete se puede importar sin sustituir el resto de la campaña.
   static Future<File> createExportPart(Campaign campaign, String part) async {
-    const parts = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players', 'classes'};
+    const parts = <String>{
+      'base',
+      'shops',
+      'missions',
+      'npcs',
+      'creatures',
+      'players',
+      'classes',
+    };
     if (!parts.contains(part)) {
       throw const FormatException('Sección de campaña desconocida.');
     }
@@ -39,11 +47,14 @@ class CampaignImportExportService {
     campaignMap['missions'] = part == 'missions' ? missions : <dynamic>[];
 
     final characters = CharacterStorageService.getCharacters()
-        .where((character) =>
-            character.campaignId == campaign.id &&
-            ((part == 'npcs' && character.ownerType == 'npc') ||
-             (part == 'creatures' && character.ownerType == 'creatureHost') ||
-             (part == 'players' && character.ownerType == 'player')))
+        .where(
+          (character) =>
+              character.campaignId == campaign.id &&
+              ((part == 'npcs' && character.ownerType == 'npc') ||
+                  (part == 'creatures' &&
+                      character.ownerType == 'creatureHost') ||
+                  (part == 'players' && character.ownerType == 'player')),
+        )
         .map((character) => Map<String, dynamic>.from(character.toMap()))
         .toList();
 
@@ -62,8 +73,9 @@ class CampaignImportExportService {
         'campaign': campaignMap,
         'characters': characters,
         if (part == 'classes')
-          'classes': CustomClassStorageService.getClasses(campaign.id)
-              .map((definition) => definition.toMap()).toList(),
+          'classes': CustomClassStorageService.getClasses(
+            campaign.id,
+          ).map((definition) => definition.toMap()).toList(),
       },
       header: <String, dynamic>{
         'type': formatType,
@@ -111,7 +123,9 @@ class CampaignImportExportService {
     final dir = Platform.isAndroid
         ? await getApplicationSupportDirectory()
         : await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/${_safeName(campaign.name)}_$part.asteria-campaign');
+    final file = File(
+      '${dir.path}/${_safeName(campaign.name)}_$part.asteria-campaign',
+    );
     if (await file.exists()) await file.delete();
   }
 
@@ -140,14 +154,19 @@ class CampaignImportExportService {
     try {
       await handle.setPosition(_binaryMagic.length);
       final lengthBytes = await handle.read(4);
-      if (lengthBytes.length != 4) throw const FormatException('Cabecera incompleta');
-      final size = (lengthBytes[0] << 24) | (lengthBytes[1] << 16) |
-          (lengthBytes[2] << 8) | lengthBytes[3];
+      if (lengthBytes.length != 4)
+        throw const FormatException('Cabecera incompleta');
+      final size =
+          (lengthBytes[0] << 24) |
+          (lengthBytes[1] << 16) |
+          (lengthBytes[2] << 8) |
+          lengthBytes[3];
       if (size <= 0 || size > 64 * 1024 * 1024) {
         throw const FormatException('Cabecera inválida');
       }
       final headerBytes = await handle.read(size);
-      if (headerBytes.length != size) throw const FormatException('Cabecera incompleta');
+      if (headerBytes.length != size)
+        throw const FormatException('Cabecera incompleta');
       final header = jsonDecode(utf8.decode(headerBytes));
       return header is Map ? header['part']?.toString() : null;
     } finally {

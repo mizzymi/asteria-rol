@@ -91,14 +91,8 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
   Future<bool> _previewProgressionContent(
     ClassProgressionContent option,
   ) async {
-    final passive = option.instantiatePassive(
-      classId: '',
-      rewardId: '',
-    );
-    final ability = option.instantiateAbility(
-      classId: '',
-      rewardId: '',
-    );
+    final passive = option.instantiatePassive(classId: '', rewardId: '');
+    final ability = option.instantiateAbility(classId: '', rewardId: '');
     return await showDialog<bool>(
           context: context,
           builder: (previewContext) => Dialog(
@@ -112,13 +106,19 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(passive != null
-                            ? Icons.shield_outlined
-                            : Icons.auto_awesome_rounded),
+                        Icon(
+                          passive != null
+                              ? Icons.shield_outlined
+                              : Icons.auto_awesome_rounded,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(option.name,
-                              style: Theme.of(previewContext).textTheme.titleLarge),
+                          child: Text(
+                            option.name,
+                            style: Theme.of(
+                              previewContext,
+                            ).textTheme.titleLarge,
+                          ),
                         ),
                         IconButton(
                           tooltip: 'Cerrar vista previa',
@@ -141,13 +141,19 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (ability != null) ...[
-                                    Text(ability.description.isEmpty
-                                        ? 'Sin descripción.'
-                                        : ability.description),
+                                    Text(
+                                      ability.description.isEmpty
+                                          ? 'Sin descripción.'
+                                          : ability.description,
+                                    ),
                                     const SizedBox(height: 12),
                                     Text('Tipo: ${ability.actionType.name}'),
-                                    Text('Atributo: ${ability.abilityType.name}'),
-                                    Text('Objetivo: ${ability.targetType.name}'),
+                                    Text(
+                                      'Atributo: ${ability.abilityType.name}',
+                                    ),
+                                    Text(
+                                      'Objetivo: ${ability.targetType.name}',
+                                    ),
                                     Text('Efectos: ${ability.effects.length}'),
                                     if (ability.notes.trim().isNotEmpty) ...[
                                       const SizedBox(height: 12),
@@ -156,9 +162,11 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                                     for (final effect in ability.effects)
                                       ListTile(
                                         contentPadding: EdgeInsets.zero,
-                                        title: Text(effect.name.isEmpty
-                                            ? effect.effectType.name
-                                            : effect.name),
+                                        title: Text(
+                                          effect.name.isEmpty
+                                              ? effect.effectType.name
+                                              : effect.name,
+                                        ),
                                         subtitle: Text(effect.effectType.name),
                                       ),
                                   ],
@@ -171,14 +179,16 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () => Navigator.pop(previewContext, false),
+                            onPressed: () =>
+                                Navigator.pop(previewContext, false),
                             child: const Text('Volver'),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: () => Navigator.pop(previewContext, true),
+                            onPressed: () =>
+                                Navigator.pop(previewContext, true),
                             icon: const Icon(Icons.check_rounded),
                             label: const Text('Elegir'),
                           ),
@@ -206,10 +216,18 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
     for (final pending in result.pendingChoices) {
       if (!mounted) return;
       final alreadySelected = character.classProgressionChoices.entries
-          .where((entry) => entry.key.startsWith('${pending.definition.classId}::'))
-          .map((entry) => entry.value).toSet();
-      final availableOptions = pending.reward.contents.where((option) =>
-          pending.reward.stackable || !alreadySelected.contains(option.contentId)).toList();
+          .where(
+            (entry) => entry.key.startsWith('${pending.definition.classId}::'),
+          )
+          .map((entry) => entry.value)
+          .toSet();
+      final availableOptions = pending.reward.contents
+          .where(
+            (option) =>
+                pending.reward.stackable ||
+                !alreadySelected.contains(option.contentId),
+          )
+          .toList();
       if (availableOptions.isEmpty) continue;
       final contentId = await showDialog<String>(
         context: context,
@@ -222,39 +240,41 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
             ),
             content: SingleChildScrollView(
               child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  '${pending.definition.name} · nivel ${pending.reward.level} · elección ${pending.slot + 1}/${pending.reward.choiceCount}',
-                  style: Theme.of(dialogContext).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                const Text('Escoge una recompensa:'),
-                const SizedBox(height: 8),
-                for (final option in availableOptions)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      option.type == ClassProgressionContentType.ability
-                          ? Icons.auto_awesome_rounded
-                          : Icons.shield_outlined,
-                    ),
-                    title: Text(option.name),
-                    subtitle: Text(
-                      option.type == ClassProgressionContentType.ability
-                          ? 'Habilidad activa'
-                          : 'Pasiva',
-                    ),
-                    trailing: const Icon(Icons.visibility_outlined),
-                    onTap: () async {
-                      final confirmed = await _previewProgressionContent(option);
-                      if (confirmed && dialogContext.mounted) {
-                        Navigator.pop(dialogContext, option.contentId);
-                      }
-                    },
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${pending.definition.name} · nivel ${pending.reward.level} · elección ${pending.slot + 1}/${pending.reward.choiceCount}',
+                    style: Theme.of(dialogContext).textTheme.bodySmall,
                   ),
-              ],
+                  const SizedBox(height: 12),
+                  const Text('Escoge una recompensa:'),
+                  const SizedBox(height: 8),
+                  for (final option in availableOptions)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        option.type == ClassProgressionContentType.ability
+                            ? Icons.auto_awesome_rounded
+                            : Icons.shield_outlined,
+                      ),
+                      title: Text(option.name),
+                      subtitle: Text(
+                        option.type == ClassProgressionContentType.ability
+                            ? 'Habilidad activa'
+                            : 'Pasiva',
+                      ),
+                      trailing: const Icon(Icons.visibility_outlined),
+                      onTap: () async {
+                        final confirmed = await _previewProgressionContent(
+                          option,
+                        );
+                        if (confirmed && dialogContext.mounted) {
+                          Navigator.pop(dialogContext, option.contentId);
+                        }
+                      },
+                    ),
+                ],
               ),
             ),
             actions: [

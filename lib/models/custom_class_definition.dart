@@ -104,7 +104,10 @@ class ClassProgressionReward {
   });
 
   bool get isValid =>
-      rewardId.trim().isNotEmpty && level > 0 && contents.isNotEmpty && choiceCount > 0;
+      rewardId.trim().isNotEmpty &&
+      level > 0 &&
+      contents.isNotEmpty &&
+      choiceCount > 0;
 
   Map<String, dynamic> toMap() => {
     'rewardId': rewardId,

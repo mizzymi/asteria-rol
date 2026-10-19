@@ -77,12 +77,15 @@ class ClassProgressionService {
         if (reward.mode == ClassProgressionRewardMode.choice) {
           for (var slot = 0; slot < reward.choiceCount; slot++) {
             final slotKey = slot == 0 ? key : '$key::$slot';
-            if (character.classProgressionChoices.containsKey(slotKey)) continue;
-            pending.add(PendingClassProgressionChoice(
-              definition: definition,
-              reward: reward,
-              slot: slot,
-            ));
+            if (character.classProgressionChoices.containsKey(slotKey))
+              continue;
+            pending.add(
+              PendingClassProgressionChoice(
+                definition: definition,
+                reward: reward,
+                slot: slot,
+              ),
+            );
           }
           continue;
         }
@@ -110,7 +113,10 @@ class ClassProgressionService {
   }) {
     final key = rewardKey(definition.classId, reward.rewardId);
     final slotKey = slot == 0 ? key : '$key::$slot';
-    if (slot < 0 || slot >= reward.choiceCount || character.classProgressionChoices.containsKey(slotKey)) return false;
+    if (slot < 0 ||
+        slot >= reward.choiceCount ||
+        character.classProgressionChoices.containsKey(slotKey))
+      return false;
     if (character.appliedClassRewardIds.contains(key)) return false;
 
     ClassProgressionContent? selected;
@@ -122,16 +128,20 @@ class ClassProgressionService {
     }
     if (selected == null) return false;
     if (!reward.stackable &&
-        character.classProgressionChoices.entries.any((entry) =>
-            entry.key.startsWith('${definition.classId}::') &&
-            entry.value == contentId)) {
+        character.classProgressionChoices.entries.any(
+          (entry) =>
+              entry.key.startsWith('${definition.classId}::') &&
+              entry.value == contentId,
+        )) {
       return false;
     }
 
     _grantContent(character, definition, reward, selected, slot: slot);
     character.classProgressionChoices[slotKey] = contentId;
-    if (List.generate(reward.choiceCount, (index) => index == 0 ? key : '$key::$index')
-        .every(character.classProgressionChoices.containsKey)) {
+    if (List.generate(
+      reward.choiceCount,
+      (index) => index == 0 ? key : '$key::$index',
+    ).every(character.classProgressionChoices.containsKey)) {
       character.appliedClassRewardIds.add(key);
     }
     return true;
