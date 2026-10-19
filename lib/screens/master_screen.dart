@@ -173,8 +173,9 @@ class _MasterScreenState extends State<MasterScreen> {
   Future<void> _importCampaign() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['asteria-campaign', 'json'],
+        // Older shares could lose their extension. Validate the file content
+        // in the import service rather than filtering by filename.
+        type: FileType.any,
         allowMultiple: false,
       );
       if (result == null || result.files.isEmpty) return;
