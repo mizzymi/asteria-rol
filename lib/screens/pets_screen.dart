@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../models/character.dart';
 import '../models/pet.dart';
 import '../services/character_storage_service.dart';
+import '../services/creature_import_export_service.dart';
 import '../theme/asteria_semantic_colors.dart';
 import '../theme/rainbow_action_style.dart';
 import '../widgets/common/empty_state.dart';
@@ -46,6 +48,71 @@ class _PetsScreenState extends State<PetsScreen> {
     });
 
     await _save();
+  }
+
+  Future<void> _addPet() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('Añadir mascota')),
+          ListTile(
+            leading: const Icon(Icons.add_rounded),
+            title: const Text('Crear mascota'),
+            onTap: () => Navigator.pop(sheetContext, 'create'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.file_download_outlined),
+            title: const Text('Importar criatura o mascota'),
+            subtitle: const Text('Archivo .asteria-creature'),
+            onTap: () => Navigator.pop(sheetContext, 'import'),
+          ),
+          const SizedBox(height: 12),
+        ]),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'create') {
+      await _openForm();
+    } else if (action == 'import') {
+      await _importPet();
+    }
+  }
+
+  Future<void> _importPet() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria-creature', 'json'],
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null) throw const FormatException('Archivo inaccesible.');
+      final pet = await CreatureImportExportService.importCreature(File(path));
+      character.pets.add(pet);
+      await _save();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Mascota “${pet.name}” importada.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar la mascota: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportPet(Pet pet) async {
+    try {
+      await CreatureImportExportService.shareCreature(pet, asPet: true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar la mascota: $error')),
+      );
+    }
   }
 
   Future<void> _openPet(Pet pet) async {
@@ -103,7 +170,7 @@ class _PetsScreenState extends State<PetsScreen> {
               message:
                   'Añade familiares, bestias o compañeros de viaje para tu aventura.',
               actionLabel: 'Añadir mascota',
-              onAction: () => _openForm(),
+              onAction: _addPet,
             )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
@@ -119,9 +186,9 @@ class _PetsScreenState extends State<PetsScreen> {
         foregroundColor: semantic.isRainbow
             ? RainbowActionStyle.foreground(context)
             : null,
-        onPressed: () => _openForm(),
+        onPressed: _addPet,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Nueva mascota'),
+        label: const Text('Añadir mascota'),
       ),
     );
   }
@@ -146,6 +213,7 @@ class _PetsScreenState extends State<PetsScreen> {
         side: BorderSide(color: colors.outlineVariant.withValues(alpha: .55)),
       ),
       child: InkWell(
+        onLongPress: () => _exportPet(pet),
         onTap: () => _openPet(pet),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

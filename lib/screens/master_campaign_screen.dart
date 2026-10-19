@@ -1,5 +1,8 @@
 import 'campaign_export_wizard_screen.dart';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import '../services/character_import_export_service.dart';
+import '../services/creature_import_export_service.dart';
 import 'package:flutter/material.dart';
 import '../models/campaign.dart';
 import '../models/campaign_shop.dart';
@@ -66,10 +69,117 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     if (x != null) _reload();
   }
 
+  Future<void> _addNpc() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Añadir NPC'),
+              subtitle: Text('Crea un NPC o importa una ficha existente.')),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_1_rounded),
+              title: const Text('Crear NPC'),
+              onTap: () => Navigator.pop(sheetContext, 'create'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.file_download_rounded),
+              title: const Text('Importar NPC'),
+              subtitle: const Text('Archivo .asteria o .json'),
+              onTap: () => Navigator.pop(sheetContext, 'import'),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'create') {
+      await _newNpc();
+    } else if (action == 'import') {
+      await _importNpc();
+    }
+  }
+
+  Future<void> _importNpc() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria', 'json'],
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null) {
+        throw const FormatException('No se pudo acceder al archivo.');
+      }
+      final npc = await CharacterImportExportService.importFileAsCopy(File(path));
+      npc.campaignId = campaign.id;
+      npc.ownerType = 'npc';
+      await CharacterStorageService.saveCharacter(npc);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('NPC “${npc.name}” importado correctamente.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar el NPC: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportNpc(Character npc) async {
+    try {
+      await CharacterImportExportService.shareCharacter(npc);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar el NPC: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteNpc(Character npc) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar NPC'),
+        content: Text('¿Eliminar definitivamente a “${npc.name}”? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await CharacterStorageService.deleteCharacter(npc.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('NPC “${npc.name}” eliminado.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar el NPC: $error')),
+      );
+    }
+  }
+
   Future<void> _newCreature() async {
     final pet = await Navigator.push<Pet>(
       context,
-      MaterialPageRoute(builder: (_) => const PetFormScreen()),
+      MaterialPageRoute(builder: (_) => const PetFormScreen(isMasterCreature: true)),
     );
     if (pet == null) return;
     final host = Character(
@@ -81,6 +191,110 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     );
     await CharacterStorageService.saveCharacter(host);
     _reload();
+  }
+
+  Future<void> _addCreature() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('Añadir criatura'),
+            subtitle: Text('Crear una criatura o importar una criatura o mascota.')),
+          ListTile(leading: const Icon(Icons.add_circle_outline),
+            title: const Text('Crear criatura'),
+            onTap: () => Navigator.pop(sheetContext, 'create')),
+          ListTile(leading: const Icon(Icons.file_download_outlined),
+            title: const Text('Importar criatura'),
+            subtitle: const Text('Archivo .asteria-creature'),
+            onTap: () => Navigator.pop(sheetContext, 'import')),
+          const SizedBox(height: 12),
+        ]),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'create') {
+      await _newCreature();
+    } else if (action == 'import') {
+      await _importCreature();
+    }
+  }
+
+  Future<void> _importCreature() async {
+    try {
+      final selection = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria-creature', 'json'],
+      );
+      if (selection == null || selection.files.isEmpty) return;
+      final path = selection.files.single.path;
+      if (path == null) throw const FormatException('Archivo inaccesible.');
+      final pet = await CreatureImportExportService.importCreature(File(path));
+      final host = Character(
+        id: 'creature_${DateTime.now().microsecondsSinceEpoch}',
+        name: '[Criatura] ${pet.name}',
+        campaignId: campaign.id,
+        ownerType: 'creatureHost',
+        pets: [pet],
+      );
+      await CharacterStorageService.saveCharacter(host);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Criatura “${pet.name}” importada.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar la criatura: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportCreature(Pet pet, {required bool asPet}) async {
+    try {
+      await CreatureImportExportService.shareCreature(pet, asPet: asPet);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar la criatura: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteCreature(Character host, Pet pet) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar criatura'),
+        content: Text('¿Eliminar definitivamente “${pet.name}”?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      if (host.pets.length == 1 && host.ownerType == 'creatureHost') {
+        await CharacterStorageService.deleteCharacter(host.id);
+      } else {
+        host.pets.removeWhere((item) => item.id == pet.id);
+        await CharacterStorageService.saveCharacter(host);
+      }
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Criatura “${pet.name}” eliminada.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar la criatura: $error')),
+      );
+    }
   }
 
   Future<void> _newShop() async {
@@ -406,17 +620,11 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                     onTap: () => setState(() => _index = 3),
                   ),
                   _OverviewTile(
-                    icon: Icons.flag_rounded,
-                    label: 'Misiones',
-                    value: '${campaign.missions.length}',
-                    onTap: () => setState(() => _index = 4),
-                  ),
-                  _OverviewTile(
                     icon: Icons.school_rounded,
                     label: 'Clases',
                     value:
                         '${CustomClassStorageService.getClasses(campaign.id).length}',
-                    onTap: () => setState(() => _index = 5),
+                    onTap: () => setState(() => _index = 4),
                   ),
                 ],
               ),
@@ -465,8 +673,8 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     emptyTitle: 'Aún no hay NPC',
     emptySubtitle: 'Crea personajes completos para dar vida a tu campaña.',
     emptyIcon: Icons.people_alt_rounded,
-    onAdd: _newNpc,
-    addLabel: 'Nuevo NPC',
+    onAdd: _addNpc,
+    addLabel: 'Añadir NPC',
     isEmpty: npcs.isEmpty,
     child: LayoutBuilder(
       builder: (context, constraints) {
@@ -486,7 +694,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
             childAspectRatio: .78,
           ),
           itemBuilder: (_, i) =>
-              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i])),
+              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i]), onExport: () => _exportNpc(npcs[i]), onDelete: () => _deleteNpc(npcs[i])),
         );
       },
     ),
@@ -505,8 +713,8 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       emptyTitle: 'Aún no hay criaturas',
       emptySubtitle: 'Añade criaturas con sus ataques, habilidades y pasivas.',
       emptyIcon: Icons.pets_rounded,
-      onAdd: _newCreature,
-      addLabel: 'Nueva criatura',
+      onAdd: _addCreature,
+      addLabel: 'Añadir criatura',
       isEmpty: entries.isEmpty,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -529,6 +737,9 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
               host: entries[i].host,
               pet: entries[i].pet,
               onTap: () => _openCreature(entries[i].host, entries[i].pet),
+              onExportMaster: () => _exportCreature(entries[i].pet, asPet: false),
+              onExportPet: () => _exportCreature(entries[i].pet, asPet: true),
+              onDelete: () => _deleteCreature(entries[i].host, entries[i].pet),
             ),
           );
         },
@@ -659,7 +870,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PetDetailScreen(character: host, pet: pet),
+        builder: (_) => PetDetailScreen(character: host, pet: pet, isMasterCreature: true),
       ),
     );
     _reload();
@@ -812,19 +1023,45 @@ class _OverviewTile extends StatelessWidget {
 class _NpcCard extends StatelessWidget {
   final Character character;
   final VoidCallback onTap;
-  const _NpcCard({required this.character, required this.onTap});
+  final VoidCallback onExport;
+  final VoidCallback onDelete;
+  const _NpcCard({required this.character, required this.onTap, required this.onExport, required this.onDelete});
   @override
   Widget build(BuildContext context) {
     final has =
         character.avatarPath != null &&
         character.avatarPath!.isNotEmpty &&
         File(character.avatarPath!).existsSync();
-    return _ImageEntityCard(
+    return Stack(
+      children: [
+        Positioned.fill(child: _ImageEntityCard(
       imagePath: has ? character.avatarPath : null,
       fallbackIcon: Icons.person_rounded,
       title: character.name,
       subtitle: '${character.race} · Nivel ${character.level}',
       onTap: onTap,
+        )),
+        Positioned(
+          top: 6,
+          right: 6,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            child: PopupMenuButton<String>(
+              tooltip: 'Opciones del NPC',
+              icon: const Icon(Icons.more_vert_rounded),
+              onSelected: (value) {
+                if (value == 'export') onExport();
+                if (value == 'delete') onDelete();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'export', child: ListTile(leading: Icon(Icons.ios_share_rounded), title: Text('Exportar NPC'))),
+                PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline_rounded), title: Text('Eliminar NPC'))),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -833,22 +1070,45 @@ class _CreatureCard extends StatelessWidget {
   final Character host;
   final Pet pet;
   final VoidCallback onTap;
+  final VoidCallback onExportMaster;
+  final VoidCallback onExportPet;
+  final VoidCallback onDelete;
   const _CreatureCard({
     required this.host,
     required this.pet,
     required this.onTap,
+    required this.onExportMaster,
+    required this.onExportPet,
+    required this.onDelete,
   });
   @override
   Widget build(BuildContext context) {
     final has = pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
-    return _ImageEntityCard(
+    return Stack(children: [Positioned.fill(child: _ImageEntityCard(
       imagePath: has ? pet.avatarPath : null,
       fallbackIcon: Icons.pets_rounded,
       title: pet.name,
       subtitle:
           '${pet.species}\n${pet.currentHealth}/${pet.maxHealth} PV · CA ${pet.armorClass}',
       onTap: onTap,
-    );
+    )), Positioned(top: 6, right: 6, child: Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(24),
+      child: PopupMenuButton<String>(
+        tooltip: 'Opciones de criatura',
+        icon: const Icon(Icons.more_vert_rounded),
+        onSelected: (value) {
+          if (value == 'master') onExportMaster();
+          if (value == 'pet') onExportPet();
+          if (value == 'delete') onDelete();
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'master', child: Text('Exportar como criatura del Máster')),
+          PopupMenuItem(value: 'pet', child: Text('Exportar como mascota')),
+          PopupMenuItem(value: 'delete', child: Text('Eliminar criatura')),
+        ],
+      ),
+    ))]);
   }
 }
 

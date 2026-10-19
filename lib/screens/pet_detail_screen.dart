@@ -26,11 +26,13 @@ import 'effect_form_screen.dart';
 class PetDetailScreen extends StatefulWidget {
   final Character character;
   final Pet pet;
+  final bool isMasterCreature;
 
   const PetDetailScreen({
     super.key,
     required this.character,
     required this.pet,
+    this.isMasterCreature = false,
   });
 
   @override
@@ -88,7 +90,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Future<void> _editPet() async {
     final result = await Navigator.push<Pet>(
       context,
-      MaterialPageRoute(builder: (_) => PetFormScreen(pet: pet)),
+      MaterialPageRoute(builder: (_) => PetFormScreen(pet: pet, isMasterCreature: widget.isMasterCreature)),
     );
 
     if (result == null || !mounted) {
@@ -687,7 +689,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               return IconButton(
                 style: RainbowActionStyle.iconButton(context, semantic.edit),
                 icon: const Icon(Icons.edit_rounded),
-                tooltip: 'Editar mascota',
+                tooltip: widget.isMasterCreature ? 'Editar criatura' : 'Editar mascota',
                 onPressed: _editPet,
               );
             },

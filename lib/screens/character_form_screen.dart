@@ -79,6 +79,7 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
   String? avatarPath;
 
   String? pendingAvatarPath;
+  late final String _newCharacterId = DateTime.now().microsecondsSinceEpoch.toString();
 
   final ImagePicker picker = ImagePicker();
 
@@ -252,11 +253,23 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
       return;
     }
 
-    setState(() {
-      pendingAvatarPath = image.path;
-
-      avatarPath = image.path;
-    });
+    try {
+      // Persist the picked image immediately: image_picker's cache is temporary.
+      final savedPath = await AvatarStorageService.saveAvatar(
+        characterId: widget.character?.id ?? _newCharacterId,
+        sourcePath: image.path,
+      );
+      if (!mounted) return;
+      setState(() {
+        pendingAvatarPath = savedPath;
+        avatarPath = savedPath;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar el avatar: $error')),
+      );
+    }
   }
 
   Future<void> saveCharacter() async {
@@ -268,17 +281,24 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
 
     final abilities = currentAbilities;
 
-    final id =
-        widget.character?.id ??
-        DateTime.now().microsecondsSinceEpoch.toString();
+    final id = widget.character?.id ?? _newCharacterId;
 
     String? finalAvatarPath = widget.character?.avatarPath;
 
     if (pendingAvatarPath != null) {
-      finalAvatarPath = await AvatarStorageService.saveAvatar(
-        characterId: id,
-        sourcePath: pendingAvatarPath!,
-      );
+      // The picker already stored the avatar permanently. Do not copy it
+      // again or silently discard its path during character creation.
+      if (await File(pendingAvatarPath!).exists()) {
+        finalAvatarPath = pendingAvatarPath;
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El avatar seleccionado ya no existe. Selecciona otra imagen.'),
+          ),
+        );
+        return;
+      }
     }
 
     final oldCharacter = widget.character;

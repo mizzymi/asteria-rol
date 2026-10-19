@@ -8,45 +8,35 @@ class AvatarStorageService {
     required String characterId,
     required String sourcePath,
   }) async {
-    final directory = await getApplicationDocumentsDirectory();
-
-    final avatarsDirectory = Directory(path.join(directory.path, 'avatars'));
-
-    if (!await avatarsDirectory.exists()) {
-      await avatarsDirectory.create(recursive: true);
+    final source = File(sourcePath);
+    if (!await source.exists()) {
+      throw FileSystemException('No se encuentra la imagen seleccionada', sourcePath);
     }
 
-    final extension = path.extension(sourcePath);
+    final directory = await getApplicationDocumentsDirectory();
+    final avatarsDirectory = Directory(path.join(directory.path, 'avatars'));
+    await avatarsDirectory.create(recursive: true);
 
-    final safeExtension = extension.isEmpty ? '.jpg' : extension;
-
+    // Use a new filename for each selection to prevent stale FileImage caches
+    // and avoid deleting the original avatar before saving the replacement.
+    final extension = path.extension(sourcePath).toLowerCase();
+    final safeExtension = ['.jpg', '.jpeg', '.png', '.webp'].contains(extension)
+        ? extension
+        : '.jpg';
     final targetPath = path.join(
       avatarsDirectory.path,
-      '$characterId$safeExtension',
+      '${characterId}_${DateTime.now().microsecondsSinceEpoch}$safeExtension',
     );
-
-    final source = File(sourcePath);
-
-    final existing = File(targetPath);
-
-    if (await existing.exists()) {
-      await existing.delete();
+    final saved = await source.copy(targetPath);
+    if (!await saved.exists() || await saved.length() == 0) {
+      throw FileSystemException('No se pudo guardar el avatar', targetPath);
     }
-
-    final savedFile = await source.copy(targetPath);
-
-    return savedFile.path;
+    return saved.path;
   }
 
   static Future<void> deleteAvatar(String? avatarPath) async {
-    if (avatarPath == null || avatarPath.isEmpty) {
-      return;
-    }
-
+    if (avatarPath == null || avatarPath.isEmpty) return;
     final file = File(avatarPath);
-
-    if (await file.exists()) {
-      await file.delete();
-    }
+    if (await file.exists()) await file.delete();
   }
 }
