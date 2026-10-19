@@ -145,9 +145,9 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                                         ? 'Sin descripción.'
                                         : ability.description),
                                     const SizedBox(height: 12),
-                                    Text('Tipo: ${ability.actionType.label}'),
-                                    Text('Atributo: ${ability.abilityType.label}'),
-                                    Text('Objetivo: ${ability.targetType.label}'),
+                                    Text('Tipo: ${ability.actionType.name}'),
+                                    Text('Atributo: ${ability.abilityType.name}'),
+                                    Text('Objetivo: ${ability.targetType.name}'),
                                     Text('Efectos: ${ability.effects.length}'),
                                     if (ability.notes.trim().isNotEmpty) ...[
                                       const SizedBox(height: 12),
@@ -157,9 +157,9 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                                       ListTile(
                                         contentPadding: EdgeInsets.zero,
                                         title: Text(effect.name.isEmpty
-                                            ? effect.effectType.label
+                                            ? effect.effectType.name
                                             : effect.name),
-                                        subtitle: Text(effect.effectType.label),
+                                        subtitle: Text(effect.effectType.name),
                                       ),
                                   ],
                                 ],
