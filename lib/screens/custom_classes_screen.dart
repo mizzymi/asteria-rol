@@ -255,16 +255,24 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.school_rounded, size: 44,
-                        color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.school_rounded,
+                        size: 44,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(height: 12),
-                      Text('Aún no hay clases',
+                      Text(
+                        'Aún no hay clases',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900)),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                       const SizedBox(height: 8),
-                      const Text('Prepara clases personalizadas y progresiones para la campaña.',
-                        textAlign: TextAlign.center),
+                      const Text(
+                        'Prepara clases personalizadas y progresiones para la campaña.',
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 14),
                       FilledButton.icon(
                         onPressed: _newClass,
