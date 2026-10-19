@@ -415,6 +415,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
               ('creatures', 'Criaturas', Icons.pets_rounded),
               ('npcs', 'NPC', Icons.people_alt_rounded),
               ('missions', 'Misiones', Icons.flag_rounded),
+              ('classes', 'Solo clases personalizadas', Icons.school_rounded),
               ('players', 'Personajes jugadores', Icons.person_rounded),
             ])
               ListTile(
