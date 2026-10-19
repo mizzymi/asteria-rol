@@ -624,7 +624,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                     label: 'Clases',
                     value:
                         '${CustomClassStorageService.getClasses(campaign.id).length}',
-                    onTap: () => setState(() => _index = 5),
+                    onTap: () => setState(() => _index = 4),
                   ),
                 ],
               ),
