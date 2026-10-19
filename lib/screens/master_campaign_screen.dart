@@ -620,12 +620,6 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
                     onTap: () => setState(() => _index = 3),
                   ),
                   _OverviewTile(
-                    icon: Icons.flag_rounded,
-                    label: 'Misiones',
-                    value: '${campaign.missions.length}',
-                    onTap: () => setState(() => _index = 4),
-                  ),
-                  _OverviewTile(
                     icon: Icons.school_rounded,
                     label: 'Clases',
                     value:
