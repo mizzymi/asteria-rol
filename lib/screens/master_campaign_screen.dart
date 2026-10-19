@@ -204,6 +204,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       ),
     );
     if (part == null) return;
+    if (!mounted) return;
     if (part == 'all') {
       await Navigator.push<void>(
         context,
