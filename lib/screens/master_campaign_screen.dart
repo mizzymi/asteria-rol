@@ -1,5 +1,7 @@
 import 'campaign_export_wizard_screen.dart';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import '../services/character_import_export_service.dart';
 import 'package:flutter/material.dart';
 import '../models/campaign.dart';
 import '../models/campaign_shop.dart';
@@ -64,6 +66,79 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       ),
     );
     if (x != null) _reload();
+  }
+
+  Future<void> _addNpc() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Añadir NPC'),
+              subtitle: Text('Crea un NPC o importa una ficha existente.')),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_1_rounded),
+              title: const Text('Crear NPC'),
+              onTap: () => Navigator.pop(sheetContext, 'create'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.file_download_rounded),
+              title: const Text('Importar NPC'),
+              subtitle: const Text('Archivo .asteria o .json'),
+              onTap: () => Navigator.pop(sheetContext, 'import'),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'create') {
+      await _newNpc();
+    } else if (action == 'import') {
+      await _importNpc();
+    }
+  }
+
+  Future<void> _importNpc() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria', 'json'],
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null) {
+        throw const FormatException('No se pudo acceder al archivo.');
+      }
+      final npc = await CharacterImportExportService.importFileAsCopy(File(path));
+      npc.campaignId = campaign.id;
+      npc.ownerType = 'npc';
+      await CharacterStorageService.saveCharacter(npc);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('NPC “${npc.name}” importado correctamente.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar el NPC: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportNpc(Character npc) async {
+    try {
+      await CharacterImportExportService.shareCharacter(npc);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar el NPC: $error')),
+      );
+    }
   }
 
   Future<void> _newCreature() async {
@@ -465,8 +540,8 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     emptyTitle: 'Aún no hay NPC',
     emptySubtitle: 'Crea personajes completos para dar vida a tu campaña.',
     emptyIcon: Icons.people_alt_rounded,
-    onAdd: _newNpc,
-    addLabel: 'Nuevo NPC',
+    onAdd: _addNpc,
+    addLabel: 'Añadir NPC',
     isEmpty: npcs.isEmpty,
     child: LayoutBuilder(
       builder: (context, constraints) {
@@ -486,7 +561,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
             childAspectRatio: .78,
           ),
           itemBuilder: (_, i) =>
-              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i])),
+              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i]), onExport: () => _exportNpc(npcs[i])),
         );
       },
     ),
@@ -812,19 +887,37 @@ class _OverviewTile extends StatelessWidget {
 class _NpcCard extends StatelessWidget {
   final Character character;
   final VoidCallback onTap;
-  const _NpcCard({required this.character, required this.onTap});
+  final VoidCallback onExport;
+  const _NpcCard({required this.character, required this.onTap, required this.onExport});
   @override
   Widget build(BuildContext context) {
     final has =
         character.avatarPath != null &&
         character.avatarPath!.isNotEmpty &&
         File(character.avatarPath!).existsSync();
-    return _ImageEntityCard(
+    return Stack(
+      children: [
+        Positioned.fill(child: _ImageEntityCard(
       imagePath: has ? character.avatarPath : null,
       fallbackIcon: Icons.person_rounded,
       title: character.name,
       subtitle: '${character.race} · Nivel ${character.level}',
       onTap: onTap,
+        )),
+        Positioned(
+          top: 6,
+          right: 6,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            child: IconButton(
+              tooltip: 'Exportar NPC',
+              icon: const Icon(Icons.ios_share_rounded),
+              onPressed: onExport,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
