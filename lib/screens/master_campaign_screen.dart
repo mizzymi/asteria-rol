@@ -131,9 +131,16 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     }
   }
 
-  Future<void> _exportNpc(Character npc) async {
+  Future<void> _exportNpc(Character npc, {bool asPlayer = false}) async {
     try {
-      await CharacterImportExportService.shareCharacter(npc);
+      final exported = asPlayer
+          ? Character.fromMap({
+              ...npc.toMap(),
+              'ownerType': 'player',
+              'campaignId': null,
+            })
+          : npc;
+      await CharacterImportExportService.shareCharacter(exported);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -694,7 +701,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
             childAspectRatio: .78,
           ),
           itemBuilder: (_, i) =>
-              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i]), onExport: () => _exportNpc(npcs[i]), onDelete: () => _deleteNpc(npcs[i])),
+              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i]), onExport: () => _exportNpc(npcs[i]), onExportPlayer: () => _exportNpc(npcs[i], asPlayer: true), onDelete: () => _deleteNpc(npcs[i])),
         );
       },
     ),
@@ -1024,8 +1031,9 @@ class _NpcCard extends StatelessWidget {
   final Character character;
   final VoidCallback onTap;
   final VoidCallback onExport;
+  final VoidCallback onExportPlayer;
   final VoidCallback onDelete;
-  const _NpcCard({required this.character, required this.onTap, required this.onExport, required this.onDelete});
+  const _NpcCard({required this.character, required this.onTap, required this.onExport, required this.onExportPlayer, required this.onDelete});
   @override
   Widget build(BuildContext context) {
     final has =
@@ -1052,10 +1060,12 @@ class _NpcCard extends StatelessWidget {
               icon: const Icon(Icons.more_vert_rounded),
               onSelected: (value) {
                 if (value == 'export') onExport();
+                if (value == 'player') onExportPlayer();
                 if (value == 'delete') onDelete();
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'export', child: ListTile(leading: Icon(Icons.ios_share_rounded), title: Text('Exportar NPC'))),
+                PopupMenuItem(value: 'player', child: ListTile(leading: Icon(Icons.person_outline_rounded), title: Text('Exportar como jugador'))),
                 PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline_rounded), title: Text('Eliminar NPC'))),
               ],
             ),
