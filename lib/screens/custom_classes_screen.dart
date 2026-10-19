@@ -226,6 +226,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                     const SizedBox(height: 12),
                     Text(
                       'Todavía no hay clases personalizadas',
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
