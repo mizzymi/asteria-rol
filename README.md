@@ -1,71 +1,90 @@
-# Asteria Rol
+# ✨ Asteria Rol
 
-Asteria Rol es una aplicación Flutter para gestionar personajes, campañas y
-combate de rol desde una única ficha digital. Está pensada para jugar tanto
-como jugador como desde la vista de Máster, manteniendo reglas, recursos,
-objetos, habilidades, pasivas y efectos dentro del propio personaje.
+**Asteria Rol** es una aplicación de rol desarrollada con **Flutter** para jugadores y Másters. Reúne fichas de personaje, campañas, combate, habilidades, pasivas, inventario y criaturas en un mismo lugar, con herramientas de creación y contenido personalizado.
 
-## Funciones principales
+**Versión actual:** `1.1.30+48`
 
-- Fichas de personaje con clases, atributos, habilidades, salvaciones, vida,
-  recursos, contadores y notas.
+## 🎲 Funciones principales
+
+### 👤 Personajes y progresión
+- Fichas con atributos, clases y multiclase, competencias, salvaciones, puntos de vida, recursos, contadores, notas e historial de tiradas.
+- Clases personalizadas por campaña con recompensas automáticas y elecciones al subir de nivel.
+- Elecciones múltiples sobre un mismo conjunto de habilidades y pasivas.
+- Opciones únicas y mejoras acumulables (por ejemplo, bonos repetibles al daño y al golpeo).
+- Vista previa de habilidades y pasivas antes de aprenderlas y recuperación de elecciones pendientes.
+
+### ⚔️ Combate y reglas
 - Armas, armaduras, consumibles y objetos personalizados.
-- Biblioteca de objetos reutilizable entre personajes.
-- Carpetas para organizar habilidades, pasivas y objetos.
-- Habilidades con ataque, daño, curación, mitigación, salvaciones y efectos.
-- Tiradas digitales o físicas, pudiendo elegir por separado el modo del ataque
-  y el de daño/efectos.
-- Pasivas con modificadores, triggers, cargas, recursos, críticos y efectos
-  vinculados.
+- Habilidades con ataques, daño, curación, mitigación, salvaciones y efectos vinculados.
+- Tiradas digitales o físicas, con elección independiente del modo de ataque y daño/efectos.
+- Pasivas con bonificaciones, cargas, recursos, activadores, críticos y efectos.
 - Críticos potenciados configurables mediante fórmulas.
-- Saberes y libros de aprendizaje por círculos.
-- Campañas, tiendas y herramientas de Máster.
-- Importación y exportación portable de personajes, campañas, tiendas y
-  objetos.
+- Tipos de daño incorporados y personalizados, resistencias acumulables y mitigación preventiva.
 
-## Reglas de daño y resistencias
+### 📚 Organización y contenido
+- Biblioteca de objetos y contenido reutilizable.
+- Carpetas para habilidades, pasivas y objetos.
+- Saberes y libros de aprendizaje organizados por círculos.
+- Tiendas, misiones, economía y herramientas de gestión de campañas.
 
-Cada componente de daño puede indicar su tipo, por ejemplo `fuego`,
-`frío`, `radiante`, `cortante` o cualquier tipo personalizado. Las
-resistencias de las pasivas se aplican automáticamente cuando el tipo coincide.
+### 🏰 Herramientas del Máster
+- Gestión de campañas y personajes jugadores.
+- **NPC:** crear, importar, exportar individualmente y eliminar con confirmación.
+- **Criaturas:** crear, importar, exportar y eliminar con confirmación.
+- Exportación de criaturas en dos modalidades: **criatura del Máster** o **mascota de jugador/NPC**.
+- Formularios de criatura diferenciados de los de mascota, con actualización de modificadores de atributos al escribir.
+- Exportación de campañas por secciones para compartir contenido de forma selectiva.
 
-Los niveles de resistencia se apilan por tipo:
+### 🐾 Mascotas y compañeros
+- Fichas de mascotas con atributos, vida, defensa, ataques, habilidades, pasivas y efectos.
+- Importación de criaturas exportadas desde la sección del Máster.
+- Posibilidad de reutilizar una criatura como compañero de un jugador o NPC.
 
-| Nivel | Puntos | Daño recibido |
+## 📦 Importación y exportación
+
+Asteria dispone de formatos portables para compartir contenido entre dispositivos:
+
+| Contenido | Operaciones |
+| --- | --- |
+| Personajes y NPC | Importar y exportar fichas `.asteria` |
+| Criaturas y mascotas | Importar y exportar archivos `.asteria-creature` |
+| Clases personalizadas | Importar y exportar definiciones de clase |
+| Campañas | Importación/exportación completa o por secciones |
+| Tiendas y objetos | Importación/exportación de contenido reutilizable |
+
+Los archivos de criatura incluyen sus datos y las imágenes locales disponibles. Al importar una criatura o mascota se genera una copia con un identificador nuevo para evitar conflictos.
+
+## 🛡️ Reglas de daño y resistencias
+
+Cada componente de daño puede indicar un tipo, como `fuego`, `frío`, `radiante`, `cortante` o uno personalizado. Las resistencias de las pasivas se aplican cuando el tipo coincide.
+
+| Resistencia | Puntos | Daño recibido |
 | --- | ---: | ---: |
 | Menor | 1 | 75 % |
 | Normal | 2 | 50 % |
 | Mayor | 4 | 25 % |
 | Inmunidad | 8 | 0 % |
 
-Por equivalencia, **2 menores = 1 normal**, **2 normales = 1 mayor** y
-**2 mayores = inmunidad**.
+Equivalencias: **2 menores = 1 normal**, **2 normales = 1 mayor** y **2 mayores = inmunidad**.
 
-## Salvaciones
+Las pasivas también pueden añadir bonos a las tiradas de salvación y conceder ventaja o desventaja. Si coinciden ambas condiciones para la misma salvación, se cancelan.
 
-Las pasivas pueden añadir un bono numérico a una salvación y también conceder
-**ventaja** o **desventaja** a una característica concreta. Si el personaje
-recibe ventaja y desventaja a la vez para la misma salvación, ambas se
-cancelan.
+## 🛠️ Desarrollo
 
-Las habilidades pueden pedir una salvación aunque no causen daño ni curación,
-por ejemplo para aplicar un estado o un efecto vinculado.
+**Requisitos**
+- Flutter con una versión de Dart compatible con `^3.12.1`.
+- Dependencias descritas en `pubspec.yaml`.
 
-## Desarrollo
-
-Requisitos:
-
-- Flutter compatible con Dart `^3.12.1`.
-- Dependencias declaradas en `pubspec.yaml`.
-
-Instalación:
+**Instalación y ejecución**
 
 ```bash
+git clone https://github.com/mizzymi/asteria-rol.git
+cd asteria-rol
 flutter pub get
 flutter run
 ```
 
-Antes de subir cambios:
+**Comprobaciones recomendadas antes de una Pull Request**
 
 ```bash
 dart format lib test
@@ -73,16 +92,21 @@ flutter analyze
 flutter test
 ```
 
-## Estructura
+> Las comprobaciones anteriores son comandos recomendados; no implican que todas las pruebas se hayan ejecutado en cada cambio.
 
-- `lib/models/`: modelos y reglas de dominio.
-- `lib/services/`: resolución de acciones, almacenamiento e
-  importación/exportación.
-- `lib/screens/`: pantallas principales.
-- `lib/widgets/`: componentes y formularios reutilizables.
-- `lib/theme/`: tema y utilidades de accesibilidad visual.
+## 📁 Estructura del proyecto
 
-## Estado del proyecto
+| Ruta | Contenido |
+| --- | --- |
+| `lib/models/` | Modelos de personajes, criaturas, habilidades y reglas |
+| `lib/services/` | Persistencia, cálculo y servicios de importación/exportación |
+| `lib/screens/` | Pantallas de jugador y Máster |
+| `lib/widgets/` | Componentes y formularios reutilizables |
+| `lib/theme/` | Tema visual de la aplicación |
 
-El proyecto está en desarrollo activo. Los formatos de importación/exportación
-mantienen compatibilidad con datos anteriores siempre que sea posible.
+## 🚧 Estado del proyecto
+
+Asteria Rol continúa en **desarrollo activo**. Las nuevas funciones procuran conservar la compatibilidad con los datos y formatos anteriores. Si encuentras un error o quieres proponer una mejora, puedes abrir una incidencia en [GitHub Issues](https://github.com/mizzymi/asteria-rol/issues).
+
+---
+*Hecho para construir aventuras, personajes y mundos propios.*
