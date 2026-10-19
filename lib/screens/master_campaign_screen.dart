@@ -179,7 +179,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
   Future<void> _newCreature() async {
     final pet = await Navigator.push<Pet>(
       context,
-      MaterialPageRoute(builder: (_) => const PetFormScreen()),
+      MaterialPageRoute(builder: (_) => const PetFormScreen(isMasterCreature: true)),
     );
     if (pet == null) return;
     final host = Character(
@@ -876,7 +876,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PetDetailScreen(character: host, pet: pet),
+        builder: (_) => PetDetailScreen(character: host, pet: pet, isMasterCreature: true),
       ),
     );
     _reload();
