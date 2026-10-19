@@ -8,8 +8,9 @@ import '../services/pet_image_service.dart';
 
 class PetFormScreen extends StatefulWidget {
   final Pet? pet;
+  final bool isMasterCreature;
 
-  const PetFormScreen({super.key, this.pet});
+  const PetFormScreen({super.key, this.pet, this.isMasterCreature = false});
 
   @override
   State<PetFormScreen> createState() => _PetFormScreenState();
@@ -252,7 +253,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.pet == null ? 'Nueva Mascota' : 'Editar Mascota'),
+        title: Text(widget.isMasterCreature
+            ? (widget.pet == null ? 'Nueva criatura' : 'Editar criatura')
+            : (widget.pet == null ? 'Nueva mascota' : 'Editar mascota')),
         actions: [
           IconButton(
             icon: const Icon(Icons.check_rounded),
@@ -373,8 +376,8 @@ class _PetFormScreenState extends State<PetFormScreen> {
             const SizedBox(height: 18),
             TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del compañero *',
+              decoration: InputDecoration(
+                labelText: widget.isMasterCreature ? 'Nombre de la criatura *' : 'Nombre del compañero *',
                 prefixIcon: Icon(Icons.pets_rounded),
                 border: OutlineInputBorder(),
               ),
@@ -449,7 +452,7 @@ class _PetFormScreenState extends State<PetFormScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Atributos del Compañero',
+              widget.isMasterCreature ? 'Atributos de la criatura' : 'Atributos del compañero',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -530,9 +533,9 @@ class _PetFormScreenState extends State<PetFormScreen> {
           ),
           SizedBox(
             width: 60,
-            child: TextField(
-              controller: TextEditingController(text: '$value')
-                ..selection = TextSelection.collapsed(offset: '$value'.length),
+            child: TextFormField(
+              key: ValueKey('creature_attribute_$label'),
+              initialValue: '$value',
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -540,8 +543,8 @@ class _PetFormScreenState extends State<PetFormScreen> {
                 isDense: true,
                 border: InputBorder.none,
               ),
-              onSubmitted: (v) {
-                final parsed = int.tryParse(v);
+              onChanged: (text) {
+                final parsed = int.tryParse(text.trim());
                 if (parsed != null) onChanged(parsed);
               },
             ),
