@@ -215,75 +215,97 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                 ),
               ],
             ),
-      body: classes.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.school_outlined, size: 64),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Todavía no hay clases personalizadas',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Clases',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Crea una clase con classId estable, versión y progresión por nivel, o importa una compartida.',
-                      textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${classes.length} clases personalizadas de la campaña',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(height: 18),
-                    Wrap(
-                      spacing: 10,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _newClass,
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Nueva clase'),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: _newClass,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Añadir clase'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (classes.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.school_outlined, size: 64),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Todavía no hay clases personalizadas',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Crea una clase con progresión por nivel o importa una compartida.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             )
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 800
-                    ? 4
-                    : constraints.maxWidth >= 540
-                    ? 3
-                    : 2;
-                return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
-                  itemCount: classes.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: .78,
-                  ),
-                  itemBuilder: (context, index) {
-                    final definition = classes[index];
-                    return _ClassVisualCard(
-                      definition: definition,
-                      onTap: () => _edit(definition),
-                      onEdit: () => _edit(definition),
-                      onExport: () => _export(definition),
-                      onDelete: () => _delete(definition),
-                    );
-                  },
-                );
-              },
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
+              sliver: SliverLayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.crossAxisExtent;
+                  final columns = width >= 800 ? 4 : width >= 540 ? 3 : 2;
+                  return SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final definition = classes[index];
+                        return _ClassVisualCard(
+                          definition: definition,
+                          onTap: () => _edit(definition),
+                          onEdit: () => _edit(definition),
+                          onExport: () => _export(definition),
+                          onDelete: () => _delete(definition),
+                        );
+                      },
+                      childCount: classes.length,
+                    ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: .78,
+                    ),
+                  );
+                },
+              ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _newClass,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nueva clase'),
+        ],
       ),
     );
   }
