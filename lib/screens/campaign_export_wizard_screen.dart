@@ -49,10 +49,11 @@ class _CampaignExportWizardScreenState
         errorMessage = error.toString();
       });
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           busy = false;
         });
+      }
     }
   }
 
