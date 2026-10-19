@@ -176,7 +176,7 @@ class CampaignImportExportService {
 
   static Future<File> createExportFile(
     Campaign campaign, {
-    bool includePlayerCharacters = true,
+    bool includePlayerCharacters = false,
   }) async {
     final allCharacters = CharacterStorageService.getCharacters()
         .where((c) => c.campaignId == campaign.id)
@@ -232,7 +232,7 @@ class CampaignImportExportService {
 
   static Future<void> shareCampaign(
     Campaign campaign, {
-    bool includePlayerCharacters = true,
+    bool includePlayerCharacters = false,
   }) async {
     final file = await createExportFile(
       campaign,
