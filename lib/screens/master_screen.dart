@@ -45,6 +45,70 @@ class _MasterScreenState extends State<MasterScreen> {
     _reload();
   }
 
+  Future<void> _deleteCampaign(Campaign campaign) async {
+    final associated = CharacterStorageService.getCharacters()
+        .where((character) => character.campaignId == campaign.id)
+        .toList();
+    final players = associated.where((c) => c.ownerType == 'player').toList();
+    final masterCharacters = associated
+        .where((c) => c.ownerType != 'player')
+        .toList();
+    final customClasses = CustomClassStorageService.getClasses(campaign.id);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar campaña'),
+        content: Text(
+          '¿Eliminar definitivamente “${campaign.name}”?\n\n'
+          'Se eliminarán sus tiendas, misiones, ${masterCharacters.length} '
+          'NPC/criaturas y ${customClasses.length} clases personalizadas.\n\n'
+          'Se conservarán ${players.length} fichas de jugadores, '
+          'pero quedarán sin campaña. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar campaña'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      for (final player in players) {
+        player.campaignId = null;
+        await CharacterStorageService.saveCharacter(player);
+      }
+      for (final character in masterCharacters) {
+        await CharacterStorageService.deleteCharacter(character.id);
+      }
+      for (final definition in customClasses) {
+        await CustomClassStorageService.deleteClass(
+          campaign.id,
+          definition.classId,
+        );
+      }
+      await CampaignStorageService.deleteCampaign(campaign.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Campaña “${campaign.name}” eliminada.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo completar la eliminación: $error')),
+      );
+    }
+  }
+
   Future<void> _exportCampaign(Campaign campaign) async {
     const sections = <(String, String)>[
       ('base', 'Datos de campaña'),
@@ -408,6 +472,7 @@ class _MasterScreenState extends State<MasterScreen> {
                       npcCount: _npcCount(campaign.id),
                       creatureCount: _creatureCount(campaign.id),
                       onExport: () => _exportCampaign(campaign),
+                      onDelete: () => _deleteCampaign(campaign),
                       onTap: () async {
                         await Navigator.push(
                           context,
@@ -528,12 +593,14 @@ class _CampaignCard extends StatelessWidget {
   final int creatureCount;
   final VoidCallback onTap;
   final VoidCallback onExport;
+  final VoidCallback onDelete;
   const _CampaignCard({
     required this.campaign,
     required this.npcCount,
     required this.creatureCount,
     required this.onTap,
     required this.onExport,
+    required this.onDelete,
   });
 
   @override
@@ -649,6 +716,12 @@ class _CampaignCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 10),
+                      IconButton(
+                        tooltip: 'Eliminar campaña',
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        color: colors.error,
+                      ),
                       Tooltip(
                         message: 'Exportar campaña de Máster',
                         child: IconButton.filledTonal(
