@@ -27,7 +27,15 @@ class AvatarStorageService {
 
     final source = File(sourcePath);
 
+    if (!await source.exists()) {
+      throw FileSystemException('La imagen temporal ya no existe', sourcePath);
+    }
+
+    // Do not remove an existing avatar until its replacement is available.
     final existing = File(targetPath);
+    if (path.normalize(source.absolute.path) == path.normalize(existing.absolute.path)) {
+      return existing.path;
+    }
 
     if (await existing.exists()) {
       await existing.delete();
