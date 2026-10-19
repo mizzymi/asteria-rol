@@ -217,6 +217,35 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
             ),
       body: CustomScrollView(
         slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Clases',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${classes.length} clases personalizadas de la campaña',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: _newClass,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Añadir clase'),
+                  ),
+                ],
+              ),
+            ),
+          ),
           if (classes.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -247,36 +276,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                 ),
               ),
             )
-          else ...[
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Clases',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${classes.length} clases personalizadas de la campaña',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  FilledButton.icon(
-                    onPressed: _newClass,
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Añadir clase'),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
               sliver: SliverLayoutBuilder(
@@ -308,7 +308,6 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                 },
               ),
             ),
-          ],
         ],
       ),
     );
