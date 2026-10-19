@@ -98,6 +98,12 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
 
     for (final pending in result.pendingChoices) {
       if (!mounted) return;
+      final alreadySelected = character.classProgressionChoices.entries
+          .where((entry) => entry.key.startsWith('${pending.definition.classId}::'))
+          .map((entry) => entry.value).toSet();
+      final availableOptions = pending.reward.contents.where((option) =>
+          pending.reward.stackable || !alreadySelected.contains(option.contentId)).toList();
+      if (availableOptions.isEmpty) continue;
       final contentId = await showDialog<String>(
         context: context,
         builder: (dialogContext) {
@@ -107,18 +113,19 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                   ? 'Elección de nivel ${pending.reward.level}'
                   : pending.reward.name,
             ),
-            content: Column(
+            content: SingleChildScrollView(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '${pending.definition.name} · nivel ${pending.reward.level}',
+                  '${pending.definition.name} · nivel ${pending.reward.level} · elección ${pending.slot + 1}/${pending.reward.choiceCount}',
                   style: Theme.of(dialogContext).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
                 const Text('Escoge una recompensa:'),
                 const SizedBox(height: 8),
-                for (final option in pending.reward.contents)
+                for (final option in availableOptions)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -135,6 +142,7 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                     onTap: () => Navigator.pop(dialogContext, option.contentId),
                   ),
               ],
+              ),
             ),
             actions: [
               TextButton(
@@ -152,6 +160,7 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
         definition: pending.definition,
         reward: pending.reward,
         contentId: contentId,
+        slot: pending.slot,
       );
       await save();
     }
