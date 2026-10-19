@@ -286,17 +286,18 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     String? finalAvatarPath = widget.character?.avatarPath;
 
     if (pendingAvatarPath != null) {
-      try {
-        finalAvatarPath = await AvatarStorageService.saveAvatar(
-          characterId: id,
-          sourcePath: pendingAvatarPath!,
+      // The picker already stored the avatar permanently. Do not copy it
+      // again or silently discard its path during character creation.
+      if (await File(pendingAvatarPath!).exists()) {
+        finalAvatarPath = pendingAvatarPath;
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El avatar seleccionado ya no existe. Selecciona otra imagen.'),
+          ),
         );
-      } on FileSystemException {
-        // A missing image must not prevent creation of an NPC or character.
-        finalAvatarPath = widget.character?.avatarPath;
-        if (finalAvatarPath != null && !await File(finalAvatarPath).exists()) {
-          finalAvatarPath = null;
-        }
+        return;
       }
     }
 
