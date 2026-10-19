@@ -89,14 +89,14 @@ class CampaignImportExportService {
 
   static Future<void> shareCampaignPart(Campaign campaign, String part) async {
     final file = await createExportPart(campaign, part);
-    final subject = '${campaign.name} · $part';
+    // Some Android share targets use the subject as the saved filename.\n    // Include the real extension so exported parts remain recognizable.\n    final subject = file.uri.pathSegments.last;
     if (Platform.isAndroid) {
       const channel = MethodChannel('asteria_rol/export_share');
       try {
         await channel.invokeMethod<void>('shareFile', <String, String>{
           'path': file.path,
           'subject': subject,
-          'text': 'Parte $part de una campaña de Asteria Rol.',
+          'text': 'Archivo $subject · Parte $part de una campaña de Asteria Rol.',
         });
       } on MissingPluginException {
         // Un hot reload no incorpora cambios en MainActivity.kt.
