@@ -217,6 +217,37 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
             ),
       body: CustomScrollView(
         slivers: [
+          if (classes.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.school_rounded, size: 44,
+                        color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(height: 12),
+                      Text('Aún no hay clases',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 8),
+                      const Text('Prepara clases personalizadas y progresiones para la campaña.',
+                        textAlign: TextAlign.center),
+                      const SizedBox(height: 14),
+                      FilledButton.icon(
+                        onPressed: _newClass,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Nueva clase'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else ...[
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
@@ -246,35 +277,6 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
               ),
             ),
           ),
-          if (classes.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.school_outlined, size: 64),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Todavía no hay clases personalizadas',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Crea una clase con progresión por nivel o importa una compartida.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
               sliver: SliverLayoutBuilder(
@@ -306,6 +308,7 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                 },
               ),
             ),
+          ],
         ],
       ),
     );
