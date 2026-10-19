@@ -89,9 +89,7 @@ class CampaignImportExportService {
 
   static Future<void> shareCampaignPart(Campaign campaign, String part) async {
     final file = await createExportPart(campaign, part);
-    // Preserve the actual filename and extension for share targets.
-    final subject = file.uri.pathSegments.last;
-    // Include the real extension so exported parts remain recognizable.
+    // Include the actual filename and extension for share targets.
     final subject = file.uri.pathSegments.last;
     if (Platform.isAndroid) {
       const channel = MethodChannel('asteria_rol/export_share');
