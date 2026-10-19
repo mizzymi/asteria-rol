@@ -7,6 +7,7 @@ import '../models/character.dart';
 import '../models/character_class_level.dart';
 import '../models/custom_class_definition.dart';
 import '../models/dnd_class.dart';
+import '../widgets/passives/passive_card.dart';
 import '../services/character_storage_service.dart';
 import '../services/class_progression_service.dart';
 import '../services/custom_class_storage_service.dart';
@@ -87,6 +88,112 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
     }
   }
 
+  Future<bool> _previewProgressionContent(
+    ClassProgressionContent option,
+  ) async {
+    final passive = option.instantiatePassive(
+      classId: '',
+      rewardId: '',
+    );
+    final ability = option.instantiateAbility(
+      classId: '',
+      rewardId: '',
+    );
+    return await showDialog<bool>(
+          context: context,
+          builder: (previewContext) => Dialog(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560, maxHeight: 700),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(passive != null
+                            ? Icons.shield_outlined
+                            : Icons.auto_awesome_rounded),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(option.name,
+                              style: Theme.of(previewContext).textTheme.titleLarge),
+                        ),
+                        IconButton(
+                          tooltip: 'Cerrar vista previa',
+                          onPressed: () => Navigator.pop(previewContext, false),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: passive != null
+                            ? PassiveCard(
+                                passive: passive,
+                                character: character,
+                                initialExpanded: true,
+                                showPassiveBadge: true,
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (ability != null) ...[
+                                    Text(ability.description.isEmpty
+                                        ? 'Sin descripción.'
+                                        : ability.description),
+                                    const SizedBox(height: 12),
+                                    Text('Tipo: ${ability.actionType.label}'),
+                                    Text('Atributo: ${ability.abilityType.label}'),
+                                    Text('Objetivo: ${ability.targetType.label}'),
+                                    Text('Efectos: ${ability.effects.length}'),
+                                    if (ability.notes.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      Text('Notas: ${ability.notes}'),
+                                    ],
+                                    for (final effect in ability.effects)
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: Text(effect.name.isEmpty
+                                            ? effect.effectType.label
+                                            : effect.name),
+                                        subtitle: Text(effect.effectType.label),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(previewContext, false),
+                            child: const Text('Volver'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.pop(previewContext, true),
+                            icon: const Icon(Icons.check_rounded),
+                            label: const Text('Elegir'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _reconcileProgression() async {
     final definitions = customClasses;
     _syncCustomClassSnapshots(definitions);
@@ -139,7 +246,13 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                           ? 'Habilidad activa'
                           : 'Pasiva',
                     ),
-                    onTap: () => Navigator.pop(dialogContext, option.contentId),
+                    trailing: const Icon(Icons.visibility_outlined),
+                    onTap: () async {
+                      final confirmed = await _previewProgressionContent(option);
+                      if (confirmed && dialogContext.mounted) {
+                        Navigator.pop(dialogContext, option.contentId);
+                      }
+                    },
                   ),
               ],
               ),
