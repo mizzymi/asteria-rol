@@ -141,6 +141,40 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     }
   }
 
+  Future<void> _deleteNpc(Character npc) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar NPC'),
+        content: Text('¿Eliminar definitivamente a “${npc.name}”? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await CharacterStorageService.deleteCharacter(npc.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('NPC “${npc.name}” eliminado.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar el NPC: $error')),
+      );
+    }
+  }
+
   Future<void> _newCreature() async {
     final pet = await Navigator.push<Pet>(
       context,
@@ -561,7 +595,7 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
             childAspectRatio: .78,
           ),
           itemBuilder: (_, i) =>
-              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i]), onExport: () => _exportNpc(npcs[i])),
+              _NpcCard(character: npcs[i], onTap: () => _openNpc(npcs[i]), onExport: () => _exportNpc(npcs[i]), onDelete: () => _deleteNpc(npcs[i])),
         );
       },
     ),
@@ -888,7 +922,8 @@ class _NpcCard extends StatelessWidget {
   final Character character;
   final VoidCallback onTap;
   final VoidCallback onExport;
-  const _NpcCard({required this.character, required this.onTap, required this.onExport});
+  final VoidCallback onDelete;
+  const _NpcCard({required this.character, required this.onTap, required this.onExport, required this.onDelete});
   @override
   Widget build(BuildContext context) {
     final has =
@@ -910,10 +945,17 @@ class _NpcCard extends StatelessWidget {
           child: Material(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
-            child: IconButton(
-              tooltip: 'Exportar NPC',
-              icon: const Icon(Icons.ios_share_rounded),
-              onPressed: onExport,
+            child: PopupMenuButton<String>(
+              tooltip: 'Opciones del NPC',
+              icon: const Icon(Icons.more_vert_rounded),
+              onSelected: (value) {
+                if (value == 'export') onExport();
+                if (value == 'delete') onDelete();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'export', child: ListTile(leading: Icon(Icons.ios_share_rounded), title: Text('Exportar NPC'))),
+                PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline_rounded), title: Text('Eliminar NPC'))),
+              ],
             ),
           ),
         ),
