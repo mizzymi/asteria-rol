@@ -296,8 +296,9 @@ class _CustomClassFormScreenState extends State<CustomClassFormScreen> {
                       choiceCount < 1 ||
                       (mode == ClassProgressionRewardMode.choice &&
                           !stackable &&
-                          choiceCount > selected.length))
+                          choiceCount > selected.length)) {
                     return;
+                  }
                   final contents = available.where((content) {
                     final key = '${content.type.name}:${content.contentId}';
                     return selected.contains(key);
