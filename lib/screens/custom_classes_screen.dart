@@ -329,20 +329,28 @@ class _ClassVisualCard extends StatelessWidget {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [colors.primaryContainer, colors.tertiaryContainer],
+                        colors: [
+                          colors.primaryContainer,
+                          colors.tertiaryContainer,
+                        ],
                       ),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.school_rounded, size: 52, color: colors.primary),
+                        Icon(
+                          Icons.school_rounded,
+                          size: 52,
+                          color: colors.primary,
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           'd${definition.hitDie}',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: colors.onPrimaryContainer,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: colors.onPrimaryContainer,
+                              ),
                         ),
                       ],
                     ),
@@ -362,9 +370,18 @@ class _ClassVisualCard extends StatelessWidget {
                           if (value == 'delete') onDelete();
                         },
                         itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'edit', child: Text('Editar clase')),
-                          PopupMenuItem(value: 'export', child: Text('Exportar clase')),
-                          PopupMenuItem(value: 'delete', child: Text('Eliminar clase')),
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Editar clase'),
+                          ),
+                          PopupMenuItem(
+                            value: 'export',
+                            child: Text('Exportar clase'),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Eliminar clase'),
+                          ),
                         ],
                       ),
                     ),
@@ -388,7 +405,10 @@ class _ClassVisualCard extends StatelessWidget {
                     'Versión ${definition.version} · ${definition.rewards.length} recompensas',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
