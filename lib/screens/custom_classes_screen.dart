@@ -280,21 +280,22 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
               sliver: SliverLayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.crossAxisExtent;
-                  final columns = width >= 800 ? 4 : width >= 540 ? 3 : 2;
+                  final columns = width >= 800
+                      ? 4
+                      : width >= 540
+                      ? 3
+                      : 2;
                   return SliverGrid(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final definition = classes[index];
-                        return _ClassVisualCard(
-                          definition: definition,
-                          onTap: () => _edit(definition),
-                          onEdit: () => _edit(definition),
-                          onExport: () => _export(definition),
-                          onDelete: () => _delete(definition),
-                        );
-                      },
-                      childCount: classes.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final definition = classes[index];
+                      return _ClassVisualCard(
+                        definition: definition,
+                        onTap: () => _edit(definition),
+                        onEdit: () => _edit(definition),
+                        onExport: () => _export(definition),
+                        onDelete: () => _delete(definition),
+                      );
+                    }, childCount: classes.length),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
                       crossAxisSpacing: 12,

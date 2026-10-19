@@ -97,7 +97,8 @@ class CampaignImportExportService {
         await channel.invokeMethod<void>('shareFile', <String, String>{
           'path': file.path,
           'subject': subject,
-          'text': 'Archivo $subject · Parte $part de una campaña de Asteria Rol.',
+          'text':
+              'Archivo $subject · Parte $part de una campaña de Asteria Rol.',
         });
       } on MissingPluginException {
         // Un hot reload no incorpora cambios en MainActivity.kt.
