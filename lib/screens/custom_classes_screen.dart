@@ -254,39 +254,47 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
               children: [
                 for (final definition in classes)
-                  Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text('d${definition.hitDie}'),
-                      ),
-                      title: Text(
-                        definition.name,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      subtitle: Text(
-                        'Versión ${definition.version} · ${definition.rewards.length} recompensas',
-                      ),
-                      isThreeLine: false,
-                      onTap: () => _edit(definition),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'edit') _edit(definition);
-                          if (value == 'export') _export(definition);
-                          if (value == 'delete') _delete(definition);
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'edit', child: Text('Editar')),
-                          PopupMenuItem(
-                            value: 'export',
-                            child: Text('Exportar'),
+                  Column(
+                    children: [
+                      Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            child: Text('d${definition.hitDie}'),
                           ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Eliminar'),
+                          title: Text(
+                            definition.name,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
-                        ],
+                          subtitle: Text(
+                            'Versión ${definition.version} · ${definition.rewards.length} recompensas',
+                          ),
+                          isThreeLine: false,
+                          onTap: () => _edit(definition),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'edit') _edit(definition);
+                              if (value == 'export') _export(definition);
+                              if (value == 'delete') _delete(definition);
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Editar'),
+                              ),
+                              PopupMenuItem(
+                                value: 'export',
+                                child: Text('Exportar'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Eliminar'),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height:8),
+                    ],
                   ),
               ],
             ),
