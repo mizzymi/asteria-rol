@@ -1,13 +1,17 @@
 import '../models/character.dart';
+import '../models/ability.dart';
+import '../models/passive.dart';
 import '../models/custom_class_definition.dart';
 
 class PendingClassProgressionChoice {
   final CustomClassDefinition definition;
   final ClassProgressionReward reward;
+  final int slot;
 
   const PendingClassProgressionChoice({
     required this.definition,
     required this.reward,
+    required this.slot,
   });
 }
 
@@ -71,12 +75,15 @@ class ClassProgressionService {
         if (character.appliedClassRewardIds.contains(key)) continue;
 
         if (reward.mode == ClassProgressionRewardMode.choice) {
-          pending.add(
-            PendingClassProgressionChoice(
+          for (var slot = 0; slot < reward.choiceCount; slot++) {
+            final slotKey = slot == 0 ? key : '$key::$slot';
+            if (character.classProgressionChoices.containsKey(slotKey)) continue;
+            pending.add(PendingClassProgressionChoice(
               definition: definition,
               reward: reward,
-            ),
-          );
+              slot: slot,
+            ));
+          }
           continue;
         }
 
@@ -99,8 +106,11 @@ class ClassProgressionService {
     required CustomClassDefinition definition,
     required ClassProgressionReward reward,
     required String contentId,
+    int slot = 0,
   }) {
     final key = rewardKey(definition.classId, reward.rewardId);
+    final slotKey = slot == 0 ? key : '$key::$slot';
+    if (slot < 0 || slot >= reward.choiceCount || character.classProgressionChoices.containsKey(slotKey)) return false;
     if (character.appliedClassRewardIds.contains(key)) return false;
 
     ClassProgressionContent? selected;
@@ -111,10 +121,15 @@ class ClassProgressionService {
       }
     }
     if (selected == null) return false;
+    if (!reward.stackable && character.classProgressionChoices.entries.any((entry) =>
+      entry.key.startsWith('${definition.classId}::') && entry.value == contentId)) return false;
 
-    _grantContent(character, definition, reward, selected);
-    character.classProgressionChoices[key] = contentId;
-    character.appliedClassRewardIds.add(key);
+    _grantContent(character, definition, reward, selected, slot: slot);
+    character.classProgressionChoices[slotKey] = contentId;
+    if (List.generate(reward.choiceCount, (index) => index == 0 ? key : '$key::$index')
+        .every(character.classProgressionChoices.containsKey)) {
+      character.appliedClassRewardIds.add(key);
+    }
     return true;
   }
 
@@ -122,13 +137,20 @@ class ClassProgressionService {
     Character character,
     CustomClassDefinition definition,
     ClassProgressionReward reward,
-    ClassProgressionContent content,
-  ) {
+    ClassProgressionContent content, {
+    int slot = 0,
+  }) {
     final ability = content.instantiateAbility(
       classId: definition.classId,
       rewardId: reward.rewardId,
     );
     if (ability != null) {
+      if (reward.stackable) {
+        final copy = ability.toMap();
+        copy['id'] = '${ability.id}::${reward.rewardId}::$slot';
+        character.characterAbilities.add(CharacterAbility.fromMap(copy));
+        return;
+      }
       if (!character.characterAbilities.any((item) => item.id == ability.id)) {
         character.characterAbilities.add(ability);
       }
@@ -139,9 +161,14 @@ class ClassProgressionService {
       classId: definition.classId,
       rewardId: reward.rewardId,
     );
-    if (passive != null &&
-        !character.passives.any((item) => item.id == passive.id)) {
-      character.passives.add(passive);
+    if (passive != null) {
+      if (reward.stackable) {
+        final copy = passive.toMap();
+        copy['id'] = '${passive.id}::${reward.rewardId}::$slot';
+        character.passives.add(CharacterPassive.fromMap(copy));
+      } else if (!character.passives.any((item) => item.id == passive.id)) {
+        character.passives.add(passive);
+      }
     }
   }
 }
