@@ -2,6 +2,7 @@ import 'campaign_export_wizard_screen.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import '../services/character_import_export_service.dart';
+import '../services/creature_import_export_service.dart';
 import 'package:flutter/material.dart';
 import '../models/campaign.dart';
 import '../models/campaign_shop.dart';
@@ -190,6 +191,110 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
     );
     await CharacterStorageService.saveCharacter(host);
     _reload();
+  }
+
+  Future<void> _addCreature() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('Añadir criatura'),
+            subtitle: Text('Crear una criatura o importar una criatura o mascota.')),
+          ListTile(leading: const Icon(Icons.add_circle_outline),
+            title: const Text('Crear criatura'),
+            onTap: () => Navigator.pop(sheetContext, 'create')),
+          ListTile(leading: const Icon(Icons.file_download_outlined),
+            title: const Text('Importar criatura'),
+            subtitle: const Text('Archivo .asteria-creature'),
+            onTap: () => Navigator.pop(sheetContext, 'import')),
+          const SizedBox(height: 12),
+        ]),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'create') {
+      await _newCreature();
+    } else if (action == 'import') {
+      await _importCreature();
+    }
+  }
+
+  Future<void> _importCreature() async {
+    try {
+      final selection = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['asteria-creature', 'json'],
+      );
+      if (selection == null || selection.files.isEmpty) return;
+      final path = selection.files.single.path;
+      if (path == null) throw const FormatException('Archivo inaccesible.');
+      final pet = await CreatureImportExportService.importCreature(File(path));
+      final host = Character(
+        id: 'creature_${DateTime.now().microsecondsSinceEpoch}',
+        name: '[Criatura] ${pet.name}',
+        campaignId: campaign.id,
+        ownerType: 'creatureHost',
+        pets: [pet],
+      );
+      await CharacterStorageService.saveCharacter(host);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Criatura “${pet.name}” importada.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo importar la criatura: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportCreature(Pet pet, {required bool asPet}) async {
+    try {
+      await CreatureImportExportService.shareCreature(pet, asPet: asPet);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar la criatura: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteCreature(Character host, Pet pet) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar criatura'),
+        content: Text('¿Eliminar definitivamente “${pet.name}”?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      if (host.pets.length == 1 && host.ownerType == 'creatureHost') {
+        await CharacterStorageService.deleteCharacter(host.id);
+      } else {
+        host.pets.removeWhere((item) => item.id == pet.id);
+        await CharacterStorageService.saveCharacter(host);
+      }
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Criatura “${pet.name}” eliminada.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar la criatura: $error')),
+      );
+    }
   }
 
   Future<void> _newShop() async {
@@ -614,8 +719,8 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       emptyTitle: 'Aún no hay criaturas',
       emptySubtitle: 'Añade criaturas con sus ataques, habilidades y pasivas.',
       emptyIcon: Icons.pets_rounded,
-      onAdd: _newCreature,
-      addLabel: 'Nueva criatura',
+      onAdd: _addCreature,
+      addLabel: 'Añadir criatura',
       isEmpty: entries.isEmpty,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -638,6 +743,9 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
               host: entries[i].host,
               pet: entries[i].pet,
               onTap: () => _openCreature(entries[i].host, entries[i].pet),
+              onExportMaster: () => _exportCreature(entries[i].pet, asPet: false),
+              onExportPet: () => _exportCreature(entries[i].pet, asPet: true),
+              onDelete: () => _deleteCreature(entries[i].host, entries[i].pet),
             ),
           );
         },
@@ -968,22 +1076,45 @@ class _CreatureCard extends StatelessWidget {
   final Character host;
   final Pet pet;
   final VoidCallback onTap;
+  final VoidCallback onExportMaster;
+  final VoidCallback onExportPet;
+  final VoidCallback onDelete;
   const _CreatureCard({
     required this.host,
     required this.pet,
     required this.onTap,
+    required this.onExportMaster,
+    required this.onExportPet,
+    required this.onDelete,
   });
   @override
   Widget build(BuildContext context) {
     final has = pet.avatarPath.isNotEmpty && File(pet.avatarPath).existsSync();
-    return _ImageEntityCard(
+    return Stack(children: [Positioned.fill(child: _ImageEntityCard(
       imagePath: has ? pet.avatarPath : null,
       fallbackIcon: Icons.pets_rounded,
       title: pet.name,
       subtitle:
           '${pet.species}\n${pet.currentHealth}/${pet.maxHealth} PV · CA ${pet.armorClass}',
       onTap: onTap,
-    );
+    )), Positioned(top: 6, right: 6, child: Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(24),
+      child: PopupMenuButton<String>(
+        tooltip: 'Opciones de criatura',
+        icon: const Icon(Icons.more_vert_rounded),
+        onSelected: (value) {
+          if (value == 'master') onExportMaster();
+          if (value == 'pet') onExportPet();
+          if (value == 'delete') onDelete();
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'master', child: Text('Exportar como criatura del Máster')),
+          PopupMenuItem(value: 'pet', child: Text('Exportar como mascota')),
+          PopupMenuItem(value: 'delete', child: Text('Eliminar criatura')),
+        ],
+      ),
+    ))]);
   }
 }
 
