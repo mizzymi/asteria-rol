@@ -82,6 +82,7 @@ class _MasterScreenState extends State<MasterScreen> {
       ),
     );
     if (part == null) return;
+    if (!mounted) return;
     if (part == 'all') {
       await Navigator.push<void>(
         context,
