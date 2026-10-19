@@ -89,7 +89,8 @@ class CampaignImportExportService {
 
   static Future<void> shareCampaignPart(Campaign campaign, String part) async {
     final file = await createExportPart(campaign, part);
-    // Some Android share targets use the subject as the saved filename.
+    // Preserve the actual filename and extension for share targets.
+    final subject = file.uri.pathSegments.last;
     // Include the real extension so exported parts remain recognizable.
     final subject = file.uri.pathSegments.last;
     if (Platform.isAndroid) {
