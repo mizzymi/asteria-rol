@@ -154,8 +154,9 @@ class CampaignImportExportService {
     try {
       await handle.setPosition(_binaryMagic.length);
       final lengthBytes = await handle.read(4);
-      if (lengthBytes.length != 4)
+      if (lengthBytes.length != 4) {
         throw const FormatException('Cabecera incompleta');
+      }
       final size =
           (lengthBytes[0] << 24) |
           (lengthBytes[1] << 16) |
@@ -165,8 +166,9 @@ class CampaignImportExportService {
         throw const FormatException('Cabecera inválida');
       }
       final headerBytes = await handle.read(size);
-      if (headerBytes.length != size)
+      if (headerBytes.length != size) {
         throw const FormatException('Cabecera incompleta');
+      }
       final header = jsonDecode(utf8.decode(headerBytes));
       return header is Map ? header['part']?.toString() : null;
     } finally {
