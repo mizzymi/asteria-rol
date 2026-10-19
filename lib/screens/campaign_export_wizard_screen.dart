@@ -8,10 +8,12 @@ class CampaignExportWizardScreen extends StatefulWidget {
   const CampaignExportWizardScreen({super.key, required this.campaign});
 
   @override
-  State<CampaignExportWizardScreen> createState() => _CampaignExportWizardScreenState();
+  State<CampaignExportWizardScreen> createState() =>
+      _CampaignExportWizardScreenState();
 }
 
-class _CampaignExportWizardScreenState extends State<CampaignExportWizardScreen> {
+class _CampaignExportWizardScreenState
+    extends State<CampaignExportWizardScreen> {
   static const sections = <(String, String, IconData)>[
     ('base', 'Datos de campaña', Icons.auto_stories_rounded),
     ('shops', 'Tiendas', Icons.storefront_rounded),
@@ -29,17 +31,29 @@ class _CampaignExportWizardScreenState extends State<CampaignExportWizardScreen>
 
   Future<void> _shareCurrent() async {
     if (busy) return;
-    setState(() { busy = true; errorMessage = null; });
+    setState(() {
+      busy = true;
+      errorMessage = null;
+    });
     try {
       await CampaignImportExportService.shareCampaignPart(
-        widget.campaign, sections[index].$1);
+        widget.campaign,
+        sections[index].$1,
+      );
       if (!mounted) return;
-      setState(() { shared = true; });
+      setState(() {
+        shared = true;
+      });
     } catch (error) {
       if (!mounted) return;
-      setState(() { errorMessage = error.toString(); });
+      setState(() {
+        errorMessage = error.toString();
+      });
     } finally {
-      if (mounted) setState(() { busy = false; });
+      if (mounted)
+        setState(() {
+          busy = false;
+        });
     }
   }
 
@@ -49,7 +63,9 @@ class _CampaignExportWizardScreenState extends State<CampaignExportWizardScreen>
     setState(() => busy = true);
     try {
       await CampaignImportExportService.deleteExportPart(
-        widget.campaign, sections[index].$1);
+        widget.campaign,
+        sections[index].$1,
+      );
       if (!mounted) return;
       setState(() {
         index++;
@@ -76,21 +92,33 @@ class _CampaignExportWizardScreenState extends State<CampaignExportWizardScreen>
           children: [
             LinearProgressIndicator(value: index / sections.length),
             const SizedBox(height: 20),
-            Text(completed ? 'Exportación finalizada'
-                : 'Sección ${index + 1} de ${sections.length}',
-                style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              completed
+                  ? 'Exportación finalizada'
+                  : 'Sección ${index + 1} de ${sections.length}',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 12),
-            Text(completed
-                ? 'Se han compartido todas las secciones. Impórtalas en la misma campaña.'
-                : 'Se crea un solo archivo cada vez. Tras guardarlo o enviarlo, confirma para liberar espacio y continuar.'),
+            Text(
+              completed
+                  ? 'Se han compartido todas las secciones. Impórtalas en la misma campaña.'
+                  : 'Se crea un solo archivo cada vez. Tras guardarlo o enviarlo, confirma para liberar espacio y continuar.',
+            ),
             const SizedBox(height: 24),
             if (!completed)
               Card(
                 child: ListTile(
-                  leading: Icon(sections[index].$3, color: scheme.primary, size: 32),
+                  leading: Icon(
+                    sections[index].$3,
+                    color: scheme.primary,
+                    size: 32,
+                  ),
                   title: Text(sections[index].$2),
-                  subtitle: Text(shared ? 'Archivo preparado. Confirma que lo has guardado.'
-                      : 'Pendiente de exportar'),
+                  subtitle: Text(
+                    shared
+                        ? 'Archivo preparado. Confirma que lo has guardado.'
+                        : 'Pendiente de exportar',
+                  ),
                 ),
               ),
             const SizedBox(height: 20),
@@ -98,14 +126,25 @@ class _CampaignExportWizardScreenState extends State<CampaignExportWizardScreen>
               Text(errorMessage!, style: TextStyle(color: scheme.error)),
             const Spacer(),
             if (completed)
-              FilledButton(onPressed: () => Navigator.pop(context),
-                child: const Text('Terminar'))
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Terminar'),
+              )
             else ...[
               FilledButton.icon(
                 onPressed: busy ? null : (shared ? _next : _shareCurrent),
-                icon: Icon(shared ? Icons.arrow_forward_rounded : Icons.ios_share_rounded),
-                label: Text(busy ? 'Preparando...' :
-                    shared ? 'Ya lo he guardado · Siguiente' : 'Compartir sección'),
+                icon: Icon(
+                  shared
+                      ? Icons.arrow_forward_rounded
+                      : Icons.ios_share_rounded,
+                ),
+                label: Text(
+                  busy
+                      ? 'Preparando...'
+                      : shared
+                      ? 'Ya lo he guardado · Siguiente'
+                      : 'Compartir sección',
+                ),
               ),
               const SizedBox(height: 10),
               TextButton(

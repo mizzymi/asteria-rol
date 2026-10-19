@@ -62,12 +62,16 @@ class _MasterScreenState extends State<MasterScreen> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            const ListTile(title: Text('Exportar por partes'),
-              subtitle: Text('Comparte cada sección individualmente.')),
+            const ListTile(
+              title: Text('Exportar por partes'),
+              subtitle: Text('Comparte cada sección individualmente.'),
+            ),
             ListTile(
               leading: const Icon(Icons.archive_outlined),
               title: const Text('Exportar todo'),
-              subtitle: const Text('Por secciones, sin generar un archivo gigante'),
+              subtitle: const Text(
+                'Por secciones, sin generar un archivo gigante',
+              ),
               onTap: () => Navigator.pop(sheetContext, 'all'),
             ),
             const Divider(),
@@ -82,10 +86,13 @@ class _MasterScreenState extends State<MasterScreen> {
       ),
     );
     if (part == null) return;
+    if (!mounted) return;
     if (part == 'all') {
       await Navigator.push<void>(
         context,
-        MaterialPageRoute(builder: (_) => CampaignExportWizardScreen(campaign: campaign)),
+        MaterialPageRoute(
+          builder: (_) => CampaignExportWizardScreen(campaign: campaign),
+        ),
       );
       return;
     }
@@ -153,7 +160,15 @@ class _MasterScreenState extends State<MasterScreen> {
 
       // Los paquetes parciales actualizan una sola categoría sin borrar las demás.
       if (part != null) {
-        const supported = <String>{'base', 'shops', 'missions', 'npcs', 'creatures', 'players', 'classes'};
+        const supported = <String>{
+          'base',
+          'shops',
+          'missions',
+          'npcs',
+          'creatures',
+          'players',
+          'classes',
+        };
         if (!supported.contains(part)) {
           throw FormatException('Sección de campaña no compatible: $part');
         }

@@ -7,6 +7,7 @@ import '../models/character.dart';
 import '../models/character_class_level.dart';
 import '../models/custom_class_definition.dart';
 import '../models/dnd_class.dart';
+import '../widgets/passives/passive_card.dart';
 import '../services/character_storage_service.dart';
 import '../services/class_progression_service.dart';
 import '../services/custom_class_storage_service.dart';
@@ -87,6 +88,122 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
     }
   }
 
+  Future<bool> _previewProgressionContent(
+    ClassProgressionContent option,
+  ) async {
+    final passive = option.instantiatePassive(classId: '', rewardId: '');
+    final ability = option.instantiateAbility(classId: '', rewardId: '');
+    return await showDialog<bool>(
+          context: context,
+          builder: (previewContext) => Dialog(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560, maxHeight: 700),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          passive != null
+                              ? Icons.shield_outlined
+                              : Icons.auto_awesome_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            option.name,
+                            style: Theme.of(
+                              previewContext,
+                            ).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Cerrar vista previa',
+                          onPressed: () => Navigator.pop(previewContext, false),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: passive != null
+                            ? PassiveCard(
+                                passive: passive,
+                                character: character,
+                                initialExpanded: true,
+                                showPassiveBadge: true,
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (ability != null) ...[
+                                    Text(
+                                      ability.description.isEmpty
+                                          ? 'Sin descripción.'
+                                          : ability.description,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text('Tipo: ${ability.actionType.name}'),
+                                    Text(
+                                      'Atributo: ${ability.abilityType.name}',
+                                    ),
+                                    Text(
+                                      'Objetivo: ${ability.targetType.name}',
+                                    ),
+                                    Text('Efectos: ${ability.effects.length}'),
+                                    if (ability.notes.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      Text('Notas: ${ability.notes}'),
+                                    ],
+                                    for (final effect in ability.effects)
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: Text(
+                                          effect.name.isEmpty
+                                              ? effect.effectType.name
+                                              : effect.name,
+                                        ),
+                                        subtitle: Text(effect.effectType.name),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                Navigator.pop(previewContext, false),
+                            child: const Text('Volver'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                Navigator.pop(previewContext, true),
+                            icon: const Icon(Icons.check_rounded),
+                            label: const Text('Elegir'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _reconcileProgression() async {
     final definitions = customClasses;
     _syncCustomClassSnapshots(definitions);
@@ -98,6 +215,20 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
 
     for (final pending in result.pendingChoices) {
       if (!mounted) return;
+      final alreadySelected = character.classProgressionChoices.entries
+          .where(
+            (entry) => entry.key.startsWith('${pending.definition.classId}::'),
+          )
+          .map((entry) => entry.value)
+          .toSet();
+      final availableOptions = pending.reward.contents
+          .where(
+            (option) =>
+                pending.reward.stackable ||
+                !alreadySelected.contains(option.contentId),
+          )
+          .toList();
+      if (availableOptions.isEmpty) continue;
       final contentId = await showDialog<String>(
         context: context,
         builder: (dialogContext) {
@@ -107,34 +238,44 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
                   ? 'Elección de nivel ${pending.reward.level}'
                   : pending.reward.name,
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  '${pending.definition.name} · nivel ${pending.reward.level}',
-                  style: Theme.of(dialogContext).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                const Text('Escoge una recompensa:'),
-                const SizedBox(height: 8),
-                for (final option in pending.reward.contents)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      option.type == ClassProgressionContentType.ability
-                          ? Icons.auto_awesome_rounded
-                          : Icons.shield_outlined,
-                    ),
-                    title: Text(option.name),
-                    subtitle: Text(
-                      option.type == ClassProgressionContentType.ability
-                          ? 'Habilidad activa'
-                          : 'Pasiva',
-                    ),
-                    onTap: () => Navigator.pop(dialogContext, option.contentId),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${pending.definition.name} · nivel ${pending.reward.level} · elección ${pending.slot + 1}/${pending.reward.choiceCount}',
+                    style: Theme.of(dialogContext).textTheme.bodySmall,
                   ),
-              ],
+                  const SizedBox(height: 12),
+                  const Text('Escoge una recompensa:'),
+                  const SizedBox(height: 8),
+                  for (final option in availableOptions)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        option.type == ClassProgressionContentType.ability
+                            ? Icons.auto_awesome_rounded
+                            : Icons.shield_outlined,
+                      ),
+                      title: Text(option.name),
+                      subtitle: Text(
+                        option.type == ClassProgressionContentType.ability
+                            ? 'Habilidad activa'
+                            : 'Pasiva',
+                      ),
+                      trailing: const Icon(Icons.visibility_outlined),
+                      onTap: () async {
+                        final confirmed = await _previewProgressionContent(
+                          option,
+                        );
+                        if (confirmed && dialogContext.mounted) {
+                          Navigator.pop(dialogContext, option.contentId);
+                        }
+                      },
+                    ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -152,6 +293,7 @@ class _ClassEditorScreenState extends State<ClassEditorScreen> {
         definition: pending.definition,
         reward: pending.reward,
         contentId: contentId,
+        slot: pending.slot,
       );
       await save();
     }

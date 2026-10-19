@@ -90,6 +90,8 @@ class ClassProgressionReward {
   final ClassProgressionRewardMode mode;
   final String name;
   final List<ClassProgressionContent> contents;
+  final int choiceCount;
+  final bool stackable;
 
   const ClassProgressionReward({
     required this.rewardId,
@@ -97,10 +99,15 @@ class ClassProgressionReward {
     required this.mode,
     required this.name,
     required this.contents,
+    this.choiceCount = 1,
+    this.stackable = false,
   });
 
   bool get isValid =>
-      rewardId.trim().isNotEmpty && level > 0 && contents.isNotEmpty;
+      rewardId.trim().isNotEmpty &&
+      level > 0 &&
+      contents.isNotEmpty &&
+      choiceCount > 0;
 
   Map<String, dynamic> toMap() => {
     'rewardId': rewardId,
@@ -108,6 +115,8 @@ class ClassProgressionReward {
     'mode': mode.name,
     'name': name,
     'contents': contents.map((item) => item.toMap()).toList(),
+    'choiceCount': choiceCount,
+    'stackable': stackable,
   };
 
   factory ClassProgressionReward.fromMap(Map<dynamic, dynamic> map) {
@@ -129,6 +138,8 @@ class ClassProgressionReward {
       ),
       name: map['name']?.toString() ?? '',
       contents: contents,
+      choiceCount: (map['choiceCount'] as num?)?.toInt() ?? 1,
+      stackable: map['stackable'] == true,
     );
   }
 }

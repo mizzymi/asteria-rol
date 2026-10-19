@@ -177,7 +177,9 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
           children: [
             const ListTile(
               title: Text('Exportar campaña por partes'),
-              subtitle: Text('Comparte un paquete cada vez. Impórtalos en la misma campaña y mantendrán sus IDs.'),
+              subtitle: Text(
+                'Comparte un paquete cada vez. Impórtalos en la misma campaña y mantendrán sus IDs.',
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.archive_outlined),
@@ -204,10 +206,13 @@ class _MasterCampaignScreenState extends State<MasterCampaignScreen> {
       ),
     );
     if (part == null) return;
+    if (!mounted) return;
     if (part == 'all') {
       await Navigator.push<void>(
         context,
-        MaterialPageRoute(builder: (_) => CampaignExportWizardScreen(campaign: campaign)),
+        MaterialPageRoute(
+          builder: (_) => CampaignExportWizardScreen(campaign: campaign),
+        ),
       );
       return;
     }
