@@ -251,58 +251,150 @@ class _CustomClassesScreenState extends State<CustomClassesScreen> {
                 ),
               ),
             )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
-              children: [
-                for (final definition in classes)
-                  Column(
-                    children: [
-                      Card(
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            child: Text('d${definition.hitDie}'),
-                          ),
-                          title: Text(
-                            definition.name,
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          subtitle: Text(
-                            'Versión ${definition.version} · ${definition.rewards.length} recompensas',
-                          ),
-                          isThreeLine: false,
-                          onTap: () => _edit(definition),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'edit') _edit(definition);
-                              if (value == 'export') _export(definition);
-                              if (value == 'delete') _delete(definition);
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Editar'),
-                              ),
-                              PopupMenuItem(
-                                value: 'export',
-                                child: Text('Exportar'),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Eliminar'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 800
+                    ? 4
+                    : constraints.maxWidth >= 540
+                    ? 3
+                    : 2;
+                return GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+                  itemCount: classes.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: .78,
                   ),
-              ],
+                  itemBuilder: (context, index) {
+                    final definition = classes[index];
+                    return _ClassVisualCard(
+                      definition: definition,
+                      onTap: () => _edit(definition),
+                      onEdit: () => _edit(definition),
+                      onExport: () => _export(definition),
+                      onDelete: () => _delete(definition),
+                    );
+                  },
+                );
+              },
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _newClass,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nueva clase'),
+      ),
+    );
+  }
+}
+
+class _ClassVisualCard extends StatelessWidget {
+  final CustomClassDefinition definition;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onExport;
+  final VoidCallback onDelete;
+
+  const _ClassVisualCard({
+    required this.definition,
+    required this.onTap,
+    required this.onEdit,
+    required this.onExport,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: .55)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [colors.primaryContainer, colors.tertiaryContainer],
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.school_rounded, size: 52, color: colors.primary),
+                        const SizedBox(height: 8),
+                        Text(
+                          'd${definition.hitDie}',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: colors.onPrimaryContainer,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Material(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(24),
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Opciones de clase',
+                        icon: const Icon(Icons.more_vert_rounded),
+                        onSelected: (value) {
+                          if (value == 'edit') onEdit();
+                          if (value == 'export') onExport();
+                          if (value == 'delete') onDelete();
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'edit', child: Text('Editar clase')),
+                          PopupMenuItem(value: 'export', child: Text('Exportar clase')),
+                          PopupMenuItem(value: 'delete', child: Text('Eliminar clase')),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(11),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    definition.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Versión ${definition.version} · ${definition.rewards.length} recompensas',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
