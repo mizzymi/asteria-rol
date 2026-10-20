@@ -254,34 +254,65 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
   Future<Set<String>?> _pickAbilities(Set<String> initial) async {
     final items = await AbilityLibraryService.loadAbilities();
     if (!mounted) return null;
-    var selected = Set<String>.from(initial);
+    final selected = Set<String>.from(initial);
     return showDialog<Set<String>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (dialogContext, setDialogState) => AlertDialog(
           title: const Text('Habilidades del círculo'),
           content: SizedBox(
             width: 520,
-            child: items.isEmpty
-                ? const Text('No hay habilidades guardadas en la biblioteca.')
-                : ListView(
-                    shrinkWrap: true,
-                    children: items
-                        .map(
-                          (a) => CheckboxListTile(
-                            value: selected.contains(a.id),
-                            title: Text(a.name),
-                            onChanged: (v) => setState(() {
-                              if (v == true) {
-                                selected.add(a.id);
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (items.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('No hay habilidades guardadas. Crea una para este círculo.'),
+                  ),
+                if (items.isNotEmpty)
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final ability in items)
+                          CheckboxListTile(
+                            value: selected.contains(ability.id),
+                            title: Text(ability.name),
+                            onChanged: (checked) => setDialogState(() {
+                              if (checked == true) {
+                                selected.add(ability.id);
                               } else {
-                                selected.remove(a.id);
+                                selected.remove(ability.id);
                               }
                             }),
                           ),
-                        )
-                        .toList(),
+                      ],
+                    ),
                   ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Crear habilidad'),
+                    onPressed: () async {
+                      final created = await Navigator.of(ctx).push<CharacterAbility>(
+                        MaterialPageRoute(
+                          builder: (_) => const AbilityFormScreen(),
+                        ),
+                      );
+                      if (created == null || !ctx.mounted) return;
+                      await AbilityLibraryService.saveAbility(created);
+                      if (!ctx.mounted) return;
+                      setDialogState(() {
+                        items.add(created);
+                        selected.add(created.id);
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
