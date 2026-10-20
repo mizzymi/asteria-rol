@@ -335,34 +335,65 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
   }) async {
     final items = await PassiveLibraryService.loadPassives();
     if (!mounted) return null;
-    var selected = Set<String>.from(initial);
+    final selected = Set<String>.from(initial);
     return showDialog<Set<String>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (dialogContext, setDialogState) => AlertDialog(
           title: Text(title),
           content: SizedBox(
             width: 520,
-            child: items.isEmpty
-                ? const Text('No hay pasivas guardadas en la biblioteca.')
-                : ListView(
-                    shrinkWrap: true,
-                    children: items
-                        .map(
-                          (p) => CheckboxListTile(
-                            value: selected.contains(p.id),
-                            title: Text(p.name),
-                            onChanged: (v) => setState(() {
-                              if (v == true) {
-                                selected.add(p.id);
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (items.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('No hay pasivas guardadas. Crea una para este círculo.'),
+                  ),
+                if (items.isNotEmpty)
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final passive in items)
+                          CheckboxListTile(
+                            value: selected.contains(passive.id),
+                            title: Text(passive.name),
+                            onChanged: (checked) => setDialogState(() {
+                              if (checked == true) {
+                                selected.add(passive.id);
                               } else {
-                                selected.remove(p.id);
+                                selected.remove(passive.id);
                               }
                             }),
                           ),
-                        )
-                        .toList(),
+                      ],
+                    ),
                   ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Crear pasiva'),
+                    onPressed: () async {
+                      final created = await Navigator.of(ctx).push<CharacterPassive>(
+                        MaterialPageRoute(
+                          builder: (_) => const PassiveFormScreen(),
+                        ),
+                      );
+                      if (created == null || !ctx.mounted) return;
+                      await PassiveLibraryService.savePassive(created);
+                      if (!ctx.mounted) return;
+                      setDialogState(() {
+                        items.add(created);
+                        selected.add(created.id);
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
