@@ -403,7 +403,7 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                     count: abilities.length,
                     onTap: () async {
                       final picked = await _pickAbilities(abilities);
-                      if (picked != null) {
+                      if (picked != null && ctx.mounted) {
                         setDialogState(() => abilities = picked);
                       }
                     },
@@ -417,7 +417,7 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                         passives,
                         title: 'Pasivas permanentes',
                       );
-                      if (picked != null) {
+                      if (picked != null && ctx.mounted) {
                         setDialogState(() => passives = picked);
                       }
                     },
@@ -431,7 +431,7 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
                         temporary,
                         title: 'Pasivas temporales',
                       );
-                      if (picked != null) {
+                      if (picked != null && ctx.mounted) {
                         setDialogState(() => temporary = picked);
                       }
                     },
@@ -476,10 +476,14 @@ class _KnowledgeFormScreenState extends State<KnowledgeFormScreen> {
       ),
     );
 
-    title.dispose();
-    dc.dispose();
-    description.dispose();
-    reward.dispose();
+    // A dialog route may still be reversing its exit transition when
+    // showDialog completes. Dispose controllers only after its widgets detach.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      title.dispose();
+      dc.dispose();
+      description.dispose();
+      reward.dispose();
+    });
     if (result == null || !mounted) {
       return;
     }
