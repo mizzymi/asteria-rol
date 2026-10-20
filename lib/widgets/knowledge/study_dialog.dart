@@ -153,22 +153,31 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                 ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 6),
-              DropdownButtonFormField<KnowledgeCheckOption>(
-                initialValue: selectedCheck,
+              DropdownButtonFormField<String>(
+                key: ValueKey('study_check_${selectedCheck.kind.name}_${selectedCheck.value}'),
+                initialValue: '${selectedCheck.kind.name}:${selectedCheck.value}',
                 decoration: InputDecoration(
                   labelText: 'Usar',
                   helperText: 'Modificador actual: $modifierText',
                 ),
-                items: widget.definition.effectiveCheckOptions
-                    .map(
-                      (option) => DropdownMenuItem(
-                        value: option,
-                        child: Text(option.label),
-                      ),
-                    )
-                    .toList(),
+                items: [
+                  for (final option in {
+                    for (final check in widget.definition.effectiveCheckOptions)
+                      '${check.kind.name}:${check.value}': check,
+                  }.entries)
+                    DropdownMenuItem<String>(
+                      value: option.key,
+                      child: Text(option.value.label),
+                    ),
+                ],
                 onChanged: (value) {
-                  if (value != null) setState(() => selectedCheck = value);
+                  if (value == null) return;
+                  for (final option in widget.definition.effectiveCheckOptions) {
+                    if ('${option.kind.name}:${option.value}' == value) {
+                      setState(() => selectedCheck = option);
+                      break;
+                    }
+                  }
                 },
               ),
               const SizedBox(height: 14),
