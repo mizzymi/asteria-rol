@@ -33,6 +33,7 @@ class _StudyDialogContent extends StatefulWidget {
 class _StudyDialogContentState extends State<_StudyDialogContent> {
   RestStudyType restType = RestStudyType.shortRest;
   ActionDiceMode diceMode = ActionDiceMode.physical;
+  bool _rolling = false;
 
   late KnowledgeCheckOption selectedCheck;
   final TextEditingController roll1Controller = TextEditingController();
@@ -200,8 +201,10 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                   ),
                 ],
                 selected: {diceMode},
-                onSelectionChanged: (value) =>
-                    setState(() => diceMode = value.first),
+                onSelectionChanged: (value) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  setState(() => diceMode = value.first);
+                },
               ),
               const SizedBox(height: 14),
               const Text(
@@ -224,7 +227,12 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                 onSelectionChanged: (value) =>
                     setState(() => restType = value.first),
               ),
-              if (diceMode == ActionDiceMode.physical) ...[
+              Visibility(
+                visible: diceMode == ActionDiceMode.physical,
+                maintainState: true,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: roll1Controller,
@@ -246,7 +254,9 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                     ),
                   ),
                 ],
-              ],
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -267,7 +277,10 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                 ? 'Registrar tirada'
                 : 'Tirar estudio',
           ),
-          onPressed: () async {
+          onPressed: _rolling ? null : () async {
+            FocusManager.instance.primaryFocus?.unfocus();
+            setState(() => _rolling = true);
+            try {
             final rolls = <int>[];
             if (diceMode == ActionDiceMode.physical) {
               final r1 = int.tryParse(roll1Controller.text.trim());
@@ -288,6 +301,13 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
 
             if (!context.mounted) return;
             Navigator.pop(context, result);
+            } catch (error) {
+              if (!mounted) return;
+              setState(() => _rolling = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('No se pudo realizar la tirada: $error')),
+              );
+            }
           },
         ),
       ],
