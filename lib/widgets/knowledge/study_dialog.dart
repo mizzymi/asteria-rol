@@ -76,6 +76,7 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
       content: SizedBox(
         width: 560,
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,7 +203,8 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                 ],
                 selected: {diceMode},
                 onSelectionChanged: (value) {
-                  FocusManager.instance.primaryFocus?.unfocus();
+                  if (value.isEmpty) return;
+                  FocusScope.of(context).unfocus();
                   setState(() => diceMode = value.first);
                 },
               ),
@@ -227,17 +229,12 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                 onSelectionChanged: (value) =>
                     setState(() => restType = value.first),
               ),
-              Visibility(
-                visible: diceMode == ActionDiceMode.physical,
-                maintainState: true,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+              if (diceMode == ActionDiceMode.physical) ...[
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: roll1Controller,
                   keyboardType: TextInputType.number,
-                  autofocus: true,
+                  autofocus: false,
                   decoration: const InputDecoration(
                     labelText: 'Tirada d20 (intento 1)',
                     prefixIcon: Icon(Icons.casino_outlined),
@@ -254,9 +251,7 @@ class _StudyDialogContentState extends State<_StudyDialogContent> {
                     ),
                   ),
                 ],
-                  ],
-                ),
-              ),
+              ],
             ],
           ),
         ),
